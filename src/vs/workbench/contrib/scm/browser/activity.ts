@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { basename, relativePath } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
@@ -14,6 +14,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -38,7 +40,8 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
@@ -56,11 +59,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private tryFocusRepositoryBasedOnActiveEditor(): boolean {
-		if (!this.editorService.activeEditor) {
-			return false;
-		}
-
-		const resource = this.editorService.activeEditor.resource;
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 
 		if (!resource) {
 			return false;
@@ -76,7 +75,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 				continue;
 			}
 
-			const path = relativePath(root, resource);
+			const path = this.uriIdentityService.extUri.relativePath(root, resource);
 
 			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
 				bestRepository = repository;

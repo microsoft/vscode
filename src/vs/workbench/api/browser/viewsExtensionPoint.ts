@@ -479,11 +479,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						return null;
 					}
 
-					if (type === ViewType.Webview && !extension.description.enableProposedApi) {
-						collector.error(localize('webviewViewsRequireProposed', "Webview views are proposed api and are only supported when running out of dev or with the following command line switch: --enable-proposed-api"));
-						return null;
-					}
-
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
@@ -493,7 +488,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
-						canMoveView: true,
+						canMoveView: viewContainer?.id !== REMOTE,
 						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,

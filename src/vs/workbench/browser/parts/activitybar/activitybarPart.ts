@@ -134,7 +134,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.migrateFromOldCachedViewContainersValue();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
-			if (environmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
+			if (environmentService.remoteAuthority // In remote window, hide activity bar entries until registered.
 				|| this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
 			) {
 				cachedViewContainer.visible = false;
@@ -544,7 +544,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			ariaLabel: nls.localize('home', "Home"),
 			actionViewItemProvider: action => new HomeActionViewItem(action),
 			allowContextMenu: true,
-			preventLoopNavigation: true
+			preventLoopNavigation: true,
+			ignoreOrientationForPreviousAndNextKey: true
 		}));
 
 		const homeBarIconBadge = document.createElement('div');
@@ -597,7 +598,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('manage', "Manage"),
 			animated: false,
-			preventLoopNavigation: true
+			preventLoopNavigation: true,
+			ignoreOrientationForPreviousAndNextKey: true
 		}));
 
 		this.globalActivityAction = new ActivityAction({

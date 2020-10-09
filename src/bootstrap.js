@@ -88,10 +88,13 @@
 
 	/**
 	 * @param {string} path
-	 * @param {boolean} isWindows
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
 	 * @returns {string}
 	 */
-	function fileUriFromPath(path, isWindows) {
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backlsash
+		// to slashes and we ensure that the path begins with a '/'.
 		let pathName = path.replace(/\\/g, '/');
 		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 			pathName = `/${pathName}`;
@@ -99,10 +102,17 @@
 
 		/** @type {string} */
 		let uri;
-		if (isWindows && pathName.startsWith('//')) { // specially handle Windows UNC paths
-			uri = encodeURI(`file:${pathName}`);
-		} else {
-			uri = encodeURI(`file://${pathName}`);
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		}
+
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
 		}
 
 		return uri.replace(/#/g, '%23');

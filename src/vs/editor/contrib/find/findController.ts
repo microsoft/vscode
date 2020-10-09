@@ -12,7 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution, MultiEditorAction, registerMultiEditorAction } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding, CONTEXT_REPLACE_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
+import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding, CONTEXT_REPLACE_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import { FindWidget, IFindController } from 'vs/editor/contrib/find/findWidget';
@@ -224,7 +224,9 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public togglePreserveCase(): void {
 		this._state.change({ preserveCase: !this._state.preserveCase }, false);
-		this.highlightFindOptions();
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
+		}
 	}
 
 	public toggleSearchScope(): void {
@@ -855,6 +857,20 @@ registerEditorCommand(new FindCommand({
 		mac: ToggleSearchScopeKeybinding.mac,
 		win: ToggleSearchScopeKeybinding.win,
 		linux: ToggleSearchScopeKeybinding.linux
+	}
+}));
+
+registerEditorCommand(new FindCommand({
+	id: FIND_IDS.TogglePreserveCaseCommand,
+	precondition: undefined,
+	handler: x => x.togglePreserveCase(),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib + 5,
+		kbExpr: EditorContextKeys.focus,
+		primary: TogglePreserveCaseKeybinding.primary,
+		mac: TogglePreserveCaseKeybinding.mac,
+		win: TogglePreserveCaseKeybinding.win,
+		linux: TogglePreserveCaseKeybinding.linux
 	}
 }));
 

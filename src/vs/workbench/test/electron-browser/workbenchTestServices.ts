@@ -40,7 +40,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { homedir } from 'os';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
@@ -54,7 +53,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	userEnv: {},
 	execPath: process.execPath,
 	perfEntries: [],
-	colorScheme: ColorScheme.DARK,
+	colorScheme: { dark: true, highContrast: false },
 	...parseArgs(process.argv, OPTIONS)
 };
 
@@ -187,6 +186,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
+	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }

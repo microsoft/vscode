@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var path = require('path');
-var cp = require('child_process');
-var fs = require('fs');
-var File = require('vinyl');
-var es = require('event-stream');
-var filter = require('gulp-filter');
+import * as path from 'path';
+import * as cp from 'child_process';
+import * as fs from 'fs';
+import * as File from 'vinyl';
+import * as es from 'event-stream';
+import * as filter from 'gulp-filter';
+import { Stream } from 'stream';
 
-var watcherPath = path.join(__dirname, 'watcher.exe');
+const watcherPath = path.join(__dirname, 'watcher.exe');
 
-function toChangeType(type) {
+function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
 	switch (type) {
 		case '0': return 'change';
 		case '1': return 'add';
@@ -20,33 +21,33 @@ function toChangeType(type) {
 	}
 }
 
-function watch(root) {
-	var result = es.through();
-	var child = cp.spawn(watcherPath, [root]);
+function watch(root: string): Stream {
+	const result = es.through();
+	let child: cp.ChildProcess | null = cp.spawn(watcherPath, [root]);
 
 	child.stdout.on('data', function (data) {
-		var lines = data.toString('utf8').split('\n');
-		for (var i = 0; i < lines.length; i++) {
-			var line = lines[i].trim();
+		const lines: string[] = data.toString('utf8').split('\n');
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i].trim();
 			if (line.length === 0) {
 				continue;
 			}
 
-			var changeType = line[0];
-			var changePath = line.substr(2);
+			const changeType = <'0' | '1' | '2'>line[0];
+			const changePath = line.substr(2);
 
 			// filter as early as possible
 			if (/^\.git/.test(changePath) || /(^|\\)out($|\\)/.test(changePath)) {
 				continue;
 			}
 
-			var changePathFull = path.join(root, changePath);
+			const changePathFull = path.join(root, changePath);
 
-			var file = new File({
+			const file = new File({
 				path: changePathFull,
 				base: root
 			});
-			file.event = toChangeType(changeType);
+			(<any>file).event = toChangeType(changeType);
 			result.emit('data', file);
 		}
 	});
@@ -62,44 +63,44 @@ function watch(root) {
 
 	process.once('SIGTERM', function () { process.exit(0); });
 	process.once('SIGTERM', function () { process.exit(0); });
-	process.once('exit', function () { child && child.kill(); });
+	process.once('exit', function () { if (child) { child.kill(); } });
 
 	return result;
 }
 
-var cache = Object.create(null);
+const cache: { [cwd: string]: Stream; } = Object.create(null);
 
-module.exports = function (pattern, options) {
+module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; }) {
 	options = options || {};
 
-	var cwd = path.normalize(options.cwd || process.cwd());
-	var watcher = cache[cwd];
+	const cwd = path.normalize(options.cwd || process.cwd());
+	let watcher = cache[cwd];
 
 	if (!watcher) {
 		watcher = cache[cwd] = watch(cwd);
 	}
 
-	var rebase = !options.base ? es.through() : es.mapSync(function (f) {
-		f.base = options.base;
+	const rebase = !options.base ? es.through() : es.mapSync(function (f: File) {
+		f.base = options!.base!;
 		return f;
 	});
 
 	return watcher
 		.pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
 		.pipe(filter(pattern))
-		.pipe(es.map(function (file, cb) {
+		.pipe(es.map(function (file: File, cb) {
 			fs.stat(file.path, function (err, stat) {
-				if (err && err.code === 'ENOENT') { return cb(null, file); }
+				if (err && err.code === 'ENOENT') { return cb(undefined, file); }
 				if (err) { return cb(); }
 				if (!stat.isFile()) { return cb(); }
 
 				fs.readFile(file.path, function (err, contents) {
-					if (err && err.code === 'ENOENT') { return cb(null, file); }
+					if (err && err.code === 'ENOENT') { return cb(undefined, file); }
 					if (err) { return cb(); }
 
 					file.contents = contents;
 					file.stat = stat;
-					cb(null, file);
+					cb(undefined, file);
 				});
 			});
 		}))

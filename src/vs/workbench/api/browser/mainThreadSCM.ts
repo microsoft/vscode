@@ -303,6 +303,10 @@ export class MainThreadSCM implements MainThreadSCMShape {
 			setTimeout(() => this._proxy.$setSelectedSourceControl(handle), 0);
 		}
 
+		if (repository.input.value) {
+			setTimeout(() => this._proxy.$onInputBoxValueChange(handle, repository.input.value), 0);
+		}
+
 		this._repositoryDisposables.set(handle, disposable);
 	}
 

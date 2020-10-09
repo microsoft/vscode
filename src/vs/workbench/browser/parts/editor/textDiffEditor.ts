@@ -30,6 +30,7 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { isEqual } from 'vs/base/common/resources';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -332,7 +333,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			return null; // model URI is needed to make sure we save the view state correctly
 		}
 
-		if (modelUri.toString() !== resource.toString()) {
+		if (!isEqual(modelUri, resource)) {
 			return null; // prevent saving view state for a model that is not the expected one
 		}
 

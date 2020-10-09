@@ -13,7 +13,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -41,7 +41,7 @@ export class SharedProcess implements ISharedProcess {
 			show: false,
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
-				preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 				nodeIntegration: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
@@ -60,8 +60,10 @@ export class SharedProcess implements ISharedProcess {
 			windowId: this.window.id
 		};
 
-		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-		this.window.loadURL(url);
+		const windowUrl = FileAccess
+			.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require)
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` });
+		this.window.loadURL(windowUrl.toString(true));
 
 		// Prevent the window from dying
 		const onClose = (e: ElectronEvent) => {

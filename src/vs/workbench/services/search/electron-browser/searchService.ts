@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -26,6 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { FileAccess } from 'vs/base/common/network';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -82,10 +82,7 @@ export class DiskSearch implements ISearchResultProvider {
 			}
 		}
 
-		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap-fork'),
-			opts);
-
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
 		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
 	}

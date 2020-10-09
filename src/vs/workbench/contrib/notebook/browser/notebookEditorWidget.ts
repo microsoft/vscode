@@ -428,18 +428,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _createBody(parent: HTMLElement): void {
 		this._body = document.createElement('div');
-		DOM.addClass(this._body, 'cell-list-container');
+		this._body.classList.add('cell-list-container');
 		this._createCellList();
 		DOM.append(parent, this._body);
 
 		this._overflowContainer = document.createElement('div');
-		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
-		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
 	}
 
 	private _createCellList(): void {
-		DOM.addClass(this._body, 'cell-list-container');
+		this._body.classList.add('cell-list-container');
 
 		this._dndController = this._register(new CellDragAndDropController(this, this._body));
 		const getScopedContextKeyService = (container?: HTMLElement) => this._list!.contextKeyService.createScoped(container);
@@ -704,6 +703,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							lineNumber: selection.startLineNumber,
 							column: selection.startColumn
 						});
+						await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
 					}
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
@@ -728,7 +728,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
-		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+		const provider = this.notebookService.getContributedNotebookProvider(textModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(textModel.viewType, textModel.uri, tokenSource.token);
 
 		if (tokenSource.token.isCancellationRequested) {
@@ -816,7 +816,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				|| kernelsFromSameExtension.find(kernel => kernel.id === cachedKernelId)
 				|| kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
-			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			if (this.activeKernel) {
+				await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			}
 
 			if (tokenSource.token.isCancellationRequested) {
 				return;
@@ -862,8 +864,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const notebookMetadata = this.viewModel!.metadata;
 		this._editorEditable?.set(!!notebookMetadata?.editable);
 		this._editorRunnable?.set(!!notebookMetadata?.runnable);
-		DOM.toggleClass(this._overlayContainer, 'notebook-editor-editable', !!notebookMetadata?.editable);
-		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!notebookMetadata?.editable);
+		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
+		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 
 		this._notebookExecuting?.set(notebookMetadata.runState === NotebookRunState.Running);
 	}
@@ -1771,15 +1773,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	toggleClassName(className: string) {
-		DOM.toggleClass(this._overlayContainer, className);
+		this._overlayContainer.classList.toggle(className);
 	}
 
 	addClassName(className: string) {
-		DOM.addClass(this._overlayContainer, className);
+		this._overlayContainer.classList.add(className);
 	}
 
 	removeClassName(className: string) {
-		DOM.removeClass(this._overlayContainer, className);
+		this._overlayContainer.classList.remove(className);
 	}
 
 

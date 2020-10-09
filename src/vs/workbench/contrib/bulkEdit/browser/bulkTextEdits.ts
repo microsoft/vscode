@@ -218,12 +218,12 @@ export class BulkTextEdits {
 			}
 			if (tasks.length === 1) {
 				// This edit touches a single model => keep things simple
-				for (const task of tasks) {
-					task.model.pushStackElement();
-					task.apply();
-					task.model.pushStackElement();
-					this._progress.report(undefined);
-				}
+				const task = tasks[0];
+				const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
+				this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup);
+				task.apply();
+				singleModelEditStackElement.close();
+				this._progress.report(undefined);
 			} else {
 				// prepare multi model undo element
 				const multiModelEditStackElement = new MultiModelEditStackElement(

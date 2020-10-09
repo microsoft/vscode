@@ -3,38 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import * as rimraf from 'rimraf';
+import * as es from 'event-stream';
+import * as rename from 'gulp-rename';
+import * as vfs from 'vinyl-fs';
+import * as ext from './extensions';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
+import { Stream } from 'stream';
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
 const mkdirp = require('mkdirp');
-const rimraf = require('rimraf');
-const es = require('event-stream');
-const rename = require('gulp-rename');
-const vfs = require('vinyl-fs');
-const ext = require('./extensions');
-const fancyLog = require('fancy-log');
-const ansiColors = require('ansi-colors');
 
-const root = path.dirname(path.dirname(__dirname));
-const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = productjson.builtInExtensions;
-const webBuiltInExtensions = productjson.webBuiltInExtensions;
-const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
-const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
-
-function log() {
-	if (ENABLE_LOGGING) {
-		fancyLog.apply(this, arguments);
+interface IExtensionDefinition {
+	name: string;
+	version: string;
+	repo: string;
+	metadata: {
+		id: string;
+		publisherId: {
+			publisherId: string;
+			publisherName: string;
+			displayName: string;
+			flags: string;
+		};
+		publisherDisplayName: string;
 	}
 }
 
-function getExtensionPath(extension) {
+const root = path.dirname(path.dirname(__dirname));
+const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions;
+const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions;
+const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
+
+function log(...messages: string[]): void {
+	if (ENABLE_LOGGING) {
+		fancyLog(...messages);
+	}
+}
+
+function getExtensionPath(extension: IExtensionDefinition): string {
 	return path.join(root, '.build', 'builtInExtensions', extension.name);
 }
 
-function isUpToDate(extension) {
+function isUpToDate(extension: IExtensionDefinition): boolean {
 	const packagePath = path.join(getExtensionPath(extension), 'package.json');
 
 	if (!fs.existsSync(packagePath)) {
@@ -51,7 +67,7 @@ function isUpToDate(extension) {
 	}
 }
 
-function syncMarketplaceExtension(extension) {
+function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
 	if (isUpToDate(extension)) {
 		log(ansiColors.blue('[marketplace]'), `${extension.name}@${extension.version}`, ansiColors.green('✔︎'));
 		return es.readArray([]);
@@ -65,7 +81,7 @@ function syncMarketplaceExtension(extension) {
 		.on('end', () => log(ansiColors.blue('[marketplace]'), extension.name, ansiColors.green('✔︎')));
 }
 
-function syncExtension(extension, controlState) {
+function syncExtension(extension: IExtensionDefinition, controlState: 'disabled' | 'marketplace'): Stream {
 	switch (controlState) {
 		case 'disabled':
 			log(ansiColors.blue('[disabled]'), ansiColors.gray(extension.name));
@@ -89,7 +105,11 @@ function syncExtension(extension, controlState) {
 	}
 }
 
-function readControlFile() {
+interface IControlFile {
+	[name: string]: 'disabled' | 'marketplace';
+}
+
+function readControlFile(): IControlFile {
 	try {
 		return JSON.parse(fs.readFileSync(controlFilePath, 'utf8'));
 	} catch (err) {
@@ -97,17 +117,17 @@ function readControlFile() {
 	}
 }
 
-function writeControlFile(control) {
+function writeControlFile(control: IControlFile): void {
 	mkdirp.sync(path.dirname(controlFilePath));
 	fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
 }
 
-exports.getBuiltInExtensions = function getBuiltInExtensions() {
+export function getBuiltInExtensions(): Promise<void> {
 	log('Syncronizing built-in extensions...');
 	log(`You can manage built-in extensions with the ${ansiColors.cyan('--builtin')} flag`);
 
 	const control = readControlFile();
-	const streams = [];
+	const streams: Stream[] = [];
 
 	for (const extension of [...builtInExtensions, ...webBuiltInExtensions]) {
 		let controlState = control[extension.name] || 'marketplace';
@@ -123,10 +143,10 @@ exports.getBuiltInExtensions = function getBuiltInExtensions() {
 			.on('error', reject)
 			.on('end', resolve);
 	});
-};
+}
 
 if (require.main === module) {
-	exports.getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
+	getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});

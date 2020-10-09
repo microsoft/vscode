@@ -436,11 +436,11 @@
 		// "tab.activeBackground": "",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
+		"tab.lastPinnedBorder": "#FDF6E3",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#DDD6C1",
 		"activityBar.foreground": "#584c27",
-		"activityBar.dropBackground": "#EEE8D5",
 		"activityBarBadge.background": "#B58900",
 		// "activityBarBadge.foreground": "",
 

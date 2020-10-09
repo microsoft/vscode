@@ -25,8 +25,12 @@ export class WebUserDataAutoSyncService extends UserDataAutoSyncService implemen
 	protected setEnablement(enabled: boolean) {
 		if (this.enabled !== enabled) {
 			this.enabled = enabled;
-			if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
-				this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+			if (this.workbenchEnvironmentService.options?.settingsSyncOptions) {
+				if (this.workbenchEnvironmentService.options.settingsSyncOptions?.enablementHandler) {
+					this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+				}
+			} else {
+				super.setEnablement(enabled);
 			}
 		}
 	}

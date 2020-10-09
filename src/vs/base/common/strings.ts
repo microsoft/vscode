@@ -13,20 +13,6 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	return str.trim().length === 0;
 }
 
-/**
- * @deprecated ES6: use `String.padStart`
- */
-export function pad(n: number, l: number, char: string = '0'): string {
-	const str = '' + n;
-	const r = [str];
-
-	for (let i = str.length; i < l; i++) {
-		r.push(char);
-	}
-
-	return r.reverse().join('');
-}
-
 const _formatRegexp = /{(\d+)}/g;
 
 /**
@@ -818,17 +804,6 @@ export function startsWithUTF8BOM(str: string): boolean {
 
 export function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
-}
-
-/**
- * @deprecated ES6
- */
-export function repeat(s: string, count: number): string {
-	let result = '';
-	for (let i = 0; i < count; i++) {
-		result += s;
-	}
-	return result;
 }
 
 /**

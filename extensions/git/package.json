@@ -1900,6 +1900,25 @@
         },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+        },
+        "git.timeline.date": {
+          "enum": [
+            "committed",
+            "authored"
+          ],
+          "enumDescriptions": [
+            "%config.date.committed%",
+            "%config.date.authored%"
+          ],
+          "default": "committed",
+          "description": "%config.timeline.date%",
+          "scope": "window"
+        },
+        "git.timeline.showAuthor": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.timeline.showAuthor%",
+          "scope": "window"
         }
       }
     },
@@ -1947,6 +1966,24 @@
           "light": "#8E8E90",
           "dark": "#8C8C8C",
           "highContrast": "#A7A8A9"
+        }
+      },
+      {
+        "id": "gitDecoration.stageModifiedResourceForeground",
+        "description": "%colors.stageModified%",
+        "defaults": {
+          "light": "#895503",
+          "dark": "#E2C08D",
+          "highContrast": "#E2C08D"
+        }
+      },
+      {
+        "id": "gitDecoration.stageDeletedResourceForeground",
+        "description": "%colors.stageDeleted%",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39"
         }
       },
       {
@@ -2065,27 +2102,32 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == empty"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == empty",
+        "group": "2_open@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder",
+        "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0",
+        "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount == 0",
+        "group": "2_open@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled && git.state == initialized"
+        "when": "config.git.enabled && git.state == initialized",
+        "group": "5_scm@1"
       }
     ]
   },

@@ -18,9 +18,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { FileAccess } from 'vs/base/common/network';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -195,7 +195,7 @@ export class IssueMainService implements ICommonIssueService {
 						title: localize('issueReporter', "Issue Reporter"),
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
-							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,
@@ -261,7 +261,7 @@ export class IssueMainService implements ICommonIssueService {
 						backgroundColor: data.styles.backgroundColor,
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
-							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,
@@ -294,7 +294,7 @@ export class IssueMainService implements ICommonIssueService {
 					};
 
 					this._processExplorerWindow.loadURL(
-						toLauchUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
+						toWindowUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
@@ -435,11 +435,11 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		};
 
-		return toLauchUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration);
+		return toWindowUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration);
 	}
 }
 
-function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
+function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): string {
 	const environment = parseArgs(process.argv, OPTIONS);
 	const config = Object.assign(environment, windowConfiguration);
 	for (const keyValue of Object.keys(config)) {
@@ -449,5 +449,8 @@ function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 		}
 	}
 
-	return `${require.toUrl(pathToHtml)}?config=${encodeURIComponent(JSON.stringify(config))}`;
+	return FileAccess
+		.asBrowserUri(modulePathToHtml, require)
+		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+		.toString(true);
 }

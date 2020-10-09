@@ -38,7 +38,7 @@ import { isWindows, OS } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
@@ -59,7 +59,7 @@ import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/in
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
 
 
@@ -86,8 +86,14 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
+
+	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
+	updateBackupPath(newPath: string | undefined): void { }
+
+	sessionId = this.configuration.sessionId;
+	machineId = this.configuration.machineId;
+	remoteAuthority = this.configuration.remoteAuthority;
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -99,6 +105,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	keyboardLayoutResource: URI = undefined!;
 	sync: 'on' | 'off' | undefined;
 	debugExtensionHost: IExtensionHostDebugParams = undefined!;
+	debugRenderer = false;
 	isExtensionDevelopment: boolean = false;
 	disableExtensions: boolean | string[] = [];
 	extensionDevelopmentLocationURI?: URI[] | undefined;
@@ -140,6 +147,8 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	sandbox = true;
 	verbose = false;
 	isBuilt = false;
+
+	get telemetryLogResource(): URI { return joinPath(this.userRoamingDataHome, 'telemetry.log'); }
 	disableTelemetry = false;
 }
 
@@ -443,6 +452,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	async flushTelemetry(): Promise<void> { }
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
+	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
 }
 
 //#endregion
@@ -765,13 +775,6 @@ class SimpleExtensionTipsService implements IExtensionTipsService {
 
 	onRecommendationChange = Event.None;
 
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string; }; } { return Object.create(null); }
-	getFileBasedRecommendations(): IExtensionRecommendation[] { return []; }
-	async getOtherRecommendations(): Promise<IExtensionRecommendation[]> { return []; }
-	async getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> { return []; }
-	getKeymapRecommendations(): IExtensionRecommendation[] { return []; }
-	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void { }
-	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } { return Object.create(null); }
 	async getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> { return []; }
 	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> { return []; }
 	async getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> { return []; }

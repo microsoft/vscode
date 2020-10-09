@@ -13,7 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
@@ -33,18 +33,13 @@ export function isInDOM(node: Node | null): boolean {
 }
 
 interface IDomClassList {
-	hasClass(node: HTMLElement | SVGElement, className: string): boolean;
 	addClass(node: HTMLElement | SVGElement, className: string): void;
 	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
-	removeClass(node: HTMLElement | SVGElement, className: string): void;
 	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
 	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
 const _classList: IDomClassList = new class implements IDomClassList {
-	hasClass(node: HTMLElement, className: string): boolean {
-		return Boolean(className) && node.classList && node.classList.contains(className);
-	}
 
 	addClasses(node: HTMLElement, ...classNames: string[]): void {
 		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
@@ -74,13 +69,9 @@ const _classList: IDomClassList = new class implements IDomClassList {
 };
 
 /** @deprecated ES6 - use classList*/
-export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
-/** @deprecated ES6 - use classList*/
 export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
 /** @deprecated ES6 - use classList*/
 export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
-/** @deprecated ES6 - use classList*/
-export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
 /** @deprecated ES6 - use classList*/
 export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
@@ -1219,16 +1210,6 @@ export function animate(fn: () => void): IDisposable {
 
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
-export function asDomUri(uri: URI): URI {
-	if (!uri) {
-		return uri;
-	}
-	if (Schemas.vscodeRemote === uri.scheme) {
-		return RemoteAuthorities.rewrite(uri);
-	}
-	return uri;
-}
-
 /**
  * returns url('...')
  */
@@ -1236,9 +1217,8 @@ export function asCSSUrl(uri: URI): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
-
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 

@@ -35,7 +35,7 @@ export interface IActionBarOptions {
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
-	readonly respectOrientationForPreviousAndNextKey?: boolean;
+	readonly ignoreOrientationForPreviousAndNextKey?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -64,8 +64,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidCancel = this._register(new Emitter<void>());
+	private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
 	readonly onDidCancel = this._onDidCancel.event;
+	private cancelHasListener = false;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
@@ -110,22 +111,22 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
-				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
-				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
-				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
-				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
@@ -138,7 +139,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				eventHandled = this.focusPrevious();
 			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
 				eventHandled = this.focusNext();
-			} else if (event.equals(KeyCode.Escape)) {
+			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered

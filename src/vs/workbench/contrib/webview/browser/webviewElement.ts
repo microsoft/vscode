@@ -139,7 +139,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+			const remoteAuthority = this.environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 			const extensionLocation = this.extension?.location;
 
@@ -190,7 +190,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private async localLocalhost(origin: string) {
-		const authority = this.environmentService.configuration.remoteAuthority;
+		const authority = this.environmentService.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
 		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 		return this._send('did-load-localhost', {

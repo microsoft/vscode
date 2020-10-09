@@ -62,7 +62,7 @@ export class NativeHostService extends Disposable implements IHostService {
 	}
 
 	private doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		if (!!this.environmentService.configuration.remoteAuthority) {
+		if (!!this.environmentService.remoteAuthority) {
 			toOpen.forEach(openable => openable.label = openable.label || this.getRecentLabel(openable));
 		}
 

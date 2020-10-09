@@ -81,6 +81,13 @@ export class GitHubServer {
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
+
+			const tokenScopes = await this.getScopes(token);
+			const scopesList = scopes.split(' ');
+			if (!scopesList.every(scope => tokenScopes.includes(scope))) {
+				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+			}
+
 			this.updateStatusBarItem(false);
 			return token;
 		} else {
@@ -121,6 +128,29 @@ export class GitHubServer {
 			// If it doesn't look like a URI, treat it as a token.
 			Logger.info('Treating input as token');
 			onDidManuallyProvideToken.fire(uriOrToken);
+		}
+	}
+
+	private async getScopes(token: string): Promise<string[]> {
+		try {
+			Logger.info('Getting token scopes...');
+			const result = await fetch('https://api.github.com', {
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (result.ok) {
+				const scopes = result.headers.get('X-OAuth-Scopes');
+				return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
+			} else {
+				Logger.error(`Getting scopes failed: ${result.statusText}`);
+				throw new Error(result.statusText);
+			}
+		} catch (ex) {
+			Logger.error(ex.message);
+			throw new Error(NETWORK_ERROR);
 		}
 	}
 

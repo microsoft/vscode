@@ -153,7 +153,6 @@ enum ColorScheme {
 	HIGH_CONTRAST = 'hc'
 }
 
-
 interface IInitialColorTheme {
 
 	/**
@@ -556,6 +555,9 @@ export {
 
 	// LogLevel
 	LogLevel,
+
+	// SettingsSync
+	ISettingsSyncOptions,
 
 	// Updates/Quality
 	IUpdateProvider,

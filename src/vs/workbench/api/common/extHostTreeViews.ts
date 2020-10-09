@@ -21,6 +21,7 @@ import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 type TreeItemHandle = string;
 
@@ -440,22 +441,42 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.roots;
 	}
 
-	private fetchChildrenNodes(parentElement?: T): Promise<TreeNode[]> {
+	private async fetchChildrenNodes(parentElement?: T): Promise<TreeNode[]> {
 		// clear children cache
 		this.clearChildren(parentElement);
 
-		const parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
-		return asPromise(() => this.dataProvider.getChildren(parentElement))
-			.then(elements => Promise.all(
-				coalesce(elements || [])
-					.map(element => asPromise(() => this.dataProvider.getTreeItem(element))
-						.then(extTreeItem => extTreeItem ? this.createAndRegisterTreeNode(element, extTreeItem, parentNode) : null))))
-			.then(coalesce);
+		const cts = new CancellationTokenSource(this._refreshCancellationSource.token);
+
+		try {
+			const parentNode = parentElement ? this.nodes.get(parentElement) : undefined;
+			const elements = await this.dataProvider.getChildren(parentElement);
+			if (cts.token.isCancellationRequested) {
+				return [];
+			}
+
+			const items = await Promise.all(coalesce(elements || []).map(async element => {
+				const item = await this.dataProvider.getTreeItem(element);
+				return item && !cts.token.isCancellationRequested ? this.createAndRegisterTreeNode(element, item, parentNode) : null;
+			}));
+			if (cts.token.isCancellationRequested) {
+				return [];
+			}
+
+			return coalesce(items);
+		} finally {
+			cts.dispose();
+		}
 	}
+
+	private _refreshCancellationSource = new CancellationTokenSource();
 
 	private refresh(elements: (T | Root)[]): Promise<void> {
 		const hasRoot = elements.some(element => !element);
 		if (hasRoot) {
+			// Cancel any pending children fetches
+			this._refreshCancellationSource.dispose(true);
+			this._refreshCancellationSource = new CancellationTokenSource();
+
 			this.clearAll(); // clear cache
 			return this.proxy.$refresh(this.viewId);
 		} else {
@@ -721,6 +742,8 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	dispose() {
+		this._refreshCancellationSource.dispose();
+
 		this.clearAll();
 	}
 }

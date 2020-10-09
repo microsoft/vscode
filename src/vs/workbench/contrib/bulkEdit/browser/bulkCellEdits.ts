@@ -29,7 +29,7 @@ export class ResourceNotebookCellEdit extends ResourceEdit {
 export class BulkCellEdits {
 
 	constructor(
-		undoRedoGroup: UndoRedoGroup,
+		private _undoRedoGroup: UndoRedoGroup,
 		private readonly _progress: IProgress<void>,
 		private readonly _edits: ResourceNotebookCellEdit[],
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -53,7 +53,7 @@ export class BulkCellEdits {
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
 			this._notebookService.transformEditsOutputs(ref.object.notebook, edits);
-			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, undefined, () => undefined);
+			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, undefined, () => undefined, this._undoRedoGroup);
 			ref.dispose();
 
 			this._progress.report(undefined);

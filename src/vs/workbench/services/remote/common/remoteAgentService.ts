@@ -11,6 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { PersistenConnectionEvent as PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 export const RemoteExtensionLogFileName = 'remoteagent';
 
@@ -34,6 +35,10 @@ export interface IRemoteAgentService {
 	 * Scan remote extensions.
 	 */
 	scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]>;
+	/**
+	 * Scan a single remote extension.
+	 */
+	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null>;
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
 	disableTelemetry(): Promise<void>;
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;

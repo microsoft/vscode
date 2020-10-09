@@ -14,7 +14,6 @@ import { areSameExtensions, ExtensionIdentifierWithVersion, groupByExtension, ge
 import { Limiter, Queue } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -23,6 +22,7 @@ import { extract, ExtractError } from 'vs/base/node/zip';
 import { isWindows } from 'vs/base/common/platform';
 import { flatten } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { FileAccess } from 'vs/base/common/network';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -336,7 +336,7 @@ export class ExtensionsScanner extends Disposable {
 	private _devSystemExtensionsPath: string | null = null;
 	private get devSystemExtensionsPath(): string {
 		if (!this._devSystemExtensionsPath) {
-			this._devSystemExtensionsPath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
+			this._devSystemExtensionsPath = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions'));
 		}
 		return this._devSystemExtensionsPath;
 	}

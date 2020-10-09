@@ -349,7 +349,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.from(pattern))
 			.filter(pattern => pattern !== undefined) as (string | IRelativePattern | INotebookExclusiveDocumentFilter)[];
 
-		if (!viewOptionsFilenamePattern) {
+		if (options?.viewOptions?.filenamePattern && !viewOptionsFilenamePattern) {
 			console.warn(`Notebook content provider view options file name pattern is invalid ${options?.viewOptions?.filenamePattern}`);
 		}
 

@@ -53,7 +53,7 @@ class ResourceStackElement {
 	}
 
 	public toString(): string {
-		return `[id:${this.id}] [group:${this.groupId}] [${this.isValid ? 'VALID' : 'INVALID'}] ${this.actual}`;
+		return `[id:${this.id}] [group:${this.groupId}] [${this.isValid ? '  VALID' : 'INVALID'}] ${this.actual.constructor.name} - ${this.actual}`;
 	}
 }
 
@@ -176,7 +176,7 @@ class WorkspaceStackElement {
 	}
 
 	public toString(): string {
-		return `[id:${this.id}] [group:${this.groupId}] [${this.invalidatedResources ? 'INVALID' : 'VALID'}] ${this.actual}`;
+		return `[id:${this.id}] [group:${this.groupId}] [${this.invalidatedResources ? 'INVALID' : '  VALID'}] ${this.actual.constructor.name} - ${this.actual}`;
 	}
 }
 
@@ -277,13 +277,6 @@ class ResourceEditStack {
 			}
 		}
 		this._future = [];
-		if (this._past.length > 0) {
-			const lastElement = this._past[this._past.length - 1];
-			if (lastElement.type === UndoRedoElementType.Resource && !lastElement.isValid) {
-				// clear undo stack
-				this._past = [];
-			}
-		}
 		this._past.push(element);
 		this.versionId++;
 	}
@@ -748,27 +741,24 @@ export class UndoRedoService implements IUndoRedoService {
 		return result;
 	}
 
-	private _invokeResourcePrepare(element: ResourceStackElement, callback: (disposable: IDisposable) => void): void | Promise<void> {
+	private _invokeResourcePrepare(element: ResourceStackElement, callback: (disposable: IDisposable) => Promise<void> | void): void | Promise<void> {
 		if (element.actual.type !== UndoRedoElementType.Workspace || typeof element.actual.prepareUndoRedo === 'undefined') {
 			// no preparation needed
-			callback(Disposable.None);
-			return;
+			return callback(Disposable.None);
 		}
 
 		const r = element.actual.prepareUndoRedo();
 		if (!r) {
 			// nothing to clean up
-			callback(Disposable.None);
-			return;
+			return callback(Disposable.None);
 		}
 
 		if (isDisposable(r)) {
-			callback(r);
-			return;
+			return callback(r);
 		}
 
 		return r.then((disposable) => {
-			callback(disposable);
+			return callback(disposable);
 		});
 	}
 

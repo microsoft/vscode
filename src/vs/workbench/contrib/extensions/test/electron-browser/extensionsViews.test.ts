@@ -13,7 +13,8 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -121,28 +122,28 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionRecommendationsService, <Partial<IExtensionRecommendationsService>>{
 			getWorkspaceRecommendations() {
 				return Promise.resolve([
-					{ extensionId: workspaceRecommendationA.identifier.id },
-					{ extensionId: workspaceRecommendationB.identifier.id }]);
+					workspaceRecommendationA.identifier.id,
+					workspaceRecommendationB.identifier.id]);
 			},
 			getConfigBasedRecommendations() {
 				return Promise.resolve({
-					important: [{ extensionId: configBasedRecommendationA.identifier.id }],
-					others: [{ extensionId: configBasedRecommendationB.identifier.id }],
+					important: [configBasedRecommendationA.identifier.id],
+					others: [configBasedRecommendationB.identifier.id],
 				});
 			},
-			getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
+			getImportantRecommendations(): Promise<string[]> {
 				return Promise.resolve([]);
 			},
 			getFileBasedRecommendations() {
 				return [
-					{ extensionId: fileBasedRecommendationA.identifier.id },
-					{ extensionId: fileBasedRecommendationB.identifier.id }
+					fileBasedRecommendationA.identifier.id,
+					fileBasedRecommendationB.identifier.id
 				];
 			},
 			getOtherRecommendations() {
 				return Promise.resolve([
-					{ extensionId: configBasedRecommendationB.identifier.id },
-					{ extensionId: otherRecommendationA.identifier.id }
+					configBasedRecommendationB.identifier.id,
+					otherRecommendationA.identifier.id
 				]);
 			},
 			getAllRecommendationsWithReason() {

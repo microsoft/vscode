@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -519,9 +519,9 @@ export class CommentNode extends Disposable {
 	focus() {
 		this.domNode.focus();
 		if (!this._clearTimeout) {
-			dom.addClass(this.domNode, 'focus');
+			this.domNode.classList.add('focus');
 			this._clearTimeout = setTimeout(() => {
-				dom.removeClass(this.domNode, 'focus');
+				this.domNode.classList.remove('focus');
 			}, 3000);
 		}
 	}

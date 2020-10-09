@@ -424,11 +424,11 @@ export class RuntimeExtensionsEditor extends EditorPane {
 					data.msgContainer.appendChild(el);
 				}
 
-				if (element.description.extensionLocation.scheme !== 'file') {
+				if (element.description.extensionLocation.scheme !== Schemas.file) {
 					const el = $('span', undefined, ...renderCodicons(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 
-					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.configuration.remoteAuthority);
+					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
 					if (hostLabel) {
 						reset(el, ...renderCodicons(`$(remote) ${hostLabel}`));
 					}

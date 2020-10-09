@@ -14,7 +14,7 @@ import { memoize } from 'vs/base/common/decorators';
 import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, Platform, platform } from 'vs/base/common/platform';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
 export class NativeEnvironmentService implements INativeEnvironmentService {
@@ -24,7 +24,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get args(): NativeParsedArgs { return this._args; }
 
 	@memoize
-	get appRoot(): string { return path.dirname(getPathFromAmdModule(require, '')); }
+	get appRoot(): string { return path.dirname(FileAccess.asFileUri('', require).fsPath); }
 
 	readonly logsPath: string;
 
@@ -111,7 +111,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 		if (fromArgs) {
 			return fromArgs;
 		} else {
-			return path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+			return path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 		}
 	}
 
@@ -189,6 +189,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+	get debugRenderer(): boolean { return !!this._args.debugRenderer; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }
@@ -213,6 +214,8 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
+	@memoize
+	get telemetryLogResource(): URI { return URI.file(path.join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
 
 	get sandbox(): boolean { return !!this._args['__sandbox']; }

@@ -1491,16 +1491,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return (result.reverseEdits === null ? undefined : result.reverseEdits);
 	}
 
-	public undo(): void {
-		this._undoRedoService.undo(this.uri);
+	public undo(): void | Promise<void> {
+		return this._undoRedoService.undo(this.uri);
 	}
 
 	public canUndo(): boolean {
 		return this._undoRedoService.canUndo(this.uri);
 	}
 
-	public redo(): void {
-		this._undoRedoService.redo(this.uri);
+	public redo(): void | Promise<void> {
+		return this._undoRedoService.redo(this.uri);
 	}
 
 	public canRedo(): boolean {

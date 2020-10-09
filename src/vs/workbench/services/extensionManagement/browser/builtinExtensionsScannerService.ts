@@ -10,6 +10,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getUriFromAmdModule } from 'vs/base/common/amd';
 
 interface IScannedBuiltinExtension {
 	extensionPath: string;
@@ -66,10 +67,10 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
 			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
 		} else {
-			enableBuiltinExtensions = environmentService.configuration.remoteAuthority ? false : true;
+			enableBuiltinExtensions = environmentService.remoteAuthority ? false : true;
 		}
 		if (enableBuiltinExtensions) {
-			return URI.parse(require.toUrl('../../../../../../extensions'));
+			return getUriFromAmdModule(require, '../../../../../../extensions');
 		}
 		return undefined;
 	}

@@ -37,14 +37,14 @@ registerAction2(class extends Action2 {
 
 		const activeEditor = editorService.activeEditorPane;
 		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
-			const leftResource = (activeEditor.input as NotebookDiffEditorInput).originalResource;
-			const rightResource = (activeEditor.input as NotebookDiffEditorInput).resource;
+			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
+			const leftResource = diffEditorInput.originalResource;
+			const rightResource = diffEditorInput.resource;
 			const options = {
 				preserveFocus: false
 			};
 
-			const label = localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
-
+			const label = diffEditorInput.textDiffName;
 			await editorService.openEditor({ leftResource, rightResource, label, options }, viewColumnToEditorGroup(editorGroupService, undefined));
 		}
 	}

@@ -472,6 +472,7 @@
 		"peekViewResult.background": "#F2F8FC",
 		"peekView.border": "#705697",
 		"peekViewResult.matchHighlightBackground": "#93C6D6",
+		"tab.lastPinnedBorder": "#c9d0d9",
 		"statusBar.background": "#705697",
 		"statusBar.noFolderBackground": "#705697",
 		"statusBar.debuggingBackground": "#705697",

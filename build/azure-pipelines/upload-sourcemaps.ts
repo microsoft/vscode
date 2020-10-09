@@ -5,20 +5,22 @@
 
 'use strict';
 
-const path = require('path');
-const es = require('event-stream');
+import * as path from 'path';
+import * as es from 'event-stream';
+import * as Vinyl from 'vinyl';
+import * as vfs from 'vinyl-fs';
+import * as util from '../lib/util';
 const azure = require('gulp-azure-storage');
-const vfs = require('vinyl-fs');
-const util = require('../lib/util');
+
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
 
-const fetch = function (base, maps = `${base}/**/*.map`) {
+function src(base: string, maps = `${base}/**/*.map`) {
 	return vfs.src(maps, { base })
-		.pipe(es.mapSync(f => {
+		.pipe(es.mapSync((f: Vinyl) => {
 			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
@@ -29,7 +31,7 @@ function main() {
 
 	// vscode client maps (default)
 	if (!base) {
-		const vs = fetch('out-vscode-min'); // client source-maps only
+		const vs = src('out-vscode-min'); // client source-maps only
 		sources.push(vs);
 
 		const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
@@ -38,11 +40,11 @@ function main() {
 
 	// specific client base/maps
 	else {
-		sources.push(fetch(base, maps));
+		sources.push(src(base, maps));
 	}
 
 	return es.merge(...sources)
-		.pipe(es.through(function (data) {
+		.pipe(es.through(function (data: Vinyl) {
 			console.log('Uploading Sourcemap', data.relative); // debug
 			this.emit('data', data);
 		}))

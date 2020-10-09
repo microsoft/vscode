@@ -296,14 +296,19 @@ function unmask(buffer: VSBuffer, mask: number): void {
 	}
 }
 
+// Read this before there's any chance it is overwritten
+const xdgRuntimeDir = <string | undefined>process.env['XDG_RUNTIME_DIR'];
+
 export function generateRandomPipeName(): string {
 	const randomSuffix = generateUuid();
 	if (process.platform === 'win32') {
 		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
-	} else {
-		// Mac/Unix: use socket file
-		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 	}
+	// Mac/Unix: use socket file
+	if (xdgRuntimeDir) {
+		return join(xdgRuntimeDir, `vscode-ipc-${randomSuffix}.sock`);
+	}
+	return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 }
 
 export class Server extends IPCServer {

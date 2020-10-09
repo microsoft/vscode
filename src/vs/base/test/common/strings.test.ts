@@ -125,13 +125,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('a', 10), 'a');
 	});
 
-	test('pad', () => {
-		assert.strictEqual(strings.pad(1, 0), '1');
-		assert.strictEqual(strings.pad(1, 1), '1');
-		assert.strictEqual(strings.pad(1, 2), '01');
-		assert.strictEqual(strings.pad(0, 2), '00');
-	});
-
 	test('escape', () => {
 		assert.strictEqual(strings.escape(''), '');
 		assert.strictEqual(strings.escape('foo'), 'foo');
@@ -181,13 +174,6 @@ suite('Strings', () => {
 		assert.strictEqual('bar  '.trim(), 'bar');
 		assert.strictEqual('   '.trim(), '');
 		assert.strictEqual(' 	  '.trim(), '');
-	});
-
-	test('repeat', () => {
-		assert.strictEqual(strings.repeat(' ', 4), '    ');
-		assert.strictEqual(strings.repeat(' ', 1), ' ');
-		assert.strictEqual(strings.repeat(' ', 0), '');
-		assert.strictEqual(strings.repeat('abc', 2), 'abcabc');
 	});
 
 	test('lastNonWhitespaceIndex', () => {

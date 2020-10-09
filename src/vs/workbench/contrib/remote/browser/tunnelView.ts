@@ -26,7 +26,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel, mapHasTunnelLocalhostOrAllInterfaces } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -155,37 +155,11 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		});
 	}
 
-	private mapHasTunnel(map: Map<string, Tunnel>, host: string, port: number): boolean {
-		if (!isLocalhost(host)) {
-			return map.has(MakeAddress(host, port));
-		}
-
-		const stringAddress = MakeAddress('localhost', port);
-		if (map.has(stringAddress)) {
-			return true;
-		}
-		const numberAddress = MakeAddress('127.0.0.1', port);
-		if (map.has(numberAddress)) {
-			return true;
-		}
-		return false;
-	}
-
 	get candidates(): TunnelItem[] {
 		const candidates: TunnelItem[] = [];
 		this._candidates.forEach(value => {
-			if (!this.mapHasTunnel(this.model.forwarded, value.host, value.port) &&
-				!this.mapHasTunnel(this.model.detected, value.host, value.port)) {
-				// The host:port hasn't been forwarded or detected. However, if the candidate is 0.0.0.0,
-				// also check that the port hasn't already been forwarded with localhost, and vice versa.
-				// For example: no need to show 0.0.0.0:3000 as a candidate if localhost:3000 is already forwarded.
-				const otherHost = value.host === '0.0.0.0' ? 'localhost' : (value.host === 'localhost' ? '0.0.0.0' : undefined);
-				if (otherHost) {
-					if (this.mapHasTunnel(this.model.forwarded, otherHost, value.port) ||
-						this.mapHasTunnel(this.model.detected, otherHost, value.port)) {
-						return;
-					}
-				}
+			if (!mapHasTunnelLocalhostOrAllInterfaces(this.model.forwarded, value.host, value.port) &&
+				!mapHasTunnelLocalhostOrAllInterfaces(this.model.detected, value.host, value.port)) {
 				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
 			}
 		});
@@ -212,6 +186,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	static readonly ITEM_HEIGHT = 22;
 	static readonly TREE_TEMPLATE_ID = 'tunnelItemTemplate';
 
+	private inputDone?: (success: boolean, finishEditing: boolean) => void;
 	private _actionRunner: ActionRunner | undefined;
 
 	constructor(
@@ -305,6 +280,11 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
+		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
+		if (this.inputDone) {
+			this.inputDone(false, false);
+			this.inputDone = undefined;
+		}
 		const value = editableData.startingValue || '';
 		const inputBox = new InputBox(container, this.contextViewService, {
 			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
@@ -331,13 +311,17 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
 
 		const done = once((success: boolean, finishEditing: boolean) => {
+			if (this.inputDone) {
+				this.inputDone = undefined;
+			}
 			inputBox.element.style.display = 'none';
-			const value = inputBox.value;
+			const inputValue = inputBox.value;
 			dispose(toDispose);
 			if (finishEditing) {
-				editableData.onFinish(value, success);
+				editableData.onFinish(inputValue, success);
 			}
 		});
+		this.inputDone = done;
 
 		const toDispose = [
 			inputBox,
@@ -688,7 +672,7 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 
 	constructor(viewModel: ITunnelViewModel, environmentService: IWorkbenchEnvironmentService) {
 		this.ctorDescriptor = new SyncDescriptor(TunnelPanel, [viewModel]);
-		this.remoteAuthority = environmentService.configuration.remoteAuthority ? environmentService.configuration.remoteAuthority.split('+')[0] : undefined;
+		this.remoteAuthority = environmentService.remoteAuthority ? environmentService.remoteAuthority.split('+')[0] : undefined;
 	}
 }
 

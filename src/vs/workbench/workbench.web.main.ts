@@ -51,6 +51,7 @@ import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
+import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncResourceEnablementService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -66,10 +67,10 @@ import { ITunnelService, TunnelService } from 'vs/platform/remote/common/tunnel'
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { StorageKeysSyncRegistryService, IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
-import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
@@ -86,7 +87,6 @@ registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ILoggerService, FileLoggerService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
-registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
 registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService);
