@@ -295,7 +295,7 @@ export class TerminalPasteSelectionAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.PASTE_SELECTION;
 	public static readonly LABEL = localize(TerminalPasteSelectionAction.ID, "Paste selection into Active Terminal");
-	public static readonly SHORT_LABEL = localize(`${TerminalPasteSelectionAction.ID}.short`, "Paste Selection")
+	public static readonly SHORT_LABEL = localize(`${TerminalPasteSelectionAction.ID}.short`, "Paste Selection");
 
 	constructor(
 		id: string, label: string,
@@ -304,7 +304,7 @@ export class TerminalPasteSelectionAction extends Action {
 		super(id, label);
 	}
 
-	async run () {
+	async run() {
 		this._terminalService.getActiveOrCreateInstance()?.pasteSelection();
 	}
 }
