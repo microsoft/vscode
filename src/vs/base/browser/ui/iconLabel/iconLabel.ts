@@ -10,15 +10,21 @@ import { IMatch } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 import { equals } from 'vs/base/common/objects';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { isString } from 'vs/base/common/types';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
 	supportDescriptionHighlights?: boolean;
 	supportCodicons?: boolean;
+	hoverDelegate?: IHoverDelegate;
 }
 
 export interface IIconLabelValueOptions {
-	title?: string;
+	title?: string | Promise<IMarkdownString | string | undefined>;
 	descriptionTitle?: string;
 	hideIcon?: boolean;
 	extraClasses?: string[];
@@ -67,13 +73,8 @@ class FastLabelNode {
 		if (this.disposed || title === this._title) {
 			return;
 		}
-
 		this._title = title;
-		if (this._title) {
-			this._element.title = title;
-		} else {
-			this._element.removeAttribute('title');
-		}
+		this._element.removeAttribute('title');
 	}
 
 	set empty(empty: boolean) {
@@ -100,6 +101,8 @@ export class IconLabel extends Disposable {
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
+	private hoverDelegate?: IHoverDelegate;
+
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
 
@@ -120,6 +123,10 @@ export class IconLabel extends Disposable {
 			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.descriptionContainer.element, dom.$('span.label-description')), !!options.supportCodicons);
 		} else {
 			this.descriptionNodeFactory = () => this._register(new FastLabelNode(dom.append(this.descriptionContainer.element, dom.$('span.label-description'))));
+		}
+
+		if (options?.hoverDelegate) {
+			this.hoverDelegate = options.hoverDelegate;
 		}
 	}
 
@@ -144,7 +151,7 @@ export class IconLabel extends Disposable {
 		}
 
 		this.domNode.className = classes.join(' ');
-		this.domNode.title = options?.title || '';
+		this.setupHover(this.domNode.element, options?.title);
 
 		this.nameNode.setLabel(label, options);
 
@@ -155,17 +162,73 @@ export class IconLabel extends Disposable {
 
 			if (this.descriptionNode instanceof HighlightedLabel) {
 				this.descriptionNode.set(description || '', options ? options.descriptionMatches : undefined);
-				if (options?.descriptionTitle) {
-					this.descriptionNode.element.title = options.descriptionTitle;
-				} else {
-					this.descriptionNode.element.removeAttribute('title');
-				}
+				this.setupHover(this.descriptionNode.element, options?.descriptionTitle);
 			} else {
 				this.descriptionNode.textContent = description || '';
-				this.descriptionNode.title = options?.descriptionTitle || '';
+				this.setupHover(this.descriptionNode.element, options?.descriptionTitle || '');
 				this.descriptionNode.empty = !description;
 			}
 		}
+	}
+
+	private setupHover(htmlElement: HTMLElement, tooltip: string | Promise<IMarkdownString | string | undefined> | undefined): void {
+		if (!tooltip) {
+			htmlElement.removeAttribute('title');
+			return;
+		}
+
+		if (!this.hoverDelegate) {
+			htmlElement.title = isString(tooltip) ? tooltip : '';
+			return;
+		}
+
+		htmlElement.removeAttribute('title');
+		const hoverDelegate = this.hoverDelegate;
+		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
+		// On Mac, the delay is 1500.
+		const hoverDelay = isMacintosh ? 1500 : 500;
+		let hoverOptions: IHoverDelegateOptions | undefined;
+		let mouseX: number | undefined;
+		function mouseOver(this: HTMLElement, e: MouseEvent): any {
+			let isHovering = true;
+			function mouseMove(this: HTMLElement, e: MouseEvent): any {
+				mouseX = e.x;
+			}
+			function mouseLeave(this: HTMLElement, e: MouseEvent): any {
+				isHovering = false;
+			}
+			this.addEventListener(dom.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
+			this.addEventListener(dom.EventType.MOUSE_MOVE, mouseMove, { passive: true });
+			setTimeout(async () => {
+				if (isHovering && tooltip) {
+					// Re-use the already computed hover options if they exist.
+					if (!hoverOptions) {
+						const target: IHoverDelegateTarget = {
+							targetElements: [this],
+							dispose: () => { }
+						};
+						const resolvedTooltip = await tooltip;
+						if (resolvedTooltip) {
+							hoverOptions = { text: resolvedTooltip, target, anchorPosition: AnchorPosition.BELOW };
+						}
+					}
+					if (hoverOptions) {
+						if (mouseX !== undefined) {
+							(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
+						}
+						hoverDelegate.showHover(hoverOptions);
+					}
+				}
+				this.removeEventListener(dom.EventType.MOUSE_MOVE, mouseMove);
+				this.removeEventListener(dom.EventType.MOUSE_LEAVE, mouseLeave);
+			}, hoverDelay);
+		}
+		htmlElement.addEventListener(dom.EventType.MOUSE_OVER, mouseOver, { passive: true });
+		this._register({
+			dispose: () => {
+				htmlElement.removeEventListener(dom.EventType.MOUSE_OVER, mouseOver);
+			}
+		});
 	}
 }
 
@@ -255,7 +318,7 @@ class LabelWithHighlights {
 				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportCodicons);
 			}
 
-			this.singleLabel.set(label, options?.matches, options?.title, options?.labelEscapeNewLines);
+			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines);
 		} else {
 			this.container.innerText = '';
 			this.container.classList.add('multiple');
@@ -271,7 +334,7 @@ class LabelWithHighlights {
 
 				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' });
 				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), this.supportCodicons);
-				highlightedLabel.set(l, m, options?.title, options?.labelEscapeNewLines);
+				highlightedLabel.set(l, m, undefined, options?.labelEscapeNewLines);
 
 				if (i < label.length - 1) {
 					dom.append(name, dom.$('span.label-separator', undefined, separator));

@@ -514,7 +514,7 @@ class ResourceLabelWidget extends IconLabel {
 		const resource = toResource(this.label);
 		const label = this.label.name;
 
-		if (this.options && typeof this.options.title === 'string') {
+		if (this.options && (typeof this.options.title === 'string' || typeof this.options.title === 'object')) {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
