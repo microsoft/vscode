@@ -314,12 +314,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * The user data provider is used to handle user specific application
-	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
-	 */
-	userDataProvider?: IFileSystemProvider;
-
-	/**
 	 * Enables Settings Sync by default.
 	 *
 	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
