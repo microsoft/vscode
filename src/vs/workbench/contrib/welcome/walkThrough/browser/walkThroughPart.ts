@@ -303,7 +303,7 @@ export class WalkThroughPart extends EditorPane {
 				const innerContent = document.createElement('div');
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				innerContent.innerHTML = marked(markdown, { renderer });
+				safeInnerHtml(innerContent, marked(markdown, { renderer }));
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
