@@ -842,6 +842,8 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 
 class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
 	private contextServiceListener?: IDisposable;
+	private urlFinder?: UrlFinder;
+	private static AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
@@ -850,31 +852,43 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 		@IViewsService private readonly viewsService: IViewsService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+				this.tryStartStopUrlFinder();
+			}
+		}));
 		if (this.environmentService.remoteAuthority) {
-			this.startUrlFinder();
+			this.tryStartStopUrlFinder();
 		} else {
 			this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-					this.startUrlFinder();
+					this.tryStartStopUrlFinder();
 				}
 			}));
 		}
 	}
 
-	private isStarted = false;
+	private tryStartStopUrlFinder() {
+		if (this.configurationService.getValue(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+			this.startUrlFinder();
+		} else {
+			this.stopUrlFinder();
+		}
+	}
+
 	private startUrlFinder() {
-		if (!this.isStarted && !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
+		if (!this.urlFinder && !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
 			return;
 		}
 		if (this.contextServiceListener) {
 			this.contextServiceListener.dispose();
 		}
-		this.isStarted = true;
-		const urlFinder = this._register(new UrlFinder(this.terminalService));
-		this._register(urlFinder.onDidMatchLocalUrl(async (localUrl) => {
+		this.urlFinder = this._register(new UrlFinder(this.terminalService));
+		this._register(this.urlFinder.onDidMatchLocalUrl(async (localUrl) => {
 			if (mapHasTunnelLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, localUrl.host, localUrl.port)) {
 				return;
 			}
@@ -901,6 +915,13 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 				this.notificationService.prompt(Severity.Info, message, [browserChoice, showChoice], { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 			}
 		}));
+	}
+
+	private stopUrlFinder() {
+		if (this.urlFinder) {
+			this.urlFinder.dispose();
+			this.urlFinder = undefined;
+		}
 	}
 }
 
