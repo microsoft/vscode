@@ -8,7 +8,6 @@ on:
 
     # Only updates to these files result in changes to installed packages, so skip otherwise
     paths:
-      - '**/package.json'
       - '**/package-lock.json'
       - '**/yarn.lock'
 

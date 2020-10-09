@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 # This file establishes a basline for the reposuitory before any steps in the "prepare.sh"
 # are run. Its just a find command that filters out a few things we don't need to watch.
