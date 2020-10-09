@@ -1900,6 +1900,25 @@
         },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+        },
+        "git.timeline.date": {
+          "enum": [
+            "committed",
+            "authored"
+          ],
+          "enumDescriptions": [
+            "%config.date.committed%",
+            "%config.date.authored%"
+          ],
+          "default": "committed",
+          "description": "%config.timeline.date%",
+          "scope": "window"
+        },
+        "git.timeline.showAuthor": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.timeline.showAuthor%",
+          "scope": "window"
         }
       }
     },
