@@ -163,6 +163,11 @@ declare module 'vscode' {
 		 * @param key The key the password was stored under.
 		 */
 		export function deletePassword(key: string): Thenable<void>;
+
+		/**
+		 * Fires when a password is set or deleted.
+		 */
+		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion

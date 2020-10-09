@@ -167,6 +167,7 @@ export class TestNativeHostService implements INativeHostService {
 	onWindowBlur: Event<number> = Event.None;
 	onOSResume: Event<unknown> = Event.None;
 	onColorSchemeChange = Event.None;
+	onDidChangePassword = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
