@@ -77,17 +77,11 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		if (parentHeader) {
 			let endLine = parentHeader.location.range.end.line;
-			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= parentHeader.line + 1) {
-				endLine = endLine - 1;
-			}
 			let startPos = parentHeader.location.range.start;
 			let endPos = new vscode.Position(endLine, parentHeader.location.range.end.character);
 			let parentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 			let ranges = sortedHeaders.map(entry => {
 				let endLine = entry.location.range.end.line;
-				if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
-					endLine = endLine - 1;
-				}
 				let startPos = entry.location.range.start;
 				let endPos = new vscode.Position(endLine, entry.location.range.end.character);
 				if (parentRange.range.contains(new vscode.Range(startPos, endPos))) {
@@ -97,6 +91,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				}
 			});
 			let result = ranges[0];
+			// sort ranges by their proximity to result
 			for (let i = 1; i < 3; i++) {
 				let sisterRange = result.range.union(ranges[i].range);
 				result.parent = new vscode.SelectionRange(sisterRange, result.parent);
