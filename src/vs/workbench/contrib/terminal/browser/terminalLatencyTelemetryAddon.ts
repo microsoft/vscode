@@ -87,6 +87,10 @@ export class LatencyTelemetryAddon extends Disposable implements ITerminalAddon 
 	}
 
 	private _onBeforeProcessData(event: IBeforeProcessDataEvent): void {
+		if (!this._typedQueue.length) {
+			return;
+		}
+
 		const cleanText = removeAnsiEscapeCodes(event.data);
 		for (let i = 0; i < cleanText.length; i++) {
 			if (this._typedQueue[0] && this._typedQueue[0].char === cleanText[i]) {
