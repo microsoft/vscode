@@ -23,7 +23,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	protected _contentLeft: number;
 	protected _contentWidth: number;
 	protected _selectionIsEmpty: boolean;
-	protected _renderLineHightlightOnlyWhenFocus: boolean;
+	protected _renderLineHighlightOnlyWhenFocus: boolean;
 	protected _focused: boolean;
 	private _cursorLineNumbers: number[];
 	private _selections: Selection[];
@@ -37,7 +37,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
-		this._renderLineHightlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
+		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._selectionIsEmpty = true;
