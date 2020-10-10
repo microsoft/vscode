@@ -8,7 +8,7 @@ import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
@@ -20,8 +20,6 @@ import { ColorProviderRegistry } from 'vs/editor/common/modes';
 import { IColorData, getColors } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 
 const MAX_DECORATORS = 500;
 
@@ -65,7 +63,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				}
 			}
 		}));
-		this._register(_editor.onMouseDown((e) => this.onMouseDown(e)));
 
 		this._timeoutTimer = null;
 		this._computePromise = null;
@@ -99,29 +96,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.stop();
 		this.removeAllDecorations();
 		super.dispose();
-	}
-
-	private onMouseDown(mouseEvent: IEditorMouseEvent) {
-		const targetType = mouseEvent.target.type;
-
-		if (targetType !== MouseTargetType.CONTENT_TEXT) {
-			return;
-		}
-
-		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'));
-		if (!hoverOnColorDecorator) {
-			return;
-		}
-
-		if (!mouseEvent.target.range) {
-			return;
-		}
-
-		const hoverController = this._editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-		if (!hoverController.contentWidget.isColorPickerVisible()) {
-			const range = new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1);
-			hoverController.showContentHover(range, HoverStartMode.Delayed, false);
-		}
 	}
 
 	private onModelChanged(): void {
