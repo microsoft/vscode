@@ -905,39 +905,37 @@ export class SearchView extends ViewPane {
 			return false;
 		}
 
-		if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
-			this.searchWidget.setValue(searchString);
-		} else {
-			this.pauseSearching = true;
-			this.searchWidget.setValue(searchString);
-			this.pauseSearching = false;
-		}
+		this.updateText(searchString, allowSearchOnType);
 
 		return true;
 	}
 
 	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
-		let updatedText = false;
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
-		if (seedSearchStringFromSelection) {
-			let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
-			if (selectedText) {
-				if (this.searchWidget.searchInput.getRegex()) {
-					selectedText = strings.escapeRegExpCharacters(selectedText);
-				}
-
-				if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
-					this.searchWidget.setValue(selectedText);
-				} else {
-					this.pauseSearching = true;
-					this.searchWidget.setValue(selectedText);
-					this.pauseSearching = false;
-				}
-				updatedText = true;
-			}
+		if (!seedSearchStringFromSelection) {
+			return false;
 		}
 
-		return updatedText;
+		let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
+		if (selectedText) {
+			if (this.searchWidget.searchInput.getRegex()) {
+				selectedText = strings.escapeRegExpCharacters(selectedText);
+			}
+
+			this.updateText(selectedText, allowSearchOnType);
+		}
+
+		return true;
+	}
+
+	private updateText(text: string, allowSearchOnType: boolean = true) {
+		if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
+			this.searchWidget.setValue(text);
+		} else {
+			this.pauseSearching = true;
+			this.searchWidget.setValue(text);
+			this.pauseSearching = false;
+		}
 	}
 
 	focusNextInputBox(): void {
