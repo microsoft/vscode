@@ -18,7 +18,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			await this.getHeaderSelectionRanges(document, positions),
 			await this.getBlockSelectionRanges(document, positions)
 		]);
-		let result = flatten(ranges).filter(element => element);
+		let result = flatten(ranges);
 		// header will always be parent of block elements
 		// have to set the child's grandparent
 		if (result.length === 2) {
@@ -26,12 +26,9 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			let child = result[1];
 			let childParent = child.parent;
 			if (childParent) {
-				if (childParent.range.contains(child.range)) {
-					let comboRange  = parent.range.union(childParent.range);
-					childParent.parent = new vscode.SelectionRange(comboRange);
-					let res = new vscode.SelectionRange(child.range, childParent);
-					return [res];
-				}
+				let revisedParent = new vscode.SelectionRange(parent.range, parent);
+				let res = new vscode.SelectionRange(child.range, revisedParent);
+				return [res];
 			}
 			return [child];
 		} else {
@@ -47,7 +44,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		let nearbyTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
 
-		// sort from smallest to largest range
+		// sort from smallest to largest line range
 		let sortedTokens = nearbyTokens.sort((tokenOne, tokenTwo) => (tokenTwo.map[1] - tokenTwo.map[0] - tokenOne.map[1] - tokenOne.map[0]));
 
 		let parentToken = sortedTokens.pop();
@@ -72,38 +69,37 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		let position = positions[0];
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
-		// add header line if on header then select all contents under the header
-		// get all enclosing headers
-		let nearbyHeaders = toc.filter(header => header.line <= position.line);
-		let sortedHeaders = nearbyHeaders.sort((header2, header1) => (header1.line - position.line) - (header2.line - position.line));
 
-		let parentHeader = sortedHeaders.pop();
+		let nearbyHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
+		let sortedHeaders = nearbyHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 
-		if (parentHeader) {
-			let endLine = parentHeader.location.range.end.line;
-			let startPos = parentHeader.location.range.start;
-			let endPos = new vscode.Position(endLine, parentHeader.location.range.end.character);
-			let parentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
-			let ranges = sortedHeaders.map(entry => {
-				let endLine = entry.location.range.end.line;
-				let startPos = entry.location.range.start;
-				let endPos = new vscode.Position(endLine, entry.location.range.end.character);
-				if (parentRange.range.contains(new vscode.Range(startPos, endPos))) {
-					return new vscode.SelectionRange(new vscode.Range(startPos, endPos), parentRange);
-				} else {
-					return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
-				}
-			});
-			let result = ranges[0];
-			// sort ranges by their proximity to result
-			// for (let i = 1; i < 3; i++) {
-			// 	let sisterRange = result.range.union(ranges[i].range);
-			// 	if (result.parent?.range.contains(sisterRange)) {
-			// 		result.parent = new vscode.SelectionRange(sisterRange, result.parent);
-			// 	}
-			// }
-			return [result];
+		let parentHeader = sortedHeaders.shift();
+
+		let currentRange : vscode.SelectionRange;
+		let parentRange : vscode.SelectionRange;
+
+		if(parentHeader) {
+			parentRange = new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start, parentHeader.location.range.end));
 		}
-		return [];
+
+		sortedHeaders.forEach(header => {
+			if (parentHeader) {
+				let startPos = header.location.range.start;
+				let endPos = header.location.range.end;
+					if (parentRange.range.contains(new vscode.Range(startPos, endPos))) {
+						currentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos), parentRange);
+					} else {
+						currentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
+					}
+				}
+				parentHeader = header;
+				parentRange = new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start, parentHeader.location.range.end), parentRange);
+			}
+			);
+			if (currentRange) {
+				return [currentRange];
+			} else {
+				return [];
+			}
 	}
 }
