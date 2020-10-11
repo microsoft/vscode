@@ -905,6 +905,7 @@ export class SearchView extends ViewPane {
 			return false;
 		}
 
+		this.searchWidget.searchInput.setRegex(controller.getState().isRegex);
 		this.updateText(searchString, allowSearchOnType);
 
 		return true;
