@@ -32,6 +32,14 @@ export interface INativeHostMainService extends AddFirstParameterToFunctions<ICo
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
+interface ChunkedPassword {
+	content: string;
+	hasNextChunk: boolean;
+}
+
+const MAX_PASSWORD_LENGTH = 2500;
+const PASSWORD_CHUNK_SIZE = MAX_PASSWORD_LENGTH - 100;
+
 export class NativeHostMainService implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -630,12 +638,51 @@ export class NativeHostMainService implements INativeHostMainService {
 	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
 		const keytar = await import('keytar');
 
-		return keytar.getPassword(service, account);
+		const password = await keytar.getPassword(service, account);
+		if (password) {
+			try {
+				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+				let index = 1;
+				while (hasNextChunk) {
+					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
+					const result: ChunkedPassword = JSON.parse(nextChunk!);
+					content += result.content;
+					hasNextChunk = result.hasNextChunk;
+				}
+
+				return content;
+			} catch {
+				return password;
+			}
+		}
+
+		return password;
 	}
 
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
 		const keytar = await import('keytar');
-		await keytar.setPassword(service, account, password);
+
+		if (isWindows && password.length > MAX_PASSWORD_LENGTH) {
+			let index = 0;
+			let chunk = 0;
+			let hasNextChunk = true;
+			while (hasNextChunk) {
+				const passwordChunk = password.substring(index, index + PASSWORD_CHUNK_SIZE);
+				index += PASSWORD_CHUNK_SIZE;
+				hasNextChunk = password.length - index > 0;
+				const content: ChunkedPassword = {
+					content: passwordChunk,
+					hasNextChunk: hasNextChunk
+				};
+
+				await keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
+				chunk++;
+			}
+
+		} else {
+			await keytar.setPassword(service, account, password);
+		}
+
 		this._onDidChangePassword.fire();
 	}
 
