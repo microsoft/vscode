@@ -20,7 +20,7 @@ import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteCo
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { generateRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
@@ -315,7 +315,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	 */
 	private _tryListenOnPipe(): Promise<string> {
 		return new Promise<string>((resolve, reject) => {
-			const pipeName = generateRandomIPCHandle();
+			const pipeName = createRandomIPCHandle();
 
 			this._namedPipeServer = createServer();
 			this._namedPipeServer.on('error', reject);
