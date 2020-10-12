@@ -84,12 +84,6 @@ export class Keychain {
 			return Promise.resolve(undefined);
 		}
 	}
-
-	onDidChangePassword(listener: () => void) {
-		vscode.authentication.onDidChangePassword(_ => {
-			listener();
-		});
-	}
 }
 
 export const keychain = new Keychain();
