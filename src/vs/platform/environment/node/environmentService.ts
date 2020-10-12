@@ -14,7 +14,7 @@ import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { resolveUserDataIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
+import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
 export class NativeEnvironmentService implements INativeEnvironmentService {
 
@@ -189,7 +189,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get logLevel(): string | undefined { return this._args.log; }
 
 	@memoize
-	get sharedIPCHandle(): string { return resolveUserDataIPCHandle(this.userDataPath, 'shared', product.version); }
+	get sharedIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'shared', product.version); }
 
 	@memoize
 	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }

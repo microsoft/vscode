@@ -307,7 +307,7 @@ const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Mac]: 103
 };
 
-export function generateRandomIPCHandle(): string {
+export function createRandomIPCHandle(): string {
 	const randomSuffix = generateUuid();
 
 	// Windows: use named pipe
@@ -330,8 +330,8 @@ export function generateRandomIPCHandle(): string {
 	return result;
 }
 
-export function resolveUserDataIPCHandle(userDataPath: string, type: string, version: string): string {
-	const scope = createHash('md5').update(userDataPath).digest('hex');
+export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
+	const scope = createHash('md5').update(directoryPath).digest('hex');
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
@@ -345,7 +345,7 @@ export function resolveUserDataIPCHandle(userDataPath: string, type: string, ver
 	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
 		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
 	} else {
-		result = join(userDataPath, `${version}-${type}.sock`);
+		result = join(directoryPath, `${version}-${type}.sock`);
 	}
 
 	// Validate length
