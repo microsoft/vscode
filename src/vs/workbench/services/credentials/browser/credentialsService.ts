@@ -13,7 +13,7 @@ export class BrowserCredentialsService implements ICredentialsService {
 	declare readonly _serviceBrand: undefined;
 
 	private _onDidChangePassword: Emitter<void> = new Emitter();
-	onDidChangePassword = this._onDidChangePassword.event;
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	private credentialsProvider: ICredentialsProvider;
 
