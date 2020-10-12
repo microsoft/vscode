@@ -1077,6 +1077,7 @@ export interface ExtHostAuthenticationShape {
 	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent): Promise<void>;
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
 	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
+	$onDidChangePassword(): Promise<void>;
 }
 
 export interface ExtHostSearchShape {

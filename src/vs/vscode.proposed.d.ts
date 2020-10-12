@@ -143,6 +143,11 @@ declare module 'vscode' {
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
+
+		/**
+		 * Fires when a password is set or deleted.
+		 */
+		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
