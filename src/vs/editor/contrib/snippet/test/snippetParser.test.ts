@@ -665,9 +665,9 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, 'kebabcase').resolve('bar-foo'), 'bar-foo');
 		assert.equal(new FormatString(1, 'kebabcase').resolve('BAR FOO'), 'bar-foo');
 		assert.equal(new FormatString(1, 'kebabcase').resolve('barFoo'), 'bar-foo');
-		assert.equal(new FormatString(1, 'constantcase').resolve('bar-foo'), 'BAR-FOO');
-		assert.equal(new FormatString(1, 'constantcase').resolve('BAR FOO'), 'BAR-FOO');
-		assert.equal(new FormatString(1, 'constantcase').resolve('barFoo'), 'BAR-FOO');
+		assert.equal(new FormatString(1, 'constantcase').resolve('bar-foo'), 'BAR_FOO');
+		assert.equal(new FormatString(1, 'constantcase').resolve('BAR FOO'), 'BAR_FOO');
+		assert.equal(new FormatString(1, 'constantcase').resolve('barFoo'), 'BAR_FOO');
 		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if
