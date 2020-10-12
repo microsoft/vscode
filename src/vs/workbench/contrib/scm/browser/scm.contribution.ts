@@ -221,7 +221,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!repository || !repository.provider.acceptInputCommand) {
 			return Promise.resolve(null);
 		}
-		repository?.input.save();
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
 

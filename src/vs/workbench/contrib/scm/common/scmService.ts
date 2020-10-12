@@ -98,9 +98,19 @@ class SCMInput implements ISCMInput {
 		}
 	}
 
+	saveCurrent(): void {
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}/latest`;
+			this.storageService.store(key, this.value, StorageScope.WORKSPACE);
+		}
+	}
+
 	showNextValue(): void {
 		let next = this.historyNavigator.next();
 		if (next) {
+			if (!this.historyNavigator.getHistory().includes(this.value)) {
+				this.save();
+			}
 			this.value = next;
 		}
 	}
@@ -108,14 +118,10 @@ class SCMInput implements ISCMInput {
 	showPreviousValue(): void {
 		let prev = this.historyNavigator.previous();
 		if (prev) {
+			if (!this.historyNavigator.getHistory().includes(this.value)) {
+				this.save();
+			}
 			this.value = prev;
-		}
-	}
-
-	saveCurrent(): void {
-		if (this.repository.provider.rootUri) {
-			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}/latest`;
-			this.storageService.store(key, this.value, StorageScope.WORKSPACE);
 		}
 	}
 }
