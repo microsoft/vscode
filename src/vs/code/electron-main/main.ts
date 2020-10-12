@@ -12,7 +12,7 @@ import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvH
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
 import { mkdirp } from 'vs/base/node/pfs';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
+import { Server, serve, connect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,7 +24,6 @@ import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -353,8 +352,8 @@ class CodeMain {
 				directories.push(environmentService.extensionsPath);
 			}
 
-			if (xdgRuntimeDir) {
-				directories.push(xdgRuntimeDir);
+			if (XDG_RUNTIME_DIR) {
+				directories.push(XDG_RUNTIME_DIR);
 			}
 
 			this.showStartupWarningDialog(

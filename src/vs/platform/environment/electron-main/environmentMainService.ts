@@ -7,7 +7,9 @@ import { join } from 'vs/base/common/path';
 import { memoize } from 'vs/base/common/decorators';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getIPCHandle, NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { resolveUserDataIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
+import product from 'vs/platform/product/common/product';
 
 export const IEnvironmentMainService = createDecorator<IEnvironmentMainService>('environmentMainService');
 
@@ -42,7 +44,7 @@ export class EnvironmentMainService extends NativeEnvironmentService {
 	get backupWorkspacesPath(): string { return join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
+	get mainIPCHandle(): string { return resolveUserDataIPCHandle(this.userDataPath, 'main', product.version); }
 
 	@memoize
 	get sandbox(): boolean { return !!this._args['__sandbox']; }
