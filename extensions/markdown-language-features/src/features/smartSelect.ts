@@ -79,11 +79,11 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		if (parentHeader) {
 			let startPos = parentHeader.location.range.start;
-			let startContent = startPos.translate(2);
+			let startContent = startPos.translate(1);
 			let endPos = parentHeader.location.range.end;
 			let headerPlusContent = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 			if (headerPlusContent.range.contains(new vscode.Range(startContent, endPos))) {
-				parentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos), headerPlusContent);
+				parentRange = new vscode.SelectionRange(new vscode.Range(startContent, endPos), headerPlusContent);
 			}
 		}
 
@@ -91,16 +91,22 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			if (parentHeader) {
 				let startPos = header.location.range.start;
 				let endPos = header.location.range.end;
+				let startContent = header.location.range.start.translate(1);
 					if (parentRange.range.contains(new vscode.Range(startPos, endPos))) {
-						currentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos), parentRange);
+						let childWithHeader = new vscode.SelectionRange(new vscode.Range(startPos, endPos), parentRange);
+						currentRange = new vscode.SelectionRange(new vscode.Range(startContent, endPos), childWithHeader);
 					} else {
 						currentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 					}
 				}
 				parentHeader = header;
-				parentRange = new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start, parentHeader.location.range.end), parentRange);
+				let parentWithHeader =  new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start, parentHeader.location.range.end), parentRange);
+				parentRange = new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start.translate(1), parentHeader.location.range.end), parentWithHeader);
 			}
 			);
+			if (!currentRange && parentRange) {
+				return [parentRange];
+			}
 			return [currentRange];
 	}
 }
