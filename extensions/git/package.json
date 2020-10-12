@@ -22,6 +22,7 @@
   "scripts": {
     "compile": "gulp compile-extension:git",
     "watch": "gulp watch-extension:git",
+    "update-emoji": "node ./build/update-emoji.js",
     "update-grammar": "node ./build/update-grammars.js",
     "test": "mocha"
   },
