@@ -11,11 +11,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtUri } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -29,7 +29,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An even that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes it's capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 
@@ -58,6 +58,11 @@ export interface IFileService {
 	 * Checks if the provider for the provided resource has the provided file system capability.
 	 */
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
+
+	/**
+	 * List the schemes and capabilies for registered file system providers
+	 */
+	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }>
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -139,6 +144,12 @@ export interface IFileService {
 	 * be performed. Returns an Error if the operation cannot be done.
 	 */
 	canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
+
+	/**
+	 * Find out if a file create operation is possible given the arguments. No changes on disk will
+	 * be performed. Returns an Error if the operation cannot be done.
+	 */
+	canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true>;
 
 	/**
 	 * Creates a new file with the given path and optional contents. The returned promise
@@ -283,7 +294,7 @@ export interface IFileSystemProvider {
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
 
-	readFileStream?(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream?(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
 	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
 	close?(fd: number): Promise<void>;
@@ -320,7 +331,7 @@ export function hasOpenReadWriteCloseCapability(provider: IFileSystemProvider): 
 }
 
 export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSystemProvider {
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 }
 
 export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
@@ -355,7 +366,7 @@ export function createFileSystemProviderError(error: Error | string, code: FileS
 
 export function ensureFileSystemProviderError(error?: Error): Error {
 	if (!error) {
-		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/Microsoft/vscode/issues/72798
+		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/microsoft/vscode/issues/72798
 	}
 
 	return error;
@@ -491,36 +502,111 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	constructor(public readonly changes: readonly IFileChange[], private readonly extUri: IExtUri) { }
+	/**
+	 * @deprecated use the `contains()` or `affects` method to efficiently find
+	 * out if the event relates to a given resource. these methods ensure:
+	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	 * - correctly handles `FileChangeType.DELETED` events
+	 */
+	readonly changes: readonly IFileChange[];
+
+	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+
+	constructor(changes: readonly IFileChange[], private readonly ignorePathCasing: boolean) {
+		this.changes = changes;
+
+		for (const change of changes) {
+			switch (change.type) {
+				case FileChangeType.ADDED:
+					if (!this.added) {
+						this.added = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+					}
+					this.added.set(change.resource, change);
+					break;
+				case FileChangeType.UPDATED:
+					if (!this.updated) {
+						this.updated = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+					}
+					this.updated.set(change.resource, change);
+					break;
+				case FileChangeType.DELETED:
+					if (!this.deleted) {
+						this.deleted = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+					}
+					this.deleted.set(change.resource, change);
+					break;
+			}
+		}
+	}
 
 	/**
-	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
-	 * provided file path.
+	 * Find out if the file change events match the provided resource.
+	 *
+	 * Note: when passing `FileChangeType.DELETED`, we consider a match
+	 * also when the parent of the resource got deleted.
 	 */
-	contains(resource: URI, type?: FileChangeType): boolean {
+	contains(resource: URI, ...types: FileChangeType[]): boolean {
+		return this.doContains(resource, { includeChildren: false }, ...types);
+	}
+
+	/**
+	 * Find out if the file change events either match the provided
+	 * resource, or contain a child of this resource.
+	 */
+	affects(resource: URI, ...types: FileChangeType[]): boolean {
+		return this.doContains(resource, { includeChildren: true }, ...types);
+	}
+
+	private doContains(resource: URI, options: { includeChildren: boolean }, ...types: FileChangeType[]): boolean {
 		if (!resource) {
 			return false;
 		}
 
-		const checkForChangeType = !isUndefinedOrNull(type);
+		const hasTypesFilter = types.length > 0;
 
-		return this.changes.some(change => {
-			if (checkForChangeType && change.type !== type) {
-				return false;
+		// Added
+		if (!hasTypesFilter || types.includes(FileChangeType.ADDED)) {
+			if (this.added?.get(resource)) {
+				return true;
 			}
 
-			// For deleted also return true when deleted folder is parent of target path
-			if (change.type === FileChangeType.DELETED) {
-				return this.extUri.isEqualOrParent(resource, change.resource);
+			if (options.includeChildren && this.added?.findSuperstr(resource)) {
+				return true;
+			}
+		}
+
+		// Updated
+		if (!hasTypesFilter || types.includes(FileChangeType.UPDATED)) {
+			if (this.updated?.get(resource)) {
+				return true;
 			}
 
-			return this.extUri.isEqual(resource, change.resource);
-		});
+			if (options.includeChildren && this.updated?.findSuperstr(resource)) {
+				return true;
+			}
+		}
+
+		// Deleted
+		if (!hasTypesFilter || types.includes(FileChangeType.DELETED)) {
+			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
+				return true;
+			}
+
+			if (options.includeChildren && this.deleted?.findSuperstr(resource)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
-	 * Returns the changes that describe added files.
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
 	 */
 	getAdded(): IFileChange[] {
 		return this.getOfType(FileChangeType.ADDED);
@@ -530,11 +616,14 @@ export class FileChangesEvent {
 	 * Returns if this event contains added files.
 	 */
 	gotAdded(): boolean {
-		return this.hasType(FileChangeType.ADDED);
+		return !!this.added;
 	}
 
 	/**
-	 * Returns the changes that describe deleted files.
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
 	 */
 	getDeleted(): IFileChange[] {
 		return this.getOfType(FileChangeType.DELETED);
@@ -544,11 +633,14 @@ export class FileChangesEvent {
 	 * Returns if this event contains deleted files.
 	 */
 	gotDeleted(): boolean {
-		return this.hasType(FileChangeType.DELETED);
+		return !!this.deleted;
 	}
 
 	/**
-	 * Returns the changes that describe updated files.
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
 	 */
 	getUpdated(): IFileChange[] {
 		return this.getOfType(FileChangeType.UPDATED);
@@ -558,21 +650,30 @@ export class FileChangesEvent {
 	 * Returns if this event contains updated files.
 	 */
 	gotUpdated(): boolean {
-		return this.hasType(FileChangeType.UPDATED);
+		return !!this.updated;
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this.changes.filter(change => change.type === type);
+		const changes: IFileChange[] = [];
+
+		const eventsForType = type === FileChangeType.ADDED ? this.added : type === FileChangeType.UPDATED ? this.updated : this.deleted;
+		if (eventsForType) {
+			for (const [, change] of eventsForType) {
+				changes.push(change);
+			}
+		}
+
+		return changes;
 	}
 
-	private hasType(type: FileChangeType): boolean {
-		return this.changes.some(change => {
-			return change.type === type;
-		});
-	}
-
+	/**
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
+	 */
 	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
-		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.extUri);
+		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.ignorePathCasing);
 	}
 }
 
@@ -731,13 +832,6 @@ export interface IWriteFileOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	readonly etag?: string;
-
-	/**
-	 * The progress callback can be used to get accurate information how many
-	 * bytes have been written. Each call carries the length of bytes written
-	 * since the last call was made.
-	 */
-	readonly progress?: (byteLength: number) => void;
 }
 
 export interface IResolveFileOptions {
@@ -857,18 +951,19 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
 		return Promise.resolve();
 	}
-	return new Promise((c, e) => {
+
+	return new Promise(resolve => {
 		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.scheme === file.scheme && e.added) {
 				disposable.dispose();
-				c();
+				resolve();
 			}
 		});
 	});
 }
 
 /**
- * Desktop only: limits for memory sizes
+ * Native only: limits for memory sizes
  */
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

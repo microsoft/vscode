@@ -132,11 +132,7 @@ export class LRUMemory extends Memory {
 	}
 
 	toJSON(): object {
-		let data: [string, MemItem][] = [];
-		this._cache.forEach((value, key) => {
-			data.push([key, value]);
-		});
-		return data;
+		return this._cache.toJSON();
 	}
 
 	fromJSON(data: [string, MemItem][]): void {

@@ -25,7 +25,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
 import { IdGenerator } from 'vs/base/common/idGenerator';
@@ -73,7 +73,7 @@ class DocumentSymbolAdapter {
 			const element: modes.DocumentSymbol = {
 				name: info.name || '!!MISSING: name!!',
 				kind: typeConvert.SymbolKind.from(info.kind),
-				tags: info.tags ? info.tags.map(typeConvert.SymbolTag.from) : [],
+				tags: info.tags?.map(typeConvert.SymbolTag.from) || [],
 				detail: '',
 				containerName: info.containerName,
 				range: typeConvert.Range.from(info.location.range),
@@ -177,7 +177,7 @@ class CodeLensAdapter {
 	}
 
 	releaseCodeLenses(cachedId: number): void {
-		dispose(this._disposables.get(cachedId));
+		this._disposables.get(cachedId)?.dispose();
 		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
@@ -324,14 +324,17 @@ class OnTypeRenameAdapter {
 		private readonly _provider: vscode.OnTypeRenameProvider
 	) { }
 
-	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
+	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideOnTypeRenameRanges(doc, pos, token)).then(value => {
-			if (Array.isArray(value)) {
-				return coalesce(value.map(typeConvert.Range.from));
+			if (value && Array.isArray(value.ranges)) {
+				return {
+					ranges: coalesce(value.ranges.map(typeConvert.Range.from)),
+					wordPattern: value.wordPattern
+				};
 			}
 			return undefined;
 		});
@@ -410,7 +413,8 @@ class CodeActionAdapter {
 			this._disposables.set(cacheId, disposables);
 
 			const actions: CustomCodeAction[] = [];
-			for (const candidate of commandsOrActions) {
+			for (let i = 0; i < commandsOrActions.length; i++) {
+				const candidate = commandsOrActions[i];
 				if (!candidate) {
 					continue;
 				}
@@ -436,6 +440,7 @@ class CodeActionAdapter {
 
 					// new school: convert code action
 					actions.push({
+						cacheId: [cacheId, i],
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
@@ -451,8 +456,23 @@ class CodeActionAdapter {
 		});
 	}
 
+	public async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+		const [sessionId, itemId] = id;
+		const item = this._cache.get(sessionId, itemId);
+		if (!item || CodeActionAdapter._isCommand(item)) {
+			return undefined; // code actions only!
+		}
+		if (!this._provider.resolveCodeAction) {
+			return; // this should not happen...
+		}
+		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
+		return resolvedItem?.edit
+			? typeConvert.WorkspaceEdit.from(resolvedItem.edit)
+			: undefined;
+	}
+
 	public releaseCodeActions(cachedId: number): void {
-		dispose(this._disposables.get(cachedId));
+		this._disposables.get(cachedId)?.dispose();
 		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
@@ -935,7 +955,7 @@ class SuggestAdapter {
 	}
 
 	releaseCompletionItems(id: number): any {
-		dispose(this._disposables.get(id));
+		this._disposables.get(id)?.dispose();
 		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
@@ -1117,7 +1137,7 @@ class ColorProviderAdapter {
 	provideColors(resource: URI, token: CancellationToken): Promise<extHostProtocol.IRawColorInfo[]> {
 		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
-			if (!Array.isArray<vscode.ColorInformation>(colors)) {
+			if (!Array.isArray(colors)) {
 				return [];
 			}
 
@@ -1287,6 +1307,7 @@ class CallHierarchyAdapter {
 			uri: item.uri,
 			range: typeConvert.Range.from(item.range),
 			selectionRange: typeConvert.Range.from(item.selectionRange),
+			tags: item.tags?.map(typeConvert.SymbolTag.from)
 		};
 		map.set(dto._itemId, item);
 		return dto;
@@ -1548,15 +1569,24 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- on type rename
 
-	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, stopPattern?: RegExp): vscode.Disposable {
+	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, wordPattern?: RegExp): vscode.Disposable {
 		const handle = this._addNewAdapter(new OnTypeRenameAdapter(this._documents, provider), extension);
-		const serializedStopPattern = stopPattern ? ExtHostLanguageFeatures._serializeRegExp(stopPattern) : undefined;
-		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedStopPattern);
+		const serializedWordPattern = wordPattern ? ExtHostLanguageFeatures._serializeRegExp(wordPattern) : undefined;
+		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedWordPattern);
 		return this._createDisposable(handle);
 	}
 
-	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
-		return this._withAdapter(handle, OnTypeRenameAdapter, adapter => adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token), undefined);
+	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: extHostProtocol.IRegExpDto; } | undefined> {
+		return this._withAdapter(handle, OnTypeRenameAdapter, async adapter => {
+			const res = await adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token);
+			if (res) {
+				return {
+					ranges: res.ranges,
+					wordPattern: res.wordPattern ? ExtHostLanguageFeatures._serializeRegExp(res.wordPattern) : undefined
+				};
+			}
+			return undefined;
+		}, undefined);
 	}
 
 	// --- references
@@ -1582,7 +1612,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),
 			}))
-		}, ExtHostLanguageFeatures._extLabel(extension));
+		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(provider.resolveCodeAction));
 		store.add(this._createDisposable(handle));
 		return store;
 	}
@@ -1590,6 +1620,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
 		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined);
+	}
+
+	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), undefined);
 	}
 
 	$releaseCodeActions(handle: number, cacheId: number): void {

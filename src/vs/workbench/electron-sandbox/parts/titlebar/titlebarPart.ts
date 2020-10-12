@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
+import { getZoomFactor } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -47,7 +47,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
 	}
@@ -64,11 +64,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private onDidChangeMaximized(maximized: boolean) {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				DOM.removeClasses(this.maxRestoreControl, Codicon.chromeMaximize.classNames);
-				DOM.addClasses(this.maxRestoreControl, Codicon.chromeRestore.classNames);
+				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
+				this.maxRestoreControl.classList.add(...Codicon.chromeRestore.classNamesArray);
 			} else {
-				DOM.removeClasses(this.maxRestoreControl, Codicon.chromeRestore.classNames);
-				DOM.addClasses(this.maxRestoreControl, Codicon.chromeMaximize.classNames);
+				this.maxRestoreControl.classList.remove(...Codicon.chromeRestore.classNamesArray);
+				this.maxRestoreControl.classList.add(...Codicon.chromeMaximize.classNamesArray);
 			}
 		}
 
@@ -159,7 +159,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			this.onUpdateAppIconDragBehavior();
 
 			this._register(DOM.addDisposableListener(this.appIcon, DOM.EventType.DBLCLICK, (e => {
-				this.electronService.closeWindow();
+				this.nativeHostService.closeWindow();
 			})));
 		}
 
@@ -173,24 +173,24 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			// Minimize
 			const minimizeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(DOM.addDisposableListener(minimizeIcon, DOM.EventType.CLICK, e => {
-				this.electronService.minimizeWindow();
+				this.nativeHostService.minimizeWindow();
 			}));
 
 			// Restore
 			this.maxRestoreControl = DOM.append(this.windowControls, DOM.$('div.window-icon.window-max-restore'));
 			this._register(DOM.addDisposableListener(this.maxRestoreControl, DOM.EventType.CLICK, async e => {
-				const maximized = await this.electronService.isMaximized();
+				const maximized = await this.nativeHostService.isMaximized();
 				if (maximized) {
-					return this.electronService.unmaximizeWindow();
+					return this.nativeHostService.unmaximizeWindow();
 				}
 
-				return this.electronService.maximizeWindow();
+				return this.nativeHostService.maximizeWindow();
 			}));
 
 			// Close
 			const closeIcon = DOM.append(this.windowControls, DOM.$('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
 			this._register(DOM.addDisposableListener(closeIcon, DOM.EventType.CLICK, e => {
-				this.electronService.closeWindow();
+				this.nativeHostService.closeWindow();
 			}));
 
 			// Resizer
@@ -209,14 +209,14 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				this.title.style.zoom = `${1 / browser.getZoomFactor()}`;
+				this.title.style.zoom = `${1 / getZoomFactor()}`;
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = `${1 / browser.getZoomFactor()}`;
+						this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = `${1 / browser.getZoomFactor()}`;
+						this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
 					}
 				}
 			} else {

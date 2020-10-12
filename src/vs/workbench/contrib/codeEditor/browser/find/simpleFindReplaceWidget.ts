@@ -43,7 +43,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 
-	private readonly _replaceInput!: ReplaceInput;
+	protected readonly _replaceInput!: ReplaceInput;
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
@@ -62,7 +62,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		private readonly _state: FindReplaceState = new FindReplaceState(),
+		protected readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean
 	) {
 		super();
@@ -140,6 +140,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setRegex(this._state.isRegex);
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
+			this._replaceInput.setPreserveCase(this._state.preserveCase);
 			this.findFirst();
 		}));
 
@@ -267,7 +268,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	public updateTheme(theme: IColorTheme): void {
 		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionBackground),
+			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
@@ -280,7 +281,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._findInput.style(inputStyles);
 		const replaceStyles: IReplaceInputStyles = {
@@ -298,7 +299,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._replaceInput.style(replaceStyles);
 	}
@@ -314,7 +315,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
-		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 	}
 
@@ -345,8 +346,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 		}, 0);
@@ -364,23 +364,49 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 
 			this.focus();
 		}, 0);
 	}
 
+	public showWithReplace(initialInput?: string, replaceInput?: string): void {
+		if (initialInput && !this._isVisible) {
+			this._findInput.setValue(initialInput);
+		}
+
+		if (replaceInput && !this._isVisible) {
+			this._replaceInput.setValue(replaceInput);
+		}
+
+		this._isVisible = true;
+		this._isReplaceVisible = true;
+		this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
+		if (this._isReplaceVisible) {
+			this._innerReplaceDomNode.style.display = 'flex';
+		} else {
+			this._innerReplaceDomNode.style.display = 'none';
+		}
+
+		setTimeout(() => {
+			this._domNode.classList.add('visible', 'visible-transition');
+			this._domNode.setAttribute('aria-hidden', 'false');
+			this._updateButtons();
+
+			this._replaceInput.focus();
+		}, 0);
+	}
+
 	public hide(): void {
 		if (this._isVisible) {
-			dom.removeClass(this._domNode, 'visible-transition');
+			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				dom.removeClass(this._domNode, 'visible');
+				this._domNode.classList.remove('visible');
 			}, 200);
 		}
 	}

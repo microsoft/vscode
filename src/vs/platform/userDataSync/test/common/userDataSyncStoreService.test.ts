@@ -4,16 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError, IUserDataSyncStoreManagementService, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
-import { RequestsSession } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { RequestsSession, UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { newWriteableBufferStream } from 'vs/base/common/buffer';
+import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Event } from 'vs/base/common/event';
+import product from 'vs/platform/product/common/product';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
+
+suite('UserDataSyncStoreManagementService', () => {
+	const disposableStore = new DisposableStore();
+
+	teardown(() => disposableStore.clear());
+
+	test('test sync store is read from settings', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer()));
+		await client.setUp();
+
+		client.instantiationService.stub(IProductService, {
+			_serviceBrand: undefined, ...product, ...{
+				'configurationSync.store': undefined
+			}
+		});
+
+		const configuredStore: ConfigurationSyncStore = {
+			url: 'http://configureHost:3000',
+			stableUrl: 'http://configureHost:3000',
+			insidersUrl: 'http://configureHost:3000',
+			canSwitch: false,
+			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
+		};
+		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(JSON.stringify({
+			'configurationSync.store': configuredStore
+		})));
+		await client.instantiationService.get(IConfigurationService).reloadConfiguration();
+
+		const expected: IUserDataSyncStore = {
+			url: URI.parse('http://configureHost:3000'),
+			defaultUrl: URI.parse('http://configureHost:3000'),
+			stableUrl: URI.parse('http://configureHost:3000'),
+			insidersUrl: URI.parse('http://configureHost:3000'),
+			canSwitch: false,
+			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
+		};
+
+		const testObject: IUserDataSyncStoreManagementService = client.instantiationService.createInstance(UserDataSyncStoreManagementService);
+
+		assert.equal(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
+		assert.equal(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
+		assert.deepEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
+	});
+
+});
 
 suite('UserDataSyncStoreService', () => {
 
@@ -321,6 +373,85 @@ suite('UserDataSyncStoreService', () => {
 		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
+	test('test rate limit on server with retry after', async () => {
+		const target = new UserDataSyncTestServer(1, 1);
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+
+		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
+		try {
+			await testObject.manifest();
+			assert.fail('should fail');
+		} catch (e) {
+			assert.ok(e instanceof UserDataSyncStoreError);
+			assert.deepEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
+			await promise;
+			assert.ok(!!testObject.donotMakeRequestsUntil);
+		}
+	});
+
+	test('test donotMakeRequestsUntil is reset after retry time is finished', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+		try {
+			await testObject.manifest();
+		} catch (e) { }
+
+		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
+		await timeout(300);
+		await promise;
+		assert.ok(!testObject.donotMakeRequestsUntil);
+	});
+
+	test('test donotMakeRequestsUntil is retrieved', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 1)));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+		try {
+			await testObject.manifest();
+		} catch (e) { }
+
+		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		assert.equal(target.donotMakeRequestsUntil?.getTime(), testObject.donotMakeRequestsUntil?.getTime());
+	});
+
+	test('test donotMakeRequestsUntil is checked and reset after retreived', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+
+		await testObject.manifest();
+		try {
+			await testObject.manifest();
+		} catch (e) { }
+
+		await timeout(300);
+		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		assert.ok(!target.donotMakeRequestsUntil);
+	});
+
+	test('test read resource request handles 304', async () => {
+		// Setup the client
+		const target = new UserDataSyncTestServer();
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		await client.sync();
+
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+		const expected = await testObject.read(SyncResource.Settings, null);
+		const actual = await testObject.read(SyncResource.Settings, expected);
+
+		assert.equal(actual, expected);
+	});
+
 });
 
 suite('UserDataSyncRequestsSession', () => {
@@ -332,7 +463,7 @@ suite('UserDataSyncRequestsSession', () => {
 	};
 
 	test('too many requests are thrown when limit exceeded', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 
 		try {
@@ -346,14 +477,14 @@ suite('UserDataSyncRequestsSession', () => {
 	});
 
 	test('requests are handled after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 		await timeout(600);
 		await testObject.request({}, CancellationToken.None);
 	});
 
 	test('too many requests are thrown after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService);
+		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request({}, CancellationToken.None);
 		await timeout(600);
 		await testObject.request({}, CancellationToken.None);

@@ -34,7 +34,7 @@ import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -63,12 +63,12 @@ class TestBackupTracker extends NativeBackupTracker {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IElectronService electronService: IElectronService,
+		@INativeHostService nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, electronService, logService, editorService, environmentService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService);
 
 		// Reduce timeout for tests
 		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
@@ -105,6 +105,7 @@ suite('BackupTracker', () => {
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 		await pfs.mkdirp(backupHome);
+		await pfs.mkdirp(workspaceBackupPath);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
@@ -450,7 +451,7 @@ suite('BackupTracker', () => {
 
 			// Set multiple windows if required
 			if (multipleWindows) {
-				accessor.electronService.windowCount = Promise.resolve(2);
+				accessor.nativeHostService.windowCount = Promise.resolve(2);
 			}
 
 			// Set cancel to force a veto if hot exit does not trigger

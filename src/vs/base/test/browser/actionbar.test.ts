@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Separator, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
+import { ActionBar, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action, Separator } from 'vs/base/common/actions';
 
 suite('Actionbar', () => {
 
@@ -23,5 +23,38 @@ suite('Actionbar', () => {
 		assert(actions[0] === a3);
 		assert(actions[1] === a5);
 		assert(actions[2] === a6);
+	});
+
+	test('hasAction()', function () {
+		const container = document.createElement('div');
+		const actionbar = new ActionBar(container);
+
+		let a1 = new Action('a1');
+		let a2 = new Action('a2');
+
+		actionbar.push(a1);
+		assert.equal(actionbar.hasAction(a1), true);
+		assert.equal(actionbar.hasAction(a2), false);
+
+		actionbar.pull(0);
+		assert.equal(actionbar.hasAction(a1), false);
+
+		actionbar.push(a1, { index: 1 });
+		actionbar.push(a2, { index: 0 });
+		assert.equal(actionbar.hasAction(a1), true);
+		assert.equal(actionbar.hasAction(a2), true);
+
+		actionbar.pull(0);
+		assert.equal(actionbar.hasAction(a1), true);
+		assert.equal(actionbar.hasAction(a2), false);
+
+		actionbar.pull(0);
+		assert.equal(actionbar.hasAction(a1), false);
+		assert.equal(actionbar.hasAction(a2), false);
+
+		actionbar.push(a1);
+		assert.equal(actionbar.hasAction(a1), true);
+		actionbar.clear();
+		assert.equal(actionbar.hasAction(a1), false);
 	});
 });

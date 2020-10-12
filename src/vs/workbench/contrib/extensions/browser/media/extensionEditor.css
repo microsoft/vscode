@@ -113,7 +113,7 @@
 	line-height: 20px;
 }
 
-.extension-editor > .header > .details > .subtitle > .publisher {
+.extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
 
@@ -124,12 +124,11 @@
 	align-items: center;
 }
 
-.extension-editor > .header > .details > .subtitle > .install > .count {
+.extension-editor > .header > .details > .subtitle .install > .count {
 	margin-left: 6px;
 }
 
-.extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty),
-.extension-editor > .header > .details > .subtitle > a:not(:first-child):not(:empty) {
+.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty) {
 	border-left: 1px solid rgba(128, 128, 128, 0.7);
 	margin-left: 14px;
 	padding-left: 14px;

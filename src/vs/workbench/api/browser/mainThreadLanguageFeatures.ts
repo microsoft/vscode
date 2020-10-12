@@ -263,12 +263,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- on type rename
 
-	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], stopPattern?: IRegExpDto): void {
-		const revivedStopPattern = stopPattern ? MainThreadLanguageFeatures._reviveRegExp(stopPattern) : undefined;
+	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], wordPattern?: IRegExpDto): void {
+		const revivedWordPattern = wordPattern ? MainThreadLanguageFeatures._reviveRegExp(wordPattern) : undefined;
 		this._registrations.set(handle, modes.OnTypeRenameProviderRegistry.register(selector, <modes.OnTypeRenameProvider>{
-			stopPattern: revivedStopPattern,
-			provideOnTypeRenameRanges: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<IRange[] | undefined> => {
-				return this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+			wordPattern: revivedWordPattern,
+			provideOnTypeRenameRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> => {
+				const res = await this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+				if (res) {
+					return {
+						ranges: res.ranges,
+						wordPattern: res.wordPattern ? MainThreadLanguageFeatures._reviveRegExp(res.wordPattern) : undefined
+					};
+				}
+				return undefined;
 			}
 		}));
 	}
@@ -285,8 +292,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string): void {
-		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
+	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void {
+		const provider: modes.CodeActionProvider = {
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
 				if (!listDto) {
@@ -304,7 +311,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			providedCodeActionKinds: metadata.providedKinds,
 			documentation: metadata.documentation,
 			displayName
-		}));
+		};
+
+		if (supportsResolve) {
+			provider.resolveCodeAction = async (codeAction: modes.CodeAction, token: CancellationToken): Promise<modes.CodeAction> => {
+				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
+				codeAction.edit = reviveWorkspaceEditDto(data);
+				return codeAction;
+			};
+		}
+
+		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, provider));
 	}
 
 	// --- formatting

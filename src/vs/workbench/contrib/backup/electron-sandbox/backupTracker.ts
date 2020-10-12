@@ -14,7 +14,7 @@ import Severity from 'vs/base/common/severity';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -31,7 +31,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
@@ -99,7 +99,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// since a backup did not happen, we have to confirm for
 		// the working copies that did not successfully backup
 		try {
-			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => backups.indexOf(workingCopy) === -1));
+			return await this.confirmBeforeShutdown(workingCopies.filter(workingCopy => !backups.includes(workingCopy)));
 		} catch (error) {
 			this.showErrorDialog(localize('backupTrackerConfirmFailed', "One or more dirty editors could not be saved or reverted."), error);
 
@@ -128,7 +128,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				case ShutdownReason.CLOSE:
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-					} else if (await this.electronService.getWindowCount() > 1 || isMacintosh) {
+					} else if (await this.nativeHostService.getWindowCount() > 1 || isMacintosh) {
 						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
 					} else {
 						doBackup = true; // backup if last window is closed on win/linux where the application quits right after

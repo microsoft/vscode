@@ -336,6 +336,26 @@ export interface IEditorAriaOptions {
 	role?: string;
 }
 
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: editorCommon.IDimension;
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
+}
+
+export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
+}
+
 /**
  * A rich code editor.
  */
@@ -433,7 +453,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
-	 * @internal
 	 */
 	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 	/**
@@ -567,6 +586,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Returns the editor's configuration (without any validation or defaults).
 	 */
 	getRawOptions(): IEditorOptions;
+
+	/**
+	 * @internal
+	 */
+	getOverflowWidgetsDomNode(): HTMLElement | undefined;
 
 	/**
 	 * @internal
@@ -1039,6 +1063,17 @@ export function getCodeEditor(thing: any): ICodeEditor | null {
 
 	if (isDiffEditor(thing)) {
 		return thing.getModifiedEditor();
+	}
+
+	return null;
+}
+
+/**
+ *@internal
+ */
+export function getIEditor(thing: any): editorCommon.IEditor | null {
+	if (isCodeEditor(thing) || isDiffEditor(thing)) {
+		return thing;
 	}
 
 	return null;

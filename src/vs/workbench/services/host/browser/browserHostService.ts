@@ -84,6 +84,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	//#region Focus
+
 	@memoize
 	get onDidChangeFocus(): Event<boolean> {
 		const focusTracker = this._register(trackFocus(window));
@@ -106,6 +108,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async focus(): Promise<void> {
 		window.focus();
 	}
+
+	//#endregion
+
+
+	//#region Window
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -174,8 +181,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 				// New Window: open into empty window
 				else {
 					const environment = new Map<string, string>();
-					environment.set('diffFileDetail', editors[0].resource.toString());
-					environment.set('diffFileMaster', editors[1].resource.toString());
+					environment.set('diffFileSecondary', editors[0].resource.toString());
+					environment.set('diffFilePrimary', editors[1].resource.toString());
 
 					this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
 				}
@@ -283,7 +290,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
+		return this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {
@@ -320,6 +327,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	//#endregion
+
+	//#region Lifecycle
+
 	async restart(): Promise<void> {
 		this.reload();
 	}
@@ -327,6 +338,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async reload(): Promise<void> {
 		window.location.reload();
 	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, true);

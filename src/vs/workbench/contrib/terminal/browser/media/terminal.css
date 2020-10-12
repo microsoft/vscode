@@ -196,3 +196,7 @@
 	padding: 0 22px 0 6px;
 }
 
+/* HACK: Can remove when fixed upstream https://github.com/xtermjs/xterm.js/issues/3058 */
+.xterm-helper-textarea {
+	border: 0px;
+}

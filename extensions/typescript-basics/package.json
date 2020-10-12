@@ -45,7 +45,9 @@
         ],
         "filenamePatterns": [
           "tsconfig.*.json",
-          "tsconfig-*.json"
+          "jsconfig.*.json",
+          "tsconfig-*.json",
+          "jsconfig-*.json"
         ]
       }
     ],

@@ -9,7 +9,7 @@ import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 
@@ -53,4 +53,4 @@ class InspectKeyMapJSON extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(InspectKeyMapJSON), 'Developer: Inspect Key Mappings (JSON)', nls.localize('developer', "Developer"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(InspectKeyMapJSON), 'Developer: Inspect Key Mappings (JSON)', CATEGORIES.Developer.value);

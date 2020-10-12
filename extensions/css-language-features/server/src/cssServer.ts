@@ -5,7 +5,7 @@
 
 import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType
-} from 'vscode-languageserver/lib/common/api';
+} from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -67,7 +67,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		}
 
-		requestService = getRequestService(params.initializationOptions.handledSchemas || ['file'], connection, runtime);
+		requestService = getRequestService(params.initializationOptions?.handledSchemas || ['file'], connection, runtime);
 
 		function getClientCapability<T>(name: string, def: T) {
 			const keys = name.split('.');

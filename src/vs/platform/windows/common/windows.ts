@@ -3,12 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWeb, IProcessEnvironment } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { ExportData } from 'vs/base/common/performance';
+
+export const WindowMinimumSize = {
+	WIDTH: 400,
+	WIDTH_WITH_VERTICAL_PANEL: 600,
+	HEIGHT: 270
+};
 
 export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
@@ -130,7 +138,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
+			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
 		const style = configuration.titleBarStyle;
@@ -171,9 +179,42 @@ export interface IPathData {
 	overrideId?: string;
 }
 
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+	waitMarkerFileUri: URI;
+}
+
+interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFileUri: UriComponents;
+}
+
 export interface IOpenFileRequest {
 	filesToOpenOrCreate?: IPathData[];
 	filesToDiff?: IPathData[];
+}
+
+/**
+ * Additional context for the request on native only.
+ */
+export interface INativeOpenFileRequest extends IOpenFileRequest {
+	termProgram?: string;
+	filesToWait?: IPathsToWaitForData;
+}
+
+export interface INativeRunActionInWindowRequest {
+	id: string;
+	from: 'menu' | 'touchbar' | 'mouse';
+	args?: any[];
+}
+
+export interface INativeRunKeybindingInWindowRequest {
+	userSettingsLabel: string;
+}
+
+export interface IColorScheme {
+	dark: boolean;
+	highContrast: boolean;
 }
 
 export interface IWindowConfiguration {
@@ -181,9 +222,45 @@ export interface IWindowConfiguration {
 
 	remoteAuthority?: string;
 
-	highContrast?: boolean;
-	defaultThemeType?: ThemeType;
+	colorScheme: IColorScheme;
+	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+}
+
+export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
+	mainPid: number;
+
+	windowId: number;
+	machineId: string;
+
+	appRoot: string;
+	execPath: string;
+	backupPath?: string;
+
+	nodeCachedDataDir?: string;
+	partsSplashPath: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
+
+	isInitialStartup?: boolean;
+	logLevel: LogLevel;
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	maximized?: boolean;
+	accessibilitySupport?: boolean;
+	perfEntries: ExportData;
+
+	userEnv: IProcessEnvironment;
+	filesToWait?: IPathsToWaitFor;
+}
+
+/**
+ * According to Electron docs: `scale := 1.2 ^ level`.
+ * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#contentssetzoomlevellevel
+ */
+export function zoomLevelToZoomFactor(zoomLevel = 0): number {
+	return Math.pow(1.2, zoomLevel);
 }

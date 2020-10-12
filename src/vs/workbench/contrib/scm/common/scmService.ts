@@ -7,7 +7,8 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
-import { equals } from 'vs/base/common/arrays';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 class SCMInput implements ISCMInput {
 
@@ -23,6 +24,12 @@ class SCMInput implements ISCMInput {
 		}
 
 		this._value = value;
+
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this.storageService.store(key, value, StorageScope.WORKSPACE);
+		}
+
 		this._onDidChange.fire(value);
 	}
 
@@ -55,7 +62,8 @@ class SCMInput implements ISCMInput {
 	}
 
 	private readonly _onDidChangeVisibility = new Emitter<boolean>();
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility
+		.event;
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
@@ -70,12 +78,19 @@ class SCMInput implements ISCMInput {
 
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
+
+	constructor(
+		readonly repository: ISCMRepository,
+		@IStorageService private storageService: IStorageService
+	) {
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this._value = this.storageService.get(key, StorageScope.WORKSPACE, '');
+		}
+	}
 }
 
 class SCMRepository implements ISCMRepository {
-
-	private readonly _onDidFocus = new Emitter<void>();
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private _selected = false;
 	get selected(): boolean {
@@ -85,16 +100,13 @@ class SCMRepository implements ISCMRepository {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput();
+	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(
 		public readonly provider: ISCMProvider,
-		private disposable: IDisposable
+		private disposable: IDisposable,
+		@IStorageService private storageService: IStorageService
 	) { }
-
-	focus(): void {
-		this._onDidFocus.fire();
-	}
 
 	setSelected(selected: boolean): void {
 		if (this._selected === selected) {
@@ -119,11 +131,11 @@ export class SCMService implements ISCMService {
 	private _repositories: ISCMRepository[] = [];
 	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
-	private _selectedRepositories: ISCMRepository[] = [];
-	get selectedRepositories(): ISCMRepository[] { return [...this._selectedRepositories]; }
+	private providerCount: IContextKey<number>;
+	private _selectedRepository: ISCMRepository | undefined;
 
-	private readonly _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
-	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]> = this._onDidChangeSelectedRepositories.event;
+	private readonly _onDidSelectRepository = new Emitter<ISCMRepository | undefined>();
+	readonly onDidSelectRepository: Event<ISCMRepository | undefined> = this._onDidSelectRepository.event;
 
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
@@ -131,7 +143,13 @@ export class SCMService implements ISCMService {
 	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
-	constructor(@ILogService private readonly logService: ILogService) { }
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private storageService: IStorageService
+	) {
+		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+	}
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');
@@ -153,26 +171,34 @@ export class SCMService implements ISCMService {
 			this._providerIds.delete(provider.id);
 			this._repositories.splice(index, 1);
 			this._onDidRemoveProvider.fire(repository);
-			this.onDidChangeSelection();
+
+			if (this._selectedRepository === repository) {
+				this.select(this._repositories[0]);
+			}
+
+			this.providerCount.set(this._repositories.length);
 		});
 
-		const repository = new SCMRepository(provider, disposable);
-		const selectedDisposable = repository.onDidChangeSelection(this.onDidChangeSelection, this);
+		const repository = new SCMRepository(provider, disposable, this.storageService);
+		const selectedDisposable = Event.map(Event.filter(repository.onDidChangeSelection, selected => selected), _ => repository)(this.select, this);
 
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
 
+		if (!this._selectedRepository) {
+			repository.setSelected(true);
+		}
+
+		this.providerCount.set(this._repositories.length);
 		return repository;
 	}
 
-	private onDidChangeSelection(): void {
-		const selectedRepositories = this._repositories.filter(r => r.selected);
-
-		if (equals(this._selectedRepositories, selectedRepositories)) {
-			return;
+	private select(repository: ISCMRepository | undefined): void {
+		if (this._selectedRepository) {
+			this._selectedRepository.setSelected(false);
 		}
 
-		this._selectedRepositories = this._repositories.filter(r => r.selected);
-		this._onDidChangeSelectedRepositories.fire(this.selectedRepositories);
+		this._selectedRepository = repository;
+		this._onDidSelectRepository.fire(this._selectedRepository);
 	}
 }

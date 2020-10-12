@@ -10,11 +10,10 @@ import { visit } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
@@ -22,12 +21,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugEditorContribution, IDebugService, State, EDITOR_CONTRIBUTION_ID, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugEditorContribution, IDebugService, State, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { first } from 'vs/base/common/arrays';
 import { memoize, createMemoizer } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
@@ -35,6 +33,11 @@ import { ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
+import { domEvent } from 'vs/base/browser/event';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { Event } from 'vs/base/common/event';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
@@ -164,7 +167,7 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 	return result;
 }
 
-class DebugEditorContribution implements IDebugEditorContribution {
+export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: IDisposable[];
 	private hoverWidget: DebugHoverWidget;
@@ -173,8 +176,9 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	private static readonly MEMOIZER = createMemoizer();
 
 	private exceptionWidget: ExceptionWidget | undefined;
-
 	private configurationWidget: FloatingClickWidget | undefined;
+	private altListener: IDisposable | undefined;
+	private altPressed = false;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -184,6 +188,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
@@ -221,7 +226,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
 			if (model) {
-				this._applyHoverConfiguration(model, stackFrame);
+				this.applyHoverConfiguration(model, stackFrame);
 			}
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
@@ -242,14 +247,49 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		return getWordToLineNumbersMap(this.editor.getModel());
 	}
 
-	private _applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
+	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
 		if (stackFrame && model.uri.toString() === stackFrame.source.uri.toString()) {
-			this.editor.updateOptions({
-				hover: {
-					enabled: false
+			if (this.altListener) {
+				this.altListener.dispose();
+			}
+			// When the alt key is pressed show regular editor hover and hide the debug hover #84561
+			this.altListener = domEvent(document, 'keydown')(keydownEvent => {
+				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
+				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
+					this.altPressed = true;
+					const debugHoverWasVisible = this.hoverWidget.isVisible();
+					this.hoverWidget.hide();
+					this.enableEditorHover();
+					if (debugHoverWasVisible && this.hoverRange) {
+						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
+						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
+					}
+
+					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, domEvent(document, 'keyup'))(keyupEvent => {
+						let standardKeyboardEvent = undefined;
+						if (keyupEvent instanceof KeyboardEvent) {
+							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
+						}
+						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
+							this.altPressed = false;
+							this.editor.updateOptions({ hover: { enabled: false } });
+							listener.dispose();
+						}
+					});
 				}
 			});
+
+			this.editor.updateOptions({ hover: { enabled: false } });
 		} else {
+			this.altListener?.dispose();
+			this.enableEditorHover();
+		}
+	}
+
+	private enableEditorHover(): void {
+		if (this.editor.hasModel()) {
+			const model = this.editor.getModel();
 			let overrides = {
 				resource: model.uri,
 				overrideIdentifier: model.getLanguageIdentifier().language
@@ -268,7 +308,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	async showHover(range: Range, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
-		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
+		if (sf && model && sf.source.uri.toString() === model.uri.toString() && !this.altPressed) {
 			return this.hoverWidget.showAt(range, focus);
 		}
 	}
@@ -276,7 +316,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
 		const model = this.editor.getModel();
 		if (model) {
-			this._applyHoverConfiguration(model, sf);
+			this.applyHoverConfiguration(model, sf);
 			if (sf && sf.source.uri.toString() === model.uri.toString()) {
 				await this.toggleExceptionWidget();
 			} else {
@@ -374,7 +414,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		// First call stack frame that is available is the frame where exception has been thrown
-		const exceptionSf = first(callStack, sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
+		const exceptionSf = callStack.find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
 		if (!exceptionSf || exceptionSf !== focusedSf) {
 			this.closeExceptionWidget();
 			return;
@@ -545,5 +585,3 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = dispose(this.toDispose);
 	}
 }
-
-registerEditorContribution(EDITOR_CONTRIBUTION_ID, DebugEditorContribution);

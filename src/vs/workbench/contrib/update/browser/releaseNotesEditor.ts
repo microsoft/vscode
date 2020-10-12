@@ -18,9 +18,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -95,10 +95,10 @@ export class ReleaseNotesManager {
 		return true;
 	}
 
-	private loadReleaseNotes(version: string): Promise<string> {
+	private async loadReleaseNotes(version: string): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
-			return Promise.reject(new Error('not found'));
+			throw new Error('not found');
 		}
 
 		const versionLabel = match[1].replace(/\./g, '_');
@@ -138,17 +138,30 @@ export class ReleaseNotesManager {
 				.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 		};
 
-		if (!this._releaseNotesCache.has(version)) {
-			this._releaseNotesCache.set(version, this._requestService.request({ url }, CancellationToken.None)
-				.then(asText)
-				.then(text => {
-					if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
-						return Promise.reject(new Error('Invalid release notes'));
-					}
+		const fetchReleaseNotes = async () => {
+			let text;
+			try {
+				text = await asText(await this._requestService.request({ url }, CancellationToken.None));
+			} catch {
+				throw new Error('Failed to fetch release notes');
+			}
 
-					return Promise.resolve(text);
-				})
-				.then(text => patchKeybindings(text)));
+			if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+				throw new Error('Invalid release notes');
+			}
+
+			return patchKeybindings(text);
+		};
+
+		if (!this._releaseNotesCache.has(version)) {
+			this._releaseNotesCache.set(version, (async () => {
+				try {
+					return await fetchReleaseNotes();
+				} catch (err) {
+					this._releaseNotesCache.delete(version);
+					throw err;
+				}
+			})());
 		}
 
 		return this._releaseNotesCache.get(version)!;

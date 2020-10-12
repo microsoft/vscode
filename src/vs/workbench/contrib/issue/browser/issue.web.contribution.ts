@@ -10,6 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IWebIssueService, WebIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
 import { OpenIssueReporterArgs, OpenIssueReporterActionId } from 'vs/workbench/contrib/issue/common/commands';
@@ -18,7 +19,6 @@ class RegisterIssueContribution implements IWorkbenchContribution {
 
 	constructor(@IProductService readonly productService: IProductService) {
 		if (productService.reportIssueUrl) {
-			const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
 			const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 			CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string] | OpenIssueReporterArgs) {
@@ -37,7 +37,7 @@ class RegisterIssueContribution implements IWorkbenchContribution {
 			const command: ICommandAction = {
 				id: OpenIssueReporterActionId,
 				title: { value: OpenIssueReporterActionLabel, original: 'Report Issue' },
-				category: helpCategory
+				category: CATEGORIES.Help
 			};
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });

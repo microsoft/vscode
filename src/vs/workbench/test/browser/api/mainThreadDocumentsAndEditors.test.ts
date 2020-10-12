@@ -13,7 +13,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/base/test/common/mock';
-import { TestEditorService, TestEditorGroupsService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -68,6 +68,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			onDidRunOperation = Event.None;
+			onDidChangeFileSystemProviderCapabilities = Event.None;
+			onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
 		new MainThreadDocumentsAndEditors(
@@ -97,7 +99,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 				readText() {
 					return Promise.resolve('clipboard_contents');
 				}
-			}
+			},
+			new TestPathService()
 		);
 	});
 

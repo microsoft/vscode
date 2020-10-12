@@ -21,8 +21,6 @@ import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/sh
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-export const VIEWLET_ID = 'workbench.view.remote';
-
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
 		@ILabelService private readonly labelService: ILabelService,
@@ -97,11 +95,13 @@ const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
-		'workspace'
+		'workspace',
+		'web'
 	],
 	enumDescriptions: [
 		localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
+		localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
 	],
 };
 

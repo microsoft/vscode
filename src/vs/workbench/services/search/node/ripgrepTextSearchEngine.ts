@@ -5,19 +5,19 @@
 
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
-import * as path from 'vs/base/common/path';
 import { StringDecoder } from 'string_decoder';
-import { createRegExp, startsWith, startsWithUTF8BOM, stripUTF8BOM, escapeRegExpCharacters, endsWith } from 'vs/base/common/strings';
+import { coalesce } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { groupBy } from 'vs/base/common/collections';
+import { splitGlobAware } from 'vs/base/common/glob';
+import * as path from 'vs/base/common/path';
+import { createRegExp, escapeRegExpCharacters, startsWithUTF8BOM, stripUTF8BOM } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
+import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSearchOptions, TextSearchPreviewOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
-import { coalesce } from 'vs/base/common/arrays';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { groupBy } from 'vs/base/common/collections';
-import { TextSearchQuery, TextSearchOptions, TextSearchResult, TextSearchComplete, TextSearchPreviewOptions, TextSearchContext, TextSearchMatch, Range } from 'vs/workbench/services/search/common/searchExtTypes';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -44,7 +44,7 @@ export class RipgrepTextSearchEngine {
 			const escapedArgs = rgArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
-			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}`);
+			this.outputChannel.appendLine(`${rgDiskPath} ${escapedArgs}\n - cwd: ${cwd}`);
 
 			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(rgDiskPath, rgArgs, { cwd });
 			rgProc.on('error', e => {
@@ -57,6 +57,7 @@ export class RipgrepTextSearchEngine {
 			const ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
 			ripgrepParser.on('result', (match: TextSearchResult) => {
 				gotResult = true;
+				dataWithoutResult = '';
 				progress.report(match);
 			});
 
@@ -79,8 +80,12 @@ export class RipgrepTextSearchEngine {
 				cancel();
 			});
 
+			let dataWithoutResult = '';
 			rgProc.stdout!.on('data', data => {
 				ripgrepParser.handleData(data);
+				if (!gotResult) {
+					dataWithoutResult += data;
+				}
 			});
 
 			let gotData = false;
@@ -96,7 +101,12 @@ export class RipgrepTextSearchEngine {
 			rgProc.on('close', () => {
 				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
 				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
+				if (dataWithoutResult) {
+					this.outputChannel.appendLine(`Got data without result: ${dataWithoutResult}`);
+				}
+
 				this.outputChannel.appendLine('');
+
 				if (isDone) {
 					resolve({ limitHit });
 				} else {
@@ -116,7 +126,8 @@ export class RipgrepTextSearchEngine {
 }
 
 /**
- * Read the first line of stderr and return an error for display or undefined, based on a whitelist.
+ * Read the first line of stderr and return an error for display or undefined, based on a list of
+ * allowed properties.
  * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
  * "failed" when a fatal error was produced.
  */
@@ -124,7 +135,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	const lines = msg.split('\n');
 	const firstLine = lines[0].trim();
 
-	if (lines.some(l => startsWith(l, 'regex parse error'))) {
+	if (lines.some(l => l.startsWith('regex parse error'))) {
 		return new SearchError(buildRegexParseError(lines), SearchErrorCode.regexParseError);
 	}
 
@@ -133,17 +144,17 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 		return new SearchError(`Unknown encoding: ${match[1]}`, SearchErrorCode.unknownEncoding);
 	}
 
-	if (startsWith(firstLine, 'error parsing glob')) {
+	if (firstLine.startsWith('error parsing glob')) {
 		// Uppercase first letter
 		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.globParseError);
 	}
 
-	if (startsWith(firstLine, 'the literal')) {
+	if (firstLine.startsWith('the literal')) {
 		// Uppercase first letter
 		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.invalidLiteral);
 	}
 
-	if (startsWith(firstLine, 'PCRE2: error compiling pattern')) {
+	if (firstLine.startsWith('PCRE2: error compiling pattern')) {
 		return new SearchError(firstLine, SearchErrorCode.regexParseError);
 	}
 
@@ -151,12 +162,12 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 }
 
 export function buildRegexParseError(lines: string[]): string {
-	let errorMessage: string[] = ['Regex parse error'];
-	let pcre2ErrorLine = lines.filter(l => (startsWith(l, 'PCRE2:')));
+	const errorMessage: string[] = ['Regex parse error'];
+	const pcre2ErrorLine = lines.filter(l => (l.startsWith('PCRE2:')));
 	if (pcre2ErrorLine.length >= 1) {
-		let pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
+		const pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
 		if (pcre2ErrorMessage.indexOf(':') !== -1 && pcre2ErrorMessage.split(':').length >= 2) {
-			let pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
+			const pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
 			errorMessage.push(':' + pcre2ActualErrorMessage);
 		}
 	}
@@ -289,12 +300,12 @@ export class RipgrepParser extends EventEmitter {
 				match.end = match.end <= 3 ? 0 : match.end - 3;
 			}
 			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
-			let startCol = prevMatchEndCol + inBetweenChars;
+			const startCol = prevMatchEndCol + inBetweenChars;
 
 			const stats = getNumLinesAndLastNewlineLength(matchText);
 			const startLineNumber = prevMatchEndLine;
 			const endLineNumber = stats.numLines + startLineNumber;
-			let endCol = stats.numLines > 0 ?
+			const endCol = stats.numLines > 0 ?
 				stats.lastLineLength :
 				stats.lastLineLength + startCol;
 
@@ -357,12 +368,12 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 
 	const { doubleStarIncludes, otherIncludes } = groupBy(
 		options.includes,
-		(include: string) => startsWith(include, '**') ? 'doubleStarIncludes' : 'otherIncludes');
+		(include: string) => include.startsWith('**') ? 'doubleStarIncludes' : 'otherIncludes');
 
 	if (otherIncludes && otherIncludes.length) {
 		const uniqueOthers = new Set<string>();
 		otherIncludes.forEach(other => {
-			if (!endsWith(other, '/**')) {
+			if (!other.endsWith('/**')) {
 				other += '/**';
 			}
 
@@ -493,7 +504,7 @@ export function spreadGlobComponents(globArg: string): string[] {
 
 export function unicodeEscapesToPCRE2(pattern: string): string {
 	// Match \u1234
-	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/g;
+	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/gi;
 
 	while (pattern.match(unicodePattern)) {
 		pattern = pattern.replace(unicodePattern, `$1\\x{$2}`);
@@ -501,7 +512,7 @@ export function unicodeEscapesToPCRE2(pattern: string): string {
 
 	// Match \u{1234}
 	// \u with 5-6 characters will be left alone because \x only takes 4 characters.
-	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/g;
+	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/gi;
 	while (pattern.match(unicodePatternWithBraces)) {
 		pattern = pattern.replace(unicodePatternWithBraces, `$1\\x{$2}`);
 	}

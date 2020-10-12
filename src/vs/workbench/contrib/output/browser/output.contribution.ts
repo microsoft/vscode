@@ -33,6 +33,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Codicon } from 'vs/base/common/codicons';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -115,7 +116,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
-		accessor.get(IOutputService).showChannel(channelId);
+		if (typeof channelId === 'string') {
+			// Sometimes the action is executed with no channelId parameter, then we should just ignore it #103496
+			accessor.get(IOutputService).showChannel(channelId);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -123,7 +127,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: `workbench.output.action.clearOutput`,
 			title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
-			category: nls.localize('viewCategory', "View"),
+			category: CATEGORIES.View,
 			menu: [{
 				id: MenuId.ViewTitle,
 				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
@@ -217,7 +221,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: toggleOutputAcitonId,
 			title: { value: nls.localize('toggleOutput', "Toggle Output"), original: 'Toggle Output' },
-			category: { value: nls.localize('viewCategory', "View"), original: 'View' },
+			category: CATEGORIES.View,
 			menu: {
 				id: MenuId.CommandPalette,
 			},
@@ -243,13 +247,12 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const devCategory = { value: nls.localize('developer', "Developer"), original: 'Developer' };
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.showLogs',
 			title: { value: nls.localize('showLogs', "Show Logs..."), original: 'Show Logs...' },
-			category: devCategory,
+			category: CATEGORIES.Developer,
 			menu: {
 				id: MenuId.CommandPalette,
 			},
@@ -277,7 +280,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.openLogFile',
 			title: { value: nls.localize('openLogFile', "Open Log File..."), original: 'Open Log File...' },
-			category: devCategory,
+			category: CATEGORIES.Developer,
 			menu: {
 				id: MenuId.CommandPalette,
 			},
@@ -319,7 +322,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: nls.localize('output.smartScroll.enabled', "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line."),
 			default: true,
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.WINDOW,
 			tags: ['output']
 		}
 	}

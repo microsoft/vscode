@@ -13,14 +13,13 @@ import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { TextEdit, WorkspaceEdit, WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { IIdentifiedSingleEditOperation, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -47,6 +46,7 @@ import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -78,8 +78,15 @@ export class SimpleModel implements IResolvedTextEditorModel {
 		return false;
 	}
 
+	private disposed = false;
 	public dispose(): void {
+		this.disposed = true;
+
 		this._onDispose.fire();
+	}
+
+	public isDisposed(): boolean {
+		return this.disposed;
 	}
 
 	public isResolved(): boolean {
@@ -291,9 +298,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		commandService: ICommandService,
 		telemetryService: ITelemetryService,
 		notificationService: INotificationService,
+		logService: ILogService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService);
+		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
@@ -319,7 +327,8 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				command: commandId,
 				when: when,
 				weight1: 1000,
-				weight2: 0
+				weight2: 0,
+				extensionId: null
 			});
 
 			toDispose.add(toDisposable(() => {
@@ -350,7 +359,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		if (!this._cachedResolver) {
 			const defaults = this._toNormalizedKeybindingItems(KeybindingsRegistry.getDefaultKeybindings(), true);
 			const overrides = this._toNormalizedKeybindingItems(this._dynamicKeybindings, false);
-			this._cachedResolver = new KeybindingResolver(defaults, overrides);
+			this._cachedResolver = new KeybindingResolver(defaults, overrides, (str) => this._log(str));
 		}
 		return this._cachedResolver;
 	}
@@ -367,11 +376,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null);
 			} else {
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null);
 				}
 			}
 		}
@@ -552,6 +561,9 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public setEnabled(value: boolean): void {
 	}
 
+	public setExperimentProperty(name: string, value: string): void {
+	}
+
 	public publicLog(eventName: string, data?: any): Promise<void> {
 		return Promise.resolve(undefined);
 	}
@@ -662,42 +674,43 @@ export class SimpleBulkEditService implements IBulkEditService {
 		return Disposable.None;
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async apply(edits: ResourceEdit[], _options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
-		let edits = new Map<ITextModel, TextEdit[]>();
+		const textEdits = new Map<ITextModel, IIdentifiedSingleEditOperation[]>();
 
-		if (workspaceEdit.edits) {
-			for (let edit of workspaceEdit.edits) {
-				if (!WorkspaceTextEdit.is(edit)) {
-					return Promise.reject(new Error('bad edit - only text edits are supported'));
-				}
-				let model = this._modelService.getModel(edit.resource);
-				if (!model) {
-					return Promise.reject(new Error('bad edit - model not found'));
-				}
-				let array = edits.get(model);
-				if (!array) {
-					array = [];
-					edits.set(model, array);
-				}
-				array.push(edit.edit);
+		for (let edit of edits) {
+			if (!(edit instanceof ResourceTextEdit)) {
+				throw new Error('bad edit - only text edits are supported');
 			}
+			const model = this._modelService.getModel(edit.resource);
+			if (!model) {
+				throw new Error('bad edit - model not found');
+			}
+			if (typeof edit.versionId === 'number' && model.getVersionId() !== edit.versionId) {
+				throw new Error('bad state - model changed in the meantime');
+			}
+			let array = textEdits.get(model);
+			if (!array) {
+				array = [];
+				textEdits.set(model, array);
+			}
+			array.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
 		}
+
 
 		let totalEdits = 0;
 		let totalFiles = 0;
-		edits.forEach((edits, model) => {
+		for (const [model, edits] of textEdits) {
 			model.pushStackElement();
-			model.pushEditOperations([], edits.map((e) => EditOperation.replaceMove(Range.lift(e.range), e.text)), () => []);
+			model.pushEditOperations([], edits, () => []);
 			model.pushStackElement();
 			totalFiles += 1;
 			totalEdits += edits.length;
-		});
+		}
 
-		return Promise.resolve({
-			selection: undefined,
+		return {
 			ariaSummary: strings.format(SimpleServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
-		});
+		};
 	}
 }
 

@@ -798,7 +798,7 @@
     "jsonValidation": [
       {
         "fileMatch": "*.css-data.json",
-        "url": "https://raw.githubusercontent.com/Microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+        "url": "https://raw.githubusercontent.com/microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
       },
       {
         "fileMatch": "package.json",
@@ -807,7 +807,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "7.0.0-next.5",
+    "vscode-languageclient": "7.0.0-next.5.1",
     "vscode-nls": "^4.1.2"
   },
   "devDependencies": {

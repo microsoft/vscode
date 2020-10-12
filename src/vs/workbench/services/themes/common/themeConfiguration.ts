@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
@@ -14,7 +14,7 @@ import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry'
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ThemeType, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
+import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 
 const DEFAULT_THEME_DARK_SETTING_VALUE = 'Default Dark+';
 const DEFAULT_THEME_LIGHT_SETTING_VALUE = 'Default Light+';
@@ -33,14 +33,14 @@ const colorThemeSettingEnumDescriptions: string[] = [];
 const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
-	default: DEFAULT_THEME_DARK_SETTING_VALUE,
+	default: isWeb ? DEFAULT_THEME_LIGHT_SETTING_VALUE : DEFAULT_THEME_DARK_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	description: nls.localize('preferredDarkColorTheme', 'Specifies the preferred color theme for dark OS appearance when \'{0}\' is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
+	markdownDescription: nls.localize('preferredDarkColorTheme', 'Specifies the preferred color theme for dark OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
 	default: DEFAULT_THEME_DARK_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
@@ -48,7 +48,7 @@ const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	description: nls.localize('preferredLightColorTheme', 'Specifies the preferred color theme for light OS appearance when \'{0}\' is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
+	markdownDescription: nls.localize('preferredLightColorTheme', 'Specifies the preferred color theme for light OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
 	default: DEFAULT_THEME_LIGHT_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
@@ -56,10 +56,11 @@ const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	description: nls.localize('preferredHCColorTheme', 'Specifies the preferred color theme used in high contrast mode when \'{0}\' is enabled.', ThemeSettings.DETECT_HC),
+	markdownDescription: nls.localize('preferredHCColorTheme', 'Specifies the preferred color theme used in high contrast mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
 	default: DEFAULT_THEME_HC_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
+	included: isWindows || isMacintosh,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
@@ -95,6 +96,13 @@ const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")
 };
 
+const detectHCSchemeSettingSchema: IConfigurationPropertySchema = {
+	type: 'boolean',
+	default: true,
+	description: nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme."),
+	scope: ConfigurationScope.APPLICATION
+};
+
 const themeSettingsConfiguration: IConfigurationNode = {
 	id: 'workbench',
 	order: 7.1,
@@ -104,12 +112,23 @@ const themeSettingsConfiguration: IConfigurationNode = {
 		[ThemeSettings.PREFERRED_DARK_THEME]: preferredDarkThemeSettingSchema,
 		[ThemeSettings.PREFERRED_LIGHT_THEME]: preferredLightThemeSettingSchema,
 		[ThemeSettings.PREFERRED_HC_THEME]: preferredHCThemeSettingSchema,
-		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema,
 		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}
 };
+configurationRegistry.registerConfiguration(themeSettingsConfiguration);
+
+const themeSettingsWindowConfiguration: IConfigurationNode = {
+	id: 'window',
+	order: 8.1,
+	type: 'object',
+	properties: {
+		[ThemeSettings.DETECT_HC]: detectHCSchemeSettingSchema,
+		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema,
+	}
+};
+configurationRegistry.registerConfiguration(themeSettingsWindowConfiguration);
 
 function tokenGroupSettings(description: string): IJSONSchema {
 	return {
@@ -134,6 +153,7 @@ const tokenColorSchema: IJSONSchema = {
 		semanticHighlighting: {
 			description: nls.localize('editorColors.semanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.'),
 			deprecationMessage: nls.localize('editorColors.semanticHighlighting.deprecationMessage', 'Use `enabled` in `editor.semanticTokenColorCustomizations` setting instead.'),
+			markdownDeprecationMessage: nls.localize('editorColors.semanticHighlighting.deprecationMessageMarkdown', 'Use `enabled` in `#editor.semanticTokenColorCustomizations#` setting instead.'),
 			type: 'boolean'
 		}
 	}
@@ -170,6 +190,7 @@ const semanticTokenColorCustomizationSchema: IConfigurationPropertySchema = {
 
 const experimentalTokenStylingCustomizationSchema: IConfigurationPropertySchema = {
 	deprecationMessage: nls.localize('editorColors.experimentalTokenStyling.deprecationMessage', 'Use `editor.semanticTokenColorCustomizations` instead.'),
+	markdownDeprecationMessage: nls.localize('editorColors.experimentalTokenStyling.deprecationMessageMarkdown', 'Use `#editor.semanticTokenColorCustomizations#` instead.'),
 	default: {},
 	allOf: [{ $ref: tokenStylingSchemaId }],
 };
@@ -231,19 +252,7 @@ export function updateProductIconThemeConfigurationSchemas(themes: IWorkbenchPro
 
 
 export class ThemeConfiguration {
-	constructor(private configurationService: IConfigurationService, themeType: ThemeType) {
-		switch (themeType) {
-			case LIGHT:
-				colorThemeSettingSchema.default = DEFAULT_THEME_LIGHT_SETTING_VALUE;
-				break;
-			case HIGH_CONTRAST:
-				colorThemeSettingSchema.default = DEFAULT_THEME_HC_SETTING_VALUE;
-				break;
-			default:
-				colorThemeSettingSchema.default = DEFAULT_THEME_DARK_SETTING_VALUE;
-				break;
-		}
-		configurationRegistry.registerConfiguration(themeSettingsConfiguration);
+	constructor(private configurationService: IConfigurationService) {
 	}
 
 	public get colorTheme(): string {
@@ -289,6 +298,18 @@ export class ThemeConfiguration {
 		return theme;
 	}
 
+	public findAutoConfigurationTarget(key: string) {
+		let settings = this.configurationService.inspect(key);
+		if (!types.isUndefined(settings.workspaceFolderValue)) {
+			return ConfigurationTarget.WORKSPACE_FOLDER;
+		} else if (!types.isUndefined(settings.workspaceValue)) {
+			return ConfigurationTarget.WORKSPACE;
+		} else if (!types.isUndefined(settings.userRemote)) {
+			return ConfigurationTarget.USER_REMOTE;
+		}
+		return ConfigurationTarget.USER;
+	}
+
 	private async writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget | 'auto' | undefined): Promise<void> {
 		if (settingsTarget === undefined) {
 			return;
@@ -296,15 +317,7 @@ export class ThemeConfiguration {
 
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === 'auto') {
-			if (!types.isUndefined(settings.workspaceFolderValue)) {
-				settingsTarget = ConfigurationTarget.WORKSPACE_FOLDER;
-			} else if (!types.isUndefined(settings.workspaceValue)) {
-				settingsTarget = ConfigurationTarget.WORKSPACE;
-			} else if (!types.isUndefined(settings.userRemote)) {
-				settingsTarget = ConfigurationTarget.USER_REMOTE;
-			} else {
-				settingsTarget = ConfigurationTarget.USER;
-			}
+			settingsTarget = this.findAutoConfigurationTarget(key);
 		}
 
 		if (settingsTarget === ConfigurationTarget.USER) {

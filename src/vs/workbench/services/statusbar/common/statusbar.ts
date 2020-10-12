@@ -34,6 +34,12 @@ export interface IStatusbarEntry {
 	readonly ariaLabel: string;
 
 	/**
+	 * Role of the status bar entry which defines how a screen reader interacts with it.
+	 * Default is 'button'.
+	 */
+	readonly role?: string;
+
+	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
 	readonly tooltip?: string;

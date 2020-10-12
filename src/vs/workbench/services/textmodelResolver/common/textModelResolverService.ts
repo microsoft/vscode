@@ -17,6 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -32,7 +33,11 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		super();
 	}
 
-	async createReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
+	createReferencedObject(key: string): Promise<ITextEditorModel> {
+		return this.doCreateReferencedObject(key);
+	}
+
+	private async doCreateReferencedObject(key: string, skipActivateProvider?: boolean): Promise<ITextEditorModel> {
 
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
@@ -69,7 +74,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		if (!skipActivateProvider) {
 			await this.fileService.activateProvider(resource.scheme);
 
-			return this.createReferencedObject(key, true);
+			return this.doCreateReferencedObject(key, true);
 		}
 
 		throw new Error(`Unable to resolve resource ${key}`);
@@ -174,13 +179,21 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
-		@IModelService private readonly modelService: IModelService
+		@IModelService private readonly modelService: IModelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
+
 		this._register(new ModelUndoRedoParticipant(this.modelService, this, this.undoRedoService));
 	}
 
 	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+
+		// From this moment on, only operate on the canonical resource
+		// to ensure we reduce the chance of resolving the same resource
+		// with different resource forms (e.g. path casing on Windows)
+		resource = this.uriIdentityService.asCanonicalUri(resource);
+
 		const ref = this.resourceModelCollection.acquire(resource.toString());
 
 		try {

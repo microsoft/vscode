@@ -63,7 +63,7 @@ class MyPart2 extends SimplePart {
 		const titleContainer = append(parent, $('div'));
 		const titleLabel = append(titleContainer, $('span'));
 		titleLabel.id = 'myPart.title';
-		titleLabel.innerHTML = 'Title';
+		titleLabel.innerText = 'Title';
 
 		return titleContainer;
 	}
@@ -72,7 +72,7 @@ class MyPart2 extends SimplePart {
 		const contentContainer = append(parent, $('div'));
 		const contentSpan = append(contentContainer, $('span'));
 		contentSpan.id = 'myPart.content';
-		contentSpan.innerHTML = 'Content';
+		contentSpan.innerText = 'Content';
 
 		return contentContainer;
 	}
@@ -92,7 +92,7 @@ class MyPart3 extends SimplePart {
 		const contentContainer = append(parent, $('div'));
 		const contentSpan = append(contentContainer, $('span'));
 		contentSpan.id = 'myPart.content';
-		contentSpan.innerHTML = 'Content';
+		contentSpan.innerText = 'Content';
 
 		return contentContainer;
 	}

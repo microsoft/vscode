@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -52,7 +52,7 @@ export class CLIServer {
 	}
 
 	private async setup(): Promise<string> {
-		this._ipcHandlePath = generateRandomPipeName();
+		this._ipcHandlePath = createRandomIPCHandle();
 
 		try {
 			this._server.listen(this.ipcHandlePath);

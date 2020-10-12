@@ -33,7 +33,7 @@ export async function deactivate(): Promise<any> {
 }
 
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
-	const pathHint = workspace.getConfiguration('git').get<string>('path');
+	const pathHint = workspace.getConfiguration('git').get<string | string[]>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 
 	const askpass = await Askpass.create(outputChannel, context.storagePath);
@@ -74,7 +74,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		new GitTimelineProvider(model)
 	);
 
-	await checkGitVersion(info);
+	checkGitVersion(info);
 
 	return model;
 }
@@ -127,7 +127,7 @@ async function warnAboutMissingGit(): Promise<void> {
 	}
 }
 
-export async function _activate(context: ExtensionContext): Promise<GitExtension> {
+export async function _activate(context: ExtensionContext): Promise<GitExtensionImpl> {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
@@ -175,7 +175,7 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 	return result;
 }
 
-async function checkGitVersion(info: IGit): Promise<void> {
+async function checkGitv1(info: IGit): Promise<void> {
 	const config = workspace.getConfiguration('git');
 	const shouldIgnore = config.get<boolean>('ignoreLegacyWarning') === true;
 
@@ -200,5 +200,40 @@ async function checkGitVersion(info: IGit): Promise<void> {
 		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
+	}
+}
+
+async function checkGitWindows(info: IGit): Promise<void> {
+	if (!/^2\.(25|26)\./.test(info.version)) {
+		return;
+	}
+
+	const config = workspace.getConfiguration('git');
+	const shouldIgnore = config.get<boolean>('ignoreWindowsGit27Warning') === true;
+
+	if (shouldIgnore) {
+		return;
+	}
+
+	const update = localize('updateGit', "Update Git");
+	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+	const choice = await window.showWarningMessage(
+		localize('git2526', "There are known issues with the installed Git {0}. Please update to Git >= 2.27 for the git features to work correctly.", info.version),
+		update,
+		neverShowAgain
+	);
+
+	if (choice === update) {
+		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	} else if (choice === neverShowAgain) {
+		await config.update('ignoreWindowsGit27Warning', true, true);
+	}
+}
+
+async function checkGitVersion(info: IGit): Promise<void> {
+	await checkGitv1(info);
+
+	if (process.platform === 'win32') {
+		await checkGitWindows(info);
 	}
 }

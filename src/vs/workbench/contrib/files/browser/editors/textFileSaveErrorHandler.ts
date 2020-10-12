@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { Action, IAction } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -115,7 +115,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 
 			// If the user tried to save from the opened conflict editor, show its message again
-			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.resource.toString()) {
+			if (this.activeConflictResolutionResource && isEqual(this.activeConflictResolutionResource, model.resource)) {
 				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
 					return; // return if this message is ignored
 				}
@@ -142,7 +142,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const triedToMakeWriteable = isReadonly && fileOperationError.options && (fileOperationError.options as IWriteTextFileOptions).overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
-			const canHandlePermissionOrReadonlyErrors = resource.scheme === Schemas.file; // https://github.com/Microsoft/vscode/issues/48659
+			const canHandlePermissionOrReadonlyErrors = resource.scheme === Schemas.file; // https://github.com/microsoft/vscode/issues/48659
 
 			// Save Elevated
 			if (canHandlePermissionOrReadonlyErrors && (isPermissionDenied || triedToMakeWriteable)) {
@@ -175,7 +175,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			} else if (canHandlePermissionOrReadonlyErrors && isPermissionDenied) {
 				message = isWindows ? nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : nls.localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));
 			} else {
-				message = nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
+				message = nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
 			}
 		}
 

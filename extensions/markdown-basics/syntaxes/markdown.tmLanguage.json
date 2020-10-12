@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/a7e4475626a505472c76d18e0a1b3cfcf46f9cf9",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/4be9cb335581f3559166c319607dac9100103083",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1963,12 +1963,12 @@
 			"name": "markup.fenced_code.block.markdown"
 		},
 		"heading": {
-			"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s+(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
+			"match": "(?:^|\\G)[ ]{0,3}(#{1,6}\\s+(.*?)(\\s+#{1,6})?\\s*)$",
 			"captures": {
 				"1": {
 					"patterns": [
 						{
-							"match": "(#{6})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{6})\\s+(.*?)(?:\\s+(#+))?\\s*$",
 							"name": "heading.6.markdown",
 							"captures": {
 								"1": {
@@ -1983,7 +1983,7 @@
 							}
 						},
 						{
-							"match": "(#{5})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{5})\\s+(.*?)(?:\\s+(#+))?\\s*$",
 							"name": "heading.5.markdown",
 							"captures": {
 								"1": {
@@ -1998,7 +1998,7 @@
 							}
 						},
 						{
-							"match": "(#{4})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{4})\\s+(.*?)(?:\\s+(#+))?\\s*$",
 							"name": "heading.4.markdown",
 							"captures": {
 								"1": {
@@ -2013,7 +2013,7 @@
 							}
 						},
 						{
-							"match": "(#{3})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{3})\\s+(.*?)(?:\\s+(#+))?\\s*$",
 							"name": "heading.3.markdown",
 							"captures": {
 								"1": {
@@ -2028,7 +2028,7 @@
 							}
 						},
 						{
-							"match": "(#{2})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{2})\\s+(.*?)(?:\\s+(#+))?\\s*$",
 							"name": "heading.2.markdown",
 							"captures": {
 								"1": {
@@ -2043,7 +2043,7 @@
 							}
 						},
 						{
-							"match": "(#{1})\\s+(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+							"match": "(#{1})\\s+(.*?)(?:\\s+(#+))?\\s*$",
 							"name": "heading.1.markdown",
 							"captures": {
 								"1": {

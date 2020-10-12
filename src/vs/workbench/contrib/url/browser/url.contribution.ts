@@ -3,50 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IURLService } from 'vs/platform/url/common/url';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/browser/externalUriResolver';
 import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
-export class OpenUrlAction extends Action {
-	static readonly ID = 'workbench.action.url.openUrl';
-	static readonly LABEL = localize('openUrl', 'Open URL');
+class OpenUrlAction extends Action2 {
 
-	constructor(
-		id: string,
-		label: string,
-		@IURLService private readonly urlService: IURLService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.url.openUrl',
+			title: { value: localize('openUrl', "Open URL"), original: 'Open URL' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
 	}
 
-	run(): Promise<any> {
-		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const urlService = accessor.get(IURLService);
+
+		return quickInputService.input({ prompt: localize('urlToOpen', "URL to open") }).then(input => {
 			if (input) {
 				const uri = URI.parse(input);
-				this.urlService.open(uri, { trusted: true });
+				urlService.open(uri, { trusted: true });
 			}
 		});
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.from(OpenUrlAction),
-	'Open URL',
-	localize('developer', 'Developer')
-);
+registerAction2(OpenUrlAction);
 
 /**
  * Trusted Domains Contribution

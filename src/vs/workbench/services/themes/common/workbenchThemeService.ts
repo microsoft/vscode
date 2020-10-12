@@ -77,7 +77,6 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getProductIconTheme(): IWorkbenchProductIconTheme;
 	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
 	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
-
 }
 
 export interface IColorCustomizations {

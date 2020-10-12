@@ -17,7 +17,8 @@
 	color: inherit;
 }
 
-.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-close {
+.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-close,
+.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-pinned {
 	width: 8px;
 	height: 22px;
 	display: flex;
@@ -25,8 +26,9 @@
 	justify-content: center;
 }
 
-.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
-	content: "\ea71"; /* Close icon flips between black dot and "X" for dirty open editors */
+.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before,
+.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-pinned::before {
+	content: "\ea71"; /* Close/Unpin icon flips between black dot and normal for dirty open editors */
 }
 
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,

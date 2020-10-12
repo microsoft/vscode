@@ -95,6 +95,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/keybindings",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/markers",
 			"project": "vscode-workbench"
 		},
@@ -203,6 +207,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/webviewPanel",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/customEditor",
 			"project": "vscode-workbench"
 		},
@@ -216,6 +224,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/views",
 			"project": "vscode-workbench"
 		},
 		{
@@ -240,10 +252,6 @@
 		},
 		{
 			"name": "vs/workbench/services/configurationResolver",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/crashReporter",
 			"project": "vscode-workbench"
 		},
 		{

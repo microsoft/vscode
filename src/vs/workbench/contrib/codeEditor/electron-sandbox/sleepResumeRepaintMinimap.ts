@@ -6,17 +6,21 @@
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-class SleepResumeRepaintMinimap implements IWorkbenchContribution {
+class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		ipcRenderer.on('vscode:osResume', () => {
+		super();
+
+		this._register(nativeHostService.onOSResume(() => {
 			codeEditorService.listCodeEditors().forEach(editor => editor.render(true));
-		});
+		}));
 	}
 }
 

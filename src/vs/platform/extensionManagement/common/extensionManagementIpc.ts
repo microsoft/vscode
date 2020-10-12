@@ -63,6 +63,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
 			case 'install': return this.service.install(transformIncomingURI(args[0], uriTransformer));
 			case 'getManifest': return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
+			case 'canInstall': return this.service.canInstall(args[0]);
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
 			case 'uninstall': return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), args[1]);
 			case 'reinstallFromGallery': return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
@@ -102,6 +103,10 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
 		return Promise.resolve(this.channel.call<IExtensionManifest>('getManifest', [vsix]));
+	}
+
+	async canInstall(extension: IGalleryExtension): Promise<boolean> {
+		return true;
 	}
 
 	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {

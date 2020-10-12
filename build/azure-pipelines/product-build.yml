@@ -1,157 +1,3 @@
-resources:
-  containers:
-  - container: vscode-x64
-    image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
-    endpoint: VSCodeHub
-  - container: snapcraft
-    image: snapcore/snapcraft:stable
-
-jobs:
-- job: Compile
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  container: vscode-x64
-  steps:
-  - template: product-compile.yml
-
-- job: Windows
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
-  pool:
-    vmImage: VS2017-Win2016
-  variables:
-    VSCODE_ARCH: x64
-  dependsOn:
-  - Compile
-  steps:
-  - template: win32/product-build-win32.yml
-
-- job: Windows32
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
-  pool:
-    vmImage: VS2017-Win2016
-  variables:
-    VSCODE_ARCH: ia32
-  dependsOn:
-  - Compile
-  steps:
-  - template: win32/product-build-win32.yml
-
-- job: WindowsARM64
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
-  pool:
-    vmImage: VS2017-Win2016
-  variables:
-    VSCODE_ARCH: arm64
-  dependsOn:
-  - Compile
-  steps:
-  - template: win32/product-build-win32-arm64.yml
-
-- job: Linux
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  container: vscode-x64
-  dependsOn:
-  - Compile
-  steps:
-  - template: linux/product-build-linux.yml
-
-- job: LinuxSnap
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  container: snapcraft
-  dependsOn: Linux
-  steps:
-  - template: linux/snap-build-linux.yml
-
-- job: LinuxArmhf
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: armhf
-  dependsOn:
-  - Compile
-  steps:
-  - template: linux/product-build-linux-multiarch.yml
-
-- job: LinuxArm64
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: arm64
-  dependsOn:
-  - Compile
-  steps:
-  - template: linux/product-build-linux-multiarch.yml
-
-- job: LinuxAlpine
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: alpine
-  dependsOn:
-  - Compile
-  steps:
-  - template: linux/product-build-linux-multiarch.yml
-
-- job: LinuxWeb
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_WEB'], 'true'))
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  variables:
-    VSCODE_ARCH: x64
-  dependsOn:
-  - Compile
-  steps:
-  - template: web/product-build-web.yml
-
-- job: macOS
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
-  pool:
-    vmImage: macOS-latest
-  dependsOn:
-  - Compile
-  steps:
-  - template: darwin/product-build-darwin.yml
-
-- job: Release
-  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  dependsOn:
-  - Windows
-  - Windows32
-  - Linux
-  - LinuxSnap
-  - LinuxArmhf
-  - LinuxArm64
-  - LinuxAlpine
-  - macOS
-  steps:
-  - template: release.yml
-
-- job: Mooncake
-  pool:
-    vmImage: 'Ubuntu-16.04'
-  condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
-  dependsOn:
-  - Windows
-  - Windows32
-  - Linux
-  - LinuxSnap
-  - LinuxArmhf
-  - LinuxArm64
-  - LinuxAlpine
-  - LinuxWeb
-  - macOS
-  steps:
-  - template: sync-mooncake.yml
-
 trigger: none
 pr: none
 
@@ -161,3 +7,153 @@ schedules:
   branches:
     include:
     - master
+
+resources:
+  containers:
+  - container: vscode-x64
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
+    endpoint: VSCodeHub
+  - container: vscode-arm64
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-arm64
+    endpoint: VSCodeHub
+  - container: vscode-armhf
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
+    endpoint: VSCodeHub
+  - container: snapcraft
+    image: snapcore/snapcraft:stable
+
+stages:
+- stage: Compile
+  jobs:
+  - job: Compile
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    container: vscode-x64
+    steps:
+    - template: product-compile.yml
+
+- stage: Windows
+  dependsOn:
+  - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  pool:
+    vmImage: VS2017-Win2016
+  jobs:
+  - job: Windows
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
+    variables:
+      VSCODE_ARCH: x64
+    steps:
+    - template: win32/product-build-win32.yml
+
+  - job: Windows32
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+    variables:
+      VSCODE_ARCH: ia32
+    steps:
+    - template: win32/product-build-win32.yml
+
+  - job: WindowsARM64
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+    variables:
+      VSCODE_ARCH: arm64
+    steps:
+    - template: win32/product-build-win32-arm64.yml
+
+- stage: Linux
+  dependsOn:
+  - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  jobs:
+  - job: Linux
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+    container: vscode-x64
+    variables:
+      VSCODE_ARCH: x64
+      NPM_ARCH: x64
+    steps:
+    - template: linux/product-build-linux.yml
+
+  - job: LinuxSnap
+    dependsOn:
+    - Linux
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+    container: snapcraft
+    variables:
+      VSCODE_ARCH: x64
+    steps:
+    - template: linux/snap-build-linux.yml
+
+  - job: LinuxArmhf
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+    container: vscode-armhf
+    variables:
+      VSCODE_ARCH: armhf
+      NPM_ARCH: armv7l
+    steps:
+    - template: linux/product-build-linux.yml
+
+  - job: LinuxArm64
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+    container: vscode-arm64
+    variables:
+      VSCODE_ARCH: arm64
+      NPM_ARCH: arm64
+    steps:
+    - template: linux/product-build-linux.yml
+
+  - job: LinuxAlpine
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
+    variables:
+      VSCODE_ARCH: alpine
+    steps:
+    - template: linux/product-build-linux-multiarch.yml
+
+  - job: LinuxWeb
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
+    variables:
+      VSCODE_ARCH: x64
+    steps:
+    - template: web/product-build-web.yml
+
+- stage: macOS
+  dependsOn:
+  - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  pool:
+    vmImage: macOS-latest
+  jobs:
+  - job: macOS
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
+    steps:
+    - template: darwin/product-build-darwin.yml
+
+- stage: Mooncake
+  dependsOn:
+  - Windows
+  - Linux
+  - macOS
+  condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  jobs:
+  - job: SyncMooncake
+    displayName: Sync Mooncake
+    steps:
+    - template: sync-mooncake.yml
+
+- stage: Publish
+  dependsOn:
+  - Windows
+  - Linux
+  - macOS
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  jobs:
+  - job: BuildService
+    displayName: Build Service
+    steps:
+    - template: release.yml

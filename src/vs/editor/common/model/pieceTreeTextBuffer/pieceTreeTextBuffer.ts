@@ -178,6 +178,10 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 		return this._pieceTree.getLineCharCode(lineNumber, index);
 	}
 
+	public getCharCode(offset: number): number {
+		return this._pieceTree.getCharCode(offset);
+	}
+
 	public getLineLength(lineNumber: number): number {
 		return this._pieceTree.getLineLength(lineNumber);
 	}
@@ -214,8 +218,9 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 				return '\r\n';
 			case EndOfLinePreference.TextDefined:
 				return this.getEOL();
+			default:
+				throw new Error('Unknown EOL preference');
 		}
-		throw new Error('Unknown EOL preference');
 	}
 
 	public setEOL(newEOL: '\r\n' | '\n'): void {
@@ -510,6 +515,32 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 	public getPieceTree(): PieceTreeBase {
 		return this._pieceTree;
 	}
+
+	public static _getInverseEditRange(range: Range, text: string) {
+		let startLineNumber = range.startLineNumber;
+		let startColumn = range.startColumn;
+		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
+		let resultRange: Range;
+
+		if (text.length > 0) {
+			// the operation inserts something
+			const lineCount = eolCount + 1;
+
+			if (lineCount === 1) {
+				// single line insert
+				resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + firstLineLength);
+			} else {
+				// multi line insert
+				resultRange = new Range(startLineNumber, startColumn, startLineNumber + lineCount - 1, lastLineLength + 1);
+			}
+		} else {
+			// There is nothing to insert
+			resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn);
+		}
+
+		return resultRange;
+	}
+
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */

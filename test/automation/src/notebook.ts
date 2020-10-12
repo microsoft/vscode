@@ -35,7 +35,7 @@ export class Notebook {
 	}
 
 	async stopEditingCell() {
-		await this.code.dispatchKeybinding('esc');
+		await this.quickAccess.runCommand('notebook.cell.quitEdit');
 	}
 
 	async waitForTypeInEditor(text: string): Promise<any> {
@@ -88,5 +88,9 @@ export class Notebook {
 
 	async executeActiveCell(): Promise<void> {
 		await this.quickAccess.runCommand('notebook.cell.execute');
+	}
+
+	async executeCellAction(selector: string): Promise<void> {
+		await this.code.waitAndClick(selector);
 	}
 }

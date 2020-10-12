@@ -6,10 +6,10 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, QuickPick } from 'vscode';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider, RemoteSource } from './api/git';
+import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
 import { ForcePushMode, Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -18,8 +18,8 @@ import { fromGitUri, toGitUri, isGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
-import { throttle, debounce } from './decorators';
 import { ApiRepository } from './api/api1';
+import { pickRemoteSource } from './remoteSource';
 
 const localize = nls.loadMessageBundle();
 
@@ -238,72 +238,6 @@ interface PushOptions {
 	pushType: PushType;
 	forcePush?: boolean;
 	silent?: boolean;
-}
-
-async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<T>): Promise<T | undefined> {
-	const result = await new Promise<T | undefined>(c => {
-		quickpick.onDidAccept(() => c(quickpick.selectedItems[0]));
-		quickpick.onDidHide(() => c(undefined));
-		quickpick.show();
-	});
-
-	quickpick.hide();
-	return result;
-}
-
-class RemoteSourceProviderQuickPick {
-
-	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }>;
-
-	constructor(private provider: RemoteSourceProvider) {
-		this.quickpick = window.createQuickPick();
-		this.quickpick.ignoreFocusOut = true;
-
-		if (provider.supportsQuery) {
-			this.quickpick.placeholder = localize('type to search', "Repository name (type to search)");
-			this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
-		} else {
-			this.quickpick.placeholder = localize('type to filter', "Repository name");
-		}
-	}
-
-	@debounce(300)
-	onDidChangeValue(): void {
-		this.query();
-	}
-
-	@throttle
-	async query(): Promise<void> {
-		this.quickpick.busy = true;
-
-		try {
-			const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
-
-			if (remoteSources.length === 0) {
-				this.quickpick.items = [{
-					label: localize('none found', "No remote repositories found."),
-					alwaysShow: true
-				}];
-			} else {
-				this.quickpick.items = remoteSources.map(remoteSource => ({
-					label: remoteSource.name,
-					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
-					remoteSource
-				}));
-			}
-		} catch (err) {
-			this.quickpick.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
-			console.error(err);
-		} finally {
-			this.quickpick.busy = false;
-		}
-	}
-
-	async pick(): Promise<RemoteSource | undefined> {
-		this.query();
-		const result = await getQuickPickResult(this.quickpick);
-		return result?.remoteSource;
-	}
 }
 
 export class CommandCenter {
@@ -526,52 +460,11 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
-		if (!url) {
-			const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
-			quickpick.ignoreFocusOut = true;
-
-			const providers = this.model.getRemoteProviders()
-				.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('clonefrom', "Clone from {0}", provider.name), alwaysShow: true, provider }));
-
-			quickpick.placeholder = providers.length === 0
-				? localize('provide url', "Provide repository URL")
-				: localize('provide url or pick', "Provide repository URL or pick a repository source.");
-
-			const updatePicks = (value?: string) => {
-				if (value) {
-					quickpick.items = [{
-						label: localize('repourl', "Clone from URL"),
-						description: value,
-						alwaysShow: true,
-						url: value
-					},
-					...providers];
-				} else {
-					quickpick.items = providers;
-				}
-			};
-
-			quickpick.onDidChangeValue(updatePicks);
-			updatePicks();
-
-			const result = await getQuickPickResult(quickpick);
-
-			if (result) {
-				if (result.url) {
-					url = result.url;
-				} else if (result.provider) {
-					const quickpick = new RemoteSourceProviderQuickPick(result.provider);
-					const remote = await quickpick.pick();
-
-					if (remote) {
-						if (typeof remote.url === 'string') {
-							url = remote.url;
-						} else if (remote.url.length > 0) {
-							url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
-						}
-					}
-				}
-			}
+		if (!url || typeof url !== 'string') {
+			url = await pickRemoteSource(this.model, {
+				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
+				urlLabel: localize('repourl', "Clone from URL")
+			});
 		}
 
 		if (!url) {
@@ -650,11 +543,11 @@ export class CommandCenter {
 			const uri = Uri.file(repositoryPath);
 
 			if (openFolder) {
-				commands.executeCommand('vscode.openFolder', uri);
+				commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
 			} else if (result === addToWorkspace) {
 				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
 			} else if (result === openNewWindow) {
-				commands.executeCommand('vscode.openFolder', uri, true);
+				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
@@ -845,7 +738,7 @@ export class CommandCenter {
 			try {
 				document = await workspace.openTextDocument(uri);
 			} catch (error) {
-				await commands.executeCommand<void>('vscode.open', uri, opts);
+				await commands.executeCommand('vscode.open', uri, opts);
 				continue;
 			}
 
@@ -858,7 +751,7 @@ export class CommandCenter {
 				const editor = await window.showTextDocument(document, opts);
 				editor.revealRange(previousVisibleRanges[0]);
 			} else {
-				await window.showTextDocument(document, opts);
+				await commands.executeCommand('vscode.open', uri, opts);
 			}
 		}
 	}
@@ -1109,6 +1002,9 @@ export class CommandCenter {
 		}
 
 		await this._stageChanges(textEditor, [changes[index]]);
+
+		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
 	@command('git.stageSelectedRanges', { diff: true })
@@ -1156,6 +1052,9 @@ export class CommandCenter {
 		}
 
 		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
+
+		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
 	@command('git.revertSelectedRanges', { diff: true })
@@ -1177,7 +1076,9 @@ export class CommandCenter {
 			return;
 		}
 
+		const selectionsBeforeRevert = textEditor.selections;
 		await this._revertChanges(textEditor, selectedChanges);
+		textEditor.selections = selectionsBeforeRevert;
 	}
 
 	private async _revertChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
@@ -1190,7 +1091,6 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selectionsBeforeRevert = textEditor.selections;
 		const visibleRangesBeforeRevert = textEditor.visibleRanges;
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
@@ -1200,7 +1100,6 @@ export class CommandCenter {
 
 		await modifiedDocument.save();
 
-		textEditor.selections = selectionsBeforeRevert;
 		textEditor.revealRange(visibleRangesBeforeRevert[0]);
 	}
 
@@ -1299,7 +1198,7 @@ export class CommandCenter {
 
 		if (scmResources.length === 1) {
 			if (untrackedCount > 0) {
-				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(scmResources[0].resourceUri.fsPath));
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
 				if (scmResources[0].type === Status.DELETED) {
@@ -1404,7 +1303,7 @@ export class CommandCenter {
 	private async _cleanTrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
 		const message = resources.length === 1
 			? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
-			: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
+			: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.", resources.length);
 		const yes = resources.length === 1
 			? localize('discardAll multiple', "Discard 1 File")
 			: localize('discardAll', "Discard All {0} Files", resources.length);
@@ -1418,7 +1317,7 @@ export class CommandCenter {
 	}
 
 	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
-		const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resource.resourceUri.fsPath));
+		const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.", path.basename(resource.resourceUri.fsPath));
 		const yes = localize('delete file', "Delete file");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -1430,7 +1329,7 @@ export class CommandCenter {
 	}
 
 	private async _cleanUntrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
-		const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
+		const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.", resources.length);
 		const yes = localize('delete files', "Delete Files");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -1542,6 +1441,26 @@ export class CommandCenter {
 			return false;
 		}
 
+		if (opts.noVerify) {
+			if (!config.get<boolean>('allowNoVerifyCommit')) {
+				await window.showErrorMessage(localize('no verify commit not allowed', "Commits without verification are not allowed, please enable them with the 'git.allowNoVerifyCommit' setting."));
+				return false;
+			}
+
+			if (config.get<boolean>('confirmNoVerifyCommit')) {
+				const message = localize('confirm no verify commit', "You are about to commit your changes without verification, this skips pre-commit hooks and can be undesirable.\n\nAre you sure to continue?");
+				const yes = localize('ok', "OK");
+				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+				if (pick === neverAgain) {
+					config.update('confirmNoVerifyCommit', false, true);
+				} else if (pick !== yes) {
+					return false;
+				}
+			}
+		}
+
 		const message = await getCommitMessage();
 
 		if (!message) {
@@ -1646,8 +1565,7 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
 	}
 
-	@command('git.commitEmpty', { repository: true })
-	async commitEmpty(repository: Repository): Promise<void> {
+	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
@@ -1665,7 +1583,52 @@ export class CommandCenter {
 			}
 		}
 
-		await this.commitWithAnyInput(repository, { empty: true });
+		await this.commitWithAnyInput(repository, { empty: true, noVerify });
+	}
+
+	@command('git.commitEmpty', { repository: true })
+	async commitEmpty(repository: Repository): Promise<void> {
+		await this._commitEmpty(repository);
+	}
+
+	@command('git.commitNoVerify', { repository: true })
+	async commitNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { noVerify: true });
+	}
+
+	@command('git.commitStagedNoVerify', { repository: true })
+	async commitStagedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, noVerify: true });
+	}
+
+	@command('git.commitStagedSignedNoVerify', { repository: true })
+	async commitStagedSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitStagedAmendNoVerify', { repository: true })
+	async commitStagedAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, amend: true, noVerify: true });
+	}
+
+	@command('git.commitAllNoVerify', { repository: true })
+	async commitAllNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, noVerify: true });
+	}
+
+	@command('git.commitAllSignedNoVerify', { repository: true })
+	async commitAllSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitAllAmendNoVerify', { repository: true })
+	async commitAllAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, amend: true, noVerify: true });
+	}
+
+	@command('git.commitEmptyNoVerify', { repository: true })
+	async commitEmptyNoVerify(repository: Repository): Promise<void> {
+		await this._commitEmpty(repository, true);
 	}
 
 	@command('git.restoreCommitTemplate', { repository: true })
@@ -1904,8 +1867,7 @@ export class CommandCenter {
 		});
 
 		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		const message = inputMessage || name;
-		await repository.tag(name, message);
+		await repository.tag(name, inputMessage);
 	}
 
 	@command('git.deleteTag', { repository: true })
@@ -2146,52 +2108,10 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<string | undefined> {
-		const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
-		quickpick.ignoreFocusOut = true;
-
-		const providers = this.model.getRemoteProviders()
-			.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('addfrom', "Add remote from {0}", provider.name), alwaysShow: true, provider }));
-
-		quickpick.placeholder = providers.length === 0
-			? localize('provide url', "Provide repository URL")
-			: localize('provide url or pick', "Provide repository URL or pick a repository source.");
-
-		const updatePicks = (value?: string) => {
-			if (value) {
-				quickpick.items = [{
-					label: localize('addFrom', "Add remote from URL"),
-					description: value,
-					alwaysShow: true,
-					url: value
-				},
-				...providers];
-			} else {
-				quickpick.items = providers;
-			}
-		};
-
-		quickpick.onDidChangeValue(updatePicks);
-		updatePicks();
-
-		const result = await getQuickPickResult(quickpick);
-		let url: string | undefined;
-
-		if (result) {
-			if (result.url) {
-				url = result.url;
-			} else if (result.provider) {
-				const quickpick = new RemoteSourceProviderQuickPick(result.provider);
-				const remote = await quickpick.pick();
-
-				if (remote) {
-					if (typeof remote.url === 'string') {
-						url = remote.url;
-					} else if (remote.url.length > 0) {
-						url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
-					}
-				}
-			}
-		}
+		const url = await pickRemoteSource(this.model, {
+			providerLabel: provider => localize('addfrom', "Add remote from {0}", provider.name),
+			urlLabel: localize('addFrom', "Add remote from URL")
+		});
 
 		if (!url) {
 			return;
@@ -2533,8 +2453,7 @@ export class CommandCenter {
 
 	@command('git.timeline.openDiff', { repository: false })
 	async timelineOpenDiff(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		// eslint-disable-next-line eqeqeq
-		if (uri == null || !GitTimelineItem.is(item)) {
+		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
 			return undefined;
 		}
 

@@ -158,7 +158,7 @@ function isLocalhostAuthority(authority: string) {
 }
 
 /**
- * Case-normalize some case-insinsitive URLs, such as github.
+ * Case-normalize some case-insensitive URLs, such as github.
  */
 function normalizeURL(url: string | URI): string {
 	const caseInsensitiveAuthorities = ['github.com'];
@@ -177,7 +177,7 @@ function normalizeURL(url: string | URI): string {
  * the list of trusted domains.
  *
  * - Schemes must match
- * - There's no subdomsain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
+ * - There's no subdomain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
  * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
  */
 export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {

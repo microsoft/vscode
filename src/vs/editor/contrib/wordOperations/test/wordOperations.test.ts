@@ -13,6 +13,10 @@ import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorW
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('WordOperations', () => {
 
@@ -167,7 +171,7 @@ suite('WordOperations', () => {
 
 	test('cursorWordStartLeft', () => {
 		// This is the behaviour observed in Visual Studio, please do not touch test
-		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/|  '].join('\n');
+		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  '].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -720,5 +724,30 @@ suite('WordOperations', () => {
 			editor.setPosition(new Position(2, 1));
 			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
 		});
+	});
+
+	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
+		const languageId = new LanguageIdentifier('myTestMode', 5);
+		class TestMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '\"', close: '\"' }
+					]
+				}));
+			}
+		}
+
+		const mode = new TestMode();
+		const model = createTextModel('a ""', undefined, languageId);
+
+		withTestCodeEditor(null, { model }, (editor, _) => {
+			editor.setPosition(new Position(1, 4));
+			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'a ');
+		});
+
+		model.dispose();
+		mode.dispose();
 	});
 });

@@ -10,8 +10,8 @@ import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, computeEditorAriaLabel, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,8 +23,9 @@ import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { computeEditorAriaLabel } from 'vs/workbench/browser/parts/editor/editor';
 import { IExtUri } from 'vs/base/common/resources';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -35,7 +36,7 @@ export interface IEditorConfiguration {
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
-export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPane {
+export abstract class BaseTextEditor extends EditorPane implements ITextEditorPane {
 
 	static readonly TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -45,12 +46,14 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
 
+	private readonly groupListener = this._register(new MutableDisposable());
+
 	private _instantiationService: IInstantiationService;
-	protected get instantiationService(): IInstantiationService {
-		return this._instantiationService;
-	}
-	protected set instantiationService(value: IInstantiationService) {
-		this._instantiationService = value;
+	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
+	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
+
+	get scopedContextKeyService(): IContextKeyService | undefined {
+		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
 	}
 
 	constructor(
@@ -68,7 +71,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
 			const resource = this.getActiveResource();
 			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
 
@@ -154,8 +157,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, token);
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
 
 		// Update editor options after having set the input. We do this because there can be
 		// editor input specific options (e.g. an ARIA label depending on the input showing)
@@ -185,7 +188,21 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 			editorControl.onHide();
 		}
 
+		// Listen to close events to trigger `onWillCloseEditorInGroup`
+		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditor(e));
+
 		super.setEditorVisible(visible, group);
+	}
+
+	private onWillCloseEditor(e: IEditorCloseEvent): void {
+		const editor = e.editor;
+		if (editor === this.input) {
+			this.onWillCloseEditorInGroup(editor);
+		}
+	}
+
+	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
+		// Subclasses can override
 	}
 
 	focus(): void {
@@ -213,6 +230,17 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 		}
 
 		this.editorMemento.saveEditorState(this.group, resource, editorViewState);
+	}
+
+	protected shouldRestoreTextEditorViewState(editor: IEditorInput, context?: IEditorOpenContext): boolean {
+
+		// new editor: check with workbench.editor.restoreViewState setting
+		if (context?.newInGroup) {
+			return this.textResourceConfigurationService.getValue<boolean>(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
+		}
+
+		// existing editor: always restore viewstate
+		return true;
 	}
 
 	getViewState(): IEditorViewState | undefined {

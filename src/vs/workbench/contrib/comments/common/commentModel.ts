@@ -6,9 +6,8 @@
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
-import { groupBy, firstIndex, flatten } from 'vs/base/common/arrays';
+import { groupBy, flatten } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-import { values } from 'vs/base/common/map';
 
 export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent {
 	owner: string;
@@ -74,7 +73,7 @@ export class CommentsModel {
 
 	public setCommentThreads(owner: string, commentThreads: CommentThread[]): void {
 		this.commentThreadsMap.set(owner, this.groupByResource(owner, commentThreads));
-		this.resourceCommentThreads = flatten(values(this.commentThreadsMap));
+		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
 	}
 
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
@@ -84,11 +83,11 @@ export class CommentsModel {
 
 		removed.forEach(thread => {
 			// Find resource that has the comment thread
-			const matchingResourceIndex = firstIndex(threadsForOwner, (resourceData) => resourceData.id === thread.resource);
+			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
 			const matchingResourceData = threadsForOwner[matchingResourceIndex];
 
 			// Find comment node on resource that is that thread and remove it
-			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
+			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
 			matchingResourceData.commentThreads.splice(index, 1);
 
 			// If the comment thread was the last thread for a resource, remove that resource from the list
@@ -99,11 +98,11 @@ export class CommentsModel {
 
 		changed.forEach(thread => {
 			// Find resource that has the comment thread
-			const matchingResourceIndex = firstIndex(threadsForOwner, (resourceData) => resourceData.id === thread.resource);
+			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
 			const matchingResourceData = threadsForOwner[matchingResourceIndex];
 
 			// Find comment node on resource that is that thread and replace it
-			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
+			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
 			if (index >= 0) {
 				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread);
 			} else if (thread.comments && thread.comments.length) {
@@ -124,7 +123,7 @@ export class CommentsModel {
 		});
 
 		this.commentThreadsMap.set(owner, threadsForOwner);
-		this.resourceCommentThreads = flatten(values(this.commentThreadsMap));
+		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
 
 		return removed.length > 0 || changed.length > 0 || added.length > 0;
 	}

@@ -702,7 +702,7 @@ export class DiffReview extends Disposable {
 			if (originalLine !== 0) {
 				originalLineNumber.appendChild(document.createTextNode(String(originalLine)));
 			} else {
-				originalLineNumber.innerHTML = '&#160;';
+				originalLineNumber.innerText = '\u00a0';
 			}
 			cell.appendChild(originalLineNumber);
 
@@ -714,7 +714,7 @@ export class DiffReview extends Disposable {
 			if (modifiedLine !== 0) {
 				modifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
 			} else {
-				modifiedLineNumber.innerHTML = '&#160;';
+				modifiedLineNumber.innerText = '\u00a0';
 			}
 			cell.appendChild(modifiedLineNumber);
 
@@ -724,10 +724,10 @@ export class DiffReview extends Disposable {
 			if (spacerIcon) {
 				const spacerCodicon = document.createElement('span');
 				spacerCodicon.className = spacerIcon.classNames;
-				spacerCodicon.innerHTML = '&#160;&#160;';
+				spacerCodicon.innerText = '\u00a0\u00a0';
 				spacer.appendChild(spacerCodicon);
 			} else {
-				spacer.innerHTML = '&#160;&#160;';
+				spacer.innerText = '\u00a0\u00a0';
 			}
 			cell.appendChild(spacer);
 

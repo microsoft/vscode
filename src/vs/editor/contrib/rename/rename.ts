@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -22,7 +22,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -33,6 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, ConfigurationScope, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { assertType } from 'vs/base/common/types';
 
 class RenameSkeleton {
 
@@ -225,7 +226,7 @@ class RenameController implements IEditorContribution {
 				return;
 			}
 
-			this._bulkEditService.apply(renameResult, {
+			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
 				label: nls.localize('label', "Renaming '{0}'", loc?.text),
@@ -350,11 +351,9 @@ registerEditorCommand(new RenameCommand({
 
 // ---- api bridge command
 
-registerDefaultLanguageCommand('_executeDocumentRenameProvider', function (model, position, args) {
-	let { newName } = args;
-	if (typeof newName !== 'string') {
-		throw illegalArgument('newName');
-	}
+registerModelAndPositionCommand('_executeDocumentRenameProvider', function (model, position, ...args) {
+	const [newName] = args;
+	assertType(typeof newName === 'string');
 	return rename(model, position, newName);
 });
 

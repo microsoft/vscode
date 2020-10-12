@@ -224,9 +224,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			// Create a promise that we can resolve as needed
 			// when the outside calls dispose on us
 			let promiseResolve: () => void;
-			const promise = new Promise<R>(resolve => promiseResolve = resolve);
+			const promise = new Promise<void>(resolve => promiseResolve = resolve);
 
-			this.withWindowProgress<R>({
+			this.withWindowProgress({
 				location: ProgressLocation.Window,
 				title: options.title ? parseLinkedText(options.title).toString() : undefined, // convert markdown links => string
 				command: 'notifications.showList'
@@ -348,7 +348,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			// full message (inital or update)
 			if (step?.message && options.title) {
-				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
+				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/microsoft/vscode/issues/50932)
 			} else {
 				titleAndMessage = options.title || step?.message;
 			}
@@ -505,7 +505,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			'workbench.action.quit',
 			'workbench.action.reloadWindow',
 			'copy',
-			'cut'
+			'cut',
+			'editor.action.clipboardCopyAction',
+			'editor.action.clipboardCutAction'
 		];
 
 		let dialog: Dialog;
@@ -525,7 +527,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 						if (resolved?.commandId) {
-							if (allowableCommands.indexOf(resolved.commandId) === -1) {
+							if (!allowableCommands.includes(resolved.commandId)) {
 								EventHelper.stop(event, true);
 							}
 						}
