@@ -23,6 +23,7 @@ import { WebviewInput } from './webviewEditorInput';
 export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
 
 export interface ICreateWebViewShowOptions {
+	newEditorGroup: boolean;
 	group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE;
 	preserveFocus: boolean;
 }
@@ -70,7 +71,7 @@ export interface IWebviewWorkbenchService {
 	revealWebview(
 		webview: WebviewInput,
 		group: IEditorGroup,
-		preserveFocus: boolean
+		preserveFocus: boolean,
 	): void;
 
 	registerResolver(
@@ -196,8 +197,8 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 			preserveFocus: showOptions.preserveFocus,
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined
-		}, showOptions.group);
+			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined,
+		}, showOptions.group, showOptions.newEditorGroup);
 		return webviewInput;
 	}
 

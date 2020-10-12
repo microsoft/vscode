@@ -152,11 +152,12 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean; },
+		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean; newEditorGroup?: boolean; },
 		options: WebviewInputOptions
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
 		if (showOptions) {
+			mainThreadShowOptions.newEditorGroup = !!showOptions.newEditorGroup;
 			mainThreadShowOptions.preserveFocus = !!showOptions.preserveFocus;
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}

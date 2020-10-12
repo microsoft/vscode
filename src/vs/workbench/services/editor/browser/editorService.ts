@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo, NEW_GROUP_TYPE, NEW_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct, insert } from 'vs/base/common/arrays';
@@ -42,7 +42,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
-type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | NEW_GROUP_TYPE;
+type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -536,8 +536,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
-		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
+	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup, newEditorGroup?: boolean): Promise<IEditorPane | undefined> {
+		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group, newEditorGroup);
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
@@ -547,7 +547,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
+	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup, newEditorGroup?: boolean): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
 		let resolvedGroup: IEditorGroup | undefined;
 		let candidateGroup: OpenInEditorGroup | undefined;
 
@@ -560,7 +560,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			typedOptions = this.toOptions(optionsOrGroup as IEditorOptions);
 
 			candidateGroup = group;
-			resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup);
+			resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup, newEditorGroup);
 		}
 
 		// Untyped Text Editor Support
@@ -571,7 +571,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				typedOptions = TextEditorOptions.from(textInput);
 
 				candidateGroup = optionsOrGroup as OpenInEditorGroup;
-				resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup);
+				resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup, newEditorGroup);
 			}
 		}
 
@@ -601,7 +601,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): IEditorGroup {
+	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup, newEditorGroup?: boolean): IEditorGroup {
 		let targetGroup: IEditorGroup | undefined;
 
 		// Group: Instance of Group
@@ -609,14 +609,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			targetGroup = group;
 		}
 
+		// Group: Create new editor group
+		else if (typeof group === 'number' && newEditorGroup) {
+			targetGroup = this.newEditorGroup(group);
+		}
+
 		// Group: Side by Side
 		else if (group === SIDE_GROUP) {
 			targetGroup = this.findSideBySideGroup();
-		}
-
-		// Group: New group
-		else if (group === NEW_GROUP) {
-			targetGroup = this.newSideRightGroup();
 		}
 
 		// Group: Specific Group
@@ -686,9 +686,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return neighbourGroup;
 	}
 
-	private newSideRightGroup(): IEditorGroup {
-		const lastGroupIndex = this.editorGroupService.groups.length - 1;
-		return this.editorGroupService.addGroup(this.editorGroupService.groups[lastGroupIndex], GroupDirection.RIGHT);
+	// Create a new editor group at a specific position
+	private newEditorGroup(group: number): IEditorGroup {
+		const direction = preferredSideBySideGroupDirection(this.configurationService);
+		let editorGroup = this.editorGroupService.getGroup(group);
+
+		// Fallback to last editor group
+		if (!editorGroup) {
+			const groups = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
+			return this.editorGroupService.addGroup(groups[groups.length - 1], direction);
+		}
+
+		// Create new editor group in opposite direction of existing editor group
+		if (direction === GroupDirection.DOWN) {
+			return this.editorGroupService.addGroup(editorGroup, GroupDirection.UP);
+		}
+
+		return this.editorGroupService.addGroup(editorGroup, GroupDirection.LEFT);
 	}
 
 	private toOptions(options?: IEditorOptions | ITextEditorOptions | EditorOptions): EditorOptions {
@@ -710,7 +724,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
+	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup, newEditorGroup?: boolean): Promise<IEditorPane[]> {
 
 		// Convert to typed editors and options
 		const typedEditors = editors.map(editor => {
@@ -728,7 +742,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			mapGroupToEditors.set(this.findSideBySideGroup(), typedEditors);
 		} else {
 			typedEditors.forEach(typedEditor => {
-				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
+				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group, newEditorGroup);
 
 				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
 				if (!targetGroupEditors) {

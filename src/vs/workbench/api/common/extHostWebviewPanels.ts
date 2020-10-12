@@ -191,13 +191,14 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		extension: IExtensionDescription,
 		viewType: string,
 		title: string,
-		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean },
+		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean, newEditorGroup?: boolean },
 		options: (vscode.WebviewPanelOptions & vscode.WebviewOptions) = {},
 	): vscode.WebviewPanel {
 		const viewColumn = typeof showOptions === 'object' ? showOptions.viewColumn : showOptions;
 		const webviewShowOptions = {
 			viewColumn: typeConverters.ViewColumn.from(viewColumn),
-			preserveFocus: typeof showOptions === 'object' && !!showOptions.preserveFocus
+			preserveFocus: typeof showOptions === 'object' && !!showOptions.preserveFocus,
+			newEditorGroup: typeof showOptions === 'object' && !!showOptions.newEditorGroup
 		};
 
 		const handle = ExtHostWebviewPanels.newHandle();

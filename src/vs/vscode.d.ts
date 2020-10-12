@@ -8251,12 +8251,14 @@ declare module 'vscode' {
 		 *
 		 * @param viewType Identifies the type of the webview panel.
 		 * @param title Title of the panel.
-		 * @param showOptions Where to show the webview in the editor. If preserveFocus is set, the new webview will not take focus.
+		 * @param showOptions Where to show the webview in the editor.
+		 * If preserveFocus is set, the new webview will not take focus.
+		 * If newEditorGroup is set, the new webview will open in a new editor group.
 		 * @param options Settings for the new panel.
 		 *
 		 * @return New webview panel.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean, newEditorGroup?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful

@@ -591,6 +591,7 @@ export type WebviewHandle = string;
 export interface WebviewPanelShowOptions {
 	readonly viewColumn?: EditorViewColumn;
 	readonly preserveFocus?: boolean;
+	readonly newEditorGroup?: boolean;
 }
 
 export interface WebviewExtensionDescription {
