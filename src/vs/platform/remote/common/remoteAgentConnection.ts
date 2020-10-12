@@ -352,7 +352,7 @@ export class ConnectionGainEvent {
 export class ReconnectionPermanentFailureEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionPermanentFailure;
 }
-export type PersistenConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
+export type PersistentConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
 
 abstract class PersistentConnection extends Disposable {
 
@@ -363,7 +363,7 @@ abstract class PersistentConnection extends Disposable {
 	private static _permanentFailure: boolean = false;
 	private static _instances: PersistentConnection[] = [];
 
-	private readonly _onDidStateChange = this._register(new Emitter<PersistenConnectionEvent>());
+	private readonly _onDidStateChange = this._register(new Emitter<PersistentConnectionEvent>());
 	public readonly onDidStateChange = this._onDidStateChange.event;
 
 	protected readonly _options: IConnectionOptions;
