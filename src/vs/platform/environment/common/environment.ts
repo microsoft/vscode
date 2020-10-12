@@ -100,8 +100,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
-	backupHome: string;
-	backupWorkspacesPath: string;
 	nodeCachedDataDir?: string;
 	installSourcePath: string;
 

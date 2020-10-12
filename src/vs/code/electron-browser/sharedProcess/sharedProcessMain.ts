@@ -84,6 +84,7 @@ interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: NativeParsedArgs;
 	logLevel: LogLevel;
+	backupWorkspacesPath: string;
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -262,7 +263,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			disposables.add(combinedDisposable(
 				instantiationService2.createInstance(NodeCachedDataCleaner),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
-				instantiationService2.createInstance(StorageDataCleaner),
+				instantiationService2.createInstance(StorageDataCleaner, initData.backupWorkspacesPath),
 				instantiationService2.createInstance(LogsDataCleaner),
 				userDataAutoSync
 			));

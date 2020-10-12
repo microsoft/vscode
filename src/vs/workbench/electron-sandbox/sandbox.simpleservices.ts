@@ -120,8 +120,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	appSettingsHome: URI = undefined!;
 	userDataPath: string = undefined!;
 	machineSettingsResource: URI = undefined!;
-	backupHome: string = undefined!;
-	backupWorkspacesPath: string = undefined!;
 
 	log?: string | undefined;
 	extHostLogsPath: URI = undefined!;

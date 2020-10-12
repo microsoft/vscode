@@ -94,12 +94,6 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
-
-	@memoize
-	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
-
-	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
