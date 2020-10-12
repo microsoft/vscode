@@ -43,14 +43,15 @@ import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -100,6 +101,7 @@ export class SearchEditor extends BaseTextEditor {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
 		this.container = DOM.$('.search-editor');
@@ -209,7 +211,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor = super.getControl() as CodeEditorWidget;
 		this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 2) {
-				const behaviour = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.doubleClickBehaviour;
+				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
 				const position = e.target.position;
 				if (position && behaviour !== 'selectWord') {
 					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
@@ -487,7 +489,7 @@ export class SearchEditor extends BaseTextEditor {
 			},
 			afterContext: config.contextLines,
 			beforeContext: config.contextLines,
-			isSmartCase: this.configurationService.getValue<ISearchConfigurationProperties>('search').smartCase,
+			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true
 		};
 
@@ -517,7 +519,11 @@ export class SearchEditor extends BaseTextEditor {
 			return;
 		}
 
-		const sortOrder = this.configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
+		const sortOrder = this.searchConfig.sortOrder;
+		if (sortOrder === SearchSortOrder.Modified) {
+			await this.retrieveFileStats(this.searchModel.searchResult);
+		}
+
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
@@ -528,6 +534,11 @@ export class SearchEditor extends BaseTextEditor {
 
 		input.setDirty(!input.isUntitled());
 		input.setMatchRanges(results.matchRanges);
+	}
+
+	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
+		const files = searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
+		await Promise.all(files);
 	}
 
 	layout(dimension: DOM.Dimension) {
