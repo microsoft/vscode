@@ -93,10 +93,11 @@ export class AzureActiveDirectoryService {
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
 	private _uriHandler: UriEventHandler;
+	private _disposables: vscode.Disposable[] = [];
 
 	constructor() {
 		this._uriHandler = new UriEventHandler();
-		vscode.window.registerUriHandler(this._uriHandler);
+		this._disposables.push(vscode.window.registerUriHandler(this._uriHandler));
 	}
 
 	public async initialize(): Promise<void> {
@@ -140,7 +141,7 @@ export class AzureActiveDirectoryService {
 			}
 		}
 
-		keychain.onDidChangePassword(() => this.checkForUpdates);
+		this._disposables.push(vscode.authentication.onDidChangePassword(() => this.checkForUpdates));
 	}
 
 	private parseStoredData(data: string): IStoredSession[] {
@@ -338,6 +339,11 @@ export class AzureActiveDirectoryService {
 				}, 5000);
 			}
 		});
+	}
+
+	public dispose(): void {
+		this._disposables.forEach(disposable => disposable.dispose());
+		this._disposables = [];
 	}
 
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {

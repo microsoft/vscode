@@ -26,14 +26,14 @@ export class GitHubAuthenticationProvider {
 	private _sessions: vscode.AuthenticationSession[] = [];
 	private _githubServer = new GitHubServer();
 
-	public async initialize(): Promise<void> {
+	public async initialize(context: vscode.ExtensionContext): Promise<void> {
 		try {
 			this._sessions = await this.readSessions();
 		} catch (e) {
 			// Ignore, network request failed
 		}
 
-		keychain.onDidChangePassword(() => this.checkForUpdates());
+		context.subscriptions.push(vscode.authentication.onDidChangePassword(() => this.checkForUpdates()));
 	}
 
 	private async checkForUpdates() {

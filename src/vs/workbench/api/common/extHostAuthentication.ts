@@ -24,7 +24,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
-
 	private _onDidChangePassword = new Emitter<void>();
 	readonly onDidChangePassword: Event<void> = this._onDidChangePassword.event;
 
@@ -207,8 +206,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._onDidChangeAuthenticationProviders.fire({ added, removed });
 		return Promise.resolve();
 	}
-	$onDidChangePassword(): Promise<void> {
+
+	async $onDidChangePassword(): Promise<void> {
 		this._onDidChangePassword.fire();
-		return Promise.resolve();
 	}
 }
