@@ -116,7 +116,8 @@ export class SharedProcess implements ISharedProcess {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
 					args: this.environmentService.args,
 					logLevel: this.logService.getLevel(),
-					backupWorkspacesPath: this.environmentService.backupWorkspacesPath
+					backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
+					nodeCachedDataDir: this.environmentService.nodeCachedDataDir
 				});
 
 				// signal exit to shared process when we get disposed

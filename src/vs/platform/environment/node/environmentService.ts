@@ -190,31 +190,21 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get logLevel(): string | undefined { return this._args.log; }
 
 	@memoize
-	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
-
-	@memoize
 	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
-
-	@memoize
-	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
 
 	@memoize
 	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
 
-	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get crashReporterId(): string | undefined { return this._args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this._args['crash-reporter-directory']; }
 
 	get driverHandle(): string | undefined { return this._args['driver']; }
-	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(path.join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
 
-	get sandbox(): boolean { return !!this._args['__sandbox']; }
-
-	constructor(private _args: NativeParsedArgs) {
+	constructor(protected _args: NativeParsedArgs) {
 		if (!process.env['VSCODE_LOGS']) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
 			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
@@ -261,7 +251,7 @@ function getWin32IPCHandle(userDataPath: string, type: string): string {
 	return `\\\\.\\pipe\\${scope}-${product.version}-${type}-sock`;
 }
 
-function getIPCHandle(userDataPath: string, type: string): string {
+export function getIPCHandle(userDataPath: string, type: string): string {
 	if (isWindows) {
 		return getWin32IPCHandle(userDataPath, type);
 	}

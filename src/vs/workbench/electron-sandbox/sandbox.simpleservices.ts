@@ -126,7 +126,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 
 	installSourcePath: string = undefined!;
 
-	mainIPCHandle: string = undefined!;
 	sharedIPCHandle: string = undefined!;
 
 	extensionsPath?: string | undefined;
@@ -134,15 +133,12 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	builtinExtensionsPath: string = undefined!;
 
 	driverHandle?: string | undefined;
-	driverVerbose = false;
 
 	crashReporterDirectory?: string | undefined;
 	crashReporterId?: string | undefined;
 
 	nodeCachedDataDir?: string | undefined;
 
-	disableUpdates = false;
-	sandbox = true;
 	verbose = false;
 	isBuilt = false;
 
