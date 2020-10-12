@@ -654,6 +654,20 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar'), 'Bar');
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
 		assert.equal(new FormatString(1, 'pascalcase').resolve('bar-foo'), 'BarFoo');
+		assert.equal(new FormatString(1, 'pascalcase').resolve('BAR FOO'), 'BarFoo');
+		assert.equal(new FormatString(1, 'pascalcase').resolve('barFoo'), 'BarFoo');
+		assert.equal(new FormatString(1, 'camelcase').resolve('bar-foo'), 'barFoo');
+		assert.equal(new FormatString(1, 'camelcase').resolve('BAR FOO'), 'barFoo');
+		assert.equal(new FormatString(1, 'camelcase').resolve('barFoo'), 'barFoo');
+		assert.equal(new FormatString(1, 'snakecase').resolve('bar-foo'), 'bar_foo');
+		assert.equal(new FormatString(1, 'snakecase').resolve('BAR FOO'), 'bar_foo');
+		assert.equal(new FormatString(1, 'snakecase').resolve('barFoo'), 'bar_foo');
+		assert.equal(new FormatString(1, 'kebabcase').resolve('bar-foo'), 'bar-foo');
+		assert.equal(new FormatString(1, 'kebabcase').resolve('BAR FOO'), 'bar-foo');
+		assert.equal(new FormatString(1, 'kebabcase').resolve('barFoo'), 'bar-foo');
+		assert.equal(new FormatString(1, 'constantcase').resolve('bar-foo'), 'BAR-FOO');
+		assert.equal(new FormatString(1, 'constantcase').resolve('BAR FOO'), 'BAR-FOO');
+		assert.equal(new FormatString(1, 'constantcase').resolve('barFoo'), 'BAR-FOO');
 		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if

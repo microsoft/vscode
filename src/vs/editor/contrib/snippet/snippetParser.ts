@@ -378,6 +378,14 @@ export class FormatString extends Marker {
 			return !value ? '' : (value[0].toLocaleUpperCase() + value.substr(1));
 		} else if (this.shorthandName === 'pascalcase') {
 			return !value ? '' : this._toPascalCase(value);
+		} else if (this.shorthandName === 'camelcase') {
+			return !value ? '' : this._toCamelCase(value);
+		} else if (this.shorthandName === 'snakecase') {
+			return !value ? '' : this._toSnakeCase(value);
+		} else if (this.shorthandName === 'kebabcase') {
+			return !value ? '' : this._toKebabCase(value);
+		} else if (this.shorthandName === 'constantcase') {
+			return !value ? '' : this._toConstantCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -387,16 +395,42 @@ export class FormatString extends Marker {
 		}
 	}
 
+	private _splitWords(input: string) {
+		const SPLIT_CAPITALIZED_REGEX = [/([a-z0-9])([A-Z])/g, /([A-Z])([A-Z][a-z])/g];
+		const STRIP_SPECIAL_CHARACTERS_REGEX = /[^A-Z0-9]+/gi;
+
+		let result = SPLIT_CAPITALIZED_REGEX.reduce((input, re) => input.replace(re, '$1\0$2'), input);
+		result = result.replace(STRIP_SPECIAL_CHARACTERS_REGEX, '\0');
+
+		return result.split('\0').map(text => text.toLocaleLowerCase());
+	}
+
 	private _toPascalCase(value: string): string {
-		const match = value.match(/[a-z]+/gi);
-		if (!match) {
-			return value;
-		}
-		return match.map(function (word) {
+		return this._splitWords(value).map(word => {
+			return word.charAt(0).toUpperCase() + word.substr(1).toLowerCase();
+		}).join('');
+	}
+
+	private _toCamelCase(value: string): string {
+		return this._splitWords(value).map((word, index) => {
+			if (index === 0) {
+				return word.toLowerCase();
+			}
 			return word.charAt(0).toUpperCase()
 				+ word.substr(1).toLowerCase();
-		})
-			.join('');
+		}).join('');
+	}
+
+	private _toKebabCase(value: string): string {
+		return this._splitWords(value).join('-');
+	}
+
+	private _toSnakeCase(value: string): string {
+		return this._splitWords(value).join('_');
+	}
+
+	private _toConstantCase(value: string): string {
+		return this._splitWords(value).join('_').toUpperCase();
 	}
 
 	toTextmateString(): string {
