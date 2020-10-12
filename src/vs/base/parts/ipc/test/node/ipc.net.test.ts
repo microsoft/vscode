@@ -227,12 +227,6 @@ suite('PersistentProtocol reconnection', () => {
 
 suite('IPC, create handle', () => {
 
-	let ether: Ether;
-
-	setup(() => {
-		ether = new Ether();
-	});
-
 	test('createRandomIPCHandle', async () => {
 		return testIPCHandle(createRandomIPCHandle());
 	});
