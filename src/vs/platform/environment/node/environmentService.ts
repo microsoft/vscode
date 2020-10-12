@@ -5,7 +5,6 @@
 
 import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
@@ -13,9 +12,9 @@ import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
-import { isWindows, Platform, platform } from 'vs/base/common/platform';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { resolveUserDataIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
 export class NativeEnvironmentService implements INativeEnvironmentService {
 
@@ -190,7 +189,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get logLevel(): string | undefined { return this._args.log; }
 
 	@memoize
-	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
+	get sharedIPCHandle(): string { return resolveUserDataIPCHandle(this.userDataPath, 'shared', product.version); }
 
 	@memoize
 	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
@@ -212,51 +211,6 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 		this.logsPath = process.env['VSCODE_LOGS']!;
 	}
-}
-
-// Read this before there's any chance it is overwritten
-// Related to https://github.com/microsoft/vscode/issues/30624
-export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
-
-const safeIpcPathLengths: { [platform: number]: number } = {
-	[Platform.Linux]: 107,
-	[Platform.Mac]: 103
-};
-
-function getNixIPCHandle(userDataPath: string, type: string): string {
-	const vscodePortable = process.env['VSCODE_PORTABLE'];
-
-	let result: string;
-	if (xdgRuntimeDir && !vscodePortable) {
-		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
-		result = path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
-	} else {
-		result = path.join(userDataPath, `${product.version}-${type}.sock`);
-	}
-
-	const limit = safeIpcPathLengths[platform];
-	if (typeof limit === 'number') {
-		if (result.length >= limit) {
-			// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
-			console.warn(`WARNING: IPC handle "${result}" is longer than ${limit} chars, try a shorter --user-data-dir`);
-		}
-	}
-
-	return result;
-}
-
-function getWin32IPCHandle(userDataPath: string, type: string): string {
-	const scope = crypto.createHash('md5').update(userDataPath).digest('hex');
-
-	return `\\\\.\\pipe\\${scope}-${product.version}-${type}-sock`;
-}
-
-export function getIPCHandle(userDataPath: string, type: string): string {
-	if (isWindows) {
-		return getWin32IPCHandle(userDataPath, type);
-	}
-
-	return getNixIPCHandle(userDataPath, type);
 }
 
 export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
