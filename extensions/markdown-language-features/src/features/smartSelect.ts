@@ -78,29 +78,23 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		let currentRange : vscode.SelectionRange;
 
 		if (parentHeader) {
-			let startPos = parentHeader.location.range.start;
-			let startContent = startPos.translate(1);
-			let endPos = parentHeader.location.range.end;
-			let headerPlusContent = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
-			if (headerPlusContent.range.contains(new vscode.Range(startContent, endPos))) {
-				parentRange = new vscode.SelectionRange(new vscode.Range(startContent, endPos), headerPlusContent);
+			let contentRange = new vscode.Range(parentHeader.location.range.start.translate(1), parentHeader.location.range.end);
+			let headerPlusContent = new vscode.SelectionRange(parentHeader.location.range);
+			if (headerPlusContent.range.contains(contentRange)) {
+				parentRange = new vscode.SelectionRange(contentRange, headerPlusContent);
 			}
 		}
 
 		sortedHeaders.forEach(header => {
 			if (parentHeader) {
-				let startPos = header.location.range.start;
-				let endPos = header.location.range.end;
-				let startContent = header.location.range.start.translate(1);
-					if (parentRange.range.contains(new vscode.Range(startPos, endPos))) {
-						let childWithHeader = new vscode.SelectionRange(new vscode.Range(startPos, endPos), parentRange);
-						currentRange = new vscode.SelectionRange(new vscode.Range(startContent, endPos), childWithHeader);
-					} else {
-						currentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
+				let contentRange = new vscode.Range(header.location.range.start.translate(1), header.location.range.end);
+					if (parentRange.range.contains(header.location.range)) {
+						let headerPlusContent = new vscode.SelectionRange(header.location.range, parentRange);
+						currentRange = new vscode.SelectionRange(contentRange, headerPlusContent);
 					}
 				}
 				parentHeader = header;
-				let parentWithHeader =  new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start, parentHeader.location.range.end), parentRange);
+				let parentWithHeader =  new vscode.SelectionRange(parentHeader.location.range, parentRange);
 				parentRange = new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start.translate(1), parentHeader.location.range.end), parentWithHeader);
 			}
 			);
@@ -108,5 +102,5 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				return [parentRange];
 			}
 			return [currentRange];
+		}
 	}
-}
