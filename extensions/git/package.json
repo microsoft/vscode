@@ -1907,8 +1907,8 @@
             "authored"
           ],
           "enumDescriptions": [
-            "%config.date.committed%",
-            "%config.date.authored%"
+            "%config.timeline.date.committed%",
+            "%config.timeline.date.authored%"
           ],
           "default": "committed",
           "description": "%config.timeline.date%",
