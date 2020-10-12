@@ -78,7 +78,7 @@ export class ReleaseNotesManager {
 				'vs_code_release_notes',
 				'releaseNotes',
 				title,
-				{ group: ACTIVE_GROUP, preserveFocus: false, newEditorGroup: false },
+				{ group: ACTIVE_GROUP, preserveFocus: false },
 				{
 					tryRestoreScrollPosition: true,
 					enableFindWidget: true,

@@ -5,13 +5,17 @@
 
 import { IEditorGroupsService, IEditorGroup, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, SIDE_GROUP, NEW_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export type EditorViewColumn = number;
 
-export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService, position?: EditorViewColumn): GroupIdentifier {
+export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService, position?: EditorViewColumn, newEditorGroup?: boolean): GroupIdentifier {
 	if (typeof position !== 'number' || position === ACTIVE_GROUP) {
 		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such
+	}
+
+	if (newEditorGroup) {
+		return NEW_GROUP;
 	}
 
 	const groups = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);

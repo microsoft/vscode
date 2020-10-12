@@ -198,7 +198,7 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		const webviewShowOptions = {
 			viewColumn: typeConverters.ViewColumn.from(viewColumn),
 			preserveFocus: typeof showOptions === 'object' && !!showOptions.preserveFocus,
-			newEditorGroup: typeof showOptions === 'object' && !!showOptions.newEditorGroup
+			newEditorGroup: typeof showOptions === 'object' && !!showOptions.newEditorGroup,
 		};
 
 		const handle = ExtHostWebviewPanels.newHandle();

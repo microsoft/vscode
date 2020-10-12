@@ -16,7 +16,7 @@ import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, NEW_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 /**
@@ -157,9 +157,12 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
 		if (showOptions) {
-			mainThreadShowOptions.newEditorGroup = !!showOptions.newEditorGroup;
 			mainThreadShowOptions.preserveFocus = !!showOptions.preserveFocus;
-			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
+			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn, showOptions.newEditorGroup);
+
+			if (mainThreadShowOptions.group === NEW_GROUP && typeof showOptions.viewColumn === 'number') {
+				mainThreadShowOptions.newEditorGroup = showOptions.viewColumn;
+			}
 		}
 
 		const extension = reviveWebviewExtension(extensionData);
