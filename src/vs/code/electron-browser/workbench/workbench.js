@@ -34,7 +34,12 @@
 			performance.mark('workbench-start');
 
 			// Wait for process environment being fully resolved
-			await whenEnvResolved;
+			const shellEnv = await whenEnvResolved;
+
+			// Assign the shell environment if not launched from cli
+			if (configuration.userEnv['VSCODE_CLI'] !== '1' || configuration.userEnv['VSCODE_FORCE_USER_ENV'] === '1') {
+				Object.assign(bootstrapWindow.globals().process.env, shellEnv);
+			}
 
 			perf.mark('main/startup');
 
@@ -187,5 +192,5 @@
 	}
 
 	//#endregion
-	
+
 }());

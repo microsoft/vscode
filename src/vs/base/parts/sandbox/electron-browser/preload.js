@@ -235,11 +235,7 @@
 
 			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
 				clearTimeout(handle);
-
-				// Assign all keys of the shell environment to our process environment
-				Object.assign(process.env, shellEnv);
-
-				resolve();
+				resolve(shellEnv);
 			});
 
 			ipcRenderer.send('vscode:fetchShellEnv');
