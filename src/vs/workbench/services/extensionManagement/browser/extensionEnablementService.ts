@@ -23,7 +23,6 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -49,7 +48,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService private readonly hostService: IHostService,
+		// @IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -62,7 +61,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
 					label: localize('Reload', "Reload"),
 					run: () => {
-						this.hostService.reload();
+						//this.hostService.reload();
 					}
 				}]);
 			});

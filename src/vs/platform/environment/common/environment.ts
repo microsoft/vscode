@@ -44,7 +44,6 @@ export interface IEnvironmentService {
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 
@@ -69,7 +68,6 @@ export interface IEnvironmentService {
 	// --- telemetry
 	disableTelemetry: boolean;
 	telemetryLogResource: URI;
-
 	serviceMachineIdResource: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -100,13 +98,9 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
-	backupHome: string;
-	backupWorkspacesPath: string;
-	nodeCachedDataDir?: string;
 	installSourcePath: string;
 
 	// --- IPC Handles
-	mainIPCHandle: string;
 	sharedIPCHandle: string;
 
 	// --- Extensions
@@ -116,11 +110,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- Smoke test support
 	driverHandle?: string;
-	driverVerbose: boolean;
-
-	// --- Misc. config
-	disableUpdates: boolean;
-	sandbox: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
