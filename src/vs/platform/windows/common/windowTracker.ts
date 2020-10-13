@@ -29,6 +29,8 @@ export class ActiveWindowManager extends Disposable {
 			try {
 				const windowId = await this.firstActiveWindowIdPromise;
 				this.activeWindowId = (typeof this.activeWindowId === 'number') ? this.activeWindowId : windowId;
+			} catch (error) {
+				// ignore
 			} finally {
 				this.firstActiveWindowIdPromise = undefined;
 			}
