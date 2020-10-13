@@ -37,17 +37,19 @@ export interface ICommonNativeHostService {
 	readonly windowId: number;
 
 	// Events
-	readonly onWindowOpen: Event<number>;
+	readonly onDidOpenWindow: Event<number>;
 
-	readonly onWindowMaximize: Event<number>;
-	readonly onWindowUnmaximize: Event<number>;
+	readonly onDidMaximizeWindow: Event<number>;
+	readonly onDidUnmaximizeWindow: Event<number>;
 
-	readonly onWindowFocus: Event<number>;
-	readonly onWindowBlur: Event<number>;
+	readonly onDidFocusWindow: Event<number>;
+	readonly onDidBlurWindow: Event<number>;
 
-	readonly onOSResume: Event<unknown>;
+	readonly onDidResumeOS: Event<unknown>;
 
-	readonly onColorSchemeChange: Event<IColorScheme>;
+	readonly onDidChangeColorScheme: Event<IColorScheme>;
+
+	readonly onDidChangePassword: Event<void>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -149,5 +151,4 @@ export interface ICommonNativeHostService {
 	deletePassword(service: string, account: string): Promise<boolean>;
 	findPassword(service: string): Promise<string | null>;
 	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>
-	readonly onDidChangePassword: Event<void>;
 }

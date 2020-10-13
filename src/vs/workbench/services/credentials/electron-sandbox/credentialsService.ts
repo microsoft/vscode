@@ -7,16 +7,23 @@ import { ICredentialsService } from 'vs/workbench/services/credentials/common/cr
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class KeytarCredentialsService implements ICredentialsService {
+export class KeytarCredentialsService extends Disposable implements ICredentialsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _onDidChangePassword: Emitter<void> = new Emitter();
-	onDidChangePassword = this._onDidChangePassword.event;
+	private _onDidChangePassword: Emitter<void> = this._register(new Emitter());
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	constructor(@INativeHostService private readonly nativeHostService: INativeHostService) {
-		this.nativeHostService.onDidChangePassword(event => this._onDidChangePassword.fire(event));
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.nativeHostService.onDidChangePassword(event => this._onDidChangePassword.fire(event)));
 	}
 
 	getPassword(service: string, account: string): Promise<string | null> {
