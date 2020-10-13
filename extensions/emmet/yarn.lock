@@ -2383,9 +2383,9 @@ vinyl@~2.0.1:
     replace-ext "^1.0.0"
 
 vscode-emmet-helper@^2.0.0:
-  version "2.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.0.3.tgz#57353a8275c021c9d46cc7e187fb8b62acae622c"
-  integrity sha512-heigyJWZyONg3udB/l4mQd7G9KupPnJey8IHJjxZ2P9sv5MeBt2yyrsctAku8Cqp4IIIXJ+0iRPyIYj6PMUMLg==
+  version "2.0.4"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.0.4.tgz#d088bd4b2d52917d69e43df7a1989ceb06958eb2"
+  integrity sha512-g5yf6RnhGsCymg2YOK2HoK5hyBphB6b5bCEqF/3YwLTMO+9epZnSa6qSzAzz3U68y7IOlmW7ssFP5kOjybcA9g==
   dependencies:
     "@emmetio/extract-abbreviation" "^0.2.0"
     jsonc-parser "^2.3.0"
