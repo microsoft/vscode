@@ -278,7 +278,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						const dirname = paths.dirname(getFilePath());
 						if (folderUri || argument) {
-							return paths.relative(this.fsPath(getFolderUri()), dirname);
+							const relative = paths.relative(this.fsPath(getFolderUri()), dirname);
+							return relative.length === 0 ? '.' : relative;
 						}
 						return dirname;
 
