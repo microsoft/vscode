@@ -2165,7 +2165,12 @@ declare module 'vscode' {
 		/**
 		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
 		 */
-		public readonly id: string;
+		readonly id: string;
+
+		/**
+		 * The optional ThemeColor of the icon.
+		 */
+		readonly themeColor?: ThemeColor;
 
 		/**
 		 * Creates a reference to a theme icon.
