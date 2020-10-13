@@ -62,6 +62,14 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
+	public removeLast() : void {
+		let lastElt = this.last();
+		if (lastElt) {
+			this._history.delete(lastElt);
+		}
+
+	}
+
 	private _onChange() {
 		this._reduceToLimit();
 		const elements = this._elements;

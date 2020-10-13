@@ -29,7 +29,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		if (fromKeyboard === false) {
-			this.addToHistory();
+			this.addToHistory(false);
 		}
 
 		this._onDidChange.fire(value);
@@ -102,9 +102,14 @@ class SCMInput implements ISCMInput {
 		}
 	}
 
-	private addToHistory() : void {
+	private addToHistory(unCommittedValue: boolean) : void {
 		if (this.value && this.value !== this.getCurrentValue()) {
-			this.historyNavigator.add(this.value);
+			if (unCommittedValue) {
+				this.historyNavigator.removeLast();
+				this.historyNavigator.add(this.value);
+			} else {
+				this.historyNavigator.add(this.value);
+			}
 		}
 		this.save();
 	}
@@ -120,7 +125,7 @@ class SCMInput implements ISCMInput {
 
 	showNextValue(): void {
 		if (!this.historyNavigator.has(this.value)) {
-			this.addToHistory();
+			this.addToHistory(true);
 		}
 
 		let next = this.getNextValue();
@@ -135,7 +140,7 @@ class SCMInput implements ISCMInput {
 
 	showPreviousValue(): void {
 		if (!this.historyNavigator.has(this.value)) {
-			this.addToHistory();
+			this.addToHistory(true);
 		}
 
 		let previous = this.getPreviousValue();
