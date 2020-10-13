@@ -8,7 +8,7 @@ import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platfo
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { Event } from 'vs/base/common/event';
-import { PersistenConnectionEvent as PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';

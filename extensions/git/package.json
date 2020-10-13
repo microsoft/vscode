@@ -22,6 +22,7 @@
   "scripts": {
     "compile": "gulp compile-extension:git",
     "watch": "gulp watch-extension:git",
+    "update-emoji": "node ./build/update-emoji.js",
     "update-grammar": "node ./build/update-grammars.js",
     "test": "mocha"
   },
@@ -1907,8 +1908,8 @@
             "authored"
           ],
           "enumDescriptions": [
-            "%config.date.committed%",
-            "%config.date.authored%"
+            "%config.timeline.date.committed%",
+            "%config.timeline.date.authored%"
           ],
           "default": "committed",
           "description": "%config.timeline.date%",

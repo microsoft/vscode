@@ -595,7 +595,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
 		const editor = openedEditor.editor;
 		templateData.actionRunner.editor = openedEditor;
-		editor.isDirty() && !editor.isSaving() ? templateData.container.classList.add('dirty') : templateData.container.classList.remove('dirty');
+		templateData.container.classList.toggle('dirty', editor.isDirty() && !editor.isSaving());
+		templateData.container.classList.toggle('sticky', openedEditor.isSticky());
 		templateData.root.setResource({
 			resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),

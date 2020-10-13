@@ -120,15 +120,12 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	appSettingsHome: URI = undefined!;
 	userDataPath: string = undefined!;
 	machineSettingsResource: URI = undefined!;
-	backupHome: string = undefined!;
-	backupWorkspacesPath: string = undefined!;
 
 	log?: string | undefined;
 	extHostLogsPath: URI = undefined!;
 
 	installSourcePath: string = undefined!;
 
-	mainIPCHandle: string = undefined!;
 	sharedIPCHandle: string = undefined!;
 
 	extensionsPath?: string | undefined;
@@ -136,15 +133,12 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	builtinExtensionsPath: string = undefined!;
 
 	driverHandle?: string | undefined;
-	driverVerbose = false;
 
 	crashReporterDirectory?: string | undefined;
 	crashReporterId?: string | undefined;
 
 	nodeCachedDataDir?: string | undefined;
 
-	disableUpdates = false;
-	sandbox = true;
 	verbose = false;
 	isBuilt = false;
 

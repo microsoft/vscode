@@ -8,6 +8,7 @@ import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, Ev
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
+import { emojify, ensureEmojis } from './emoji';
 
 const localize = nls.loadMessageBundle();
 
@@ -132,6 +133,8 @@ export class GitTimelineProvider implements TimelineProvider {
 			limit = options.limit === undefined ? undefined : options.limit + 1;
 		}
 
+		await ensureEmojis();
+
 		const commits = await repo.logFile(uri, {
 			maxEntries: limit,
 			hash: options.cursor,
@@ -155,12 +158,14 @@ export class GitTimelineProvider implements TimelineProvider {
 		const items = commits.map<GitTimelineItem>((c, i) => {
 			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
 
-			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const message = emojify(c.message);
+
+			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new (ThemeIcon as any)('git-commit');
 			if (showAuthor) {
 				item.description = c.authorName;
 			}
-			item.detail = `${c.authorName} (${c.authorEmail}) — ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${c.message}`;
+			item.detail = `${c.authorName} (${c.authorEmail}) — ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${message}`;
 			item.command = {
 				title: 'Open Comparison',
 				command: 'git.timeline.openDiff',
