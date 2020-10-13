@@ -84,7 +84,7 @@ class BrowserMain extends Disposable {
 		);
 
 		// Listeners
-		this.registerListeners(workbench, services.storageService);
+		this.registerListeners(workbench, services.storageService, services.logService);
 
 		// Driver
 		if (this.configuration.driver) {
@@ -106,11 +106,14 @@ class BrowserMain extends Disposable {
 		});
 	}
 
-	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
+	private registerListeners(workbench: Workbench, storageService: BrowserStorageService, logService: ILogService): void {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
+			workbench.layout();
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
