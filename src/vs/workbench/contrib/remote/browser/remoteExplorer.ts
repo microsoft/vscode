@@ -8,7 +8,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewDescriptorService, IViewsRegistry } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IRemoteExplorerService, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { forwardedPortsViewEnabled, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { forwardedPortsViewEnabled, ForwardPortAction, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -27,6 +27,9 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IActivityService private readonly activityService: IActivityService
 	) {
 		super();
+		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
+			content: `Forwarded ports allow you to access your running applications locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
+		}));
 		this.enableForwardedPortsView();
 		this.enableBadge();
 	}
