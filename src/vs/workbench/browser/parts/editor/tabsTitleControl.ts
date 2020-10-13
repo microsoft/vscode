@@ -1331,18 +1331,21 @@ export class TabsTitleControl extends TitleControl {
 
 			stickyTabsWidth = this.group.stickyCount * stickyTabWidth;
 		}
-		let activeTabSticky = this.group.isSticky(activeIndex);
-		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
+
+		// Figure out if active tab is positioned static which has an
+		// impact on wether to reveal the tab or not later
+		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && this.group.isSticky(activeIndex);
 
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
+		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
 		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
 			availableTabsContainerWidth = visibleTabsContainerWidth;
 			stickyTabsWidth = 0;
-			activeTabSticky = false;
+			activeTabPositionStatic = false;
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
@@ -1362,9 +1365,9 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Return now if we are blocked to reveal the active tab and clear flag
-		// We also return if the active tab is sticky because this means it is
-		// always visible anyway.
-		if (this.blockRevealActiveTab || typeof activeTabPosX !== 'number' || typeof activeTabWidth !== 'number' || activeTabSticky) {
+		// We also return if the active tab is positioned static because this
+		// means it is always visible anyway.
+		if (this.blockRevealActiveTab || typeof activeTabPosX !== 'number' || typeof activeTabWidth !== 'number' || activeTabPositionStatic) {
 			this.blockRevealActiveTab = false;
 			return;
 		}
