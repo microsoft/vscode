@@ -18,7 +18,7 @@ class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		this._register(nativeHostService.onOSResume(() => {
+		this._register(nativeHostService.onDidResumeOS(() => {
 			codeEditorService.listCodeEditors().forEach(editor => editor.render(true));
 		}));
 	}

@@ -169,8 +169,8 @@ export class Menubar {
 
 		// // Listen to some events from window service to update menu
 		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
-		this.nativeHostMainService.onWindowBlur(() => this.onWindowFocusChange());
-		this.nativeHostMainService.onWindowFocus(() => this.onWindowFocusChange());
+		this.nativeHostMainService.onDidBlurWindow(() => this.onWindowFocusChange());
+		this.nativeHostMainService.onDidFocusWindow(() => this.onWindowFocusChange());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
