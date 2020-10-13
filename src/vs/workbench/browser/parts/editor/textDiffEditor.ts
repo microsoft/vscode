@@ -357,6 +357,10 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 
 		// create a URI that is the Base64 concatenation of original + modified resource
-		return URI.from({ scheme: 'diff', path: `${btoa(original.toString())}${btoa(modified.toString())}` });
+		try {
+			return URI.from({ scheme: 'diff', path: `${btoa(original.toString())}${btoa(modified.toString())}` });
+		} catch (error) {
+			return undefined; // btoa can fail if the path contains characters outside of the Latin1 range
+		}
 	}
 }
