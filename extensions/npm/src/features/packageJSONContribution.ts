@@ -263,7 +263,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			const name = match[2];
 			return encodeURIComponent(name) === name;
 		}
-		return true;
+		return false;
 	}
 
 	private async fetchPackageInfo(pack: string): Promise<ViewPackageInfo | undefined> {
