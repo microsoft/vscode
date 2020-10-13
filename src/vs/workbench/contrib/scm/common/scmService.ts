@@ -19,12 +19,19 @@ class SCMInput implements ISCMInput {
 		return this._value;
 	}
 
-	set value(value: string) {
+	public setValue(value: string, fromKeyboard: boolean) {
 		if (value === this._value) {
 			return;
 		}
-		this._value = value;
-		this.saveCurrent();
+
+		if (value) {
+			this._value = value;
+		}
+
+		if (fromKeyboard === false) {
+			this.addToHistory();
+		}
+
 		this._onDidChange.fire(value);
 	}
 
@@ -81,48 +88,72 @@ class SCMInput implements ISCMInput {
 		let savedHistory = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
 		if (savedHistory) {
 			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
+			let currentValue = this.getCurrentValue();
+			this.setValue(currentValue ? currentValue : this._value, false);
 		} else {
 			this.historyNavigator = new HistoryNavigator([], 50);
-		}
-		let currentValue = this.storageService.get(`${key}/latest`, StorageScope.WORKSPACE);
-		if (currentValue) {
-			this._value = currentValue;
 		}
 	}
 
 	save(): void {
-		this.historyNavigator.add(this.value);
 		if (this.repository.provider.rootUri) {
 			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
 			this.storageService.store(key, JSON.stringify(this.historyNavigator.getHistory()), StorageScope.WORKSPACE);
 		}
 	}
 
-	saveCurrent(): void {
-		if (this.repository.provider.rootUri) {
-			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}/latest`;
-			this.storageService.store(key, this.value, StorageScope.WORKSPACE);
+	private addToHistory() : void {
+		if (this.value && this.value !== this.getCurrentValue()) {
+			this.historyNavigator.add(this.value);
 		}
+		this.save();
+	}
+
+	private getCurrentValue(): string | null {
+		let currentValue = this.historyNavigator.current();
+		if (!currentValue) {
+			currentValue = this.historyNavigator.last();
+			this.historyNavigator.next();
+		}
+		return currentValue;
 	}
 
 	showNextValue(): void {
-		let next = this.historyNavigator.next();
+		if (!this.historyNavigator.has(this.value)) {
+			this.addToHistory();
+		}
+
+		let next = this.getNextValue();
 		if (next) {
-			if (!this.historyNavigator.getHistory().includes(this.value)) {
-				this.save();
-			}
-			this.value = next;
+			next = next === this.value ? this.getNextValue() : next;
+		}
+
+		if (next) {
+			this.setValue(next, false);
 		}
 	}
 
 	showPreviousValue(): void {
-		let prev = this.historyNavigator.previous();
-		if (prev) {
-			if (!this.historyNavigator.getHistory().includes(this.value)) {
-				this.save();
-			}
-			this.value = prev;
+		if (!this.historyNavigator.has(this.value)) {
+			this.addToHistory();
 		}
+
+		let previous = this.getPreviousValue();
+		if (previous) {
+			previous = previous === this.value ? this.getPreviousValue() : previous;
+		}
+
+		if (previous) {
+			this.setValue(previous, false);
+		}
+	}
+
+	private getPreviousValue(): string | null {
+		return this.historyNavigator.previous() || this.historyNavigator.first();
+	}
+
+	private getNextValue(): string | null {
+		return this.historyNavigator.next() || this.historyNavigator.last();
 	}
 }
 

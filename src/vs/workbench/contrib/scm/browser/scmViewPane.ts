@@ -1307,14 +1307,14 @@ export class SCMInputWidget extends Disposable {
 			if (value === textModel.getValue()) { // circuit breaker
 				return;
 			}
-			textModel.setValue(input.value);
+			textModel.setValue(value);
 			this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
 		}));
 
 		// Keep API in sync with model, update placeholder visibility and validate
 		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
-			input.value = textModel.getValue();
+			input.setValue(textModel.getValue(), true);
 			updatePlaceholderVisibility();
 			triggerValidation();
 		}));
