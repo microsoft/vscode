@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { ITitleControlDimensions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -86,8 +86,11 @@ export class TabsTitleControl extends TitleControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimension: Dimension | undefined;
-	private disableMultiLineTabs: boolean | undefined;
+	private dimensions: ITitleControlDimensions = {
+		container: Dimension.None,
+		available: Dimension.None
+	};
+
 	private readonly layoutScheduled = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean | undefined;
 
@@ -358,7 +361,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Changing the actions in the toolbar can have an impact on the size of the
 		// tab container, so we need to layout the tabs to make sure the active is visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	openEditor(editor: IEditorInput): void {
@@ -441,7 +444,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Moving an editor requires a layout to keep the active editor visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	pinEditor(editor: IEditorInput): void {
@@ -468,7 +471,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// A change to the sticky state requires a layout to keep the active editor visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	setActive(isGroupActive: boolean): void {
@@ -480,7 +483,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Activity has an impact on the toolbar, so we need to update and layout
 		this.updateEditorActionsToolbar();
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	private updateEditorLabelAggregator = this._register(new RunOnceScheduler(() => this.updateEditorLabels(), 0));
@@ -506,7 +509,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// A change to a label requires a layout to keep the active editor visible
-		this.layout(this.dimension);
+		this.layout(this.dimensions);
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
@@ -1025,13 +1028,7 @@ export class TabsTitleControl extends TitleControl {
 		this.updateEditorActionsToolbar();
 
 		// Ensure the active tab is always revealed
-		this.layout(this.dimension);
-
-		// When multi-line tabs are enabled, the title height grows beyond the default
-		// Thus, the editor container height needs to relayout
-		if (this.accessor.partOptions.multiLineTabs) {
-			this.group.relayout();
-		}
+		this.layout(this.dimensions);
 	}
 
 	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
@@ -1243,20 +1240,18 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getDimensions(): IEditorGroupTitleDimensions {
-		let height: number;
-		let offset: number;
-
 		// Multi-line: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
-		if (this.accessor.partOptions.multiLineTabs) {
-			const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
-			height = tabsAndActionsContainer.offsetHeight;
+		let height: number;
+		if (this.accessor.partOptions.multiLineTabs && this.tabsAndActionsContainer && this.tabsAndActionsContainer.classList.contains('multi-line')) {
+			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
 			height = TabsTitleControl.TAB_HEIGHT;
 		}
 
-		offset = height;
+		const offset = height;
 
+		// Account for breadcrumbs if visible
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			height += BreadcrumbsControl.HEIGHT;
 		}
@@ -1264,31 +1259,30 @@ export class TabsTitleControl extends TitleControl {
 		return { height, offset };
 	}
 
-	layout(dimension: Dimension | undefined, maxDimension?: Dimension): Dimension | undefined {
-		this.dimension = dimension;
+	layout(dimensions: ITitleControlDimensions): Dimension {
+		this.dimensions = dimensions;
 
+		// We need an opened editor and dimensions to layout the title
+		// Otherwise quickly return from the layout algorithm
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
-		if (!activeTabAndIndex || !this.dimension) {
-			return;
+		if (!activeTabAndIndex || dimensions.container === Dimension.None || dimensions.available === Dimension.None) {
+			return Dimension.None;
 		}
 
-		const maxHeight = maxDimension?.height ?? this.getDimensions().height;
-		this.disableMultiLineTabs = this.getDimensions().height > maxHeight ? true : false;
-
 		// Layout tabs synchronously if multi-line tabs are enabled so that
-		// the correct height of the title area can be returned to the title control
+		// the correct height of the title area can be returned to the title
+		// control
 		if (this.accessor.partOptions.multiLineTabs) {
-			this.layoutSync();
+			this.layoutSync(dimensions);
 		} else {
 			this.layoutAsync();
 		}
 
-		return new Dimension(this.dimension.width, this.getDimensions().height);
+		return new Dimension(dimensions.container.width, this.getDimensions().height);
 	}
 
-	private layoutSync() {
-		const dimension = assertIsDefined(this.dimension);
-		this.doLayout(dimension);
+	private layoutSync(dimensions: ITitleControlDimensions) {
+		this.doLayout(dimensions);
 	}
 
 	private layoutAsync() {
@@ -1297,38 +1291,37 @@ export class TabsTitleControl extends TitleControl {
 		// this a little bit we try at least to schedule this work on the next animation frame.
 		if (!this.layoutScheduled.value) {
 			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
-				const dimension = assertIsDefined(this.dimension);
-				this.doLayout(dimension);
+				this.doLayout(this.dimensions);
 
 				this.layoutScheduled.clear();
 			});
 		}
 	}
 
-	private doLayout(dimension: Dimension): void {
+	private doLayout(dimensions: ITitleControlDimensions): void {
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
 		if (!activeTabAndIndex) {
 			return; // nothing to do if not editor opened
 		}
 
 		// Breadcrumbs
-		this.doLayoutBreadcrumbs(dimension);
+		this.doLayoutBreadcrumbs(dimensions);
 
 		// Tabs
 		const [activeTab, activeIndex] = activeTabAndIndex;
-		this.doLayoutTabs(activeTab, activeIndex);
+		this.doLayoutTabs(activeTab, activeIndex, dimensions);
 	}
 
-	private doLayoutBreadcrumbs(dimension: Dimension): void {
+	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			const tabsScrollbar = assertIsDefined(this.tabsScrollbar);
 
-			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
-			tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
+			this.breadcrumbsControl.layout({ width: dimensions.container.width, height: BreadcrumbsControl.HEIGHT });
+			tabsScrollbar.getDomNode().style.height = `${dimensions.container.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
 		const [tabsContainer, tabsScrollbar, tabsAndActionsContainer] = assertAllDefined(this.tabsContainer, this.tabsScrollbar, this.tabsAndActionsContainer);
 
 		//
@@ -1391,14 +1384,20 @@ export class TabsTitleControl extends TitleControl {
 		// - enabled: only add class if tabs wrap
 		// - disabled: remove class
 		if (this.accessor.partOptions.multiLineTabs) {
-			const visibleTabsContainerHeight = tabsContainer.offsetHeight;
-			if (this.disableMultiLineTabs && tabsAndActionsContainer.classList.contains('multi-line')) {
-				tabsAndActionsContainer.classList.remove('multi-line');
+
+			// Tabs wrap multiline: remove wrapping if height exceeds available height
+			const tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('multi-line');
+			if (tabsWrapMultiLine) {
+				if (tabsContainer.offsetHeight > dimensions.available.height) {
+					tabsAndActionsContainer.classList.remove('multi-line');
+				}
 			}
 
-			// tabs exceed the tabs container width, so we start to wrap multi-line
-			if (allTabsWidth > visibleTabsContainerWidth) {
-				tabsAndActionsContainer.classList.add('multi-line');
+			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
+			else {
+				if (allTabsWidth > visibleTabsContainerWidth) {
+					tabsAndActionsContainer.classList.add('multi-line');
+				}
 			}
 
 			// if we do not exceed the tabs container width, we cannot simply remove
@@ -1406,8 +1405,8 @@ export class TabsTitleControl extends TitleControl {
 			// and we would otherwise constantly add and remove the class. As such
 			// we need to check if the height of the tabs container is back to normal
 			// and then remove the multi-line class.
-			else if (allTabsWidth === visibleTabsContainerWidth && tabsAndActionsContainer.classList.contains('multi-line')) {
-				if (visibleTabsContainerHeight === TabsTitleControl.TAB_HEIGHT) {
+			if (allTabsWidth === visibleTabsContainerWidth && tabsAndActionsContainer.classList.contains('multi-line')) {
+				if (tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
 					tabsAndActionsContainer.classList.remove('multi-line');
 				}
 			}
@@ -1495,8 +1494,10 @@ export class TabsTitleControl extends TitleControl {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 		if (editorIndex >= 0) {
 			const tabsContainer = assertIsDefined(this.tabsContainer);
-
-			return [tabsContainer.children[editorIndex] as HTMLElement, editorIndex];
+			const tab = tabsContainer.children[editorIndex];
+			if (tab) {
+				return [tabsContainer.children[editorIndex] as HTMLElement, editorIndex];
+			}
 		}
 
 		return undefined;

@@ -715,10 +715,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.titleAreaControl.getDimensions();
 	}
 
-	get editorHeight(): number {
-		return (this.element.offsetHeight - this.titleDimensions.height);
-	}
-
 	get isMinimized(): boolean {
 		if (!this.dimension) {
 			return false;
@@ -1696,12 +1692,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	layout(width: number, height: number): void {
 		this.dimension = new Dimension(width, height);
 
-		// Use the initial height of the title area to layout
-		const titleMaxDimensions = new Dimension(this.dimension.width, this.dimension.height - this.editorControl.minimumHeight);
-		const titleDimensions = this.titleAreaControl.layout(this.dimension, titleMaxDimensions) as Dimension;
+		// Layout the title area first to receive the size it occupies
+		const titleAreaSize = this.titleAreaControl.layout({
+			container: this.dimension,
+			available: new Dimension(width, height - this.editorControl.minimumHeight)
+		});
 
-		// Use the new height of the title area to layout the editor
-		this.editorControl.layout(new Dimension(width, this.dimension.height - titleDimensions.height));
+		// Pass the container width and remaining height to the editor layout
+		this.editorControl.layout(new Dimension(width, height - titleAreaSize.height));
 	}
 
 	relayout(): void {
