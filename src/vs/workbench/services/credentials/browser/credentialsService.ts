@@ -7,17 +7,20 @@ import { ICredentialsService, ICredentialsProvider } from 'vs/workbench/services
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class BrowserCredentialsService implements ICredentialsService {
+export class BrowserCredentialsService extends Disposable implements ICredentialsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _onDidChangePassword: Emitter<void> = new Emitter();
-	onDidChangePassword = this._onDidChangePassword.event;
+	private _onDidChangePassword = this._register(new Emitter<void>());
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	private credentialsProvider: ICredentialsProvider;
 
 	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
+		super();
+
 		if (environmentService.options && environmentService.options.credentialsProvider) {
 			this.credentialsProvider = environmentService.options.credentialsProvider;
 		} else {
@@ -31,6 +34,7 @@ export class BrowserCredentialsService implements ICredentialsService {
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
 		await this.credentialsProvider.setPassword(service, account, password);
+
 		this._onDidChangePassword.fire();
 	}
 

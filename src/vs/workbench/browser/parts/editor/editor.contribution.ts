@@ -573,7 +573,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
 		title: nls.localize('unpin', "Unpin"),
-		icon: { id: 'codicon/close-dirty' }
+		icon: { id: 'codicon/pinned-dirty' }
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
 	1000000, // towards the far end

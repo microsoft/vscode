@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Socket } from 'net';
+import { createServer, Socket } from 'net';
 import { EventEmitter } from 'events';
 import { Protocol, PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { tmpdir } from 'os';
+import product from 'vs/platform/product/common/product';
 
 class MessageStream {
 
@@ -221,4 +223,36 @@ suite('PersistentProtocol reconnection', () => {
 		assert.equal(a.unacknowledgedCount, 1);
 		assert.equal(b.unacknowledgedCount, 0);
 	});
+});
+
+suite('IPC, create handle', () => {
+
+	test('createRandomIPCHandle', async () => {
+		return testIPCHandle(createRandomIPCHandle());
+	});
+
+	test('createStaticIPCHandle', async () => {
+		return testIPCHandle(createStaticIPCHandle(tmpdir(), 'test', product.version));
+	});
+
+	function testIPCHandle(handle: string): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			const pipeName = createRandomIPCHandle();
+
+			const server = createServer();
+
+			server.on('error', () => {
+				return new Promise(() => server.close(() => reject()));
+			});
+
+			server.listen(pipeName, () => {
+				server.removeListener('error', reject);
+
+				return new Promise(() => {
+					server.close(() => resolve());
+				});
+			});
+		});
+	}
+
 });
