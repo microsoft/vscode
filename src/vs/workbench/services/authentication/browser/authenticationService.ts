@@ -457,7 +457,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const didTimeout: Promise<MainThreadAuthenticationProvider> = new Promise((_, reject) => {
 			setTimeout(() => {
 				reject();
-			}, 2000);
+			}, 5000);
 		});
 
 		return Promise.race([didRegister, didTimeout]);
