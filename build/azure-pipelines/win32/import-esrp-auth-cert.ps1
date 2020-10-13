@@ -10,8 +10,5 @@ $CertStore.Open("ReadWrite")
 $CertStore.AddRange($CertCollection)
 $CertStore.Close()
 
-echo $CertCollection[0].HasPrivateKey
-echo $CertCollection[0].PrivateKey
-
 $ESRPAuthCertificateSubjectName = $CertCollection[0].Subject
 Write-Output ("##vso[task.setvariable variable=ESRPAuthCertificateSubjectName;]$ESRPAuthCertificateSubjectName")
