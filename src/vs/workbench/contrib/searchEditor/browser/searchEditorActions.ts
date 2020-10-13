@@ -17,7 +17,7 @@ import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEd
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfigurationProperties, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { searchNewEditorIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -28,7 +28,6 @@ import { OpenNewEditorCommandId } from 'vs/workbench/contrib/searchEditor/browse
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IFileService } from 'vs/platform/files/common/files';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -179,16 +178,10 @@ export const createEditorFromSearchResult =
 		const instantiationService = accessor.get(IInstantiationService);
 		const labelService = accessor.get(ILabelService);
 		const configurationService = accessor.get(IConfigurationService);
-		const fileService = accessor.get(IFileService);
+		const sortOrder = configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
+
 
 		telemetryService.publicLog2('searchEditor/createEditorFromSearchResult');
-
-		const sortOrder = configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
-		if (sortOrder === SearchSortOrder.Modified) {
-			// Ensure all matches have retrieved their file stat
-			const files = searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(fileService));
-			await Promise.all(files);
-		}
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
