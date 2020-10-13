@@ -446,7 +446,7 @@ export class TunnelPanel extends ViewPane {
 	private tunnelViewFocusContext: IContextKey<boolean>;
 	private tunnelViewSelectionContext: IContextKey<ITunnelItem | undefined>;
 	private portChangableContextKey: IContextKey<boolean>;
-
+	private isEditing: boolean = false;
 	private titleActions: IAction[] = [];
 	private readonly titleActionsDisposable = this._register(new MutableDisposable());
 
@@ -491,7 +491,6 @@ export class TunnelPanel extends ViewPane {
 		this._register(toDisposable(() => {
 			this.titleActions = [];
 		}));
-
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -545,6 +544,7 @@ export class TunnelPanel extends ViewPane {
 
 		this.tree.setInput(this.viewModel);
 		this._register(this.viewModel.onForwardedPortsChanged(() => {
+			this._onDidChangeViewWelcomeState.fire();
 			this.tree.updateChildren(undefined, true);
 		}));
 
@@ -555,15 +555,16 @@ export class TunnelPanel extends ViewPane {
 		}));
 
 		this._register(this.remoteExplorerService.onDidChangeEditable(async e => {
-			const isEditing = !!this.remoteExplorerService.getEditableData(e);
+			this.isEditing = !!this.remoteExplorerService.getEditableData(e);
+			this._onDidChangeViewWelcomeState.fire();
 
-			if (!isEditing) {
+			if (!this.isEditing) {
 				treeContainer.classList.remove('highlight');
 			}
 
 			await this.tree.updateChildren(undefined, false);
 
-			if (isEditing) {
+			if (this.isEditing) {
 				treeContainer.classList.add('highlight');
 				if (!e) {
 					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
@@ -582,6 +583,10 @@ export class TunnelPanel extends ViewPane {
 
 	getActions(): IAction[] {
 		return this.titleActions;
+	}
+
+	shouldShowWelcome(): boolean {
+		return this.viewModel.forwarded.length === 0 && this.viewModel.candidates.length === 0 && !this.isEditing;
 	}
 
 	focus(): void {
@@ -717,7 +722,7 @@ const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberVal
 const maxPortNumber: number = 65536;
 const invalidPortNumberString: string = nls.localize('remote.tunnelsView.portNumberToHigh', "Port number must be \u2265 0 and < {0}.", maxPortNumber);
 
-namespace ForwardPortAction {
+export namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
 	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.forward', "Forward a Port"), original: 'Forward a Port' };

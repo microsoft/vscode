@@ -848,14 +848,14 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 				this.tryStartStopUrlFinder();
 			}
 		}));
+
 		if (this.environmentService.remoteAuthority) {
-			this.tryStartStopUrlFinder();
-		} else {
 			this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
 					this.tryStartStopUrlFinder();
 				}
 			}));
+			this.tryStartStopUrlFinder();
 		}
 	}
 
