@@ -5,10 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { URI } from 'vs/base/common/uri';
 
 export interface ICPUProperties {
@@ -38,17 +37,19 @@ export interface ICommonNativeHostService {
 	readonly windowId: number;
 
 	// Events
-	readonly onWindowOpen: Event<number>;
+	readonly onDidOpenWindow: Event<number>;
 
-	readonly onWindowMaximize: Event<number>;
-	readonly onWindowUnmaximize: Event<number>;
+	readonly onDidMaximizeWindow: Event<number>;
+	readonly onDidUnmaximizeWindow: Event<number>;
 
-	readonly onWindowFocus: Event<number>;
-	readonly onWindowBlur: Event<number>;
+	readonly onDidFocusWindow: Event<number>;
+	readonly onDidBlurWindow: Event<number>;
 
-	readonly onOSResume: Event<unknown>;
+	readonly onDidResumeOS: Event<unknown>;
 
-	readonly onColorSchemeChange: Event<ColorScheme>;
+	readonly onDidChangeColorScheme: Event<IColorScheme>;
+
+	readonly onDidChangePassword: Event<void>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -66,6 +67,8 @@ export interface ICommonNativeHostService {
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
+
+	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	/**
 	 * Make the window focused.
@@ -141,4 +144,11 @@ export interface ICommonNativeHostService {
 
 	// Registry (windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
+
+	// Credentials
+	getPassword(service: string, account: string): Promise<string | null>;
+	setPassword(service: string, account: string, password: string): Promise<void>;
+	deletePassword(service: string, account: string): Promise<boolean>;
+	findPassword(service: string): Promise<string | null>;
+	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>
 }

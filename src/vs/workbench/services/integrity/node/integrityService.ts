@@ -15,6 +15,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { FileAccess } from 'vs/base/common/network';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -141,7 +142,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	}
 
 	private _resolve(filename: string, expected: string): Promise<ChecksumPair> {
-		let fileUri = URI.parse(require.toUrl(filename));
+		const fileUri = FileAccess.asFileUri(filename, require);
 		return new Promise<ChecksumPair>((resolve, reject) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {

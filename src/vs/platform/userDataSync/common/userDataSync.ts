@@ -351,6 +351,10 @@ export interface ISyncResourcePreview {
 	readonly resourcePreviews: IResourcePreview[];
 }
 
+export interface IUserDataInitializer {
+	initialize(userData: IUserData): Promise<void>;
+}
+
 export interface IUserDataSynchroniser {
 
 	readonly resource: SyncResource;

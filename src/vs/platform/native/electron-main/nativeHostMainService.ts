@@ -8,12 +8,12 @@ import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-m
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { isMacintosh, isWindows, isRootUser, isLinux } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { dirExists } from 'vs/base/node/pfs';
@@ -22,18 +22,26 @@ import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 'os';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { ILogService } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
-export class NativeHostMainService implements INativeHostMainService {
+interface ChunkedPassword {
+	content: string;
+	hasNextChunk: boolean;
+}
+
+const MAX_PASSWORD_LENGTH = 2500;
+const PASSWORD_CHUNK_SIZE = MAX_PASSWORD_LENGTH - 100;
+
+export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -41,10 +49,12 @@ export class NativeHostMainService implements INativeHostMainService {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		this.registerListeners();
 	}
 
@@ -52,16 +62,10 @@ export class NativeHostMainService implements INativeHostMainService {
 
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
-			let colorScheme: ColorScheme;
-			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-				colorScheme = ColorScheme.HIGH_CONTRAST;
-			} else if (nativeTheme.shouldUseDarkColors) {
-				colorScheme = ColorScheme.DARK;
-			} else {
-				colorScheme = ColorScheme.LIGHT;
-			}
-
-			this._onColorSchemeChange.fire(colorScheme);
+			this._onDidChangeColorScheme.fire({
+				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
+				dark: nativeTheme.shouldUseDarkColors
+			});
 		});
 	}
 
@@ -74,21 +78,24 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	//#region Events
 
-	readonly onWindowOpen = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidOpenWindow = Event.map(this.windowsMainService.onWindowOpened, window => window.id);
 
-	readonly onWindowMaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowUnmaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onWindowBlur = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowFocus = Event.any(
+	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidFocusWindow = Event.any(
 		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
 	);
 
-	readonly onOSResume = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-	private readonly _onColorSchemeChange = new Emitter<ColorScheme>();
-	readonly onColorSchemeChange = this._onColorSchemeChange.event;
+	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
+	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+
+	private readonly _onDidChangePassword = this._register(new Emitter<void>());
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	//#endregion
 
@@ -208,6 +215,23 @@ export class NativeHostMainService implements INativeHostMainService {
 		const window = this.windowById(windowId);
 		if (window) {
 			window.focus({ force: options?.force ?? false });
+		}
+	}
+
+	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			const [windowWidth, windowHeight] = window.win.getSize();
+			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
+			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
+			const [newWindowWidth, newWindowHeight] = [Math.max(windowWidth, newMinWindowWidth), Math.max(windowHeight, newMinWindowHeight)];
+
+			if (minWindowWidth !== newMinWindowWidth || minWindowHeight !== newMinWindowHeight) {
+				window.win.setMinimumSize(newMinWindowWidth, newMinWindowHeight);
+			}
+			if (windowWidth !== newWindowWidth || windowHeight !== newWindowHeight) {
+				window.win.setSize(newWindowWidth, newWindowHeight);
+			}
 		}
 	}
 
@@ -609,6 +633,86 @@ export class NativeHostMainService implements INativeHostMainService {
 			return undefined;
 		}
 	}
+
+	//#endregion
+
+	//#region Credentials
+
+	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		const password = await keytar.getPassword(service, account);
+		if (password) {
+			try {
+				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+				let index = 1;
+				while (hasNextChunk) {
+					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
+					const result: ChunkedPassword = JSON.parse(nextChunk!);
+					content += result.content;
+					hasNextChunk = result.hasNextChunk;
+				}
+
+				return content;
+			} catch {
+				return password;
+			}
+		}
+
+		return password;
+	}
+
+	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
+		const keytar = await import('keytar');
+
+		if (isWindows && password.length > MAX_PASSWORD_LENGTH) {
+			let index = 0;
+			let chunk = 0;
+			let hasNextChunk = true;
+			while (hasNextChunk) {
+				const passwordChunk = password.substring(index, index + PASSWORD_CHUNK_SIZE);
+				index += PASSWORD_CHUNK_SIZE;
+				hasNextChunk = password.length - index > 0;
+				const content: ChunkedPassword = {
+					content: passwordChunk,
+					hasNextChunk: hasNextChunk
+				};
+
+				await keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
+				chunk++;
+			}
+
+		} else {
+			await keytar.setPassword(service, account, password);
+		}
+
+		this._onDidChangePassword.fire();
+	}
+
+	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
+		const keytar = await import('keytar');
+
+		const didDelete = await keytar.deletePassword(service, account);
+		if (didDelete) {
+			this._onDidChangePassword.fire();
+		}
+
+		return didDelete;
+	}
+
+	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		return keytar.findPassword(service);
+	}
+
+	async findCredentials(windowId: number | undefined, service: string): Promise<Array<{ account: string, password: string }>> {
+		const keytar = await import('keytar');
+
+		return keytar.findCredentials(service);
+	}
+
+	//#endregion
 
 	private windowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {

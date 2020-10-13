@@ -208,8 +208,7 @@ class DecorationProviderWrapper {
 	constructor(
 		readonly provider: IDecorationsProvider,
 		private readonly _uriEmitter: Emitter<URI | URI[]>,
-		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>,
-		@ILogService private readonly _logService: ILogService,
+		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
 		this._dispoable = this.provider.onDidChange(uris => {
 			if (!uris) {
@@ -239,17 +238,16 @@ class DecorationProviderWrapper {
 	}
 
 	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IDecorationData, isChild: boolean) => void): void {
+
 		let item = this.data.get(uri);
 
 		if (item === undefined) {
 			// unknown -> trigger request
-			this._logService.trace('[Decorations] getOrRetrieve -> FETCH', this.provider.label, uri);
 			item = this._fetchData(uri);
 		}
 
 		if (item && !(item instanceof DecorationDataRequest)) {
 			// found something (which isn't pending anymore)
-			this._logService.trace('[Decorations] getOrRetrieve -> RESULT', this.provider.label, uri);
 			callback(item, false);
 		}
 
@@ -259,7 +257,6 @@ class DecorationProviderWrapper {
 			if (iter) {
 				for (let item = iter.next(); !item.done; item = iter.next()) {
 					if (item.value && !(item.value instanceof DecorationDataRequest)) {
-						this._logService.trace('[Decorations] getOrRetrieve -> RESULT (children)', this.provider.label, uri);
 						callback(item.value, true);
 					}
 				}
@@ -272,7 +269,6 @@ class DecorationProviderWrapper {
 		// check for pending request and cancel it
 		const pendingRequest = this.data.get(uri);
 		if (pendingRequest instanceof DecorationDataRequest) {
-			this._logService.trace('[Decorations] fetchData -> CANCEL previous', this.provider.label, uri);
 			pendingRequest.source.cancel();
 			this.data.delete(uri);
 		}
@@ -301,7 +297,6 @@ class DecorationProviderWrapper {
 	}
 
 	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
-		this._logService.trace('[Decorations] keepItem -> CANCEL previous', this.provider.label, uri, data);
 		const deco = data ? data : null;
 		const old = this.data.set(uri, deco);
 		if (deco || old) {
@@ -348,8 +343,7 @@ export class DecorationsService implements IDecorationsService {
 		const wrapper = new DecorationProviderWrapper(
 			provider,
 			this._onDidChangeDecorationsDelayed,
-			this._onDidChangeDecorations,
-			this._logService
+			this._onDidChangeDecorations
 		);
 		const remove = this._data.push(wrapper);
 

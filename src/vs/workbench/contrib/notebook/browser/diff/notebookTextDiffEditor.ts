@@ -81,8 +81,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
 		this._overflowContainer = document.createElement('div');
-		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
-		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
 
 		const renderer = this.instantiationService.createInstance(CellDiffRenderer, this);
@@ -217,7 +216,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
-		console.log(cellChanges);
 
 		const cellDiffViewModels: CellDiffViewModel[] = [];
 		const originalModel = this._model.original.notebook;

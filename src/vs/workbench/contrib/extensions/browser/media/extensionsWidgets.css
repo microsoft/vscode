@@ -29,6 +29,11 @@
 	color: #FF8E00 !important;
 }
 
+.extension-install-count .codicon,
+.extension-action.codicon-gear {
+	color: inherit;
+}
+
 .extension-ratings .codicon-star-empty {
 	opacity: .4;
 }

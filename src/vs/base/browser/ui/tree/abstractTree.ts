@@ -186,7 +186,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.accessibilityProvider!.getWidgetAriaLabel();
 			},
 			getWidgetRole: options.accessibilityProvider && options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
-			getAriaLevel(node) {
+			getAriaLevel: options.accessibilityProvider && options.accessibilityProvider.getAriaLevel ? (node) => options.accessibilityProvider!.getAriaLevel!(node.element) : (node) => {
 				return node.depth;
 			},
 			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {

@@ -75,7 +75,7 @@ export class WebviewResourceRequestManager extends Disposable {
 		this._localResourceRoots = initialContentOptions.localResourceRoots || [];
 		this._portMappings = initialContentOptions.portMapping || [];
 
-		const remoteAuthority = environmentService.configuration.remoteAuthority;
+		const remoteAuthority = environmentService.remoteAuthority;
 		const remoteConnectionData = remoteAuthority ? remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
 		this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);

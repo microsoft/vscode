@@ -17,7 +17,7 @@ export class ExtensionPoints implements IWorkbenchContribution {
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		// Config Exporter
-		if (environmentService.configuration['export-default-configuration']) {
+		if (environmentService.args['export-default-configuration']) {
 			instantiationService.createInstance(DefaultConfigurationExportHelper);
 		}
 	}

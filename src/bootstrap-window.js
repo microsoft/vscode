@@ -103,7 +103,7 @@
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, safeProcess.platform === 'win32')}/out`,
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
 			'vs/nls': nlsConfig
 		};
 
@@ -241,7 +241,7 @@
 	}
 
 	/**
-	 * @return {{ fileUriFromPath: (path: string, isWindows: boolean) => string; }}
+	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
 	 */
 	function bootstrap() {
 		// @ts-ignore (defined in bootstrap.js)

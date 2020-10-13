@@ -107,10 +107,17 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 			this._socketsDispose.delete(localSocket.localAddress);
 			remoteSocket.end();
 		});
-
 		localSocket.on('close', () => remoteSocket.end());
+		localSocket.on('error', () => {
+			this._socketsDispose.delete(localSocket.localAddress);
+			remoteSocket.destroy();
+		});
+
 		remoteSocket.on('end', () => localSocket.end());
 		remoteSocket.on('close', () => localSocket.end());
+		remoteSocket.on('error', () => {
+			localSocket.destroy();
+		});
 
 		localSocket.pipe(remoteSocket);
 		remoteSocket.pipe(localSocket);

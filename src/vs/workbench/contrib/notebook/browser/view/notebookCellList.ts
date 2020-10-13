@@ -836,8 +836,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.view.setScrollTop(positionOffset - this.view.renderHeight / 2);
 
 			// after rendering, it might be pushed down due to markdown cell dynamic height
-			const elementTop = this.view.elementTop(viewIndex);
-			this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+			const newPositionOffset = this.view.elementTop(viewIndex) + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			this.view.setScrollTop(newPositionOffset - this.view.renderHeight / 2);
 
 			// reveal editor
 			if (!element.editorAttached) {

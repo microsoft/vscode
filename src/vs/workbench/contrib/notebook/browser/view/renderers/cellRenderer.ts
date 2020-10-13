@@ -342,11 +342,11 @@ abstract class AbstractCellRenderer {
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 			}
 		}));
 	}
@@ -455,7 +455,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-		dragImageContainer.innerHTML = templateData.container.outerHTML;
+		DOM.reset(dragImageContainer, templateData.container.cloneNode(true));
 
 		// Remove all rendered content nodes after the
 		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
@@ -553,7 +553,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 class EditorTextRenderer {
 
-	getRichText(editor: ICodeEditor, modelRange: Range): string | null {
+	private _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
+		createHTML(input) { return input; }
+	});
+
+	getRichText(editor: ICodeEditor, modelRange: Range): HTMLElement | null {
 		const model = editor.getModel();
 		if (!model) {
 			return null;
@@ -563,20 +567,24 @@ class EditorTextRenderer {
 		const fontInfo = editor.getOptions().get(EditorOption.fontInfo);
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		return `<div style="`
+
+		const style = ``
 			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
 			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
 			+ `font-family: ${fontFamily};`
 			+ `font-weight: ${fontInfo.fontWeight};`
 			+ `font-size: ${fontInfo.fontSize}px;`
 			+ `line-height: ${fontInfo.lineHeight}px;`
-			+ `white-space: pre;`
-			+ `">`
-			+ this.getRichTextLines(model, modelRange, colorMap)
-			+ '</div>';
+			+ `white-space: pre;`;
+
+		const element = DOM.$('div', { style });
+
+		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
+		element.innerHTML = linesHtml as unknown as string;
+		return element;
 	}
 
-	private getRichTextLines(model: ITextModel, modelRange: Range, colorMap: string[]): string {
+	private getRichTextLinesAsHtml(model: ITextModel, modelRange: Range, colorMap: string[]): string | TrustedHTML {
 		const startLineNumber = modelRange.startLineNumber;
 		const startColumn = modelRange.startColumn;
 		const endLineNumber = modelRange.endLineNumber;
@@ -599,7 +607,9 @@ class EditorTextRenderer {
 			}
 		}
 
-		return result;
+		return this._ttPolicy
+			? this._ttPolicy.createHTML(result)
+			: result;
 	}
 
 	private getDefaultColorMap(): string[] {
@@ -631,7 +641,7 @@ class CodeCellDragImageRenderer {
 		dragImageContainer.classList.forEach(c => dragImageContainer.classList.remove(c));
 		dragImageContainer.classList.add('cell-drag-image', 'monaco-list-row', 'focused', `${type}-cell-row`);
 
-		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
+		const editorContainer: HTMLElement | null = dragImageContainer.querySelector('.cell-editor-container');
 		if (!editorContainer) {
 			return null;
 		}
@@ -640,8 +650,7 @@ class CodeCellDragImageRenderer {
 		if (!richEditorText) {
 			return null;
 		}
-
-		editorContainer.innerHTML = richEditorText;
+		DOM.reset(editorContainer, richEditorText);
 
 		return dragImageContainer;
 	}
@@ -785,7 +794,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
-		DOM.toggleClass(templateData.container, 'runnable', !!metadata.runnable);
+		templateData.container.classList.toggle('runnable', !!metadata.runnable);
 		this.updateExecutionOrder(metadata, templateData);
 		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
@@ -826,7 +835,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateForHover(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		DOM.toggleClass(templateData.container, 'cell-output-hover', element.outputIsHovered);
+		templateData.container.classList.toggle('cell-output-hover', element.outputIsHovered);
 	}
 
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
@@ -1083,9 +1092,9 @@ export class ListTopCellToolbar extends Disposable {
 
 	private updateClass() {
 		if (this.notebookEditor.viewModel?.length === 0) {
-			DOM.addClass(this.topCellToolbar, 'emptyNotebook');
+			this.topCellToolbar.classList.add('emptyNotebook');
 		} else {
-			DOM.removeClass(this.topCellToolbar, 'emptyNotebook');
+			this.topCellToolbar.classList.remove('emptyNotebook');
 		}
 	}
 

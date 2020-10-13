@@ -640,7 +640,7 @@ type BoundingRect = { top: number, left: number, bottom: number, right: number }
 
 class ViewPaneDropOverlay extends Themable {
 
-	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
+	private static readonly OVERLAY_ID = 'monaco-pane-drop-overlay';
 
 	private container!: HTMLElement;
 	private overlay!: HTMLElement;

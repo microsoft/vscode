@@ -55,6 +55,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
+				manifest.isUserBuiltin = !!manifest.__metadata?.isBuiltin;
 				delete manifest.__metadata;
 				return manifest;
 			} else {
@@ -287,6 +288,7 @@ export interface IRelaxedExtensionDescription {
 	version: string;
 	publisher: string;
 	isBuiltin: boolean;
+	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
 	engines: {
@@ -300,6 +302,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 	validate(_extensionDescription: IExtensionDescription): IExtensionDescription | null {
 		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
+		extensionDescription.isUserBuiltin = !this._isBuiltin && !!extensionDescription.isUserBuiltin;
 		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
 
 		let notices: string[] = [];

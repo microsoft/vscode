@@ -2221,7 +2221,7 @@ declare module 'vscode' {
 	 *
 	 * A code action can be any command that is [known](#commands.getCommands) to the system.
 	 */
-	export interface CodeActionProvider {
+	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
 		/**
 		 * Provide commands for the given document and range.
 		 *
@@ -2234,6 +2234,22 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+
+		/**
+		 * Given a code action fill in its [`edit`](#CodeAction.edit)-property. Changes to
+		 * all other properties, like title, are ignored. A code action that has an edit
+		 * will not be resolved.
+		 *
+		 * *Note* that a code action provider that returns commands, not code actions, cannot successfully
+		 * implement this function. Returning commands is deprecated and instead code actions should be
+		 * returned.
+		 *
+		 * @param codeAction A code action.
+		 * @param token A cancellation token.
+		 * @return The resolved code action or a thenable that resolves to such. It is OK to return the given
+		 * `item`. When no result is returned, the given `item` will be used.
+		 */
+		resolveCodeAction?(codeAction: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
@@ -6917,7 +6933,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when the webview content posts a message.
 		 *
-		 * Webview content can post strings or json serilizable objects back to a VS Code extension. They cannot
+		 * Webview content can post strings or json serializable objects back to a VS Code extension. They cannot
 		 * post `Blob`, `File`, `ImageData` and other DOM specific objects since the extension that receives the
 		 * message does not run in a browser environment.
 		 */
@@ -6929,7 +6945,7 @@ declare module 'vscode' {
 		 * Messages are only delivered if the webview is live (either visible or in the
 		 * background with `retainContextWhenHidden`).
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -8598,6 +8614,12 @@ declare module 'vscode' {
 		 * Changes to the title property will be properly reflected in the UI in the title of the view.
 		 */
 		title?: string;
+
+		/**
+		 * An optional human-readable description which is rendered less prominently in the title of the view.
+		 * Setting the title description to null, undefined, or empty string will remove the description from the view.
+		 */
+		description?: string;
 
 		/**
 		 * Reveals the given element in the tree view.

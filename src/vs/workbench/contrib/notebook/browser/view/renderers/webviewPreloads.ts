@@ -308,7 +308,7 @@ function webviewPreloads() {
 	 * Map of preload resource URIs to promises that resolve one the resource
 	 * loads or errors.
 	 */
-	const preloadPromises = new Map<string, Promise<void>>();
+	const preloadPromises = new Map<string, Promise<string | undefined /* error string, or undefined if ok */>>();
 	const queuedOuputActions = new Map<string, Promise<void>>();
 
 	/**
@@ -341,7 +341,7 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'html':
 				enqueueOutputAction(event.data, async data => {
-					await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
+					const preloadErrs = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
 					if (!queuedOuputActions.has(data.outputId)) { // output was cleared while loading
 						return;
 					}
@@ -378,6 +378,18 @@ function webviewPreloads() {
 						outputNode.innerHTML = content.htmlContent;
 						cellOutputContainer.appendChild(outputNode);
 						domEval(outputNode);
+					} else if (preloadErrs.some(e => !!e)) {
+						outputNode.innerText = `Error loading preloads:`;
+						const errList = document.createElement('ul');
+						for (const err of preloadErrs) {
+							if (err) {
+								const item = document.createElement('li');
+								item.innerText = err;
+								errList.appendChild(item);
+							}
+						}
+						outputNode.appendChild(errList);
+						cellOutputContainer.appendChild(outputNode);
 					} else {
 						onDidCreateOutput.fire([data.apiNamespace, {
 							element: outputNode,
@@ -410,9 +422,11 @@ function webviewPreloads() {
 
 					for (let i = 0; i < event.data.widgets.length; i++) {
 						const widget = document.getElementById(event.data.widgets[i].id)!;
-						widget.style.top = event.data.widgets[i].top + 'px';
-						if (event.data.forceDisplay) {
-							widget.parentElement!.style.display = 'block';
+						if (widget) {
+							widget.style.top = event.data.widgets[i].top + 'px';
+							if (event.data.forceDisplay) {
+								widget.parentElement!.style.display = 'block';
+							}
 						}
 					}
 					break;
@@ -465,13 +479,15 @@ function webviewPreloads() {
 				const resources = event.data.resources;
 				const preloadsContainer = document.getElementById('__vscode_preloads')!;
 				for (let i = 0; i < resources.length; i++) {
-					const { uri } = resources[i];
+					const { uri, originalUri } = resources[i];
 					const scriptTag = document.createElement('script');
 					scriptTag.setAttribute('src', uri);
 					preloadsContainer.appendChild(scriptTag);
-					preloadPromises.set(uri, new Promise<void>(resolve => {
-						scriptTag.addEventListener('load', () => resolve());
-						scriptTag.addEventListener('error', () => resolve());
+					preloadPromises.set(uri, new Promise<string | undefined>(resolve => {
+						scriptTag.addEventListener('load', () => resolve(undefined));
+						scriptTag.addEventListener('error', () =>
+							resolve(`Network error loading ${originalUri}, does the path exist?`)
+						);
 					}));
 				}
 				break;

@@ -9,7 +9,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 export class WebUserDataAutoSyncService extends UserDataAutoSyncService implements IUserDataAutoSyncService {
 
-	private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService = <IWorkbenchEnvironmentService>this.environmentService;
+	private get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
 	private enabled: boolean | undefined = undefined;
 
 	isEnabled(): boolean {
@@ -25,8 +25,12 @@ export class WebUserDataAutoSyncService extends UserDataAutoSyncService implemen
 	protected setEnablement(enabled: boolean) {
 		if (this.enabled !== enabled) {
 			this.enabled = enabled;
-			if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
-				this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+			if (this.workbenchEnvironmentService.options?.settingsSyncOptions) {
+				if (this.workbenchEnvironmentService.options.settingsSyncOptions?.enablementHandler) {
+					this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+				}
+			} else {
+				super.setEnablement(enabled);
 			}
 		}
 	}

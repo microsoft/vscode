@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, computeEditorAriaLabel, IEditorOpenContext, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, computeEditorAriaLabel, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -236,7 +236,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 
 		// new editor: check with workbench.editor.restoreViewState setting
 		if (context?.newInGroup) {
-			return this.textResourceConfigurationService.getValue<boolean>(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
+			return this.textResourceConfigurationService.getValue<boolean>(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
 		}
 
 		// existing editor: always restore viewstate

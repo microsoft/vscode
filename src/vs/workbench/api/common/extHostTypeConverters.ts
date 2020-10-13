@@ -32,7 +32,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IDisplayOutput, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface PositionLike {
 	line: number;
@@ -338,7 +338,9 @@ export namespace MarkdownString {
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		return new htmlContent.MarkdownString(value.value, { isTrusted: value.isTrusted, supportThemeIcons: value.supportThemeIcons });
+		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
+		result.isTrusted = value.isTrusted;
+		return result;
 	}
 
 	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
@@ -1292,6 +1294,22 @@ export namespace LogLevel {
 			default:
 				return types.LogLevel.Info;
 		}
+	}
+}
+
+export namespace NotebookCellOutput {
+	export function from(output: types.NotebookCellOutput): IDisplayOutput {
+		return output.toJSON();
+	}
+}
+
+export namespace NotebookCellOutputItem {
+	export function from(output: types.NotebookCellOutputItem): IDisplayOutput {
+		return {
+			outputKind: CellOutputKind.Rich,
+			data: { [output.mime]: output.value },
+			metadata: output.metadata && { custom: output.metadata }
+		};
 	}
 }
 

@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, Decoration } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, FileDecoration } from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { asArray } from 'vs/base/common/arrays';
 
 interface ProviderData {
-	provider: vscode.DecorationProvider;
+	provider: vscode.FileDecorationProvider;
 	extensionId: ExtensionIdentifier;
 }
 
@@ -34,12 +34,12 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
+	registerDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
 		this._provider.set(handle, { provider, extensionId });
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);
 
-		const listener = provider.onDidChangeDecorations(e => {
+		const listener = provider.onDidChange(e => {
 			this._proxy.$onDidChange(handle, !e || (Array.isArray(e) && e.length > 250)
 				? null
 				: asArray(e));
@@ -65,13 +65,13 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		await Promise.all(requests.map(async request => {
 			try {
 				const { uri, id } = request;
-				const data = await Promise.resolve(provider.provideDecoration(URI.revive(uri), token));
+				const data = await Promise.resolve(provider.provideFileDecoration(URI.revive(uri), token));
 				if (!data) {
 					return;
 				}
 				try {
-					Decoration.validate(data);
-					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color];
+					FileDecoration.validate(data);
+					result[id] = <DecorationData>[data.propagate, data.tooltip, data.badge, data.color];
 				} catch (e) {
 					this._logService.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
 				}

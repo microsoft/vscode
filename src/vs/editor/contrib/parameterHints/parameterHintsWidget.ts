@@ -14,7 +14,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,7 +22,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { pad, escapeRegExpCharacters } from 'vs/base/common/strings';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -63,7 +63,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IModeService modeService: IModeService,
 	) {
 		super();
-		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
+		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, modeService, openerService));
 		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -152,7 +152,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = true;
 		setTimeout(() => {
 			if (this.domNodes) {
-				dom.addClass(this.domNodes.element, 'visible');
+				this.domNodes.element.classList.add('visible');
 			}
 		}, 100);
 		this.editor.layoutContentWidget(this);
@@ -169,7 +169,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = false;
 		this.announcedLabel = null;
 		if (this.domNodes) {
-			dom.removeClass(this.domNodes.element, 'visible');
+			this.domNodes.element.classList.remove('visible');
 		}
 		this.editor.layoutContentWidget(this);
 	}
@@ -225,7 +225,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 				documentation.textContent = activeParameter.documentation;
 			} else {
 				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
-				dom.addClass(renderedContents.element, 'markdown-docs');
+				renderedContents.element.classList.add('markdown-docs');
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
@@ -237,7 +237,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
 			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
-			dom.addClass(renderedContents.element, 'markdown-docs');
+			renderedContents.element.classList.add('markdown-docs');
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
@@ -247,7 +247,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
 
 		this.domNodes.overloads.textContent =
-			pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
+			String(hints.activeSignature + 1).padStart(hints.signatures.length.toString().length, '0') + '/' + hints.signatures.length;
 
 		if (activeParameter) {
 			const labelToAnnounce = this.getParameterLabel(signature, activeParameterIndex);

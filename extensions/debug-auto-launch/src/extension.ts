@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises as fs } from 'fs';
 import { createServer, Server } from 'net';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
@@ -203,7 +204,27 @@ async function createAttachServer(context: vscode.ExtensionContext) {
 		return undefined;
 	}
 
-	server = new Promise<Server>((resolve, reject) => {
+	server = createServerInner(ipcAddress).catch(err => {
+		console.error(err);
+		return undefined;
+	});
+
+	return await server;
+}
+
+const createServerInner = async (ipcAddress: string) => {
+	try {
+		return await createServerInstance(ipcAddress);
+	} catch (e) {
+		// On unix/linux, the file can 'leak' if the process exits unexpectedly.
+		// If we see this, try to delete the file and then listen again.
+		await fs.unlink(ipcAddress).catch(() => undefined);
+		return await createServerInstance(ipcAddress);
+	}
+};
+
+const createServerInstance = (ipcAddress: string) =>
+	new Promise<Server>((resolve, reject) => {
 		const s = createServer(socket => {
 			let data: Buffer[] = [];
 			socket.on('data', async chunk => {
@@ -229,13 +250,7 @@ async function createAttachServer(context: vscode.ExtensionContext) {
 		})
 			.on('error', reject)
 			.listen(ipcAddress, () => resolve(s));
-	}).catch(err => {
-		console.error(err);
-		return undefined;
 	});
-
-	return await server;
-}
 
 /**
  * Destroys the auto-attach server, if it's running.

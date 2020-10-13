@@ -81,6 +81,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'menuBar/file',
+		id: MenuId.MenubarFileMenu,
+		description: localize('menus.file', "The top level file menu"),
+		proposed: true
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")

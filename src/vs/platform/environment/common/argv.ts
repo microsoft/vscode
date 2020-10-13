@@ -43,6 +43,7 @@ export interface NativeParsedArgs {
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
+	debugRenderer?: boolean; // whether we expect a debugger (js-debug) to attach to the renderer, incl webviews+webworker
 	'inspect-search'?: string;
 	'inspect-brk-search'?: string;
 	'disable-extensions'?: boolean;
@@ -56,7 +57,6 @@ export interface NativeParsedArgs {
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
 	'skip-release-notes'?: boolean;
-	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
@@ -74,6 +74,7 @@ export interface NativeParsedArgs {
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
+	'builtin'?: boolean;
 	'force-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
 	'__sandbox'?: boolean;

@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/product/common/product';
 import { SyncActionDescriptor, ICommandAction, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
@@ -17,11 +17,10 @@ import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
 import { OpenIssueReporterArgs, OpenIssueReporterActionId } from 'vs/workbench/contrib/issue/common/commands';
 
-const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
 if (!!product.reportIssueUrl) {
-	workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ReportPerformanceIssueUsingReporterAction), 'Help: Report Performance Issue', helpCategory.value);
+	workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ReportPerformanceIssueUsingReporterAction), 'Help: Report Performance Issue', CATEGORIES.Help.value);
 
 	const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue...");
 
@@ -36,14 +35,13 @@ if (!!product.reportIssueUrl) {
 	const command: ICommandAction = {
 		id: OpenIssueReporterActionId,
 		title: { value: OpenIssueReporterActionLabel, original: 'Report Issue' },
-		category: helpCategory
+		category: CATEGORIES.Help
 	};
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });
 }
 
-const developerCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenProcessExplorer), 'Developer: Open Process Explorer', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenProcessExplorer), 'Developer: Open Process Explorer', CATEGORIES.Developer.value);
 
 registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, true);
 

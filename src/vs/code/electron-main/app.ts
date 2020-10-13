@@ -22,12 +22,12 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
@@ -36,7 +36,6 @@ import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { ActiveWindowManager } from 'vs/platform/windows/electron-main/windowTracker';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
@@ -82,6 +81,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -92,7 +93,7 @@ export class CodeApplication extends Disposable {
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService
@@ -443,6 +444,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
@@ -462,7 +464,7 @@ export class CodeApplication extends Disposable {
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
-			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
+			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
@@ -530,6 +532,10 @@ export class CodeApplication extends Disposable {
 		const issueMainService = accessor.get(IIssueMainService);
 		const issueChannel = createChannelReceiver(issueMainService);
 		electronIpcServer.registerChannel('issue', issueChannel);
+
+		const encryptionMainService = accessor.get(IEncryptionMainService);
+		const encryptionChannel = createChannelReceiver(encryptionMainService);
+		electronIpcServer.registerChannel('encryption', encryptionChannel);
 
 		const nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = createChannelReceiver(nativeHostMainService);
@@ -657,7 +663,11 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager(nativeHostMainService);
+		const activeWindowManager = new ActiveWindowManager({
+			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
+			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
+			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
+		});
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
@@ -689,8 +699,8 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// new window if "-n" or "--remote" was used without paths
-		if ((args['new-window'] || args.remote) && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+		// new window if "-n"
+		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 			return windowsMainService.open({
 				context,
 				cli: args,

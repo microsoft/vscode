@@ -10,7 +10,7 @@ import { sep } from 'vs/base/common/path';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
@@ -39,7 +39,7 @@ import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
-import { extUri } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -85,7 +85,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.from(OpenExplorerViewletAction, openViewletKb),
 	'View: Show Explorer',
-	nls.localize('view', "View")
+	CATEGORIES.View.value
 );
 
 // Register file editors
@@ -131,7 +131,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		const preferredResource = fileEditorInput.preferredResource;
 		const serializedFileEditorInput: ISerializedFileEditorInput = {
 			resourceJSON: resource.toJSON(),
-			preferredResourceJSON: extUri.isEqual(resource, preferredResource) ? undefined : preferredResource, // only storing preferredResource if it differs from the resource
+			preferredResourceJSON: isEqual(resource, preferredResource) ? undefined : preferredResource, // only storing preferredResource if it differs from the resource
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};

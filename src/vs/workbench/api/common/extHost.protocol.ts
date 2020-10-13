@@ -144,6 +144,7 @@ export type CommentThreadChanges = Partial<{
 	contextValue: string,
 	comments: modes.Comment[],
 	collapseState: modes.CommentThreadCollapsibleState;
+	canReply: boolean;
 }>;
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -172,6 +173,10 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$getSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;
 	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession>;
 	$logout(providerId: string, sessionId: string): Promise<void>;
+
+	$getPassword(extensionId: string, key: string): Promise<string | undefined>;
+	$setPassword(extensionId: string, key: string, value: string): Promise<void>;
+	$deletePassword(extensionId: string, key: string): Promise<void>;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
@@ -750,6 +755,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
+	$tryOpenDocument(uriComponents: UriComponents, viewType?: string): Promise<URI>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
 	$removeNotebookEditorDecorationType(key: string): void;
@@ -830,7 +836,7 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	$onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void>;
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
@@ -1076,6 +1082,7 @@ export interface ExtHostAuthenticationShape {
 	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent): Promise<void>;
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
 	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
+	$onDidChangePassword(): Promise<void>;
 }
 
 export interface ExtHostSearchShape {
@@ -1605,7 +1612,7 @@ export interface DecorationRequest {
 	readonly uri: UriComponents;
 }
 
-export type DecorationData = [number, boolean, string, string, ThemeColor];
+export type DecorationData = [boolean, string, string, ThemeColor];
 export type DecorationReply = { [id: number]: DecorationData; };
 
 export interface ExtHostDecorationsShape {

@@ -224,38 +224,40 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 
 	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
-	const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
-	if (listActiveSelectionForegroundColor && listActiveSelectionBackgroundColor) {
-		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(listActiveSelectionBackgroundColor);
+	if (listActiveSelectionForegroundColor) {
+		const backgroundColor = theme.getColor(listActiveSelectionBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(backgroundColor);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).focused.selected .author { color: ${authorForeground}; }`);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(listActiveSelectionBackgroundColor);
+		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(backgroundColor);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.focused.selected { color: ${disabledExtensionForeground}; }`);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
-	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
-	if (listInactiveSelectionForegroundColor && listInactiveSelectionBackgroundColor) {
-		const authorForeground = listInactiveSelectionForegroundColor.transparent(.9).makeOpaque(listInactiveSelectionBackgroundColor);
+	if (listInactiveSelectionForegroundColor) {
+		const backgroundColor = theme.getColor(listInactiveSelectionBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listInactiveSelectionForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listInactiveSelectionForegroundColor.transparent(.5).makeOpaque(listInactiveSelectionBackgroundColor);
+		const disabledExtensionForeground = listInactiveSelectionForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listFocusForegroundColor = theme.getColor(listFocusForeground);
-	const listFocusBackgroundColor = theme.getColor(listFocusBackground);
-	if (listFocusForegroundColor && listFocusBackgroundColor) {
-		const authorForeground = listFocusForegroundColor.transparent(.9).makeOpaque(listFocusBackgroundColor);
+	if (listFocusForegroundColor) {
+		const backgroundColor = theme.getColor(listFocusBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listFocusForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).focused .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listFocusForegroundColor.transparent(.5).makeOpaque(listFocusBackgroundColor);
+		const disabledExtensionForeground = listFocusForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.focused { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listHoverForegroundColor = theme.getColor(listHoverForeground);
-	const listHoverBackgroundColor = theme.getColor(listHoverBackground);
-	if (listHoverForegroundColor && listHoverBackgroundColor) {
-		const authorForeground = listHoverForegroundColor.transparent(.9).makeOpaque(listHoverBackgroundColor);
+	if (listHoverForegroundColor) {
+		const backgroundColor = theme.getColor(listHoverBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listHoverForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:hover:not(.disabled):not(.selected):.not(.focused) .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listHoverForegroundColor.transparent(.5).makeOpaque(listHoverBackgroundColor);
+		const disabledExtensionForeground = listHoverForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:hover:not(.selected):.not(.focused) { color: ${disabledExtensionForeground}; }`);
 	}
 });

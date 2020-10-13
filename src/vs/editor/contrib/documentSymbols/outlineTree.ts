@@ -149,7 +149,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
 			template.iconClass.className = '';
-			dom.addClasses(template.iconClass, `outline-element-icon ${SymbolKinds.toCssClassName(element.symbol.kind, true)}`);
+			template.iconClass.classList.add(`outline-element-icon`, ...SymbolKinds.toCssClassName(element.symbol.kind, true).split(' '));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
 			options.extraClasses.push(`deprecated`);

@@ -5,10 +5,10 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, Deprecated_EditorPinnedContext, Deprecated_EditorDirtyContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -46,7 +46,7 @@ import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -222,9 +222,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private handleGroupContextKeys(): void {
 		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.scopedContextKeyService);
-		const deprecatedGroupActiveEditorDirtyContext = Deprecated_EditorDirtyContext.bindTo(this.scopedContextKeyService);
 		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
-		const deprecatedGroupActiveEditorPinnedContext = Deprecated_EditorPinnedContext.bindTo(this.scopedContextKeyService);
 		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
 
@@ -236,14 +234,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const activeEditor = this._group.activeEditor;
 			if (activeEditor) {
 				groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-				deprecatedGroupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 				activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
 					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-					deprecatedGroupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 				});
 			} else {
 				groupActiveEditorDirtyContext.set(false);
-				deprecatedGroupActiveEditorDirtyContext.set(false);
 			}
 		};
 
@@ -258,7 +253,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupChangeKind.EDITOR_PIN:
 					if (e.editor && e.editor === this._group.activeEditor) {
 						groupActiveEditorPinnedContext.set(this._group.isPinned(this._group.activeEditor));
-						deprecatedGroupActiveEditorPinnedContext.set(this._group.isPinned(this._group.activeEditor));
 					}
 					break;
 				case GroupChangeKind.EDITOR_STICKY:
@@ -575,7 +569,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {
 		const descriptor = editor.getTelemetryDescriptor();
 
-		const resource = editor.resource;
+		const resource = EditorResourceAccessor.getOriginalUri(editor);
 		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
 		if (resource && path) {
 			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
@@ -1782,7 +1776,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${require.toUrl(letterpress)}')
+			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
 		}
 	`);
 

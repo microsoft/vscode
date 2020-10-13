@@ -191,7 +191,7 @@ export class TerminalLinkManager extends DisposableStore {
 		// Check if it's a file:/// link, hand off to local link handler so to open an editor and
 		// respect line/col attachment
 		const uri = URI.parse(link);
-		if (uri.scheme === 'file') {
+		if (uri.scheme === Schemas.file) {
 			this._handleLocalLink(uri.fsPath);
 			return;
 		}

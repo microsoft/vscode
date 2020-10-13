@@ -188,7 +188,7 @@ class Label {
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerText = '';
-				dom.removeClass(this.container, 'multiple');
+				this.container.classList.remove('multiple');
 				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
 			}
 
@@ -251,7 +251,7 @@ class LabelWithHighlights {
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerText = '';
-				dom.removeClass(this.container, 'multiple');
+				this.container.classList.remove('multiple');
 				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportCodicons);
 			}
 

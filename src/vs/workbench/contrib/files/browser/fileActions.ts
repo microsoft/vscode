@@ -15,7 +15,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -30,7 +30,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -39,7 +39,7 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { triggerDownload, asDomUri } from 'vs/base/browser/dom';
+import { triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -451,7 +451,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 	async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.resource : undefined;
+		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
 		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
 
 			// Compare with next editor that opens
@@ -462,7 +462,7 @@ export class GlobalCompareResourcesAction extends Action {
 					toDispose.dispose();
 
 					// Open editor as diff
-					const resource = editor.resource;
+					const resource = EditorResourceAccessor.getOriginalUri(editor);
 					if (resource && this.textModelService.canHandleResource(resource)) {
 						return {
 							override: this.editorService.openEditor({
@@ -633,7 +633,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -701,7 +701,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	async run(): Promise<void> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const fileResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
@@ -813,7 +813,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
@@ -1015,7 +1015,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				try {
 					bufferOrUri = (await fileService.readFile(s.resource, { limits: { size: 1024 * 1024  /* set a limit to reduce memory pressure */ } })).value.buffer;
 				} catch (error) {
-					bufferOrUri = asDomUri(s.resource);
+					bufferOrUri = FileAccess.asBrowserUri(s.resource);
 				}
 
 				triggerDownload(bufferOrUri, s.name);

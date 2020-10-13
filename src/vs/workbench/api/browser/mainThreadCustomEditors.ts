@@ -538,7 +538,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			throw new Error('Resource is not untitled');
 		}
 
-		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this._environmentService.remoteAuthority;
 		const localResource = toLocalResource(this._editorResource, remoteAuthority, this._pathService.defaultUriScheme);
 
 		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems);

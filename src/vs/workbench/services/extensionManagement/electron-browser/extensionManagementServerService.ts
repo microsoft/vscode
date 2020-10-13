@@ -14,11 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-sandbox/remoteExtensionManagementService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -33,18 +29,14 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
-		@IExtensionGalleryService galleryService: IExtensionGalleryService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILogService logService: ILogService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 
 		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new NativeRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer, logService, galleryService, configurationService, productService, environmentService);
+			const extensionManagementService = instantiationService.createInstance(NativeRemoteExtensionManagementService, remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer);
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,

@@ -40,7 +40,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { homedir } from 'os';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
@@ -54,7 +53,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	userEnv: {},
 	execPath: process.execPath,
 	perfEntries: [],
-	colorScheme: ColorScheme.DARK,
+	colorScheme: { dark: true, highContrast: false },
 	...parseArgs(process.argv, OPTIONS)
 };
 
@@ -161,13 +160,14 @@ export class TestNativeHostService implements INativeHostService {
 
 	readonly windowId = -1;
 
-	onWindowOpen: Event<number> = Event.None;
-	onWindowMaximize: Event<number> = Event.None;
-	onWindowUnmaximize: Event<number> = Event.None;
-	onWindowFocus: Event<number> = Event.None;
-	onWindowBlur: Event<number> = Event.None;
-	onOSResume: Event<unknown> = Event.None;
-	onColorSchemeChange = Event.None;
+	onDidOpenWindow: Event<number> = Event.None;
+	onDidMaximizeWindow: Event<number> = Event.None;
+	onDidUnmaximizeWindow: Event<number> = Event.None;
+	onDidFocusWindow: Event<number> = Event.None;
+	onDidBlurWindow: Event<number> = Event.None;
+	onDidResumeOS: Event<unknown> = Event.None;
+	onDidChangeColorScheme = Event.None;
+	onDidChangePassword = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
@@ -187,6 +187,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
+	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -232,6 +233,11 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
+	async getPassword(service: string, account: string): Promise<string | null> { return null; }
+	async setPassword(service: string, account: string, password: string): Promise<void> { }
+	async deletePassword(service: string, account: string): Promise<boolean> { return false; }
+	async findPassword(service: string): Promise<string | null> { return null; }
+	async findCredentials(service: string): Promise<{ account: string; password: string; }[]> { return []; }
 }
 
 export function workbenchInstantiationService(): ITestInstantiationService {

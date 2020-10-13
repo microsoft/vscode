@@ -18,7 +18,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -153,7 +153,6 @@ enum ColorScheme {
 	HIGH_CONTRAST = 'hc'
 }
 
-
 interface IInitialColorTheme {
 
 	/**
@@ -247,7 +246,7 @@ interface ISettingsSyncOptions {
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	enablementHandler(enablement: boolean): void;
+	enablementHandler?(enablement: boolean): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -313,12 +312,6 @@ interface IWorkbenchConstructionOptions {
 	 * A handler for opening workspaces and providing the initial workspace.
 	 */
 	readonly workspaceProvider?: IWorkspaceProvider;
-
-	/**
-	 * The user data provider is used to handle user specific application
-	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
-	 */
-	userDataProvider?: IFileSystemProvider;
 
 	/**
 	 * Enables Settings Sync by default.
@@ -556,6 +549,9 @@ export {
 
 	// LogLevel
 	LogLevel,
+
+	// SettingsSync
+	ISettingsSyncOptions,
 
 	// Updates/Quality
 	IUpdateProvider,

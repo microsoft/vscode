@@ -154,11 +154,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private handleEditorPartSize(container: HTMLElement, dimension: dom.IDimension): void {
-		if (dimension.height <= 478) {
-			dom.addClass(container, 'max-height-478px');
-		} else {
-			dom.removeClass(container, 'max-height-478px');
-		}
+		container.classList.toggle('max-height-478px', dimension.height <= 478);
 	}
 
 	private destroy(): void {

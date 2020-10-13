@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, flatten } from 'vs/base/common/arrays';
-import { repeat } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -35,7 +34,7 @@ const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { l
 	fullMatchLines
 		.forEach((sourceLine, i) => {
 			const lineNumber = getLinePrefix(i);
-			const paddingStr = repeat(' ', longestLineNumber - lineNumber.length);
+			const paddingStr = ' '.repeat(longestLineNumber - lineNumber.length);
 			const prefix = `  ${paddingStr}${lineNumber}: `;
 			const prefixOffset = prefix.length;
 
@@ -85,7 +84,7 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
 					text.push('');
 				}
-				text.push(`  ${repeat(' ', longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
+				text.push(`  ${' '.repeat(longestLineNumber - `${lineNumber}`.length)}${lineNumber}  ${line}`);
 				lastLine = lineNumber;
 			}
 

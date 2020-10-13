@@ -196,9 +196,10 @@
 			}
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
+			"browserAttachLocation": "workspace",
 			"port": 9222
 		},
 		{

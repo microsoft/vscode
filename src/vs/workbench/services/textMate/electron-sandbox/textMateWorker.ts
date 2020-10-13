@@ -14,6 +14,7 @@ import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import type { IGrammar, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IValidGrammarDefinitionDTO {
 	location: UriComponents;
@@ -146,8 +147,7 @@ export class TextMateWorker {
 		});
 		const vscodeTextmate = await import('vscode-textmate');
 		const vscodeOniguruma = await import('vscode-oniguruma');
-		const wasmPath = require.toUrl('vscode-oniguruma/../onig.wasm');
-		const response = await fetch(wasmPath);
+		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.
 		// We therefore use the non-streaming compiler :(.

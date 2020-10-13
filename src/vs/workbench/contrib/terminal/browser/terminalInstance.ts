@@ -44,6 +44,7 @@ import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { LatencyTelemetryAddon } from 'vs/workbench/contrib/terminal/browser/terminalLatencyTelemetryAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -448,6 +449,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
+		const latencyAddon = this._register(this._instantiationService.createInstance(LatencyTelemetryAddon, this._processManager));
+		this._xterm.loadAddon(latencyAddon);
+
 		return xterm;
 	}
 
@@ -730,7 +734,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
-			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
+			this._hadFocusOnExit = this._xterm.element.classList.contains('focus');
 		}
 		if (this._wrapperElement) {
 			if (this._wrapperElement.xterm) {

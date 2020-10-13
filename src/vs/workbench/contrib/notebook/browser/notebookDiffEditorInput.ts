@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as glob from 'vs/base/common/glob';
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorModel } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -50,8 +49,8 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 }
 
 export class NotebookDiffEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, originalResource: URI, originalName: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookDiffEditorInput, resource, name, originalResource, originalName, viewType, options);
+	static create(instantiationService: IInstantiationService, resource: URI, name: string, originalResource: URI, originalName: string, textDiffName: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
+		return instantiationService.createInstance(NotebookDiffEditorInput, resource, name, originalResource, originalName, textDiffName, viewType, options);
 	}
 
 	static readonly ID: string = 'workbench.input.diffNotebookInput';
@@ -65,6 +64,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 		public readonly name: string,
 		public readonly originalResource: URI,
 		public readonly originalName: string,
+		public readonly textDiffName: string,
 		public readonly viewType: string | undefined,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -82,7 +82,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return nls.localize('sideBySideLabels', "{0} ↔ {1}", this.originalName, this.name);
+		return this.textDiffName;
 	}
 
 	isDirty() {

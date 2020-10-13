@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup, Separator } from 'vs/base/common/actions';
@@ -12,8 +13,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import { escape } from 'vs/base/common/strings';
-import 'vs/css!./outlinePane';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -243,7 +242,6 @@ export class OutlinePane extends ViewPane {
 	private _requestOracle?: RequestOracle;
 	private _domNode!: HTMLElement;
 	private _message!: HTMLDivElement;
-	private _inputContainer!: HTMLDivElement;
 	private _progressBar!: ProgressBar;
 	private _tree!: WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
 	private _treeDataSource!: OutlineDataSource;
@@ -288,13 +286,7 @@ export class OutlinePane extends ViewPane {
 
 	focus(): void {
 		if (this._tree) {
-			// focus on tree and fallback to root
-			// dom node when the tree cannot take focus,
-			// e.g. when hidden
 			this._tree.domFocus();
-			if (!this._tree.isDOMFocused()) {
-				this._domNode.focus();
-			}
 		}
 	}
 
@@ -302,12 +294,10 @@ export class OutlinePane extends ViewPane {
 		super.renderBody(container);
 
 		this._domNode = container;
-		this._domNode.tabIndex = 0;
 		container.classList.add('outline-pane');
 
 		let progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
-		this._inputContainer = dom.$('.outline-input');
 
 		this._progressBar = new ProgressBar(progressContainer);
 		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
@@ -315,7 +305,7 @@ export class OutlinePane extends ViewPane {
 		let treeContainer = dom.$('.outline-tree');
 		dom.append(
 			container,
-			progressContainer, this._message, this._inputContainer, treeContainer
+			progressContainer, this._message, treeContainer
 		);
 
 		this._treeRenderer = this._instantiationService.createInstance(OutlineElementRenderer);
@@ -452,7 +442,7 @@ export class OutlinePane extends ViewPane {
 		this._domNode.classList.add('message');
 		this._tree.setInput(undefined!);
 		this._progressBar.stop().hide();
-		this._message.innerText = escape(message);
+		this._message.innerText = message;
 	}
 
 	private static _createOutlineModel(model: ITextModel, disposables: DisposableStore): Promise<OutlineModel | undefined> {
@@ -545,11 +535,6 @@ export class OutlinePane extends ViewPane {
 		} else {
 			let state = this._treeStates.get(newModel.uri.toString());
 			this._tree.setInput(newModel, state);
-		}
-
-		// transfer focus from domNode to the tree
-		if (this._domNode === document.activeElement) {
-			this._tree.domFocus();
 		}
 
 		this._editorDisposables.add(toDisposable(() => this._contextKeyFiltered.reset()));

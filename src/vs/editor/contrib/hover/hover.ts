@@ -180,7 +180,17 @@ export class ModesHoverController implements IEditorContribution {
 			this.glyphWidget.hide();
 
 			if (this._isHoverEnabled && mouseEvent.target.range) {
-				this.contentWidget.startShowingAt(mouseEvent.target.range, HoverStartMode.Delayed, false);
+				// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
+				// Check if mouse is hovering on color decorator
+				const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
+					&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
+				if (hoverOnColorDecorator) {
+					// shift the mouse focus by one as color decorator is a `before` decoration of next character.
+					this.contentWidget.startShowingAt(new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1), HoverStartMode.Delayed, false);
+				} else {
+					this.contentWidget.startShowingAt(mouseEvent.target.range, HoverStartMode.Delayed, false);
+				}
+
 			}
 		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this.contentWidget.hide();

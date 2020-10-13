@@ -16,6 +16,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
@@ -29,6 +30,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { WEB_WORKER_IFRAME } from 'vs/workbench/services/extensions/common/webWorkerIframe';
 import { Barrier } from 'vs/base/common/async';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -67,13 +69,21 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		this._isTerminating = false;
 		this._protocolPromise = null;
 		this._protocol = null;
-		this._extensionHostLogsLocation = URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme });
+		this._extensionHostLogsLocation = joinPath(this._environmentService.extHostLogsPath, 'webWorker');
 		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
+	}
+
+	private _wrapInIframe(): boolean {
+		if (this._environmentService.options && typeof this._environmentService.options._wrapWebWorkerExtHostInIframe === 'boolean') {
+			return this._environmentService.options._wrapWebWorkerExtHostInIframe;
+		}
+		// wrap in <iframe> by default
+		return true;
 	}
 
 	public async start(): Promise<IMessagePassingProtocol> {
 		if (!this._protocolPromise) {
-			if (platform.isWeb && this._environmentService.options && this._environmentService.options._wrapWebWorkerExtHostInIframe) {
+			if (platform.isWeb && !browser.isSafari && this._wrapInIframe()) {
 				this._protocolPromise = this._startInsideIframe();
 			} else {
 				this._protocolPromise = this._startOutsideIframe();
@@ -92,16 +102,16 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		iframe.style.display = 'none';
 
 		const vscodeWebWorkerExtHostId = generateUuid();
-		const workerUrl = require.toUrl('../worker/extensionHostWorkerMain.js');
+		const workerUrl = FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true);
 		const workerSrc = getWorkerBootstrapUrl(workerUrl, 'WorkerExtensionHost', true);
 		const escapeAttribute = (value: string): string => {
 			return value.replace(/"/g, '&quot;');
 		};
-		const isBuilt = this._environmentService.isBuilt;
+		const forceHTTPS = (location.protocol === 'https:');
 		const html = `<!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' '${WEB_WORKER_IFRAME.sha}' ${isBuilt ? 'https:' : 'http: https:'}; worker-src data:; connect-src ${isBuilt ? 'https:' : 'http: https:'}" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' '${WEB_WORKER_IFRAME.sha}' ${forceHTTPS ? 'https:' : 'http: https:'}; worker-src data:; connect-src ${forceHTTPS ? 'https:' : 'http: https:'}" />
 		<meta id="vscode-worker-src" data-value="${escapeAttribute(workerSrc)}" />
 		<meta id="vscode-web-worker-ext-host-id" data-value="${escapeAttribute(vscodeWebWorkerExtHostId)}" />
 	</head>
@@ -173,7 +183,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
 		const emitter = new Emitter<VSBuffer>();
 
-		const url = getWorkerBootstrapUrl(require.toUrl('../worker/extensionHostWorkerMain.js'), 'WorkerExtensionHost');
+		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
 		const worker = new Worker(url, { name: 'WorkerExtensionHost' });
 
 		const barrier = new Barrier();
@@ -277,7 +287,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			version: this._productService.version,
 			parentPid: -1,
 			environment: {
-				isExtensionDevelopmentDebug: false, //todo@jrieken web
+				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
@@ -302,7 +312,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			logFile: this._extensionHostLogFile,
 			autoStart: initData.autoStart,
 			remote: {
-				authority: this._environmentService.configuration.remoteAuthority,
+				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
 				isRemote: false
 			},

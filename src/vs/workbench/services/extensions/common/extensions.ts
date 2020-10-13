@@ -273,6 +273,7 @@ export function throwProposedApiError(extension: IExtensionDescription): never {
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {
 	return {
 		type: extensionDescription.isBuiltin ? ExtensionType.System : ExtensionType.User,
+		isBuiltin: extensionDescription.isBuiltin || extensionDescription.isUserBuiltin,
 		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
@@ -283,6 +284,7 @@ export function toExtensionDescription(extension: IExtension): IExtensionDescrip
 	return {
 		identifier: new ExtensionIdentifier(extension.identifier.id),
 		isBuiltin: extension.type === ExtensionType.System,
+		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
 		isUnderDevelopment: false,
 		extensionLocation: extension.location,
 		...extension.manifest,

@@ -24,6 +24,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
+	private _onDidChangePassword = new Emitter<void>();
+	readonly onDidChangePassword: Event<void> = this._onDidChangePassword.event;
+
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
@@ -202,5 +205,24 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 		this._onDidChangeAuthenticationProviders.fire({ added, removed });
 		return Promise.resolve();
+	}
+
+	async $onDidChangePassword(): Promise<void> {
+		this._onDidChangePassword.fire();
+	}
+
+	getPassword(requestingExtension: IExtensionDescription, key: string): Promise<string | undefined> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		return this._proxy.$getPassword(extensionId, key);
+	}
+
+	setPassword(requestingExtension: IExtensionDescription, key: string, value: string): Promise<void> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		return this._proxy.$setPassword(extensionId, key, value);
+	}
+
+	deletePassword(requestingExtension: IExtensionDescription, key: string): Promise<void> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		return this._proxy.$deletePassword(extensionId, key);
 	}
 }

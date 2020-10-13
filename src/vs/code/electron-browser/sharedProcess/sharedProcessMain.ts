@@ -22,7 +22,7 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -55,8 +55,6 @@ import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncCha
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
@@ -68,6 +66,10 @@ import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
+import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
+import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -82,6 +84,8 @@ interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: NativeParsedArgs;
 	logLevel: LogLevel;
+	nodeCachedDataDir?: string;
+	backupWorkspacesPath: string;
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -158,8 +162,11 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const nativeHostService = createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: configuration.windowId });
 	services.set(INativeHostService, nativeHostService);
+	const activeWindowManager = new ActiveWindowManager(nativeHostService);
+	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
+	services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(server.getChannel('IExtensionRecommendationNotificationService', activeWindowRouter)));
 
 	const instantiationService = new InstantiationService(services);
 
@@ -167,18 +174,17 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
-		const telemetryLogService = new FollowerLogService(loggerClient, new SpdLogService('telemetry', environmentService.logsPath, initData.logLevel));
-		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
-		telemetryLogService.info('===========================================================');
 
-		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
+		let telemetryAppender: ITelemetryAppender = NullAppender;
 		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
+			telemetryAppender = new TelemetryLogAppender(accessor.get(ILoggerService), environmentService);
 			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
+				const appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey);
 				disposables.add(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+				telemetryAppender = combinedAppender(appInsightsAppender, telemetryAppender);
 			}
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
+				appender: telemetryAppender,
 				commonProperties: resolveCommonProperties(product.commit, product.version, configuration.machineId, product.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
@@ -190,7 +196,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			telemetryService = NullTelemetryService;
 			services.set(ITelemetryService, NullTelemetryService);
 		}
-		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(telemetryAppender));
 
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
@@ -198,7 +204,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService));
 
-		services.set(ICredentialsService, new SyncDescriptor(KeytarCredentialsService));
 		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
@@ -257,9 +262,9 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			(localizationsService as LocalizationsService).update();
 			// cache clean ups
 			disposables.add(combinedDisposable(
-				instantiationService2.createInstance(NodeCachedDataCleaner),
+				new NodeCachedDataCleaner(initData.nodeCachedDataDir),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
-				instantiationService2.createInstance(StorageDataCleaner),
+				instantiationService2.createInstance(StorageDataCleaner, initData.backupWorkspacesPath),
 				instantiationService2.createInstance(LogsDataCleaner),
 				userDataAutoSync
 			));
