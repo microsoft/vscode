@@ -173,8 +173,8 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 			const forwarded = await this.remoteExplorerService.forward(localUrl);
 			if (forwarded) {
 				const address = MakeAddress(forwarded.tunnelRemoteHost, forwarded.tunnelRemotePort);
-				const message = nls.localize('remote.tunnelsView.automaticForward', "{0} from the remote has been forwarded to {1} locally.",
-					address, forwarded.localAddress);
+				const message = nls.localize('remote.tunnelsView.automaticForward', "Your application running on port {0} is available.",
+					forwarded.tunnelRemotePort);
 				const browserChoice: IPromptChoice = {
 					label: OpenPortInBrowserAction.LABEL,
 					run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address)
@@ -188,7 +188,8 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 							this.remoteExplorerService.targetType = explorerType;
 						}
 						this.viewsService.openViewContainer(VIEWLET_ID);
-					}
+					},
+					isSecondary: true
 				};
 				this.notificationService.prompt(Severity.Info, message, [browserChoice, showChoice], { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 			}
