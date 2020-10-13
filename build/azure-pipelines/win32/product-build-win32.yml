@@ -233,9 +233,11 @@ steps:
   inputs:
     ESRP: 'ESRP CodeSign'
 
-- powershell: |
-    $ErrorActionPreference = "Stop"
-    .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(esrp-auth-certificate) -AuthCertificateKey $(esrp-auth-certificate-key)
+- task: PowerShell@2
+  inputs:
+    targetType: filePath
+    filePath: .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1
+    arguments: "$(ESRP-SSL-AADAuth)"
   displayName: Import ESRP Auth Certificate
 
 - powershell: |
