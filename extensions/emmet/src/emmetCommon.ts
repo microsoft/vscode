@@ -138,7 +138,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((e) => {
 		const basefileName: string = getPathBaseName(e.fileName);
 		if (basefileName.startsWith('snippets') && basefileName.endsWith('.json')) {
-			updateEmmetExtensionsPath();
+			updateEmmetExtensionsPath(true);
 		}
 	}));
 }
