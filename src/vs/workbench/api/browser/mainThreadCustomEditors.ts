@@ -362,7 +362,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public get capabilities(): WorkingCopyCapabilities {
-		return WorkingCopyCapabilities.None;
+		return this.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 	}
 
 	public isDirty(): boolean {
@@ -373,6 +373,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return this._savePoint !== this._currentEditIndex;
 		}
 		return this._fromBackup;
+	}
+
+	private isUntitled() {
+		return this._editorResource.scheme === Schemas.untitled;
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
@@ -504,7 +508,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return undefined;
 		}
 
-		if (this._editorResource.scheme === Schemas.untitled) {
+		if (this.isUntitled()) {
 			const targetUri = await this.suggestUntitledSavePath(options);
 			if (!targetUri) {
 				return undefined;
@@ -535,7 +539,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	private suggestUntitledSavePath(options: ISaveOptions | undefined): Promise<URI | undefined> {
-		if (this._editorResource.scheme !== Schemas.untitled) {
+		if (!this.isUntitled()) {
 			throw new Error('Resource is not untitled');
 		}
 
