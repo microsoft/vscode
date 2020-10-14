@@ -38,7 +38,7 @@ suite('GitHub remote extraction', () => {
 	});
 });
 
-suite.only('Link protection domain matching', () => {
+suite('Link protection domain matching', () => {
 	test('simple', () => {
 		linkNotAllowedByRules('https://x.org', []);
 
@@ -104,7 +104,7 @@ suite.only('Link protection domain matching', () => {
 		linkAllowedByRules('https://x.org:8080/foo/bar', ['https://x.org:8080/foo']);
 	});
 
-	test.only('ip addresses', () => {
+	test('ip addresses', () => {
 		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.7/']);
 		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.7']);
 		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.*']);
