@@ -992,7 +992,7 @@ registerAction2(class extends NotebookCellAction {
 				keybinding: platform.isNative ? undefined : {
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
-					when: NOTEBOOK_EDITOR_FOCUSED,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -1018,9 +1018,9 @@ registerAction2(class extends NotebookCellAction {
 					group: CellOverflowToolbarGroups.Copy,
 				},
 				keybinding: platform.isNative ? undefined : {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -1053,10 +1053,10 @@ registerAction2(class extends NotebookAction {
 					group: CellOverflowToolbarGroups.Copy,
 				},
 				keybinding: platform.isNative ? undefined : {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
 					linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
 					weight: KeybindingWeight.EditorContrib
 				}
 			});
