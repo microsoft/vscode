@@ -2,20 +2,28 @@
 
 // TODO get rid of loading inversify and reflect-metadata
 require('reflect-metadata');
-import { URL } from 'url';
-import * as util from 'util';
-import WebSocket = require('ws');
-import * as vscode from 'vscode';
-import * as grpc from '@grpc/grpc-js';
-import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
-import { PortsStatus, PortsStatusRequest, PortsStatusResponse } from '@gitpod/supervisor-api-grpc/lib/status_pb';
+import psTree = require('ps-tree');
+import { GitpodClient, GitpodServer, GitpodServiceImpl } from '@gitpod/gitpod-protocol/lib/gitpod-service';
+import { JsonRpcProxyFactory } from '@gitpod/gitpod-protocol/lib/messaging/proxy-factory';
 import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
 import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
+import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
+import { PortsStatus, PortsStatusRequest, PortsStatusResponse, TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
+import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
+import { CloseTerminalRequest, CloseTerminalResponse } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
 import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_pb';
 import { GetTokenRequest, GetTokenResponse } from '@gitpod/supervisor-api-grpc/lib/token_pb';
-import { GitpodClient, GitpodServer, GitpodServiceImpl } from '@gitpod/gitpod-protocol/lib/gitpod-service';
-import { listen as doListen, ConsoleLogger } from 'vscode-ws-jsonrpc';
-import { JsonRpcProxyFactory } from '@gitpod/gitpod-protocol/lib/messaging/proxy-factory';
+import * as grpc from '@grpc/grpc-js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { URL } from 'url';
+import * as util from 'util';
+import * as vscode from 'vscode';
+import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
+
+import WebSocket = require('ws');
+
+const devMode = !!process.env['VSCODE_DEV'];
 
 export function activate(context: vscode.ExtensionContext) {
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
@@ -86,6 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerTreeDataProvider('gitpod.workspace', gitpodWorkspaceTreeDataProvider));
 
 	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
+	//#region ports
 	function observePortsStatus(): vscode.Disposable {
 		let run = true;
 		let stopUpdates: Function | undefined;
@@ -137,6 +146,145 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		});
 	}));
+	//#endregion
+
+	//#region terminal tasks
+	const tasks = new Map<string, TaskStatus>();
+	const onDidChangeTasks = new vscode.EventEmitter<TaskStatus[]>();
+	context.subscriptions.push(onDidChangeTasks);
+	const initialTasks = new Promise<TaskStatus[]>(resolve => {
+		const listener = onDidChangeTasks.event(tasks => {
+			listener.dispose();
+			resolve(tasks);
+		});
+	});
+
+	function getTaskId(terminal: vscode.Terminal): string | undefined {
+		return 'env' in terminal.creationOptions && !!terminal.creationOptions.env && terminal.creationOptions.env['GITPOD_TASK_ID'] || undefined;
+	}
+	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
+	context.subscriptions.push(vscode.window.onDidCloseTerminal(async terminal => {
+		const taskId = getTaskId(terminal);
+		const task = taskId && tasks.get(taskId);
+		if (task && task.getState() === TaskState.RUNNING) {
+			const request = new CloseTerminalRequest();
+			request.setAlias(task.getTerminal());
+			try {
+				await util.promisify<CloseTerminalRequest, CloseTerminalResponse>(terminalServiceClient.close.bind(terminalServiceClient))(request);
+			} catch (e) {
+				console.error(`Failed to close the remote terminal "${task.getTerminal()}" for "${taskId}" task:`, e);
+			}
+		}
+	}));
+	const pendingSupervisorBin = (async () => {
+		let supervisor = '/.supervisor/supervisor';
+		if (devMode) {
+			try {
+				await util.promisify(fs.stat)(supervisor);
+			} catch (e) {
+				supervisor = '/theia/supervisor';
+				try {
+					await util.promisify(fs.stat)(supervisor);
+				} catch {
+					throw e;
+				}
+			}
+		}
+		return supervisor;
+	})();
+	async function updateTerminals(tasks: TaskStatus[]): Promise<void> {
+		for (const task of tasks) {
+			try {
+				const terminal = vscode.window.terminals.find(terminal => getTaskId(terminal) === task.getId());
+				if (!terminal) {
+					continue;
+				}
+				if (task.getState() === TaskState.CLOSED) {
+					terminal.dispose();
+					continue;
+				}
+				if (task.getState() !== TaskState.RUNNING) {
+					continue;
+				}
+				const processId = await terminal.processId;
+				if (!processId) {
+					continue;
+				}
+				const [supervisorBin, children] = await Promise.all([
+					pendingSupervisorBin,
+					util.promisify(psTree)(processId)
+				]);
+				const supervisorCommand = path.basename(supervisorBin);
+				if (children.some(child => child.COMMAND === supervisorCommand)) {
+					continue;
+				}
+				terminal.sendText(`${supervisorBin} terminal attach -ir ${task.getTerminal()}`, true);
+			} catch (e) {
+				console.error('Failed to update Gitpod task terminal:', e);
+			}
+		}
+	}
+	initialTasks.then(tasks => {
+		for (const task of tasks) {
+			try {
+				if (task.getState() === TaskState.CLOSED) {
+					continue;
+				}
+				let terminal = vscode.window.terminals.find(terminal => getTaskId(terminal) === task.getId());
+				if (!terminal) {
+					terminal = vscode.window.createTerminal({
+						name: task.getPresentation()?.getName(),
+						env: {
+							'GITPOD_TASK_ID': task.getId()
+						}
+					});
+					// TODO layout
+					terminal.show(false);
+				}
+			} catch (e) {
+				console.error('Failed to initialize the Gitpod task terminal:', e);
+			}
+		}
+		updateTerminals(tasks);
+		onDidChangeTasks.event(tasks => updateTerminals(tasks));
+	});
+
+	function observeTaskStatus(): vscode.Disposable {
+		let run = true;
+		let stopUpdates: Function | undefined;
+		(async () => {
+			while (run) {
+				try {
+					const req = new TasksStatusRequest();
+					req.setObserve(true);
+					const evts = statusServiceClient.tasksStatus(req);
+					stopUpdates = evts.cancel;
+
+					await new Promise((resolve, reject) => {
+						evts.on('close', resolve);
+						evts.on('error', reject);
+						evts.on('data', (response: TasksStatusResponse) => {
+							for (const task of response.getTasksList()) {
+								tasks.set(task.getId(), task);
+							}
+							onDidChangeTasks.fire(response.getTasksList());
+						});
+					});
+				} catch (err) {
+					console.error('cannot maintain connection to supervisor', err);
+					await new Promise(resolve => setTimeout(resolve, 1000));
+				}
+			}
+		})();
+		return new vscode.Disposable(() => {
+			run = false;
+			if (stopUpdates) {
+				stopUpdates();
+			}
+		});
+	}
+	context.subscriptions.push(observeTaskStatus());
+	//#endregion
 
 	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const tokenServiceClient = new TokenServiceClient(supervisorAddr, grpc.credentials.createInsecure());
