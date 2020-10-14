@@ -6,7 +6,7 @@ steps:
   displayName: Prepare cache flag
 
 - script: |
-    sudo xcode-select --switch /Applications/Xcode_12_beta.app
+    sudo xcode-select --switch /Applications/Xcode_12.2.app
   displayName: Switch to Xcode12
   condition: eq(variables['VSCODE_ARCH'], 'arm64')
 
@@ -107,7 +107,8 @@ steps:
 
 - script: |
     set -e
-    export SDKROOT=/Applications/Xcode_12_beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+    export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+    ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
     yarn electron-rebuild
   displayName: Rebuild native modules for ARM64
   condition: eq(variables['VSCODE_ARCH'], 'arm64')
