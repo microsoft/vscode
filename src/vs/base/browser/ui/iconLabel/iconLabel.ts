@@ -7,7 +7,7 @@ import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMatch } from 'vs/base/common/filters';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 import { equals } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -15,6 +15,7 @@ import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isString } from 'vs/base/common/types';
+import { domEvent } from 'vs/base/browser/event';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -24,7 +25,7 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelValueOptions {
-	title?: string | Promise<IMarkdownString | string | undefined>;
+	title?: string | IMarkdownString | Promise<IMarkdownString | string | undefined>;
 	descriptionTitle?: string;
 	hideIcon?: boolean;
 	extraClasses?: string[];
@@ -41,7 +42,6 @@ class FastLabelNode {
 	private disposed: boolean | undefined;
 	private _textContent: string | undefined;
 	private _className: string | undefined;
-	private _title: string | undefined;
 	private _empty: boolean | undefined;
 
 	constructor(private _element: HTMLElement) {
@@ -69,14 +69,6 @@ class FastLabelNode {
 		this._element.className = className;
 	}
 
-	set title(title: string) {
-		if (this.disposed || title === this._title) {
-			return;
-		}
-		this._title = title;
-		this._element.removeAttribute('title');
-	}
-
 	set empty(empty: boolean) {
 		if (this.disposed || empty === this._empty) {
 			return;
@@ -101,7 +93,8 @@ export class IconLabel extends Disposable {
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
-	private hoverDelegate?: IHoverDelegate;
+	private hoverDelegate: IHoverDelegate | undefined = undefined;
+	private customHovers: Map<HTMLElement, IDisposable> = new Map();;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
@@ -171,19 +164,26 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | Promise<IMarkdownString | string | undefined> | undefined): void {
+	private setupHover(htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
+		if (this.customHovers.has(htmlElement)) {
+			this.customHovers.get(htmlElement)!.dispose();
+			this.customHovers.delete(htmlElement);
+		}
+
 		if (!tooltip) {
 			htmlElement.removeAttribute('title');
 			return;
 		}
 
 		if (!this.hoverDelegate) {
-			htmlElement.title = isString(tooltip) ? tooltip : '';
-			return;
+			return this.setupNativeHover(htmlElement, tooltip);
+		} else {
+			return this.setupCustomHover(this.hoverDelegate, htmlElement, tooltip);
 		}
+	}
 
+	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
 		htmlElement.removeAttribute('title');
-		const hoverDelegate = this.hoverDelegate;
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
 		const hoverDelay = isMacintosh ? 1500 : 500;
@@ -197,8 +197,8 @@ export class IconLabel extends Disposable {
 			function mouseLeave(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
 			}
-			this.addEventListener(dom.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
-			this.addEventListener(dom.EventType.MOUSE_MOVE, mouseMove, { passive: true });
+			const mouseLeaveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_LEAVE, true)(mouseLeave.bind(htmlElement));
+			const mouseMoveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_MOVE, true)(mouseMove.bind(htmlElement));
 			setTimeout(async () => {
 				if (isHovering && tooltip) {
 					// Re-use the already computed hover options if they exist.
@@ -219,16 +219,21 @@ export class IconLabel extends Disposable {
 						hoverDelegate.showHover(hoverOptions);
 					}
 				}
-				this.removeEventListener(dom.EventType.MOUSE_MOVE, mouseMove);
-				this.removeEventListener(dom.EventType.MOUSE_LEAVE, mouseLeave);
+				mouseMoveDisposable.dispose();
+				mouseLeaveDisposable.dispose();
 			}, hoverDelay);
 		}
-		htmlElement.addEventListener(dom.EventType.MOUSE_OVER, mouseOver, { passive: true });
-		this._register({
-			dispose: () => {
-				htmlElement.removeEventListener(dom.EventType.MOUSE_OVER, mouseOver);
-			}
-		});
+		const mouseOverDisposable = domEvent(htmlElement, dom.EventType.MOUSE_OVER, true)(mouseOver.bind(htmlElement));
+		this.customHovers.set(htmlElement, mouseOverDisposable);
+	}
+
+	private setupNativeHover(htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
+		htmlElement.title = isString(tooltip) ? tooltip : '';
+	}
+
+	dispose() {
+		Array.from(this.customHovers.values()).forEach(hover => hover.dispose());
+		this.customHovers.clear();
 	}
 }
 
