@@ -22,6 +22,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	public _serviceBrand: undefined;
 
 	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
+	private _hasConnectedToRemote = false;
 
 	constructor(
 		@ITerminalService _terminalService: ITerminalService,
@@ -45,7 +46,15 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
 
-		return new RemoteTerminalProcess(terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+		let isPreconnectionTerminal = false;
+		if (!this._hasConnectedToRemote) {
+			isPreconnectionTerminal = true;
+			this._remoteAgentService.getEnvironment().then(() => {
+				this._hasConnectedToRemote = true;
+			});
+		}
+
+		return new RemoteTerminalProcess(terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
 	}
 }
 
@@ -72,6 +81,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		private readonly _cols: number,
 		private readonly _rows: number,
 		private readonly _configHelper: ITerminalConfigHelper,
+		private readonly _isPreconnectionTerminal: boolean,
 		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
 		private readonly _remoteAgentService: IRemoteAgentService,
 		private readonly _logService: ILogService,
@@ -84,9 +94,10 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
 
-		// TODO@remoteAgentTerminals: Add a loading title only if this terminal is
-		// instantiated before a connection is up and running
-		setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
+		// Add a loading title only if this terminal is instantiated before a connection is up and running
+		if (this._isPreconnectionTerminal) {
+			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
+		}
 
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
