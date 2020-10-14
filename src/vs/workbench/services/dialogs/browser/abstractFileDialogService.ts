@@ -73,18 +73,26 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return candidate && resources.dirname(candidate) || undefined;
 	}
 
-	defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
-
+	defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): URI | undefined {
+		let defaultWorkspacePath: URI | undefined;
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
 			if (configuration && configuration.scheme === schemeFilter && !isUntitledWorkspace(configuration, this.environmentService)) {
-				return resources.dirname(configuration) || undefined;
+				defaultWorkspacePath = resources.dirname(configuration) || undefined;
 			}
 		}
 
 		// ...then fallback to default file path
-		return this.defaultFilePath(schemeFilter);
+		if (!defaultWorkspacePath) {
+			defaultWorkspacePath = this.defaultFilePath(schemeFilter);
+		}
+
+		if (defaultWorkspacePath && filename) {
+			defaultWorkspacePath = resources.joinPath(defaultWorkspacePath, filename);
+		}
+
+		return defaultWorkspacePath;
 	}
 
 	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
