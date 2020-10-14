@@ -1001,6 +1001,11 @@ registerAction2(class extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 		const notebookService = accessor.get<INotebookService>(INotebookService);
+		if (context.notebookEditor.hasOutputTextSelection()) {
+			document.execCommand('copy');
+			return;
+		}
+
 		clipboardService.writeText(context.cell.getText());
 		notebookService.setToCopy([context.cell.model], true);
 	}
