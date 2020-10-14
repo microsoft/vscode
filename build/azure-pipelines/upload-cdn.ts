@@ -26,7 +26,7 @@ function main() {
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
-			container: 'web',
+			container: process.env.VSCODE_QUALITY,
 			prefix: commit + '/'
 		}));
 }
