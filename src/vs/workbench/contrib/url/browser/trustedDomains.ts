@@ -196,11 +196,8 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 	} catch (err) { }
 
 	const userDomains =
-		authenticationService.isAuthenticationProviderRegistered('github')
-			? ((await authenticationService.getSessions('github')) ?? [])
-				.map(session => session.account.label)
-				.filter((v, i, a) => a.indexOf(v) === i)
-				.map(username => `https://github.com/${username}/`)
+		authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
+			? [`https://github.com`]
 			: [];
 
 	const workspaceDomains = await getRemotes(fileService, textFileService, workspaceContextService);

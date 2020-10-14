@@ -63,7 +63,7 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 	}
 
 	if (userTrustedDomains.length) {
-		content += `//\n// Additionally, the following domains are trusted based on your current GitHub login:\n`;
+		content += `//\n// Additionally, the following domains are trusted based on your logged-in Accounts:\n`;
 		userTrustedDomains.forEach(d => {
 			content += `// - "${d}"\n`;
 		});
