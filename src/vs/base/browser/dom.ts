@@ -1328,6 +1328,7 @@ function newInsaneOptions(allowedTags: string[], allowedAttributesForAll: string
 	const value: InsaneOptions = {
 		allowedTags,
 		allowedAttributes,
+		allowedSchemes: ['http', 'https', 'command']
 	};
 	return value;
 }
