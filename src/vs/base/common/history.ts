@@ -62,12 +62,11 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
-	public removeCurrent() : void {
+	public remove() : void {
 		let element = this.current();
 		if (element) {
 			this._history.delete(element);
 		}
-
 	}
 
 	public _onChange() {

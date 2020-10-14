@@ -19,11 +19,13 @@ class SCMInput implements ISCMInput {
 		return this._value;
 	}
 
-	public setValue(value: string) {
+	public setValue(value: string, fromKeyboard: boolean) {
 		if (value === this._value) {
 			return;
 		}
-
+		if (!fromKeyboard) {
+			this.addToHistory(false);
+		}
 		this._value = value;
 		this._onDidChange.fire(value);
 	}
@@ -82,7 +84,7 @@ class SCMInput implements ISCMInput {
 		if (savedHistory) {
 			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
 			let currentValue = this.historyNavigator.current();
-			this.setValue(currentValue ? currentValue : this._value);
+			this.setValue(currentValue ? currentValue : this._value, false);
 		} else {
 			this.historyNavigator = new HistoryNavigator([], 50);
 		}
@@ -98,7 +100,7 @@ class SCMInput implements ISCMInput {
 	addToHistory(uncommittedValue: boolean) : void {
 		if (this.value && this.value !== this.historyNavigator.current()) {
 			if (uncommittedValue) {
-				this.historyNavigator.removeCurrent();
+			//	this.historyNavigator.remove();
 			}
 			this.historyNavigator.add(this.value);
 			this.save();
@@ -107,13 +109,13 @@ class SCMInput implements ISCMInput {
 
 	showNextValue(): void {
 		if (!this.historyNavigator.has(this.value)) {
-			this.addToHistory(true);
+			this.addToHistory(false);
 		}
 
 		let next = this.historyNavigator.next();
 
 		if (next) {
-			this.setValue(next);
+			this.setValue(next, true);
 		}
 	}
 
@@ -124,7 +126,7 @@ class SCMInput implements ISCMInput {
 		let previous = this.historyNavigator.previous();
 
 		if (previous) {
-			this.setValue(previous);
+			this.setValue(previous, true);
 		}
 	}
 }
