@@ -15,6 +15,7 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -1310,4 +1311,53 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	// Not in fullscreen
 	return null;
+}
+
+// -- sanitize and trusted html
+
+function newInsaneOptions(allowedTags: string[], allowedAttributesForAll: string[], allowedAttributes: Record<string, string[]>): InsaneOptions {
+	for (let tag of allowedTags) {
+		let array = allowedAttributes[tag];
+		if (!array) {
+			array = allowedAttributesForAll;
+		} else {
+			array = array.concat(allowedAttributesForAll);
+		}
+		allowedAttributes[tag] = array;
+	}
+	const value: InsaneOptions = {
+		allowedTags,
+		allowedAttributes,
+	};
+	return value;
+}
+
+
+const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
+	createHTML(value, options: InsaneOptions) {
+		return insane(value, options);
+	}
+});
+
+/**
+ * Sanitizes the given `value` and reset the given `node` with it.
+ */
+export function safeInnerHtml(node: HTMLElement, value: string): void {
+
+	const options = newInsaneOptions(
+		['a', 'button', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'textarea', 'ul'],
+		['class', 'id', 'role', 'tabindex'],
+		{
+			'a': ['href'],
+			'button': ['data-href'],
+			'input': ['type', 'placeholder', 'checked', 'required'],
+			'label': ['for'],
+			'select': ['required'],
+			'span': ['data-command', 'role'],
+			'textarea': ['name', 'placeholder', 'required'],
+		}
+	);
+
+	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
+	node.innerHTML = html as unknown as string;
 }

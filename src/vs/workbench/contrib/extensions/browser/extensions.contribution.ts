@@ -37,7 +37,6 @@ import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/bro
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { RemoteExtensionsInstaller } from 'vs/workbench/contrib/extensions/browser/remoteExtensionsInstaller';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -225,10 +224,13 @@ CommandsRegistry.registerCommand({
 			throw new Error(localize('id required', "Extension id required."));
 		}
 		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
+		const installed = await extensionManagementService.getInstalled();
 		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 		if (!extensionToUninstall) {
 			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
+		}
+		if (extensionToUninstall.isBuiltin) {
+			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
 		}
 
 		try {

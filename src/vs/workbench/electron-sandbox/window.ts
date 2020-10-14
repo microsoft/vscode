@@ -261,8 +261,8 @@ export class NativeWindow extends Disposable {
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.nativeHostService.onWindowMaximize, id => id === this.nativeHostService.windowId), () => true),
-			Event.map(Event.filter(this.nativeHostService.onWindowUnmaximize, id => id === this.nativeHostService.windowId), () => false)
+			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
+			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);

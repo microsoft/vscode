@@ -30,8 +30,9 @@ const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 
-export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; }>;
+export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean }>;
 type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
+type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
 
 export class ExtensionsScanner extends Disposable {
 
@@ -136,6 +137,7 @@ export class ExtensionsScanner extends Disposable {
 
 		// unset if false
 		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
+		metadata.isBuiltin = metadata.isBuiltin || undefined;
 		const manifestPath = path.join(local.location.fsPath, 'package.json');
 		const raw = await pfs.readFile(manifestPath, 'utf8');
 		const { manifest } = await this.parseManifest(raw);
@@ -253,7 +255,7 @@ export class ExtensionsScanner extends Disposable {
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : undefined;
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false };
+			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
 			if (metadata) {
 				this.setMetadata(local, metadata);
 			}
@@ -281,11 +283,12 @@ export class ExtensionsScanner extends Disposable {
 		}
 	}
 
-	private setMetadata(local: ILocalExtension, metadata: IMetadata): void {
+	private setMetadata(local: IRelaxedLocalExtension, metadata: IMetadata): void {
 		local.publisherDisplayName = metadata.publisherDisplayName || null;
 		local.publisherId = metadata.publisherId || null;
 		local.identifier.uuid = metadata.id;
 		local.isMachineScoped = !!metadata.isMachineScoped;
+		local.isBuiltin = local.type === ExtensionType.System || !!metadata.isBuiltin;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {

@@ -247,20 +247,22 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.tab-actions-right.sizing-shrink > .tab-actions,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.tab-actions-right.sizing-shrink > .tab-actions,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-shrink:hover > .tab-actions,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-shrink > .tab-actions:focus-within {
-	overflow: visible; /* ...but still show the tab actions on hover, focus and when dirty */
+	overflow: visible; /* ...but still show the tab actions on hover, focus and when dirty or sticky */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off:not(.dirty) > .tab-actions,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off:not(.dirty):not(.sticky) > .tab-actions,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.sticky-compact > .tab-actions {
-	display: none; /* hide the tab actions when we are configured to hide it (unless dirty, but always when sticky-compact) */
+	display: none; /* hide the tab actions when we are configured to hide it (unless dirty or sticky, but always when sticky-compact) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active > .tab-actions .action-label,		/* always show tab actions for active tab */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-actions .action-label:focus,		/* always show tab actions on focus */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover > .tab-actions .action-label,		/* always show tab actions on hover */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,	/* always show tab actions on hover */
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky > .tab-actions .action-label,		/* always show tab actions for sticky tabs */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label {		/* always show tab actions for dirty tabs */
 	opacity: 1;
 }
@@ -270,17 +272,22 @@
 	font-size: 16px;
 }
 
-/* change tab actions icon to dirty state icon if tab dirty */
-.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode */
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky.dirty > .tab-actions .action-label:not(:hover)::before {
+	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,			/* show tab actions dimmed for inactive group */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,	/* show tab actions dimmed for inactive group */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,			/* show tab actions dimmed for inactive group */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {			/* show tab actions dimmed for inactive group */
-	opacity: 0.5;
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label:not(:hover)::before {
+	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
+	opacity: 0.5; /* show tab actions dimmed for inactive group */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions .action-label {
@@ -308,7 +315,8 @@
 	display: none; /* hide dirty state when highlightModifiedTabs is enabled and when running without tab actions */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.dirty:not(.dirty-border-top):not(.sticky-compact) {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.dirty:not(.dirty-border-top):not(.sticky-compact),
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.sticky:not(.sticky-compact) {
 	padding-right: 0; /* remove extra padding when we are running without tab actions (unless tab is sticky-compact) */
 }
 

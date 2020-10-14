@@ -105,6 +105,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'driver-verbose': { type: 'boolean' },
 	'force': { type: 'boolean' },
 	'do-not-sync': { type: 'boolean' },
+	'builtin': { type: 'boolean' },
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },

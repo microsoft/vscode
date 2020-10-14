@@ -226,7 +226,7 @@ export class CodeLensContribution implements IEditorContribution {
 				this._disposeAllLenses(undefined, undefined);
 			}
 		}));
-		this._localToDispose.add(this._editor.onMouseUp(e => {
+		this._localToDispose.add(this._editor.onMouseDown(e => {
 			if (e.target.type !== MouseTargetType.CONTENT_WIDGET) {
 				return;
 			}

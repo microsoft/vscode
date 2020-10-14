@@ -23,7 +23,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestMenuService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
@@ -36,7 +36,7 @@ import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -532,6 +532,7 @@ suite('ExtensionsListView Tests', () => {
 			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' },
 			...properties
 		};
+		properties.isBuiltin = properties.type === ExtensionType.System;
 		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
 
@@ -547,14 +548,5 @@ suite('ExtensionsListView Tests', () => {
 		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 
-	function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
-		return {
-			identifier: new ExtensionIdentifier(local.identifier.id),
-			isBuiltin: local.type === ExtensionType.System,
-			isUnderDevelopment: false,
-			extensionLocation: local.location,
-			...local.manifest
-		};
-	}
 });
 

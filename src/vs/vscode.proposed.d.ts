@@ -163,6 +163,11 @@ declare module 'vscode' {
 		 * @param key The key the password was stored under.
 		 */
 		export function deletePassword(key: string): Thenable<void>;
+
+		/**
+		 * Fires when a password is set or deleted.
+		 */
+		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
@@ -1841,6 +1846,7 @@ declare module 'vscode' {
 		): Disposable;
 
 		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
+		export function openNotebookDocument(uri: Uri, viewType?: string): Promise<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
@@ -2159,12 +2165,17 @@ declare module 'vscode' {
 		/**
 		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
 		 */
-		public readonly id: string;
+		readonly id: string;
+
+		/**
+		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
+		 */
+		readonly themeColor?: ThemeColor;
 
 		/**
 		 * Creates a reference to a theme icon.
 		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
-		 * @param color optional `ThemeColor` for the icon.
+		 * @param color optional `ThemeColor` for the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
 		constructor(id: string, color?: ThemeColor);
 	}

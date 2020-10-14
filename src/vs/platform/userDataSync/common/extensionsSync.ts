@@ -46,7 +46,7 @@ async function parseAndMigrateExtensions(syncData: ISyncData, extensionManagemen
 	if (syncData.version === 1
 		|| syncData.version === 2
 	) {
-		const systemExtensions = await extensionManagementService.getInstalled(ExtensionType.System);
+		const builtinExtensions = (await extensionManagementService.getInstalled(ExtensionType.System)).filter(e => e.isBuiltin);
 		for (const extension of extensions) {
 			// #region Migration from v1 (enabled -> disabled)
 			if (syncData.version === 1) {
@@ -59,7 +59,7 @@ async function parseAndMigrateExtensions(syncData: ISyncData, extensionManagemen
 
 			// #region Migration from v2 (set installed property on extension)
 			if (syncData.version === 2) {
-				if (systemExtensions.every(installed => !areSameExtensions(installed.identifier, extension.identifier))) {
+				if (builtinExtensions.every(installed => !areSameExtensions(installed.identifier, extension.identifier))) {
 					extension.installed = true;
 				}
 			}
@@ -336,10 +336,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	private async updateLocalExtensions(added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], skippedExtensions: ISyncExtension[]): Promise<ISyncExtension[]> {
 		const removeFromSkipped: IExtensionIdentifier[] = [];
 		const addToSkipped: ISyncExtension[] = [];
+		const installedExtensions = await this.extensionManagementService.getInstalled();
 
 		if (removed.length) {
-			const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-			const extensionsToRemove = installedExtensions.filter(({ identifier }) => removed.some(r => areSameExtensions(identifier, r)));
+			const extensionsToRemove = installedExtensions.filter(({ identifier, isBuiltin }) => !isBuiltin && removed.some(r => areSameExtensions(identifier, r)));
 			await Promise.all(extensionsToRemove.map(async extensionToRemove => {
 				this.logService.trace(`${this.syncResourceLogLabel}: Uninstalling local extension...`, extensionToRemove.identifier.id);
 				await this.extensionManagementService.uninstall(extensionToRemove);
@@ -350,11 +350,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		if (added.length || updated.length) {
 			await Promise.all([...added, ...updated].map(async e => {
-				const installedExtensions = await this.extensionManagementService.getInstalled();
 				const installedExtension = installedExtensions.filter(installed => areSameExtensions(installed.identifier, e.identifier))[0];
 
 				// Builtin Extension: Sync only enablement state
-				if (installedExtension && installedExtension.type === ExtensionType.System) {
+				if (installedExtension && installedExtension.isBuiltin) {
 					if (e.disabled) {
 						this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...`, e.identifier.id);
 						await this.extensionEnablementService.disableExtension(e.identifier);
@@ -419,12 +418,12 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	private getLocalExtensions(installedExtensions: ILocalExtension[]): ISyncExtension[] {
 		const disabledExtensions = this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
-			.map(({ identifier, type }) => {
+			.map(({ identifier, isBuiltin }) => {
 				const syncExntesion: ISyncExtension = { identifier };
 				if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
 					syncExntesion.disabled = true;
 				}
-				if (type === ExtensionType.User) {
+				if (!isBuiltin) {
 					syncExntesion.installed = true;
 				}
 				return syncExntesion;
