@@ -647,3 +647,9 @@ export function isNumber(obj: any): obj is number {
 export function toLSTextDocument(doc: vscode.TextDocument): LSTextDocument {
 	return LSTextDocument.create(doc.uri.toString(), doc.languageId, doc.version, doc.getText());
 }
+
+export function getPathBaseName(path: string): string {
+	const pathAfterSlashSplit = path.split('/').pop();
+	const pathAfterBackslashSplit = pathAfterSlashSplit ? pathAfterSlashSplit.split('\\').pop() : '';
+	return pathAfterBackslashSplit ?? '';
+}
