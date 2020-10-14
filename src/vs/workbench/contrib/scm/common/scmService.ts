@@ -105,13 +105,13 @@ class SCMInput implements ISCMInput {
 	private addToHistory(unCommittedValue: boolean) : void {
 		if (this.value && this.value !== this.getCurrentValue()) {
 			if (unCommittedValue) {
-				this.historyNavigator.removeLast();
+				this.historyNavigator.removeCurrent();
 				this.historyNavigator.add(this.value);
 			} else {
 				this.historyNavigator.add(this.value);
 			}
+			this.save();
 		}
-		this.save();
 	}
 
 	private getCurrentValue(): string | null {
@@ -140,7 +140,7 @@ class SCMInput implements ISCMInput {
 
 	showPreviousValue(): void {
 		if (!this.historyNavigator.has(this.value)) {
-			this.addToHistory(true);
+			this.addToHistory(false);
 		}
 
 		let previous = this.getPreviousValue();
