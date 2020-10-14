@@ -23,8 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
-export const UNTITLED_WORKSPACE_NAME_NO_EXT = 'workspace';
-export const UNTITLED_WORKSPACE_NAME = `${UNTITLED_WORKSPACE_NAME_NO_EXT}.json`;
+export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 

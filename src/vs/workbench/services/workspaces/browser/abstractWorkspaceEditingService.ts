@@ -8,13 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult, hasWorkspaceFileExtension, WORKSPACE_EXTENSION, isUntitledWorkspace, IStoredWorkspace, UNTITLED_WORKSPACE_NAME_NO_EXT } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult, hasWorkspaceFileExtension, WORKSPACE_EXTENSION, isUntitledWorkspace, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isEqual, isEqualAuthority, joinPath } from 'vs/base/common/resources';
+import { isEqual, isEqualAuthority } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,6 +26,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+
+const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -48,12 +50,11 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	) { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
-		const defaultWorkspacePath = this.fileDialogService.defaultWorkspacePath();
 		let workspacePath = await this.fileDialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: defaultWorkspacePath ? joinPath(defaultWorkspacePath, UNTITLED_WORKSPACE_NAME_NO_EXT + '.' + WORKSPACE_EXTENSION) : undefined,
+			defaultUri: this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
 			availableFileSystems: this.environmentService.remoteAuthority ? [Schemas.vscodeRemote] : undefined
 		});
 
