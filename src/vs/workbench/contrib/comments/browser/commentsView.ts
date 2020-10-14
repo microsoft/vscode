@@ -6,7 +6,7 @@
 import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { IAction, Action } from 'vs/base/common/actions';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -60,7 +60,7 @@ export class CommentsPanel extends ViewPane {
 	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'comments-panel');
+		container.classList.add('comments-panel');
 
 		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
@@ -109,11 +109,11 @@ export class CommentsPanel extends ViewPane {
 			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
 		}
 
-		styleElement.innerHTML = content.join('\n');
+		styleElement.textContent = content.join('\n');
 	}
 
 	private async renderComments(): Promise<void> {
-		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
+		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 		await this.tree.setInput(this.commentsModel);
 		this.renderMessage();
 	}
@@ -144,7 +144,7 @@ export class CommentsPanel extends ViewPane {
 
 	private renderMessage(): void {
 		this.messageBox.textContent = this.commentsModel.getMessage();
-		dom.toggleClass(this.messageBoxContainer, 'hidden', this.commentsModel.hasCommentThreads());
+		this.messageBoxContainer.classList.toggle('hidden', this.commentsModel.hasCommentThreads());
 	}
 
 	private createTree(): void {
@@ -196,7 +196,7 @@ export class CommentsPanel extends ViewPane {
 
 		const activeEditor = this.editorService.activeEditor;
 		let currentActiveResource = activeEditor ? activeEditor.resource : undefined;
-		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
+		if (currentActiveResource && isEqual(currentActiveResource, element.resource)) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorControl;
@@ -237,7 +237,7 @@ export class CommentsPanel extends ViewPane {
 				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 			}
 
-			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
+			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 			this.tree.updateChildren().then(() => {
 				this.renderMessage();
 			}, (e) => {

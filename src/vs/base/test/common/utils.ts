@@ -25,21 +25,21 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
-		return new Promise(resolve => {
+		return new Promise<void>(resolve => {
 			this.completeCallback(value);
 			resolve();
 		});
 	}
 
 	public error(err: any) {
-		return new Promise(resolve => {
+		return new Promise<void>(resolve => {
 			this.errorCallback(err);
 			resolve();
 		});
 	}
 
 	public cancel() {
-		new Promise(resolve => {
+		new Promise<void>(resolve => {
 			this.errorCallback(canceled());
 			resolve();
 		});

@@ -19,7 +19,7 @@ function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 	// ESM-comment-begin
 	if (typeof require === 'function') {
 		// check if the JS lives on a different origin
-		const workerMain = require.toUrl('./' + workerId);
+		const workerMain = require.toUrl('./' + workerId); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
 		return new Worker(workerUrl, { name: label });
 	}
@@ -36,10 +36,14 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string, forceDa
 			// this is the cross-origin case
 			// i.e. the webpage is running at a different origin than where the scripts are loaded from
 			const myPath = 'vs/base/worker/defaultWorkerFactory.js';
-			const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length);
+			const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 			const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};importScripts('${scriptPath}');/*${label}*/`;
-			const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
-			return url;
+			if (forceDataUri) {
+				const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
+				return url;
+			}
+			const blob = new Blob([js], { type: 'application/javascript' });
+			return URL.createObjectURL(blob);
 		}
 	}
 	return scriptPath + '#' + label;

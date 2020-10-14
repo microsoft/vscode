@@ -11,7 +11,6 @@ import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quic
 import { URI } from 'vs/base/common/uri';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,12 +20,11 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
-import { RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
@@ -98,6 +96,8 @@ enum UpdateResult {
 	InvalidPath
 }
 
+export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
+
 export class SimpleFileDialog {
 	private options!: IOpenDialogOptions;
 	private currentFolder!: URI;
@@ -108,7 +108,7 @@ export class SimpleFileDialog {
 	private remoteAuthority: string | undefined;
 	private requiresTrailing: boolean = false;
 	private trailing: string | undefined;
-	protected scheme: string = REMOTE_HOST_SCHEME;
+	protected scheme: string;
 	private contextKey: IContextKey<boolean>;
 	private userEnteredPathSegment: string = '';
 	private autoCompletePathSegment: string = '';
@@ -139,8 +139,9 @@ export class SimpleFileDialog {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		this.remoteAuthority = this.environmentService.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
+		this.scheme = this.pathService.defaultUriScheme;
 	}
 
 	set busy(busy: boolean) {
@@ -211,7 +212,7 @@ export class SimpleFileDialog {
 			path = path.replace(/\\/g, '/');
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority);
+		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority, this.pathService.defaultUriScheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
@@ -581,21 +582,22 @@ export class SimpleFileDialog {
 
 	private setActiveItems(value: string) {
 		const inputBasename = resources.basename(this.remoteUriFrom(value));
-		// Make sure that the folder whose children we are currently viewing matches the path in the input
 		const userPath = this.constructFullUserPath();
-		if (equalsIgnoreCase(userPath, value.substring(0, userPath.length))) {
+		// Make sure that the folder whose children we are currently viewing matches the path in the input
+		const pathsEqual = equalsIgnoreCase(userPath, value.substring(0, userPath.length)) ||
+			equalsIgnoreCase(value, userPath.substring(0, value.length));
+		if (pathsEqual) {
 			let hasMatch = false;
-			if (inputBasename.length > this.userEnteredPathSegment.length) {
-				for (let i = 0; i < this.filePickBox.items.length; i++) {
-					const item = <FileQuickPickItem>this.filePickBox.items[i];
-					if (this.setAutoComplete(value, inputBasename, item)) {
-						hasMatch = true;
-						break;
-					}
+			for (let i = 0; i < this.filePickBox.items.length; i++) {
+				const item = <FileQuickPickItem>this.filePickBox.items[i];
+				if (this.setAutoComplete(value, inputBasename, item)) {
+					hasMatch = true;
+					break;
 				}
 			}
 			if (!hasMatch) {
-				this.userEnteredPathSegment = inputBasename;
+				const userBasename = inputBasename.length >= 2 ? userPath.substring(userPath.length - inputBasename.length + 2) : '';
+				this.userEnteredPathSegment = (userBasename === inputBasename) ? inputBasename : '';
 				this.autoCompletePathSegment = '';
 				this.filePickBox.activeItems = [];
 			}
@@ -796,6 +798,7 @@ export class SimpleFileDialog {
 				}
 
 				this.filePickBox.items = items;
+				this.filePickBox.activeItems = [<FileQuickPickItem>this.filePickBox.items[0]];
 				if (this.allowFolderSelection) {
 					this.filePickBox.activeItems = [];
 				}

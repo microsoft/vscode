@@ -53,7 +53,7 @@ export function activate(
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript-web/tsserver.web.js').toString(),
-			API.v400));
+			API.fromSimpleString('4.0.3')));
 
 	const lazyClientHost = createLazyClientHost(context, false, {
 		pluginManager,

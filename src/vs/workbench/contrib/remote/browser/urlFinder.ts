@@ -63,6 +63,10 @@ export class UrlFinder extends Disposable {
 					if (host !== '0.0.0.0' && host !== '127.0.0.1') {
 						host = 'localhost';
 					}
+					// Exclude node inspect, except when using defualt port
+					if (port !== 9229 && data.startsWith('Debugger listening on')) {
+						return;
+					}
 					this._onDidMatchLocalUrl.fire({ port, host });
 				}
 			}

@@ -996,7 +996,7 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
 function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string): Promise<any> {
-	return new Promise((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
 		const data = JSON.stringify({ content: xlfFile.contents.toString() });
 		const options = {
 			hostname: apiHostname,
@@ -1188,7 +1188,7 @@ interface I18nPack {
 	};
 }
 
-const i18nPackVersion = "1.0.0";
+const i18nPackVersion = '1.0.0';
 
 export interface TranslationPath {
 	id: string;

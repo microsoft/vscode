@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
-import { groupBy, firstIndex, flatten } from 'vs/base/common/arrays';
+import { groupBy, flatten } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 
 export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent {
@@ -83,11 +83,11 @@ export class CommentsModel {
 
 		removed.forEach(thread => {
 			// Find resource that has the comment thread
-			const matchingResourceIndex = firstIndex(threadsForOwner, (resourceData) => resourceData.id === thread.resource);
+			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
 			const matchingResourceData = threadsForOwner[matchingResourceIndex];
 
 			// Find comment node on resource that is that thread and remove it
-			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
+			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
 			matchingResourceData.commentThreads.splice(index, 1);
 
 			// If the comment thread was the last thread for a resource, remove that resource from the list
@@ -98,11 +98,11 @@ export class CommentsModel {
 
 		changed.forEach(thread => {
 			// Find resource that has the comment thread
-			const matchingResourceIndex = firstIndex(threadsForOwner, (resourceData) => resourceData.id === thread.resource);
+			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
 			const matchingResourceData = threadsForOwner[matchingResourceIndex];
 
 			// Find comment node on resource that is that thread and replace it
-			const index = firstIndex(matchingResourceData.commentThreads, (commentThread) => commentThread.threadId === thread.threadId);
+			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
 			if (index >= 0) {
 				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread);
 			} else if (thread.comments && thread.comments.length) {

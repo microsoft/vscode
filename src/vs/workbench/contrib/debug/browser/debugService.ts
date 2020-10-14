@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { distinct } from 'vs/base/common/arrays';
 import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
@@ -68,7 +68,7 @@ export class DebugService implements IDebugService {
 	private inDebugMode!: IContextKey<boolean>;
 	private debugUx!: IContextKey<string>;
 	private breakpointsExist!: IContextKey<boolean>;
-	private breakpointsToSendOnResourceSaved: Set<string>;
+	private breakpointsToSendOnResourceSaved: Set<URI>;
 	private initializing = false;
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
@@ -96,7 +96,7 @@ export class DebugService implements IDebugService {
 	) {
 		this.toDispose = [];
 
-		this.breakpointsToSendOnResourceSaved = new Set<string>();
+		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
 		this._onDidChangeState = new Emitter<State>();
 		this._onDidNewSession = new Emitter<IDebugSession>();
@@ -798,7 +798,7 @@ export class DebugService implements IDebugService {
 					const lineNumber = stackFrame.range.startLineNumber;
 					if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
 						const lineContent = control.getModel().getLineContent(lineNumber);
-						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+						aria.alert(nls.localize('debuggingPaused', "{1}:{2}, debugging paused {0}, {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
 					}
 				}
 			}
@@ -860,10 +860,11 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): Promise<IBreakpoint[]> {
+	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce = true): Promise<IBreakpoint[]> {
 		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
-		breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
-		breakpoints.forEach(bp => this.telemetry.logDebugAddBreakpoint(bp, context));
+		if (ariaAnnounce) {
+			breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
+		}
 
 		// In some cases we need to store breakpoints before we send them because sending them can take a long time
 		// And after sending them because the debug adapter can attach adapter data to a breakpoint
@@ -877,7 +878,7 @@ export class DebugService implements IDebugService {
 		this.model.updateBreakpoints(data);
 		this.debugStorage.storeBreakpoints(this.model);
 		if (sendOnResourceSaved) {
-			this.breakpointsToSendOnResourceSaved.add(uri.toString());
+			this.breakpointsToSendOnResourceSaved.add(uri);
 		} else {
 			await this.sendBreakpoints(uri);
 			this.debugStorage.storeBreakpoints(this.model);
@@ -982,12 +983,17 @@ export class DebugService implements IDebugService {
 			this.model.removeBreakpoints(toRemove);
 		}
 
-		fileChangesEvent.getUpdated().forEach(event => {
-
-			if (this.breakpointsToSendOnResourceSaved.delete(event.resource.toString())) {
-				this.sendBreakpoints(event.resource, true);
+		const toSend: URI[] = [];
+		for (const uri of this.breakpointsToSendOnResourceSaved) {
+			if (fileChangesEvent.contains(uri, FileChangeType.UPDATED)) {
+				toSend.push(uri);
 			}
-		});
+		}
+
+		for (const uri of toSend) {
+			this.breakpointsToSendOnResourceSaved.delete(uri);
+			this.sendBreakpoints(uri, true);
+		}
 	}
 }
 

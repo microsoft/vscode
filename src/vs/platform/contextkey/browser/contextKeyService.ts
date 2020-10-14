@@ -5,6 +5,7 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { distinct } from 'vs/base/common/objects';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -51,7 +52,11 @@ export class Context implements IContext {
 		return ret;
 	}
 
-	collectAllValues(): { [key: string]: any; } {
+	public updateParent(parent: Context): void {
+		this._parent = parent;
+	}
+
+	public collectAllValues(): { [key: string]: any; } {
 		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
 		result = { ...result, ...this._value };
 		delete result['_contextId'];
@@ -239,6 +244,10 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		this._myContextId = myContextId;
 	}
 
+	public get contextId(): number {
+		return this._myContextId;
+	}
+
 	abstract dispose(): void;
 
 	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
@@ -319,6 +328,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	public abstract getContextValuesContainer(contextId: number): Context;
 	public abstract createChildContext(parentContextId?: number): number;
 	public abstract disposeContext(contextId: number): void;
+	public abstract updateParent(parentContextKeyService?: IContextKeyService): void;
 }
 
 export class ContextKeyService extends AbstractContextKeyService implements IContextKeyService {
@@ -375,6 +385,10 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 			this._contexts.delete(contextId);
 		}
 	}
+
+	public updateParent(_parentContextKeyService: IContextKeyService): void {
+		throw new Error('Cannot update parent of root ContextKeyService');
+	}
 }
 
 class ScopedContextKeyService extends AbstractContextKeyService {
@@ -382,9 +396,12 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget | undefined;
 
+	private _parentChangeListener: IDisposable | undefined;
+
 	constructor(parent: AbstractContextKeyService, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
+		this.updateParentChangeListener();
 
 		if (domNode) {
 			this._domNode = domNode;
@@ -392,9 +409,21 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		}
 	}
 
+	private updateParentChangeListener(): void {
+		if (this._parentChangeListener) {
+			this._parentChangeListener.dispose();
+		}
+
+		this._parentChangeListener = this._parent.onDidChangeContext(e => {
+			// Forward parent events to this listener. Parent will change.
+			this._onDidChangeContext.fire(e);
+		});
+	}
+
 	public dispose(): void {
 		this._isDisposed = true;
 		this._parent.disposeContext(this._myContextId);
+		this._parentChangeListener?.dispose();
 		if (this._domNode) {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
 			this._domNode = undefined;
@@ -402,7 +431,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return Event.any(this._parent.onDidChangeContext, this._onDidChangeContext.event);
+		return this._onDidChangeContext.event;
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
@@ -424,6 +453,24 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 			return;
 		}
 		this._parent.disposeContext(contextId);
+	}
+
+	public updateParent(parentContextKeyService: AbstractContextKeyService): void {
+		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
+		const oldAllValues = thisContainer.collectAllValues();
+		this._parent = parentContextKeyService;
+		this.updateParentChangeListener();
+		const newParentContainer = this._parent.getContextValuesContainer(this._parent.contextId);
+		thisContainer.updateParent(newParentContainer);
+
+		const newAllValues = thisContainer.collectAllValues();
+		const allValuesDiff = {
+			...distinct(oldAllValues, newAllValues),
+			...distinct(newAllValues, oldAllValues)
+		};
+		const changedKeys = Object.keys(allValuesDiff);
+
+		this._onDidChangeContext.fire(new ArrayContextKeyChangeEvent(changedKeys));
 	}
 }
 

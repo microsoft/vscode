@@ -224,7 +224,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.environmentService.configuration.sessionId) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.environmentService.sessionId) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -268,7 +268,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private onError(error: string): void {
-		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'See [this link](https://github.com/Microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
 
 		this.notificationService.notify({
 			severity: Severity.Error,
@@ -409,7 +409,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.environmentService.configuration.sessionId));
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.environmentService.sessionId));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '6_update',
 			command: {
@@ -536,14 +536,14 @@ export class CheckForVSCodeUpdateAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
-		return this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId);
+		return this.updateService.checkForUpdates(this.environmentService.sessionId);
 	}
 }
 

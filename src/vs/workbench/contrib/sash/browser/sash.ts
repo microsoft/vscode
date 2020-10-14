@@ -35,7 +35,7 @@ export class SashSizeController extends Disposable implements IWorkbenchContribu
 		const size = clamp(this.configurationService.getValue<number>(this.configurationName) ?? minSize, minSize, maxSize);
 
 		// Update styles
-		this.stylesheet.innerHTML = `
+		this.stylesheet.textContent = `
 			.monaco-sash.vertical { cursor: ew-resize; top: 0; width: ${size}px; height: 100%; }
 			.monaco-sash.horizontal { cursor: ns-resize; left: 0; width: 100%; height: ${size}px; }
 			.monaco-sash:not(.disabled).orthogonal-start::before, .monaco-sash:not(.disabled).orthogonal-end::after { content: ' '; height: ${size * 2}px; width: ${size * 2}px; z-index: 100; display: block; cursor: all-scroll; position: absolute; }

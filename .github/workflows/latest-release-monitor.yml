@@ -14,11 +14,11 @@ jobs:
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           path: ./actions
-          ref: v34
+          ref: v37
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Install Storage Module
-        run: npm install @azure/storage-blob
+        run: npm install @azure/storage-blob@12.1.1
       - name: Run Latest Release Monitor
         uses: ./actions/latest-release-monitor
         with:

@@ -35,6 +35,7 @@ import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/te
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon } from 'xterm-addon-webgl';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
@@ -43,6 +44,7 @@ import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { LatencyTelemetryAddon } from 'vs/workbench/contrib/terminal/browser/terminalLatencyTelemetryAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -105,6 +107,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
+	private _webglAddon: WebglAddon | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
@@ -446,6 +449,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
+		const latencyAddon = this._register(this._instantiationService.createInstance(LatencyTelemetryAddon, this._processManager));
+		this._xterm.loadAddon(latencyAddon);
+
 		return xterm;
 	}
 
@@ -496,9 +502,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
 		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
-			this._terminalInstanceService.getXtermWebglConstructor().then(Addon => {
-				xterm.loadAddon(new Addon());
-			});
+			this._enableWebglRenderer();
 		}
 
 		if (!xterm.element || !xterm.textarea) {
@@ -730,7 +734,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
-			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
+			this._hadFocusOnExit = this._xterm.element.classList.contains('focus');
 		}
 		if (this._wrapperElement) {
 			if (this._wrapperElement.xterm) {
@@ -767,7 +771,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		this._xterm.refresh(0, this._xterm.rows - 1);
+		this._webglAddon?.clearTextureAtlas();
+		// TODO: Do canvas renderer too?
 	}
 
 	public focus(force?: boolean): void {
@@ -837,9 +842,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._timeoutDimension = new dom.Dimension(width, height);
 				setTimeout(() => this.layout(this._timeoutDimension!), 0);
 			}
-		}
-		if (!visible) {
-			this._widgetManager.hideHovers();
 		}
 	}
 
@@ -1230,11 +1232,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-		if (config.rendererType !== 'experimentalWebgl') {
+		if (config.rendererType === 'experimentalWebgl') {
+			this._enableWebglRenderer();
+		} else {
+			this._webglAddon?.dispose();
+			this._webglAddon = undefined;
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
+	}
+
+	private async _enableWebglRenderer(): Promise<void> {
+		if (!this._xterm || this._webglAddon) {
+			return;
+		}
+		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
+		this._webglAddon = new Addon();
+		this._xterm.loadAddon(this._webglAddon);
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {

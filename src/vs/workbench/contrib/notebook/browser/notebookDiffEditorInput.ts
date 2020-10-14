@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as glob from 'vs/base/common/glob';
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorModel } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -39,15 +39,18 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 		await this.original.load({ forceReadFromDisk: true });
 	}
 
-	dispose(): void {
-
+	async resolveModifiedFromDisk() {
+		await this.modified.load({ forceReadFromDisk: true });
 	}
 
+	dispose(): void {
+		super.dispose();
+	}
 }
 
 export class NotebookDiffEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, originalResource: URI, originalName: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookDiffEditorInput, resource, name, originalResource, originalName, viewType, options);
+	static create(instantiationService: IInstantiationService, resource: URI, name: string, originalResource: URI, originalName: string, textDiffName: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
+		return instantiationService.createInstance(NotebookDiffEditorInput, resource, name, originalResource, originalName, textDiffName, viewType, options);
 	}
 
 	static readonly ID: string = 'workbench.input.diffNotebookInput';
@@ -61,6 +64,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 		public readonly name: string,
 		public readonly originalResource: URI,
 		public readonly originalName: string,
+		public readonly textDiffName: string,
 		public readonly viewType: string | undefined,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -78,7 +82,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return nls.localize('sideBySideLabels', "{0} ↔ {1}", this.originalName, this.name);
+		return this.textDiffName;
 	}
 
 	isDirty() {
@@ -145,12 +149,16 @@ export class NotebookDiffEditorInput extends EditorInput {
 		}
 
 		if (!provider.matches(target)) {
-			const patterns = provider.selector.map(pattern => {
-				if (pattern.excludeFileNamePattern) {
-					return `${pattern.filenamePattern} (exclude: ${pattern.excludeFileNamePattern})`;
+			const patterns = provider.selectors.map(pattern => {
+				if (typeof pattern === 'string') {
+					return pattern;
 				}
 
-				return pattern.filenamePattern;
+				if (glob.isRelativePattern(pattern)) {
+					return `${pattern} (base ${pattern.base})`;
+				}
+
+				return `${pattern.include} (exclude: ${pattern.exclude})`;
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
 
@@ -190,14 +198,14 @@ ${patterns}
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<INotebookDiffEditorModel | null> {
+	async resolve(): Promise<INotebookDiffEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
-			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!, editorId);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!);
 		}
 
 		return new NotebookDiffEditorModel(this._originalTextModel!.object as NotebookEditorModel, this._textModel.object as NotebookEditorModel);

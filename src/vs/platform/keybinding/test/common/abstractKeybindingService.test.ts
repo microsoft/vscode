@@ -120,7 +120,8 @@ suite('AbstractKeybindingService', () => {
 				createScoped: undefined!,
 				getContext: (target: IContextKeyServiceTarget): any => {
 					return currentContextValue;
-				}
+				},
+				updateParent: () => { }
 			};
 
 			let commandService: ICommandService = {
@@ -168,7 +169,7 @@ suite('AbstractKeybindingService', () => {
 				setFilter() { }
 			};
 
-			let resolver = new KeybindingResolver(items, []);
+			let resolver = new KeybindingResolver(items, [], () => { });
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService);
 		};
@@ -190,7 +191,8 @@ suite('AbstractKeybindingService', () => {
 			command,
 			null,
 			when,
-			true
+			true,
+			null
 		);
 	}
 

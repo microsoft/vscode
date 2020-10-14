@@ -1032,7 +1032,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, env, !editorService);
+		}, undefined, env, !editorService);
 	}
 }
 

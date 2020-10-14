@@ -52,5 +52,4 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 			}
 		}
 	}
-
 }

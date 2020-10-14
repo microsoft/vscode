@@ -94,7 +94,7 @@ suite('DecorationsService', function () {
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
-		let p = new Promise(resolve => {
+		let p = new Promise<void>(resolve => {
 			service.onDidChangeDecorations(e => {
 				assert.equal(e.affectsResource(uri), true);
 				assert.deepEqual(service.getDecoration(uri, false), undefined);
@@ -275,7 +275,7 @@ suite('DecorationsService', function () {
 		data = service.getDecoration(uri2, true)!;
 		assert.ok(data.tooltip); // emphazied items...
 
-		return new Promise((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			let l = service.onDidChangeDecorations(e => {
 				l.dispose();
 				try {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClasses, createCSSRule, removeClasses, asCSSUrl } from 'vs/base/browser/dom';
+import { createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
@@ -237,10 +237,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			// theme icons
 			const iconClass = ThemeIcon.asClassName(icon);
 			if (this.label && iconClass) {
-				addClasses(this.label, iconClass);
+				this.label.classList.add(...iconClass.split(' '));
 				this._itemClassDispose.value = toDisposable(() => {
 					if (this.label) {
-						removeClasses(this.label, iconClass);
+						this.label.classList.remove(...iconClass.split(' '));
 					}
 				});
 			}
@@ -263,11 +263,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				}
 
 				if (this.label) {
-
-					addClasses(this.label, 'icon', iconClass);
+					this.label.classList.add('icon', ...iconClass.split(' '));
 					this._itemClassDispose.value = toDisposable(() => {
 						if (this.label) {
-							removeClasses(this.label, 'icon', iconClass);
+							this.label.classList.remove('icon', ...iconClass.split(' '));
 						}
 					});
 				}
@@ -283,19 +282,19 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		@INotificationService _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		const classNames: string[] = [];
+		let classNames: string | string[] | undefined;
 
 		if (action.item.icon) {
 			if (ThemeIcon.isThemeIcon(action.item.icon)) {
-				classNames.push(ThemeIcon.asClassName(action.item.icon)!);
+				classNames = ThemeIcon.asClassName(action.item.icon)!;
 			} else if (action.item.icon.dark?.scheme) {
 				const iconPathMapKey = action.item.icon.dark.toString();
 
 				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-					classNames.push('icon', ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!);
+					classNames = ['icon', ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!];
 				} else {
 					const className = ids.nextId();
-					classNames.push('icon', className);
+					classNames = ['icon', className];
 					createCSSRule(`.icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.light || action.item.icon.dark)}`);
 					createCSSRule(`.vs-dark .icon.${className}, .hc-black .icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.dark)}`);
 					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, className);
@@ -303,6 +302,6 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			}
 		}
 
-		super(action, action.actions, _contextMenuService, { classNames });
+		super(action, action.actions, _contextMenuService, { classNames: classNames });
 	}
 }

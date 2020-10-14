@@ -100,7 +100,7 @@ export class MenuBar extends Disposable {
 
 		this.container.setAttribute('role', 'menubar');
 		if (this.options.compactMode !== undefined) {
-			DOM.addClass(this.container, 'compact');
+			this.container.classList.add('compact');
 		}
 
 		this.menuCache = [];
@@ -425,12 +425,12 @@ export class MenuBar extends Disposable {
 		super.dispose();
 
 		this.menuCache.forEach(menuBarMenu => {
-			DOM.removeNode(menuBarMenu.titleElement);
-			DOM.removeNode(menuBarMenu.buttonElement);
+			menuBarMenu.titleElement.remove();
+			menuBarMenu.buttonElement.remove();
 		});
 
-		DOM.removeNode(this.overflowMenu.titleElement);
-		DOM.removeNode(this.overflowMenu.buttonElement);
+		this.overflowMenu.titleElement.remove();
+		this.overflowMenu.buttonElement.remove();
 
 		dispose(this.overflowLayoutScheduled);
 		this.overflowLayoutScheduled = undefined;
@@ -509,7 +509,7 @@ export class MenuBar extends Disposable {
 			}
 
 			if (this.overflowMenu.buttonElement.nextElementSibling !== this.menuCache[this.numMenusShown].buttonElement) {
-				DOM.removeNode(this.overflowMenu.buttonElement);
+				this.overflowMenu.buttonElement.remove();
 				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
 				this.overflowMenu.buttonElement.style.visibility = 'visible';
 			}
@@ -520,7 +520,7 @@ export class MenuBar extends Disposable {
 				this.overflowMenu.actions.push(...compactMenuActions);
 			}
 		} else {
-			DOM.removeNode(this.overflowMenu.buttonElement);
+			this.overflowMenu.buttonElement.remove();
 			this.container.appendChild(this.overflowMenu.buttonElement);
 			this.overflowMenu.buttonElement.style.visibility = 'hidden';
 		}
@@ -532,25 +532,31 @@ export class MenuBar extends Disposable {
 		// Update the button label to reflect mnemonics
 
 		if (this.options.enableMnemonics) {
-			let innerHtml = strings.escape(label);
+			let cleanLabel = strings.escape(label);
 
 			// This is global so reset it
 			MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
-			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 
 			// We can't use negative lookbehind so we match our negative and skip
 			while (escMatch && escMatch[1]) {
-				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 			}
+
+			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				innerHtml = `${innerHtml.substr(0, escMatch.index)}<mnemonic aria-hidden="true">${escMatch[3]}</mnemonic>${innerHtml.substr(escMatch.index + escMatch[0].length)}`;
+				titleElement.innerText = '';
+				titleElement.append(
+					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
+					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
+					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
+				);
+			} else {
+				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
 			}
-
-			innerHtml = innerHtml.replace(/&amp;&amp;/g, '&amp;');
-			titleElement.innerHTML = innerHtml;
 		} else {
-			titleElement.innerHTML = cleanMenuLabel.replace(/&&/g, '&');
+			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
@@ -917,7 +923,7 @@ export class MenuBar extends Disposable {
 
 			if (this.focusedMenu.holder) {
 				if (this.focusedMenu.holder.parentElement) {
-					DOM.removeClass(this.focusedMenu.holder.parentElement, 'open');
+					this.focusedMenu.holder.parentElement.classList.remove('open');
 				}
 
 				this.focusedMenu.holder.remove();
@@ -941,7 +947,7 @@ export class MenuBar extends Disposable {
 
 		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
 
-		DOM.addClass(customMenu.buttonElement, 'open');
+		customMenu.buttonElement.classList.add('open');
 
 		if (this.options.compactMode === Direction.Right) {
 			menuHolder.style.top = `0px`;

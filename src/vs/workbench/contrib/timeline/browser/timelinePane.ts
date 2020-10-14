@@ -30,9 +30,9 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -41,6 +41,7 @@ import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntr
 import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const ItemHeight = 22;
 
@@ -342,16 +343,11 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		let uri;
-
-		const editor = this.editorService.activeEditor;
-		if (editor) {
-			uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		}
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
-			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this.uri?.scheme === 'file' || this.uri?.scheme === 'git'))) {
+			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
 			// If the uri hasn't changed, make sure we have valid caches
 			for (const source of this.timelineService.getSources()) {
@@ -435,7 +431,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private showMessage(message: string): void {
-		DOM.removeClass(this.$message, 'hide');
+		this.$message.classList.remove('hide');
 		this.resetMessageElement();
 
 		this.$message.textContent = message;
@@ -443,7 +439,7 @@ export class TimelinePane extends ViewPane {
 
 	private hideMessage(): void {
 		this.resetMessageElement();
-		DOM.addClass(this.$message, 'hide');
+		this.$message.classList.add('hide');
 	}
 
 	private resetMessageElement(): void {
@@ -843,23 +839,23 @@ export class TimelinePane extends ViewPane {
 	protected renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.title);
 
-		DOM.addClass(container, 'timeline-view');
+		container.classList.add('timeline-view');
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.$container = container;
-		DOM.addClasses(container, 'tree-explorer-viewlet-tree-view', 'timeline-tree-view');
+		container.classList.add('tree-explorer-viewlet-tree-view', 'timeline-tree-view');
 
 		this.$message = DOM.append(this.$container, DOM.$('.message'));
-		DOM.addClass(this.$message, 'timeline-subtle');
+		this.$message.classList.add('timeline-subtle');
 
 		this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
 
 		this.$tree = document.createElement('div');
-		DOM.addClasses(this.$tree, 'customview-tree', 'file-icon-themable-tree', 'hide-arrows');
-		// DOM.addClass(this.treeElement, 'show-file-icons');
+		this.$tree.classList.add('customview-tree', 'file-icon-themable-tree', 'hide-arrows');
+		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
 		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
@@ -1007,7 +1003,7 @@ export class TimelineElementTemplate implements IDisposable {
 		readonly container: HTMLElement,
 		actionViewItemProvider: IActionViewItemProvider
 	) {
-		DOM.addClass(container, 'custom-view-tree-node-item');
+		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
 		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportCodicons: true });
@@ -1117,7 +1113,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this.themeService.getColorTheme().type === LIGHT ? item.icon : item.iconDark;
+		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {
@@ -1137,7 +1133,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		});
 
 		template.timestamp.textContent = item.relativeTime ?? '';
-		DOM.toggleClass(template.timestamp.parentElement!, 'timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
+		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
 		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();
@@ -1240,6 +1236,7 @@ class TimelinePaneCommands extends Disposable {
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
+		scoped.dispose();
 
 		return result;
 	}

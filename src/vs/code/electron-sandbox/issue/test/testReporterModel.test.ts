@@ -218,16 +218,5 @@ Remote OS version: Linux x64 4.18.0
 
 			assert.equal(issueReporterModel.fileOnExtension(), true);
 		});
-
-		[
-			IssueType.SettingsSearchIssue
-		].forEach(type => {
-			const issueReporterModel = new IssueReporterModel({
-				issueType: type,
-				fileOnExtension: true
-			});
-
-			assert.equal(issueReporterModel.fileOnExtension(), false);
-		});
 	});
 });

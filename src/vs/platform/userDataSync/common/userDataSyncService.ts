@@ -138,6 +138,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			async stop(): Promise<void> {
 				if (cancellablePromise) {
 					cancellablePromise.cancel();
+				}
+				if (that.status !== SyncStatus.Idle) {
 					return that.stop();
 				}
 			}

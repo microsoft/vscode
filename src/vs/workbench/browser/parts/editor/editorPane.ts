@@ -16,9 +16,10 @@ import { Event } from 'vs/base/common/event';
 import { isEmptyObject, isUndefinedOrNull } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
-import { joinPath, IExtUri } from 'vs/base/common/resources';
+import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -60,6 +61,11 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
+
+	/**
+	 * Should be overridden by editors that have their own ScopedContextKeyService
+	 */
+	get scopedContextKeyService(): IContextKeyService | undefined { return undefined; }
 
 	constructor(
 		id: string,
@@ -295,7 +301,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 			// Determine new resulting target resource
 			let targetResource: URI;
-			if (source.toString() === resource.toString()) {
+			if (isEqual(source, resource)) {
 				targetResource = target; // file got moved
 			} else {
 				const index = indexOfPath(resource.path, source.path);

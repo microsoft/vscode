@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
-import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +34,8 @@ export interface WebviewIcons {
  */
 export interface IWebviewService {
 	readonly _serviceBrand: undefined;
+
+	readonly activeWebview: Webview | undefined;
 
 	createWebviewElement(
 		id: string,
@@ -100,6 +101,8 @@ export interface Webview extends IDisposable {
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
+	readonly onDidDispose: Event<void>;
+
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
@@ -142,8 +145,6 @@ export interface WebviewOverlay extends Webview {
 	readonly container: HTMLElement;
 	options: WebviewOptions;
 
-	readonly onDispose: Event<void>;
-
 	claim(owner: any): void;
 	release(owner: any): void;
 
@@ -151,5 +152,3 @@ export interface WebviewOverlay extends Webview {
 
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }
-
-export const webviewDeveloperCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };

@@ -13,20 +13,6 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	return str.trim().length === 0;
 }
 
-/**
- * @deprecated ES6: use `String.padStart`
- */
-export function pad(n: number, l: number, char: string = '0'): string {
-	const str = '' + n;
-	const r = [str];
-
-	for (let i = str.length; i < l; i++) {
-		r.push(char);
-	}
-
-	return r.reverse().join('');
-}
-
 const _formatRegexp = /{(\d+)}/g;
 
 /**
@@ -142,41 +128,6 @@ export function convertSimple2RegExpPattern(pattern: string): string {
 
 export function stripWildcards(pattern: string): string {
 	return pattern.replace(/\*/g, '');
-}
-
-/**
- * @deprecated ES6: use `String.startsWith`
- */
-export function startsWith(haystack: string, needle: string): boolean {
-	if (haystack.length < needle.length) {
-		return false;
-	}
-
-	if (haystack === needle) {
-		return true;
-	}
-
-	for (let i = 0; i < needle.length; i++) {
-		if (haystack[i] !== needle[i]) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-/**
- * @deprecated ES6: use `String.endsWith`
- */
-export function endsWith(haystack: string, needle: string): boolean {
-	const diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
-	}
 }
 
 export interface RegExpOptions {
@@ -587,6 +538,27 @@ export function getCharContainingOffset(str: string, offset: number): [number, n
 }
 
 /**
+ * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
+ *
+ * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
+ */
+function toBinary(str: string): string {
+	const codeUnits = new Uint16Array(str.length);
+	for (let i = 0; i < codeUnits.length; i++) {
+		codeUnits[i] = str.charCodeAt(i);
+	}
+	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+}
+
+/**
+ * Version of the global `btoa` function that handles multi-byte characters instead
+ * of throwing an exception.
+ */
+export function multibyteAwareBtoa(str: string): string {
+	return btoa(toBinary(str));
+}
+
+/**
  * A manual encoding of `str` to UTF8.
  * Use only in environments which do not offer native conversion methods!
  */
@@ -853,17 +825,6 @@ export function startsWithUTF8BOM(str: string): boolean {
 
 export function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
-}
-
-/**
- * @deprecated ES6
- */
-export function repeat(s: string, count: number): string {
-	let result = '';
-	for (let i = 0; i < count; i++) {
-		result += s;
-	}
-	return result;
 }
 
 /**

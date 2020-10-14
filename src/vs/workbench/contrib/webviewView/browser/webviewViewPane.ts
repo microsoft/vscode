@@ -21,14 +21,16 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWebviewViewService } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
+import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 declare const ResizeObserver: any;
 
-const webviewStateKey = 'webviewState';
+const storageKeys = {
+	webviewState: 'webviewState',
+} as const;
 
 export class WebviewViewPane extends ViewPane {
 
@@ -37,6 +39,9 @@ export class WebviewViewPane extends ViewPane {
 
 	private _container?: HTMLElement;
 	private _resizeObserver?: any;
+
+	private readonly defaultTitle: string;
+	private setTitle: string | undefined;
 
 	private readonly memento: Memento;
 	private readonly viewState: MementoObject;
@@ -57,8 +62,10 @@ export class WebviewViewPane extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
+		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.defaultTitle = this.title;
 
 		this.memento = new Memento(`webviewView.${this.id}`, storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE);
@@ -75,6 +82,8 @@ export class WebviewViewPane extends ViewPane {
 
 	dispose() {
 		this._onDispose.fire();
+
+		this._webview?.dispose();
 
 		super.dispose();
 	}
@@ -107,7 +116,7 @@ export class WebviewViewPane extends ViewPane {
 
 	public saveState() {
 		if (this._webview) {
-			this.viewState[webviewStateKey] = this._webview.state;
+			this.viewState[storageKeys.webviewState] = this._webview.state;
 		}
 
 		this.memento.saveMemento();
@@ -141,7 +150,7 @@ export class WebviewViewPane extends ViewPane {
 
 			const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
 			const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
-			webview.state = this.viewState['webviewState'];
+			webview.state = this.viewState[storageKeys.webviewState];
 			this._webview = webview;
 
 			this._register(toDisposable(() => {
@@ -149,7 +158,7 @@ export class WebviewViewPane extends ViewPane {
 			}));
 
 			this._register(webview.onDidUpdateState(() => {
-				this.viewState[webviewStateKey] = webview.state;
+				this.viewState[storageKeys.webviewState] = webview.state;
 			}));
 
 			const source = this._register(new CancellationTokenSource());
@@ -158,15 +167,30 @@ export class WebviewViewPane extends ViewPane {
 				await this.extensionService.activateByEvent(`onView:${this.id}`);
 
 				let self = this;
-				await this.webviewViewService.resolve(this.id, {
+				const webviewView: WebviewView = {
 					webview,
 					onDidChangeVisibility: this.onDidChangeBodyVisibility,
 					onDispose: this.onDispose,
-					get title() { return self.title; },
-					set title(value: string) { self.updateTitle(value); }
-				}, source.token);
+
+					get title(): string | undefined { return self.setTitle; },
+					set title(value: string | undefined) { self.updateTitle(value); },
+
+					get description(): string | undefined { return self.titleDescription; },
+					set description(value: string | undefined) { self.updateTitleDescription(value); },
+
+					show: (preserveFocus) => {
+						this.viewService.openView(this.id, !preserveFocus);
+					}
+				};
+
+				await this.webviewViewService.resolve(this.id, webviewView, source.token);
 			});
 		}
+	}
+
+	protected updateTitle(value: string | undefined) {
+		this.setTitle = value;
+		super.updateTitle(typeof value === 'string' ? value : this.defaultTitle);
 	}
 
 	private async withProgress(task: () => Promise<void>): Promise<void> {

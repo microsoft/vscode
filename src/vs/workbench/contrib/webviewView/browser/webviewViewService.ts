@@ -13,11 +13,14 @@ export const IWebviewViewService = createDecorator<IWebviewViewService>('webview
 
 export interface WebviewView {
 	title?: string;
+	description?: string;
 
 	readonly webview: WebviewOverlay;
 
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly onDispose: Event<void>;
+
+	show(preserveFocus: boolean): void;
 }
 
 export interface IWebviewViewResolver {
@@ -40,10 +43,6 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 	private readonly _views = new Map<string, IWebviewViewResolver>();
 
 	private readonly _awaitingRevival = new Map<string, { webview: WebviewView, resolve: () => void }>();
-
-	constructor() {
-		super();
-	}
 
 	register(viewType: string, resolver: IWebviewViewResolver): IDisposable {
 		if (this._views.has(viewType)) {

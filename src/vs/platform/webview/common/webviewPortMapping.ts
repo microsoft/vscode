@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 
 export interface IWebviewPortMapping {
@@ -37,7 +37,7 @@ export class WebviewPortMappingManager implements IDisposable {
 		for (const mapping of this._getMappings()) {
 			if (mapping.webviewPort === requestLocalHostInfo.port) {
 				const extensionLocation = this._getExtensionLocation();
-				if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
+				if (extensionLocation && extensionLocation.scheme === Schemas.vscodeRemote) {
 					const tunnel = resolveAuthority && await this.getOrCreateTunnel(resolveAuthority, mapping.extensionHostPort);
 					if (tunnel) {
 						if (tunnel.tunnelLocalPort === mapping.webviewPort) {

@@ -21,7 +21,6 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
-import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -55,7 +54,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 	/* Version 2: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
 	protected readonly version: number = 2;
-	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'keybindings.json');
+	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'keybindings.json');
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -149,7 +148,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 	protected async getAcceptResult(resourcePreview: IKeybindingsResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult> {
 
 		/* Accept local resource */
-		if (isEqual(resource, this.localResource)) {
+		if (this.extUri.isEqual(resource, this.localResource)) {
 			return {
 				content: resourcePreview.fileContent ? resourcePreview.fileContent.value.toString() : null,
 				localChange: Change.None,
@@ -158,7 +157,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 
 		/* Accept remote resource */
-		if (isEqual(resource, this.remoteResource)) {
+		if (this.extUri.isEqual(resource, this.remoteResource)) {
 			return {
 				content: resourcePreview.remoteContent,
 				localChange: Change.Modified,
@@ -167,7 +166,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 
 		/* Accept preview resource */
-		if (isEqual(resource, this.previewResource)) {
+		if (this.extUri.isEqual(resource, this.previewResource)) {
 			if (content === undefined) {
 				return {
 					content: resourcePreview.previewResult.content,
@@ -258,22 +257,22 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
 		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
-		return [{ resource: joinPath(uri, 'keybindings.json'), comparableResource }];
+		return [{ resource: this.extUri.joinPath(uri, 'keybindings.json'), comparableResource }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
-		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);
 		if (content) {
 			return content;
 		}
-		content = await super.resolveContent(dirname(uri));
+		content = await super.resolveContent(this.extUri.dirname(uri));
 		if (content) {
 			const syncData = this.parseSyncData(content);
 			if (syncData) {
-				switch (basename(uri)) {
+				switch (this.extUri.basename(uri)) {
 					case 'keybindings.json':
 						return this.getKeybindingsContentFromSyncContent(syncData.content);
 				}

@@ -8,6 +8,16 @@
 	position: relative;
 }
 
+.scm-overflow-widgets-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	z-index: 5000;
+}
+
 .scm-view .monaco-tl-contents > div {
 	margin-right: 12px;
 	overflow: hidden;
@@ -39,6 +49,7 @@
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	min-width: 50px;
 }
 
 .scm-view .scm-provider > .label > .name {
@@ -81,7 +92,7 @@
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
 	font-size: 12px;
-	padding-right: 2px;
+	margin-right: 2px;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {
@@ -168,6 +179,7 @@
 .scm-view .monaco-list-row .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
+	color: inherit;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }

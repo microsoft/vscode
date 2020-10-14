@@ -65,7 +65,7 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 			}, startLine);
 			const matchingText = lineContent.substr(link.startIndex, link.length) || '';
 			const activateLink = this._wrapLinkHandler((_, text) => link.activate(text));
-			return this._instantiationService.createInstance(TerminalLink, bufferRange, matchingText, this._xterm.buffer.active.viewportY, activateLink, this._tooltipCallback, true, link.label);
+			return this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, matchingText, this._xterm.buffer.active.viewportY, activateLink, this._tooltipCallback, true, link.label);
 		});
 	}
 }

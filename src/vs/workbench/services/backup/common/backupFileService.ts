@@ -128,7 +128,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	private initialize(): BackupFileServiceImpl | InMemoryBackupFileService {
-		const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+		const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
 		if (backupWorkspaceResource) {
 			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService, this.logService);
 		}
@@ -140,7 +140,7 @@ export class BackupFileService implements IBackupFileService {
 
 		// Re-init implementation (unless we are running in-memory)
 		if (this.impl instanceof BackupFileServiceImpl) {
-			const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+			const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
 			if (backupWorkspaceResource) {
 				this.impl.initialize(backupWorkspaceResource);
 			} else {

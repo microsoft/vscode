@@ -271,6 +271,9 @@ export class UserDataSyncStoreManagementServiceChannel implements IServerChannel
 	constructor(private readonly service: IUserDataSyncStoreManagementService) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeUserDataSyncStore': return this.service.onDidChangeUserDataSyncStore;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 

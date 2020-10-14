@@ -33,9 +33,8 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		if (connection) {
 			channel = connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName);
 		} else {
+			// Extension host debugging not supported in serverless.
 			channel = { call: async () => undefined, listen: () => Event.None } as any;
-			// TODO@weinand TODO@isidorn fallback?
-			logService.warn('Extension Host Debugging not available due to missing connection.');
 		}
 
 		super(channel);
@@ -109,7 +108,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			environment.set('inspect-extensions', inspectExtensions);
 		}
 
-		// Open debug window as new window. Pass ParsedArgs over.
+		// Open debug window as new window. Pass arguments over.
 		await this.workspaceProvider.open(debugWorkspace, {
 			reuse: false, 								// debugging always requires a new window
 			payload: Array.from(environment.entries())	// mandatory properties to enable debugging

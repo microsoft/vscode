@@ -186,5 +186,5 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		return { x, y };
 	}
 
-	abstract async openDevTools(): Promise<void>;
+	abstract openDevTools(): Promise<void>;
 }

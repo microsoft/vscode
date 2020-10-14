@@ -275,6 +275,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * be presented.
 	 */
 	hideInput: boolean;
+
+	hideCheckAll: boolean;
 }
 
 export interface IInputBox extends IQuickInput {

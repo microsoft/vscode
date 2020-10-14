@@ -12,87 +12,10 @@ import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/noteb
  * It should not modify Undo/Redo stack
  */
 export interface ITextCellEditingDelegate {
-	insertCell?(index: number, cell: NotebookCellTextModel): void;
-	deleteCell?(index: number): void;
+	insertCell?(index: number, cell: NotebookCellTextModel, endSelections?: number[]): void;
+	deleteCell?(index: number, endSelections?: number[]): void;
 	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void;
 	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata): void;
-	emitSelections(selections: number[]): void;
-}
-
-
-export class InsertCellEdit implements IResourceUndoRedoElement {
-	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Insert Cell';
-	constructor(
-		public resource: URI,
-		private insertIndex: number,
-		private cell: NotebookCellTextModel,
-		private editingDelegate: ITextCellEditingDelegate,
-		private beforedSelections: number[] | undefined,
-		private endSelections: number[] | undefined
-	) {
-	}
-
-	undo(): void {
-		if (!this.editingDelegate.deleteCell) {
-			throw new Error('Notebook Delete Cell not implemented for Undo/Redo');
-		}
-
-		this.editingDelegate.deleteCell(this.insertIndex);
-		if (this.beforedSelections) {
-			this.editingDelegate.emitSelections(this.beforedSelections);
-		}
-	}
-	redo(): void {
-		if (!this.editingDelegate.insertCell) {
-			throw new Error('Notebook Insert Cell not implemented for Undo/Redo');
-		}
-
-		this.editingDelegate.insertCell(this.insertIndex, this.cell);
-		if (this.endSelections) {
-			this.editingDelegate.emitSelections(this.endSelections);
-		}
-	}
-}
-
-export class DeleteCellEdit implements IResourceUndoRedoElement {
-	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Delete Cell';
-	constructor(
-		public resource: URI,
-		private insertIndex: number,
-		private _cell: NotebookCellTextModel,
-		private editingDelegate: ITextCellEditingDelegate,
-		private beforedSelections: number[] | undefined,
-		private endSelections: number[] | undefined
-	) {
-
-		// save inmem text to `ICell`
-		// no needed any more as the text buffer is transfered to `raw_cell`
-		// this._rawCell.source = [cell.getText()];
-	}
-
-	undo(): void {
-		if (!this.editingDelegate.insertCell) {
-			throw new Error('Notebook Insert Cell not implemented for Undo/Redo');
-		}
-
-		this.editingDelegate.insertCell(this.insertIndex, this._cell);
-		if (this.beforedSelections) {
-			this.editingDelegate.emitSelections(this.beforedSelections);
-		}
-	}
-
-	redo(): void {
-		if (!this.editingDelegate.deleteCell) {
-			throw new Error('Notebook Delete Cell not implemented for Undo/Redo');
-		}
-
-		this.editingDelegate.deleteCell(this.insertIndex);
-		if (this.endSelections) {
-			this.editingDelegate.emitSelections(this.endSelections);
-		}
-	}
 }
 
 export class MoveCellEdit implements IResourceUndoRedoElement {
@@ -116,9 +39,6 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.moveCell(this.toIndex, this.length, this.fromIndex, this.endSelections, this.beforedSelections);
-		if (this.beforedSelections) {
-			this.editingDelegate.emitSelections(this.beforedSelections);
-		}
 	}
 
 	redo(): void {
@@ -127,9 +47,6 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.moveCell(this.fromIndex, this.length, this.toIndex, this.beforedSelections, this.endSelections);
-		if (this.endSelections) {
-			this.editingDelegate.emitSelections(this.endSelections);
-		}
 	}
 }
 
@@ -152,17 +69,13 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 
 		this.diffs.forEach(diff => {
 			for (let i = 0; i < diff[2].length; i++) {
-				this.editingDelegate.deleteCell!(diff[0]);
+				this.editingDelegate.deleteCell!(diff[0], this.beforeHandles);
 			}
 
 			diff[1].reverse().forEach(cell => {
-				this.editingDelegate.insertCell!(diff[0], cell);
+				this.editingDelegate.insertCell!(diff[0], cell, this.beforeHandles);
 			});
 		});
-
-		if (this.beforeHandles) {
-			this.editingDelegate.emitSelections(this.beforeHandles);
-		}
 	}
 
 	redo(): void {
@@ -172,17 +85,13 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 
 		this.diffs.reverse().forEach(diff => {
 			for (let i = 0; i < diff[1].length; i++) {
-				this.editingDelegate.deleteCell!(diff[0]);
+				this.editingDelegate.deleteCell!(diff[0], this.endHandles);
 			}
 
 			diff[2].reverse().forEach(cell => {
-				this.editingDelegate.insertCell!(diff[0], cell);
+				this.editingDelegate.insertCell!(diff[0], cell, this.endHandles);
 			});
 		});
-
-		if (this.endHandles) {
-			this.editingDelegate.emitSelections(this.endHandles);
-		}
 	}
 }
 

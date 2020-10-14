@@ -7,7 +7,8 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import { INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
@@ -113,11 +114,50 @@ export class NotebookEditorModelManager extends Disposable {
 
 		const toDispose = new DisposableStore();
 
-		// TODO, accept Model change
+		const cellToDto = (cell: NotebookCellTextModel): IMainCellDto => {
+			return {
+				handle: cell.handle,
+				uri: cell.uri,
+				source: cell.textBuffer.getLinesContent(),
+				eol: cell.textBuffer.getEOL(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: cell.metadata
+			};
+		};
 
-		// toDispose.add(model.onDidChangeContent((e) => {
-		// 	this._proxy.acceptModelChanged(modelUrl.toString(), e);
-		// }));
+		toDispose.add(model.onDidChangeContent((event) => {
+			const dto = event.rawEvents.map(e => {
+				const data =
+					e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
+						? {
+							kind: e.kind,
+							versionId: event.versionId,
+							changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
+						}
+						: (
+							e.kind === NotebookCellsChangeType.Move
+								? {
+									kind: e.kind,
+									index: e.index,
+									length: e.length,
+									newIdx: e.newIdx,
+									versionId: event.versionId,
+									cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
+								}
+								: e
+						);
+
+				return data;
+			});
+
+			this._proxy.acceptModelChanged(modelUrl.toString(), {
+				rawEvents: dto,
+				versionId: event.versionId
+			});
+		}));
+
 		toDispose.add(model.onWillDispose(() => {
 			this._stopModelSync(modelUrl);
 		}));

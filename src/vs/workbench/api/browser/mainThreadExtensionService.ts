@@ -50,7 +50,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		return this._extensionService._activateById(extensionId, reason);
 	}
-	$onWillActivateExtension(extensionId: ExtensionIdentifier): void {
+	async $onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void> {
 		this._extensionService._onWillActivateExtension(extensionId);
 	}
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {

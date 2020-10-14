@@ -19,7 +19,13 @@ export class WorkerServerProcess implements TsServerProcess {
 		_configuration: TypeScriptServiceConfiguration,
 	) {
 		const worker = new Worker(tsServerPath);
-		return new WorkerServerProcess(worker, args);
+		return new WorkerServerProcess(worker, [
+			...args,
+
+			// Explicitly give TS Server its path so it can
+			// load local resources
+			'--executingFilePath', tsServerPath,
+		]);
 	}
 
 	private _onDataHandlers = new Set<(data: Proto.Response) => void>();

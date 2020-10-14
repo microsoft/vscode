@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage",
+		"This file has been converted from https://github.com/microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/fa4e0d3a918db0eab8e5c5be952f3bd649968456",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/fa4e0d3a918db0eab8e5c5be952f3bd649968456",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [

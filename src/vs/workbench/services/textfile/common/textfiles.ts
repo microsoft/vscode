@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -65,7 +65,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param options optional save options
 	 * @return Path of the saved resource or undefined if canceled.
 	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
+	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveAsOptions): Promise<URI | undefined>;
 
 	/**
 	 * Reverts the provided resource.
@@ -266,6 +266,13 @@ export interface ITextFileEditorModelLoadOrCreateOptions {
 	encoding?: string;
 
 	/**
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
+	 */
+	contents?: ITextBufferFactory;
+
+	/**
 	 * If the model was already loaded before, allows to trigger
 	 * a reload of it to fetch the latest contents:
 	 * - async: resolve() will return immediately and trigger
@@ -386,7 +393,22 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	ignoreErrorHandler?: boolean;
 }
 
+export interface ITextFileSaveAsOptions extends ITextFileSaveOptions {
+
+	/**
+	 * Optional URI to use as suggested file path to save as.
+	 */
+	suggestedTarget?: URI;
+}
+
 export interface ITextFileLoadOptions {
+
+	/**
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
+	 */
+	contents?: ITextBufferFactory;
 
 	/**
 	 * Go to disk bypassing any cache of the model if any.
@@ -425,7 +447,12 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getMode(): string | undefined;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
-	isDisposed(): boolean;
+}
+
+export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
+	const candidate = model as ITextFileEditorModel;
+
+	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getMode);
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {

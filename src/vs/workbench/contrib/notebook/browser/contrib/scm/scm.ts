@@ -43,11 +43,7 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 				this.update();
 
 				if (this._notebookEditor.textModel) {
-					this._localDisposable.add(this._notebookEditor.textModel.onDidChangeContent(() => {
-						this.update();
-					}));
-
-					this._localDisposable.add(this._notebookEditor.textModel.onDidChangeCells(() => {
+					this._localDisposable.add(this._notebookEditor.textModel.onDidChangeContent((e) => {
 						this.update();
 					}));
 				}
@@ -83,7 +79,7 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 
 		this._originalResourceDisposableStore.add(this._fileService.watch(result));
 		this._originalResourceDisposableStore.add(this._fileService.onDidFilesChange(e => {
-			if (e.changes.find(change => change.resource.toString() === result.toString())) {
+			if (e.contains(result)) {
 				this._originalDocument = undefined;
 				this._originalResourceDisposableStore.clear();
 				this.update();

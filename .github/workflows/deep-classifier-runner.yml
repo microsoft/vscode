@@ -13,13 +13,13 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'microsoft/vscode-github-triage-actions'
-          ref: v34
+          ref: v37
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Install Additional Dependencies
         # Pulls in a bunch of other packages that arent needed for the rest of the actions
-        run: npm install @azure/storage-blob@12
+        run: npm install @azure/storage-blob@12.1.1
       - name: "Run Classifier: Scraper"
         uses: ./actions/classifier-deep/apply/fetch-sources
         with:

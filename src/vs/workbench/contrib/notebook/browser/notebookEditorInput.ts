@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as glob from 'vs/base/common/glob';
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -118,12 +119,16 @@ export class NotebookEditorInput extends EditorInput {
 		}
 
 		if (!provider.matches(target)) {
-			const patterns = provider.selector.map(pattern => {
-				if (pattern.excludeFileNamePattern) {
-					return `${pattern.filenamePattern} (exclude: ${pattern.excludeFileNamePattern})`;
+			const patterns = provider.selectors.map(pattern => {
+				if (typeof pattern === 'string') {
+					return pattern;
 				}
 
-				return pattern.filenamePattern;
+				if (glob.isRelativePattern(pattern)) {
+					return `${pattern} (base ${pattern.base})`;
+				}
+
+				return `${pattern.include} (exclude: ${pattern.exclude})`;
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
 
@@ -168,13 +173,13 @@ ${patterns}
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<INotebookEditorModel | null> {
+	async resolve(): Promise<INotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
 
 			this._register(this._textModel.object.onDidChangeDirty(() => {
 				this._onDidChangeDirty.fire();

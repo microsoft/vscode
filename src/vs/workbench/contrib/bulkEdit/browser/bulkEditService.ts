@@ -16,6 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
 import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
 import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 class BulkEdit {
 
@@ -60,16 +61,17 @@ class BulkEdit {
 		this._progress.report({ total: this._edits.length });
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
+		const undoRedoGroup = new UndoRedoGroup();
 
 		let index = 0;
 		for (let range of ranges) {
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, progress);
+				await this._performFileEdits(<ResourceFileEdit[]>group, undoRedoGroup, progress);
 			} else if (group[0] instanceof ResourceTextEdit) {
-				await this._performTextEdits(<ResourceTextEdit[]>group, progress);
+				await this._performTextEdits(<ResourceTextEdit[]>group, undoRedoGroup, progress);
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
-				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, progress);
+				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, undoRedoGroup, progress);
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
@@ -77,21 +79,21 @@ class BulkEdit {
 		}
 	}
 
-	private async _performFileEdits(edits: ResourceFileEdit[], progress: IProgress<void>) {
+	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, progress: IProgress<void>) {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), progress, edits);
+		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, progress, edits);
 		await model.apply();
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): Promise<void> {
+	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, progress, edits);
+		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, undoRedoGroup, progress, edits);
 		await model.apply();
 	}
 
-	private async _performCellEdits(edits: ResourceNotebookCellEdit[], progress: IProgress<void>): Promise<void> {
+	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performCellEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkCellEdits, progress, edits);
+		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, progress, edits);
 		await model.apply();
 	}
 }

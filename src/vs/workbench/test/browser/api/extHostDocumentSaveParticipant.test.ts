@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
-import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -20,7 +20,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 suite('ExtHostDocumentSaveParticipant', () => {
 
 	let resource = URI.parse('foo:bar');
-	let mainThreadEditors = new class extends mock<MainThreadTextEditorsShape>() { };
+	let mainThreadBulkEdits = new class extends mock<MainThreadBulkEditsShape>() { };
 	let documents: ExtHostDocuments;
 	let nullLogService = new NullLogService();
 	let nullExtensionDescription: IExtensionDescription = {
@@ -31,6 +31,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		engines: undefined!,
 		extensionLocation: undefined!,
 		isBuiltin: false,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		version: undefined!
 	};
@@ -51,12 +52,12 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('no listeners, no problem', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => assert.ok(true));
 	});
 
 	test('event delivery', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let event: vscode.TextDocumentWillSaveEvent;
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
@@ -73,7 +74,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, immutable', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let event: vscode.TextDocumentWillSaveEvent;
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
@@ -89,7 +90,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, bad listener', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			throw new Error('💀');
@@ -104,7 +105,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, bad listener doesn\'t prevent more events', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			throw new Error('💀');
@@ -123,7 +124,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, in subscriber order', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let counter = 0;
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
@@ -141,7 +142,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, ignore bad listeners', async () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors, { timeout: 5, errors: 1 });
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 5, errors: 1 });
 
 		let callCount = 0;
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
@@ -159,7 +160,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, overall timeout', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors, { timeout: 20, errors: 5 });
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 20, errors: 5 });
 
 		let callCount = 0;
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
@@ -187,7 +188,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, waitUntil', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 
@@ -203,11 +204,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, waitUntil must be called sync', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 
-			event.waitUntil(new Promise((resolve, reject) => {
+			event.waitUntil(new Promise<undefined>((resolve, reject) => {
 				setTimeout(() => {
 					try {
 						assert.throws(() => event.waitUntil(timeout(10)));
@@ -226,7 +227,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, waitUntil will timeout', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors, { timeout: 5, errors: 3 });
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 5, errors: 3 });
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			event.waitUntil(timeout(15));
@@ -241,7 +242,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	});
 
 	test('event delivery, waitUntil failure handling', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadEditors);
+		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
 
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			e.waitUntil(Promise.reject(new Error('dddd')));
@@ -380,7 +381,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			error(message: string | Error, ...args: any[]): void {
 				didLogSomething = true;
 			}
-		}, documents, mainThreadEditors);
+		}, documents, mainThreadBulkEdits);
 
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {

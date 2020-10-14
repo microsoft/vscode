@@ -61,6 +61,6 @@ export class WebviewIconManager {
 				}
 			}
 		}
-		this._styleElement.innerHTML = cssRules.join('\n');
+		this._styleElement.textContent = cssRules.join('\n');
 	}
 }

@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
+import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -107,7 +107,7 @@ export class EditorControl extends Disposable {
 		// Create editor container as needed
 		if (!editorPane.getContainer()) {
 			const editorPaneContainer = document.createElement('div');
-			addClass(editorPaneContainer, 'editor-instance');
+			editorPaneContainer.classList.add('editor-instance');
 			editorPaneContainer.setAttribute('data-editor-id', descriptor.getId());
 
 			editorPane.create(editorPaneContainer);

@@ -25,6 +25,7 @@ class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManage
 	) {
 		super(productService, configurationService, storageService);
 		this.channel = sharedProcessService.getChannel('userDataSyncStoreManagement');
+		this._register(this.channel.listen('onDidChangeUserDataSyncStore')(() => this.updateUserDataSyncStore()));
 	}
 
 	async switch(type: UserDataSyncStoreType): Promise<void> {
@@ -42,6 +43,7 @@ class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManage
 			defaultUrl: URI.revive(userDataSyncStore.defaultUrl),
 			insidersUrl: URI.revive(userDataSyncStore.insidersUrl),
 			stableUrl: URI.revive(userDataSyncStore.stableUrl),
+			canSwitch: userDataSyncStore.canSwitch,
 			authenticationProviders: userDataSyncStore.authenticationProviders,
 		};
 	}

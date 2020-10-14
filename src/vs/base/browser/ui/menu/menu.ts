@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, SubmenuAction, Separator, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, addDisposableListener, append, $, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -73,10 +73,10 @@ export class Menu extends ActionBar {
 	protected styleSheet: HTMLStyleElement | undefined;
 
 	constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions = {}) {
-		addClass(container, 'monaco-menu-container');
+		container.classList.add('monaco-menu-container');
 		container.setAttribute('role', 'presentation');
 		const menuElement = document.createElement('div');
-		addClass(menuElement, 'monaco-menu');
+		menuElement.classList.add('monaco-menu');
 		menuElement.setAttribute('role', 'presentation');
 
 		super(menuElement, {
@@ -170,7 +170,7 @@ export class Menu extends ActionBar {
 				target = target.parentElement;
 			}
 
-			if (hasClass(target, 'action-item')) {
+			if (target.classList.contains('action-item')) {
 				const lastFocusedItem = this.focusedItem;
 				this.setFocusedItem(target);
 
@@ -200,7 +200,7 @@ export class Menu extends ActionBar {
 		scrollElement.style.position = '';
 
 		this._register(addDisposableListener(scrollElement, EventType.MOUSE_UP, e => {
-			// Absorb clicks in menu dead space https://github.com/Microsoft/vscode/issues/63575
+			// Absorb clicks in menu dead space https://github.com/microsoft/vscode/issues/63575
 			// We do this on the scroll element so the scroll bar doesn't dismiss the menu either
 			e.preventDefault();
 		}));
@@ -229,11 +229,11 @@ export class Menu extends ActionBar {
 	private initializeStyleSheet(container: HTMLElement): void {
 		if (isInShadowDOM(container)) {
 			this.styleSheet = createStyleSheet(container);
-			this.styleSheet.innerHTML = MENU_WIDGET_CSS;
+			this.styleSheet.textContent = MENU_WIDGET_CSS;
 		} else {
 			if (!Menu.globalStyleSheet) {
 				Menu.globalStyleSheet = createStyleSheet();
-				Menu.globalStyleSheet.innerHTML = MENU_WIDGET_CSS;
+				Menu.globalStyleSheet.textContent = MENU_WIDGET_CSS;
 			}
 
 			this.styleSheet = Menu.globalStyleSheet;
@@ -596,37 +596,37 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 	updateClass(): void {
 		if (this.cssClass && this.item) {
-			removeClasses(this.item, this.cssClass);
+			this.item.classList.remove(...this.cssClass.split(' '));
 		}
 		if (this.options.icon && this.label) {
 			this.cssClass = this.getAction().class || '';
-			addClass(this.label, 'icon');
+			this.label.classList.add('icon');
 			if (this.cssClass) {
-				addClasses(this.label, this.cssClass);
+				this.label.classList.add(...this.cssClass.split(' '));
 			}
 			this.updateEnabled();
 		} else if (this.label) {
-			removeClass(this.label, 'icon');
+			this.label.classList.remove('icon');
 		}
 	}
 
 	updateEnabled(): void {
 		if (this.getAction().enabled) {
 			if (this.element) {
-				removeClass(this.element, 'disabled');
+				this.element.classList.remove('disabled');
 			}
 
 			if (this.item) {
-				removeClass(this.item, 'disabled');
+				this.item.classList.remove('disabled');
 				this.item.tabIndex = 0;
 			}
 		} else {
 			if (this.element) {
-				addClass(this.element, 'disabled');
+				this.element.classList.add('disabled');
 			}
 
 			if (this.item) {
-				addClass(this.item, 'disabled');
+				this.item.classList.add('disabled');
 				removeTabIndexAndUpdateFocus(this.item);
 			}
 		}
@@ -638,11 +638,11 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 
 		if (this.getAction().checked) {
-			addClass(this.item, 'checked');
+			this.item.classList.add('checked');
 			this.item.setAttribute('role', 'menuitemcheckbox');
 			this.item.setAttribute('aria-checked', 'true');
 		} else {
-			removeClass(this.item, 'checked');
+			this.item.classList.remove('checked');
 			this.item.setAttribute('role', 'menuitem');
 			this.item.setAttribute('aria-checked', 'false');
 		}
@@ -657,7 +657,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		const isSelected = this.element && hasClass(this.element, 'focused');
+		const isSelected = this.element && this.element.classList.contains('focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : undefined;
 		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : '';
@@ -725,7 +725,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		if (this.item) {
-			addClass(this.item, 'monaco-submenu-item');
+			this.item.classList.add('monaco-submenu-item');
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
 			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
@@ -840,7 +840,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		if (!this.parentData.submenu) {
 			this.updateAriaExpanded('true');
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
-			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
+			this.submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
 
 			// Set the top value of the menu container before construction
 			// This allows the menu constructor to calculate the proper max height
@@ -918,7 +918,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			return;
 		}
 
-		const isSelected = this.element && hasClass(this.element, 'focused');
+		const isSelected = this.element && this.element.classList.contains('focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 
 		if (this.submenuIndicator) {

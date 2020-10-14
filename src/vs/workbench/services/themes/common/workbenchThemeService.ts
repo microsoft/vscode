@@ -77,8 +77,6 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getProductIconTheme(): IWorkbenchProductIconTheme;
 	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
 	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
-
-	setOSHighContrast(highContrast: boolean): void;
 }
 
 export interface IColorCustomizations {

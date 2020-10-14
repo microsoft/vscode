@@ -6,7 +6,7 @@
 import 'vs/css!./media/scm';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -48,7 +48,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
 		// hack
 		if (container.classList.contains('monaco-tl-contents')) {
-			addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+			(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 		}
 
 		const provider = append(container, $('.scm-provider'));
@@ -60,7 +60,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
-		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => toggleClass(provider, 'active', e));
+		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
 
 		const disposable = Disposable.None;
 		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);

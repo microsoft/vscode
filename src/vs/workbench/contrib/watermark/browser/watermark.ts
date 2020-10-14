@@ -5,7 +5,6 @@
 
 import 'vs/css!./watermark';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { isMacintosh, OS } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
@@ -44,7 +43,7 @@ const openFolderNonMacOnly: WatermarkEntry = { text: nls.localize('watermark.ope
 const openFileOrFolderMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFileFolder', "Open File or Folder"), id: OpenFileFolderAction.ID, mac: true };
 const openRecent: WatermarkEntry = { text: nls.localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
 const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntitledFile', "New Untitled File"), id: NEW_UNTITLED_FILE_COMMAND_ID };
-const newUntitledFileMacOnly: WatermarkEntry = assign({ mac: true }, newUntitledFile);
+const newUntitledFileMacOnly: WatermarkEntry = Object.assign({ mac: true }, newUntitledFile);
 const toggleTerminal: WatermarkEntry = { text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: TERMINAL_COMMAND_ID.TOGGLE };
 const findInFiles: WatermarkEntry = { text: nls.localize('watermark.findInFiles', "Find in Files"), id: FindInFilesActionId };
 const startDebugging: WatermarkEntry = { text: nls.localize('watermark.startDebugging', "Start Debugging"), id: StartAction.ID };
@@ -141,7 +140,6 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 				const dd = dom.append(dl, $('dd'));
 				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
 				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
-				dd.innerHTML = keybinding.element.outerHTML;
 			});
 		};
 
@@ -156,11 +154,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private handleEditorPartSize(container: HTMLElement, dimension: dom.IDimension): void {
-		if (dimension.height <= 478) {
-			dom.addClass(container, 'max-height-478px');
-		} else {
-			dom.removeClass(container, 'max-height-478px');
-		}
+		container.classList.toggle('max-height-478px', dimension.height <= 478);
 	}
 
 	private destroy(): void {

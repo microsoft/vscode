@@ -84,8 +84,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
 		if (otherServers.length) {
 			for (const otherServer of otherServers) {
-				const installed = await otherServer.extensionManagementService.getInstalled(ExtensionType.User);
-				extension = installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0];
+				const installed = await otherServer.extensionManagementService.getInstalled();
+				extension = installed.filter(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier))[0];
 				if (extension) {
 					await otherServer.extensionManagementService.uninstall(extension);
 				}

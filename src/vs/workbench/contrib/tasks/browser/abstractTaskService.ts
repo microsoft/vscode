@@ -1586,11 +1586,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
 			this.pathService, this.viewDescriptorService, this.logService,
-			(workspaceFolder: IWorkspaceFolder) => {
-				if (!workspaceFolder) {
+			(workspaceFolder: IWorkspaceFolder | undefined) => {
+				if (workspaceFolder) {
+					return this._taskSystemInfos.get(workspaceFolder.uri.scheme);
+				} else if (this._taskSystemInfos.size > 0) {
+					return this._taskSystemInfos.values().next().value;
+				} else {
 					return undefined;
 				}
-				return this._taskSystemInfos.get(workspaceFolder.uri.scheme);
 			}
 		);
 	}
@@ -2390,7 +2393,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				picker.dispose();
 				if (!selection) {
-					resolve();
+					resolve(undefined);
 				}
 				resolve(selection);
 			}));

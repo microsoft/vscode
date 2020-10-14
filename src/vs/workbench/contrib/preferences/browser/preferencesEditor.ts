@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Widget } from 'vs/base/browser/ui/widget';
-import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -104,7 +103,7 @@ export class PreferencesEditor extends EditorPane {
 	}
 
 	createEditor(parent: HTMLElement): void {
-		DOM.addClass(parent, 'preferences-editor');
+		parent.classList.add('preferences-editor');
 
 		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
@@ -646,7 +645,7 @@ class PreferencesRenderersController extends Disposable {
 		const current = this._settingsNavigator && this._settingsNavigator.current();
 		const navigatorSettings = this._lastQuery ? consolidatedSettings : [];
 		const currentIndex = current ?
-			arrays.firstIndex(navigatorSettings, s => s.key === current.key) :
+			navigatorSettings.findIndex(s => s.key === current.key) :
 			-1;
 
 		this._settingsNavigator = new SettingsNavigator(navigatorSettings, Math.max(currentIndex, 0));
@@ -691,7 +690,7 @@ class PreferencesRenderersController extends Disposable {
 			if (nlpMetadata) {
 				const sortedKeys = Object.keys(nlpMetadata.scoredResults).sort((a, b) => nlpMetadata.scoredResults[b].score - nlpMetadata.scoredResults[a].score);
 				const suffix = '##' + key;
-				data['nlpIndex'] = arrays.firstIndex(sortedKeys, key => key.endsWith(suffix));
+				data['nlpIndex'] = sortedKeys.findIndex(key => key.endsWith(suffix));
 			}
 
 			const settingLocation = this._findSetting(this.lastFilterResult, key);
@@ -791,7 +790,7 @@ class SideBySidePreferencesWidget extends Widget {
 	) {
 		super();
 
-		DOM.addClass(parentElement, 'side-by-side-preferences-editor');
+		parentElement.classList.add('side-by-side-preferences-editor');
 
 		this.splitview = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
 		this._register(this.splitview);

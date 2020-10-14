@@ -49,7 +49,7 @@ class ToggleBreakpointAction extends EditorAction {
 				if (bps.length) {
 					return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 				} else if (canSet) {
-					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }], 'debugEditorActions.toggleBreakpointAction'));
+					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }]));
 				} else {
 					return [];
 				}
@@ -151,7 +151,7 @@ export class RunToCursorAction extends EditorAction {
 					column = position.column;
 				}
 
-				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], 'debugEditorActions.runToCursorAction');
+				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], false);
 				if (breakpoints && breakpoints.length) {
 					breakpointToRemove = breakpoints[0];
 				}
@@ -277,6 +277,10 @@ class StepIntoTargetsAction extends EditorAction {
 
 		if (session && frame && editor.hasModel() && editor.getModel().uri.toString() === frame.source.uri.toString()) {
 			const targets = await session.stepInTargets(frame.frameId);
+			if (!targets) {
+				return;
+			}
+
 			editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
 			const cursorCoords = editor.getScrolledVisiblePosition({ lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
 			const editorCoords = getDomNodePagePosition(editor.getDomNode());

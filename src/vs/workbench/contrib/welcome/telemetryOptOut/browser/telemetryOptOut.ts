@@ -19,6 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution {
 
@@ -27,6 +28,7 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService private readonly hostService: IHostService,
@@ -37,7 +39,9 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService
-	) { }
+	) {
+		storageKeysSyncRegistryService.registerStorageKey({ key: AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, version: 1 });
+	}
 
 	protected async handleTelemetryOptOut(): Promise<void> {
 		if (this.productService.telemetryOptOutUrl && !this.storageService.get(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
@@ -161,6 +165,7 @@ export class BrowserTelemetryOptOut extends AbstractTelemetryOptOut {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IOpenerService openerService: IOpenerService,
 		@INotificationService notificationService: INotificationService,
 		@IHostService hostService: IHostService,
@@ -172,7 +177,7 @@ export class BrowserTelemetryOptOut extends AbstractTelemetryOptOut {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService
 	) {
-		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService, environmentService, jsonEditingService);
+		super(storageService, storageKeysSyncRegistryService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService, environmentService, jsonEditingService);
 
 		this.handleTelemetryOptOut();
 	}

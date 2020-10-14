@@ -21,8 +21,6 @@ import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/sh
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-export const VIEWLET_ID = 'workbench.view.remote';
-
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
 		@ILabelService private readonly labelService: ILabelService,

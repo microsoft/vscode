@@ -36,6 +36,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _writeQueue: string[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
+	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
 
@@ -80,6 +81,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// This option will force conpty to not redraw the whole viewport on launch
 			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
 		};
+		// Delay resizes to avoid conpty not respecting very early resize calls
+		if (platform.isWindows && useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+			this._delayedResizer = new DelayedResizer();
+			this._register(this._delayedResizer.onTrigger(dimensions => {
+				this._delayedResizer?.dispose();
+				this._delayedResizer = undefined;
+				if (dimensions.cols && dimensions.rows) {
+					this.resize(dimensions.cols, dimensions.rows);
+				}
+			}));
+		}
 	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
@@ -286,6 +298,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._ptyProcess) {
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
+
+			// Delay resize if needed
+			if (this._delayedResizer) {
+				this._delayedResizer.cols = cols;
+				this._delayedResizer.rows = rows;
+				return;
+			}
+
 			this._logService.trace('IPty#resize', cols, rows);
 			try {
 				this._ptyProcess.resize(cols, rows);
@@ -342,5 +362,34 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	public getLatency(): Promise<number> {
 		return Promise.resolve(0);
+	}
+}
+
+/**
+ * Tracks the latest resize event to be trigger at a later point.
+ */
+class DelayedResizer extends Disposable {
+	public rows: number | undefined;
+	public cols: number | undefined;
+	private _timeout: NodeJS.Timeout;
+
+	private readonly _onTrigger = this._register(new Emitter<{ rows?: number, cols?: number }>());
+	public get onTrigger(): Event<{ rows?: number, cols?: number }> { return this._onTrigger.event; }
+
+	constructor() {
+		super();
+		this._timeout = setTimeout(() => {
+			this._onTrigger.fire({ rows: this.rows, cols: this.cols });
+		}, 1000);
+		this._register({
+			dispose: () => {
+				clearTimeout(this._timeout);
+			}
+		});
+	}
+
+	dispose(): void {
+		super.dispose();
+		clearTimeout(this._timeout);
 	}
 }

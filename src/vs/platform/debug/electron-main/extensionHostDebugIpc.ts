@@ -27,6 +27,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const pargs = parseArgs(args, OPTIONS);
+		pargs.debugRenderer = debugRenderer;
+
 		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (!extDevPaths) {
 			return {};
@@ -101,7 +103,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			});
 		});
 
-		await new Promise(r => server.listen(0, r));
+		await new Promise<void>(r => server.listen(0, r));
 		codeWindow.win.on('close', () => server.close());
 
 		return { rendererDebugPort: (server.address() as AddressInfo).port };

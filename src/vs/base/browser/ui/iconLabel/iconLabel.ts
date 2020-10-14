@@ -188,14 +188,14 @@ class Label {
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerText = '';
-				dom.removeClass(this.container, 'multiple');
+				this.container.classList.remove('multiple');
 				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
 			}
 
 			this.singleLabel.textContent = label;
 		} else {
 			this.container.innerText = '';
-			dom.addClass(this.container, 'multiple');
+			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 
 			for (let i = 0; i < label.length; i++) {
@@ -251,15 +251,14 @@ class LabelWithHighlights {
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerText = '';
-				dom.removeClass(this.container, 'multiple');
+				this.container.classList.remove('multiple');
 				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportCodicons);
 			}
 
 			this.singleLabel.set(label, options?.matches, options?.title, options?.labelEscapeNewLines);
 		} else {
-
 			this.container.innerText = '';
-			dom.addClass(this.container, 'multiple');
+			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 
 			const separator = options?.separator || '/';

@@ -160,7 +160,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let noiseCheckPromise: Thenable<any> = Promise.resolve();
 
-		// Fix for https://github.com/Microsoft/vscode/issues/32647
+		// Fix for https://github.com/microsoft/vscode/issues/32647
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
 		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
 		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {

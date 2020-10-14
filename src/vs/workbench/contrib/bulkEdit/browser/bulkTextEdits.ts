@@ -14,7 +14,7 @@ import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'v
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceMap } from 'vs/base/common/map';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -121,6 +121,7 @@ export class BulkTextEdits {
 	constructor(
 		private readonly _label: string,
 		private readonly _editor: ICodeEditor | undefined,
+		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _progress: IProgress<void>,
 		edits: ResourceTextEdit[],
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
@@ -217,19 +218,19 @@ export class BulkTextEdits {
 			}
 			if (tasks.length === 1) {
 				// This edit touches a single model => keep things simple
-				for (const task of tasks) {
-					task.model.pushStackElement();
-					task.apply();
-					task.model.pushStackElement();
-					this._progress.report(undefined);
-				}
+				const task = tasks[0];
+				const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
+				this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup);
+				task.apply();
+				singleModelEditStackElement.close();
+				this._progress.report(undefined);
 			} else {
 				// prepare multi model undo element
 				const multiModelEditStackElement = new MultiModelEditStackElement(
 					this._label,
 					tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
 				);
-				this._undoRedoService.pushElement(multiModelEditStackElement);
+				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup);
 				for (const task of tasks) {
 					task.apply();
 					this._progress.report(undefined);

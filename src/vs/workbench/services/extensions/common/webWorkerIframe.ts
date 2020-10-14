@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const WEB_WORKER_IFRAME = {
-	sha: 'sha256-rSINb5Ths99Zj4Ml59jEdHS4WbO+H5Iw+oyRmyi2MLw=',
+	sha: 'sha256-r24mDVsMuFEo8ChaY9ppVJKbY3CUM4I12Aw/yscWZbg=',
 	js: `
 (function() {
 	const workerSrc = document.getElementById('vscode-worker-src').getAttribute('data-value');
@@ -13,8 +13,8 @@ export const WEB_WORKER_IFRAME = {
 
 	worker.onmessage = (event) => {
 		const { data } = event;
-		if (!(data instanceof ArrayBuffer)) {
-			console.warn('Unknown data received', data);
+		if (!(data instanceof MessagePort)) {
+			console.warn('Unknown data received', event);
 			window.parent.postMessage({
 				vscodeWebWorkerExtHostId,
 				error: {
@@ -42,16 +42,6 @@ export const WEB_WORKER_IFRAME = {
 			}
 		}, '*');
 	};
-
-	window.addEventListener('message', function(event) {
-		if (event.source !== window.parent) {
-			return;
-		}
-		if (event.data.vscodeWebWorkerExtHostId !== vscodeWebWorkerExtHostId) {
-			return;
-		}
-		worker.postMessage(event.data.data, [event.data.data]);
-	}, false);
 })();
 `
 };
