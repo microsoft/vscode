@@ -37,7 +37,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
-			content: `Forwarded ports allow you to access your running applications locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
+			content: `Forwarded ports allow you to access your running services locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
 		}));
 		this.enableBadgeAndStatusBar();
 		this.enableForwardedPortsView();
