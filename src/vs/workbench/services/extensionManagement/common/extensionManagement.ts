@@ -39,8 +39,6 @@ export const IWorkbenchExtensionEnablementService = createDecorator<IWorkbenchEx
 export interface IWorkbenchExtensionEnablementService {
 	readonly _serviceBrand: undefined;
 
-	readonly allUserExtensionsDisabled: boolean;
-
 	/**
 	 * Event to listen on for extension enablement changes
 	 */

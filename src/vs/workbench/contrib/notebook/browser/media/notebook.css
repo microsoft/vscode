@@ -14,6 +14,7 @@
 .monaco-workbench .cell.markdown {
 	user-select: text;
 	-webkit-user-select: text;
+	-ms-user-select: text;
 	white-space: initial;
 }
 
@@ -143,6 +144,8 @@
 	position: absolute;
 	height: 0px;
 	user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
 	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
 	box-sizing: border-box;

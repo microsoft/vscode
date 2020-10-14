@@ -32,7 +32,7 @@ Next: **[Try it out!](#try-it)**
 
 ## Quick start - GitHub Codespaces
 
-> **IMPORTANT:** The current user beta for GitHub Codespaces uses a "Basic" sized codespace which is too small to run a full build of VS Code. You'll soon be able to use a "Standard" sized codespace (4-core, 8GB) that will be better suited for this purpose.
+> **IMPORTANT:** The current free user beta for GitHub Codespaces uses a "Basic" sized codespace which does not have enough RAM to run a full build of VS Code and will be considerably slower during codespace start and running VS Code. You'll soon be able to use a "Standard" sized codespace (4-core, 8GB) that will be better suited for this purpose (along with even larger sizes should you need it).
 
 1. From the [microsoft/vscode GitHub repository](https://github.com/microsoft/vscode), click on the **Code** dropdown, select **Open with Codespaces**, and the **New codespace**
 
@@ -81,7 +81,9 @@ To start working with Code - OSS, follow these steps:
     bash scripts/code.sh
     ```
 
-2. After the build is complete, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.
+    Note that a previous run of `yarn install`  will already be cached, so this step should simply pick up any recent differences.
+
+2. After the build is complete, open a web browser or a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to the desktop environnement as described in the quick start and enter `vscode` as the password.
 
 3. You should now see Code - OSS!
 

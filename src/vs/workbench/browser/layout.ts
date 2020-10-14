@@ -47,6 +47,7 @@ import { IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -184,6 +185,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private themeService!: IThemeService;
 	private activityBarService!: IActivityBarService;
 	private statusBarService!: IStatusbarService;
+	private logService!: ILogService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -263,6 +265,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.backupFileService = accessor.get(IBackupFileService);
 		this.themeService = accessor.get(IThemeService);
 		this.extensionService = accessor.get(IExtensionService);
+		this.logService = accessor.get(ILogService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -1344,6 +1347,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	layout(): void {
 		if (!this.disposed) {
 			this._dimension = this.getClientArea();
+			this.logService.trace(`Layout#layout, height: ${this._dimension.height}, width: ${this._dimension.width}`);
 
 			position(this.container, 0, 0, 0, 0, 'relative');
 			size(this.container, this._dimension.width, this._dimension.height);

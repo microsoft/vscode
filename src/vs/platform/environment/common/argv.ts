@@ -74,6 +74,7 @@ export interface NativeParsedArgs {
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
+	'builtin'?: boolean;
 	'force-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
 	'__sandbox'?: boolean;

@@ -19,7 +19,8 @@ import {
 	InstallOperation,
 	INSTALL_ERROR_MALICIOUS,
 	INSTALL_ERROR_INCOMPATIBLE,
-	ExtensionManagementError
+	ExtensionManagementError,
+	InstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -148,7 +149,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return files.map(f => (<IFile>{ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f }));
 	}
 
-	async install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> {
+	async install(vsix: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 		return createCancelablePromise(async token => {
 
@@ -166,7 +167,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			const installedExtensions = await this.getInstalled(ExtensionType.User);
 			const existing = installedExtensions.find(i => areSameExtensions(identifier, i.identifier));
 			if (existing) {
-				isMachineScoped = isMachineScoped || existing.isMachineScoped;
+				options.isMachineScoped = options.isMachineScoped || existing.isMachineScoped;
+				options.isBuiltin = options.isBuiltin || existing.isBuiltin;
 				operation = InstallOperation.Update;
 				if (identifierWithVersion.equals(new ExtensionIdentifierWithVersion(existing.identifier, existing.manifest.version))) {
 					try {
@@ -199,7 +201,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			} catch (e) { /* Ignore */ }
 
 			try {
-				const local = await this.installFromZipPath(identifierWithVersion, zipPath, isMachineScoped ? { ...(metadata || {}), isMachineScoped } : metadata, operation, token);
+				const local = await this.installFromZipPath(identifierWithVersion, zipPath, { ...(metadata || {}), ...options }, operation, token);
 				this.logService.info('Successfully installed the extension:', identifier.id);
 				return local;
 			} catch (e) {
@@ -247,7 +249,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return true;
 	}
 
-	async installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension> {
+	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
 			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
 		}
@@ -267,7 +269,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const key = new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key();
 		let cancellablePromise = this.installingExtensions.get(key);
 		if (!cancellablePromise) {
-			cancellablePromise = createCancelablePromise(token => this.doInstallFromGallery(extension, !!isMachineScoped, token));
+			cancellablePromise = createCancelablePromise(token => this.doInstallFromGallery(extension, options, token));
 			this.installingExtensions.set(key, cancellablePromise);
 			cancellablePromise.finally(() => this.installingExtensions.delete(key));
 		}
@@ -275,7 +277,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return cancellablePromise;
 	}
 
-	private async doInstallFromGallery(extension: IGalleryExtension, isMachineScoped: boolean, token: CancellationToken): Promise<ILocalExtension> {
+	private async doInstallFromGallery(extension: IGalleryExtension, options: InstallOptions, token: CancellationToken): Promise<ILocalExtension> {
 		const startTime = new Date().getTime();
 		let operation: InstallOperation = InstallOperation.Install;
 		this.logService.info('Installing extension:', extension.identifier.id);
@@ -289,7 +291,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			}
 
 			const installableExtension = await this.downloadInstallableExtension(extension, operation);
-			installableExtension.metadata.isMachineScoped = isMachineScoped || existingExtension?.isMachineScoped;
+			installableExtension.metadata.isMachineScoped = options.isMachineScoped || existingExtension?.isMachineScoped;
+			installableExtension.metadata.isBuiltin = options.isBuiltin || existingExtension?.isBuiltin;
 			const local = await this.installExtension(installableExtension, token);
 
 			try { await this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)); } catch (error) { /* Ignore */ }
@@ -394,7 +397,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		try {
 			const local = await this.unsetUninstalledAndGetLocal(installableExtension.identifierWithVersion);
 			if (local) {
-				return local;
+				return installableExtension.metadata ? this.extensionsScanner.saveMetadataForLocalExtension(local, installableExtension.metadata) : local;
 			}
 		} catch (e) {
 			if (isMacintosh) {
@@ -594,7 +597,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		checked.push(extension);
 		const extensionsPack = extension.manifest.extensionPack ? extension.manifest.extensionPack : [];
 		if (extensionsPack.length) {
-			const packedExtensions = installed.filter(i => extensionsPack.some(id => areSameExtensions({ id }, i.identifier)));
+			const packedExtensions = installed.filter(i => !i.isBuiltin && extensionsPack.some(id => areSameExtensions({ id }, i.identifier)));
 			const packOfPackedExtensions: ILocalExtension[] = [];
 			for (const packedExtension of packedExtensions) {
 				packOfPackedExtensions.push(...this.getAllPackExtensionsToUninstall(packedExtension, installed, checked));

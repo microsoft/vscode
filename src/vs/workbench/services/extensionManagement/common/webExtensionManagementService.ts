@@ -104,7 +104,7 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
-	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('unsupported'); }
+	install(vsix: URI): Promise<ILocalExtension> { throw new Error('unsupported'); }
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> { throw new Error('unsupported'); }
 	getExtensionsReport(): Promise<IReportedExtension[]> { throw new Error('unsupported'); }
 

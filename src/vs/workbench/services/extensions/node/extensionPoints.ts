@@ -51,10 +51,13 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
 			const manifest = json.parse(manifestContents.toString(), errors);
-			if (errors.length === 0 && json.getNodeType(manifest) === 'object') {
+			if (json.getNodeType(manifest) !== 'object') {
+				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
+			} else if (errors.length === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
+				manifest.isUserBuiltin = !!manifest.__metadata?.isBuiltin;
 				delete manifest.__metadata;
 				return manifest;
 			} else {
@@ -287,6 +290,7 @@ export interface IRelaxedExtensionDescription {
 	version: string;
 	publisher: string;
 	isBuiltin: boolean;
+	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
 	engines: {
@@ -300,6 +304,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 	validate(_extensionDescription: IExtensionDescription): IExtensionDescription | null {
 		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
+		extensionDescription.isUserBuiltin = !this._isBuiltin && !!extensionDescription.isUserBuiltin;
 		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
 
 		let notices: string[] = [];

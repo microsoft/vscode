@@ -20,7 +20,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -341,7 +341,7 @@ export class ExtensionEditor extends EditorPane {
 		template.name.textContent = extension.displayName;
 		template.identifier.textContent = extension.identifier.id;
 		template.preview.style.display = extension.preview ? 'inherit' : 'none';
-		template.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
+		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
 
 		template.publisher.textContent = extension.publisherDisplayName;
 		template.version.textContent = `v${extension.version}`;

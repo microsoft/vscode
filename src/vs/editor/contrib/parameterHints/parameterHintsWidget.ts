@@ -311,8 +311,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			return [0, 0];
 		} else if (Array.isArray(param.label)) {
 			return param.label;
+		} else if (!param.label.length) {
+			return [0, 0];
 		} else {
-			const regex = new RegExp(`\\b${escapeRegExpCharacters(param.label)}\\b`, 'g');
+			const regex = new RegExp(`(\\W|^)${escapeRegExpCharacters(param.label)}(?=\\W|$)`, 'g');
 			regex.test(signature.label);
 			const idx = regex.lastIndex - param.label.length;
 			return idx >= 0

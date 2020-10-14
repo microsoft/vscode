@@ -370,8 +370,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		while (container
 			&&
 			container !== this._body) {
-
-			if ((container as HTMLElement).classList.contains('output')) {
+			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('output')) {
 				return true;
 			}
 
