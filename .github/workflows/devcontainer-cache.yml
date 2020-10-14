@@ -3,7 +3,7 @@ name: VS Code Repo Dev Container Cache Image Generation
 on:
   push:
     # Currently doing this for master, but could be done for PRs as well
-    branch:
+    branches:
       - 'master'
 
     # Only updates to these files result in changes to installed packages, so skip otherwise
