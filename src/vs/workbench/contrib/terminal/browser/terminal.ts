@@ -175,10 +175,6 @@ export interface ITerminalService {
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 }
 
-export interface IRemoteExtHostEnvProvider {
-	getEnvironment(): Promise<IProcessEnvironment>;
-}
-
 export interface IRemoteTerminalService {
 	readonly _serviceBrand: undefined;
 
