@@ -99,8 +99,12 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private updateStatusBar() {
-		if (!this.entryAccessor && this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', nls.localize('status.forwardedPorts', "Forwarded Ports"), StatusbarAlignment.LEFT, 40));
+		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
+			if (!this.entryAccessor) {
+				this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', nls.localize('status.forwardedPorts', "Forwarded Ports"), StatusbarAlignment.LEFT, 40));
+			} else {
+				this.entryAccessor.update(this.entry);
+			}
 		} else if (this.entryAccessor && this.remoteExplorerService.tunnelModel.forwarded.size === 0) {
 			this.entryAccessor.dispose();
 			this.entryAccessor = undefined;
