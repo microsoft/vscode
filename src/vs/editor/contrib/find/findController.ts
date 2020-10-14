@@ -279,7 +279,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			isRevealed: true
 		};
 
-		if (opts.seedSearchStringFromSelection) {
+		if (!stateChanges.searchString && opts.seedSearchStringFromSelection) {
 			let selectionSearchString = getSelectionSearchString(this._editor);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
