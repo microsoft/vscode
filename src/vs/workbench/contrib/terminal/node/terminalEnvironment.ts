@@ -10,7 +10,7 @@ import { isString } from 'vs/base/common/types';
 
 let mainProcessParentEnv: IProcessEnvironment | undefined;
 
-export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironment = process.env as IProcessEnvironment): Promise<IProcessEnvironment> {
 	if (mainProcessParentEnv) {
 		return mainProcessParentEnv;
 	}
@@ -65,15 +65,15 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 			'TMPDIR'
 		];
 		rootEnvVars.forEach(k => {
-			if (process.env[k]) {
-				mainProcessParentEnv![k] = process.env[k]!;
+			if (baseEnvironment[k]) {
+				mainProcessParentEnv![k] = baseEnvironment[k]!;
 			}
 		});
 	}
 
 	// TODO: Windows should return a fresh environment block, might need native code?
 	if (isWindows) {
-		mainProcessParentEnv = process.env as IProcessEnvironment;
+		mainProcessParentEnv = baseEnvironment;
 	}
 
 	return mainProcessParentEnv!;
