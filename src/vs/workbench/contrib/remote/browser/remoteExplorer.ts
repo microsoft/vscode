@@ -99,22 +99,22 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private updateStatusBar() {
-		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			if (!this.entryAccessor) {
-				this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', nls.localize('status.forwardedPorts', "Forwarded Ports"), StatusbarAlignment.LEFT, 40));
-			} else {
-				this.entryAccessor.update(this.entry);
-			}
-		} else if (this.entryAccessor && this.remoteExplorerService.tunnelModel.forwarded.size === 0) {
-			this.entryAccessor.dispose();
-			this.entryAccessor = undefined;
+		if (!this.entryAccessor) {
+			this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', nls.localize('status.forwardedPorts', "Forwarded Ports"), StatusbarAlignment.LEFT, 40));
+		} else {
+			this.entryAccessor.update(this.entry);
 		}
 	}
 
 	private get entry(): IStatusbarEntry {
-		const text = this.remoteExplorerService.tunnelModel.forwarded.size === 1 ?
-			nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available") :
-			nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", this.remoteExplorerService.tunnelModel.forwarded.size);
+		let text: string;
+		if (this.remoteExplorerService.tunnelModel.forwarded.size === 0) {
+			text = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Available");
+		} else if (this.remoteExplorerService.tunnelModel.forwarded.size === 1) {
+			text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available");
+		} else {
+			text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", this.remoteExplorerService.tunnelModel.forwarded.size);
+		}
 		const tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Available Ports: {0}",
 			Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).map(forwarded => forwarded.remotePort).join(', '));
 		return {
