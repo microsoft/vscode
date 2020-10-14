@@ -266,7 +266,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		// overwritten in subclass
 	}
 
-	protected async _start(opts: IFindStartOptions): Promise<void> {
+	protected async _start(opts: IFindStartOptions, newState?: INewFindReplaceState): Promise<void> {
 		this.disposeModel();
 
 		if (!this._editor.hasModel()) {
@@ -275,6 +275,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 
 		let stateChanges: INewFindReplaceState = {
+			...newState,
 			isRevealed: true
 		};
 
@@ -325,8 +326,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 	}
 
-	public start(opts: IFindStartOptions): Promise<void> {
-		return this._start(opts);
+	public start(opts: IFindStartOptions, newState?: INewFindReplaceState): Promise<void> {
+		return this._start(opts, newState);
 	}
 
 	public moveToNextMatch(): boolean {
@@ -412,7 +413,7 @@ export class FindController extends CommonFindController implements IFindControl
 		this._findOptionsWidget = null;
 	}
 
-	protected async _start(opts: IFindStartOptions): Promise<void> {
+	protected async _start(opts: IFindStartOptions, newState?: INewFindReplaceState): Promise<void> {
 		if (!this._widget) {
 			this._createFindWidget();
 		}
@@ -438,7 +439,7 @@ export class FindController extends CommonFindController implements IFindControl
 
 		opts.updateSearchScope = updateSearchScope;
 
-		await super._start(opts);
+		await super._start(opts, newState);
 
 		if (this._widget) {
 			if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
@@ -466,6 +467,41 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 }
 
+const findArgDescription = {
+	description: 'Open a new In-Editor Search Widget.',
+	args: [{
+		name: 'Open a new In-Editor Search Widget args',
+		schema: {
+			properties: {
+				searchString: { type: 'string' },
+				replaceString: { type: 'string' },
+				isRevealed: { type: 'boolean' },
+				isReplaceRevealed: { type: 'boolean' },
+				isRegex: { type: 'boolean' },
+				isRegexOverride: {
+					type: 'number',
+					description: nls.localize('actions.find.isRegexOverride', 'Overrides "Use Regular Expression" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
+				},
+				wholeWord: { type: 'boolean' },
+				wholeWordOverride: {
+					type: 'number',
+					description: nls.localize('actions.find.wholeWordOverride', 'Overrides "Match Whole Word" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
+				},
+				matchCase: { type: 'boolean' },
+				matchCaseOverride: {
+					type: 'number',
+					description: nls.localize('actions.find.matchCaseOverride', 'Overrides "Math Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
+				},
+				preserveCase: { type: 'boolean' },
+				preserveCaseOverride: {
+					type: 'number',
+					description: nls.localize('actions.find.preserveCaseOverride', 'Overrides "Preserve Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
+				},
+			}
+		}
+	}]
+} as const;
+
 export class StartFindAction extends MultiEditorAction {
 
 	constructor() {
@@ -484,11 +520,12 @@ export class StartFindAction extends MultiEditorAction {
 				group: '3_find',
 				title: nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
 				order: 1
-			}
+			},
+			description: findArgDescription
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: INewFindReplaceState): Promise<void> {
 		let controller = CommonFindController.get(editor);
 		if (controller) {
 			await controller.start({
@@ -499,7 +536,7 @@ export class StartFindAction extends MultiEditorAction {
 				shouldAnimate: true,
 				updateSearchScope: false,
 				loop: editor.getOption(EditorOption.find).loop
-			});
+			}, args);
 		}
 	}
 }
