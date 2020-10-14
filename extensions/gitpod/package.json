@@ -68,13 +68,15 @@
   },
   "devDependencies": {
     "@types/node": "^10.12.21",
+    "@types/ps-tree": "^1.1.0",
     "@types/ws": "^7.2.6"
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "master",
-    "@gitpod/supervisor-api-grpc": "master",
+    "@gitpod/supervisor-api-grpc": "ak-supervisor-tasks",
     "@grpc/grpc-js": "^1.1.7",
     "bufferutil": "^4.0.1",
+    "ps-tree": "^1.2.0",
     "utf-8-validate": "^5.0.2",
     "vscode-nls": "^5.0.0",
     "ws": "^7.3.1"
