@@ -522,19 +522,22 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this._ongoingSave?.cancel();
 		this._ongoingSave = savePromise;
 
-		this.change(() => {
-			this._isDirtyFromContentChange = false;
-			this._savePoint = this._currentEditIndex;
-			this._fromBackup = false;
-		});
-
 		try {
 			await savePromise;
+
+			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
+				this.change(() => {
+					this._isDirtyFromContentChange = false;
+					this._savePoint = this._currentEditIndex;
+					this._fromBackup = false;
+				});
+			}
 		} finally {
-			if (this._ongoingSave === savePromise) {
+			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
 				this._ongoingSave = undefined;
 			}
 		}
+
 		return this._editorResource;
 	}
 
