@@ -24,9 +24,8 @@ class SCMInput implements ISCMInput {
 			return;
 		}
 
-		if (value) {
-			this._value = value;
-		}
+		this._value = value;
+
 
 		if (fromKeyboard === false) {
 			this.addToHistory(false);
@@ -88,7 +87,7 @@ class SCMInput implements ISCMInput {
 		let savedHistory = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
 		if (savedHistory) {
 			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
-			let currentValue = this.getCurrentValue();
+			let currentValue = this.historyNavigator.current();
 			this.setValue(currentValue ? currentValue : this._value, false);
 		} else {
 			this.historyNavigator = new HistoryNavigator([], 50);
@@ -102,30 +101,19 @@ class SCMInput implements ISCMInput {
 		}
 	}
 
-	private addToHistory(unCommittedValue: boolean) : void {
-		if (this.value && this.value !== this.getCurrentValue()) {
-			if (unCommittedValue) {
+	private addToHistory(uncommittedValue: boolean) : void {
+		if (this.value && this.value !== this.historyNavigator.current()) {
+			if (uncommittedValue) {
 				this.historyNavigator.removeCurrent();
-				this.historyNavigator.add(this.value);
-			} else {
-				this.historyNavigator.add(this.value);
 			}
+			this.historyNavigator.add(this.value);
 			this.save();
 		}
 	}
 
-	private getCurrentValue(): string | null {
-		let currentValue = this.historyNavigator.current();
-		if (!currentValue) {
-			currentValue = this.historyNavigator.last();
-			this.historyNavigator.next();
-		}
-		return currentValue;
-	}
-
 	showNextValue(): void {
 		if (!this.historyNavigator.has(this.value)) {
-			this.addToHistory(true);
+			this.addToHistory(false);
 		}
 
 		let next = this.getNextValue();
@@ -140,9 +128,8 @@ class SCMInput implements ISCMInput {
 
 	showPreviousValue(): void {
 		if (!this.historyNavigator.has(this.value)) {
-			this.addToHistory(false);
+			this.addToHistory(true);
 		}
-
 		let previous = this.getPreviousValue();
 		if (previous) {
 			previous = previous === this.value ? this.getPreviousValue() : previous;
