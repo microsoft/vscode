@@ -19,18 +19,12 @@ class SCMInput implements ISCMInput {
 		return this._value;
 	}
 
-	public setValue(value: string, fromKeyboard: boolean) {
+	public setValue(value: string) {
 		if (value === this._value) {
 			return;
 		}
 
 		this._value = value;
-
-
-		if (fromKeyboard === false) {
-			this.addToHistory(false);
-		}
-
 		this._onDidChange.fire(value);
 	}
 
@@ -88,7 +82,7 @@ class SCMInput implements ISCMInput {
 		if (savedHistory) {
 			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
 			let currentValue = this.historyNavigator.current();
-			this.setValue(currentValue ? currentValue : this._value, false);
+			this.setValue(currentValue ? currentValue : this._value);
 		} else {
 			this.historyNavigator = new HistoryNavigator([], 50);
 		}
@@ -101,7 +95,7 @@ class SCMInput implements ISCMInput {
 		}
 	}
 
-	private addToHistory(uncommittedValue: boolean) : void {
+	addToHistory(uncommittedValue: boolean) : void {
 		if (this.value && this.value !== this.historyNavigator.current()) {
 			if (uncommittedValue) {
 				this.historyNavigator.removeCurrent();
@@ -113,16 +107,13 @@ class SCMInput implements ISCMInput {
 
 	showNextValue(): void {
 		if (!this.historyNavigator.has(this.value)) {
-			this.addToHistory(false);
+			this.addToHistory(true);
 		}
 
-		let next = this.getNextValue();
-		if (next) {
-			next = next === this.value ? this.getNextValue() : next;
-		}
+		let next = this.historyNavigator.next();
 
 		if (next) {
-			this.setValue(next, false);
+			this.setValue(next);
 		}
 	}
 
@@ -130,22 +121,11 @@ class SCMInput implements ISCMInput {
 		if (!this.historyNavigator.has(this.value)) {
 			this.addToHistory(true);
 		}
-		let previous = this.getPreviousValue();
-		if (previous) {
-			previous = previous === this.value ? this.getPreviousValue() : previous;
-		}
+		let previous = this.historyNavigator.previous();
 
 		if (previous) {
-			this.setValue(previous, false);
+			this.setValue(previous);
 		}
-	}
-
-	private getPreviousValue(): string | null {
-		return this.historyNavigator.previous() || this.historyNavigator.first();
-	}
-
-	private getNextValue(): string | null {
-		return this.historyNavigator.next() || this.historyNavigator.last();
 	}
 }
 

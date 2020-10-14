@@ -88,6 +88,7 @@ export interface ISCMInput {
 	showNextValue(): void;
 	showPreviousValue(): void;
 	setValue(value: string, fromKeyboard: boolean): void;
+	addToHistory(uncommittedValue: boolean) : void
 	readonly repository: ISCMRepository;
 
 	value: string;
