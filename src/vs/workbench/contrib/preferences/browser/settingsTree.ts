@@ -1318,6 +1318,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
+		const enumItemLabels = dataElement.setting.enumItemLabels;
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
@@ -1328,10 +1329,9 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
-				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
 				return <ISelectOptionItem>{
-					text: dataElement.setting.showEnumDescriptionInSelectBox ? description : data,
-					description: dataElement.setting.showEnumDescriptionInSelectBox ? data : description,
+					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
+					description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: {
 						callback: (content) => {

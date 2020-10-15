@@ -76,7 +76,7 @@ export interface ISetting {
 	disallowSyncIgnore?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
-	showEnumDescriptionInSelectBox?: boolean;
+	enumItemLabels?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {

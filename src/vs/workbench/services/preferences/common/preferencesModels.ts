@@ -647,7 +647,7 @@ export class DefaultSettings extends Disposable {
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
-					showEnumDescriptionInSelectBox: prop.showEnumDescriptionInSelectBox
+					enumItemLabels: prop.enumItemLabels
 				});
 			}
 		}
