@@ -152,17 +152,15 @@ class SCMInput implements ISCMInput {
 		}
 	}
 
-	has(value: string) : boolean {
-		let history = this.historyNavigator.getHistory();
-		history.forEach(item => {
-			if (item.value === value) {
-				return true;
-			}
+	private has(value: string) : boolean {
+		let values = this.historyNavigator.getHistory();
+		values.filter(item => {
+			item.value === value;
 		});
-		return false;
+		return values.length > 0;
 	}
 
-	previous() : string {
+	private previous() : string {
 		let previousItem = this.historyNavigator.previous();
 		if(previousItem) {
 			return previousItem.value;
@@ -170,7 +168,7 @@ class SCMInput implements ISCMInput {
 		return "";
 	}
 
-	next() : string {
+	private next() : string {
 		let nextItem = this.historyNavigator.previous();
 		if(nextItem) {
 			return nextItem.value;
@@ -178,7 +176,7 @@ class SCMInput implements ISCMInput {
 		return "";
 	}
 
-	current() : string {
+	private current() : string {
 		let currentItem = this.historyNavigator.current();
 		if(currentItem) {
 			return currentItem.value;
