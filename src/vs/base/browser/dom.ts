@@ -1315,24 +1315,24 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 // -- sanitize and trusted html
 
-function newInsaneOptions(allowedTags: string[], allowedAttributesForAll: string[], allowedAttributes: Record<string, string[]>): InsaneOptions {
-	for (let tag of allowedTags) {
-		let array = allowedAttributes[tag];
-		if (!array) {
-			array = allowedAttributesForAll;
-		} else {
-			array = array.concat(allowedAttributesForAll);
-		}
-		allowedAttributes[tag] = array;
-	}
-	const value: InsaneOptions = {
-		allowedTags,
-		allowedAttributes,
-		allowedSchemes: ['http', 'https', 'command']
-	};
-	return value;
-}
+function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
 
+	let allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
+
+	if (opts.allowedTags) {
+		for (let tag of opts.allowedTags) {
+			let array = allowedAttributes[tag];
+			if (!array) {
+				array = allowedAttributesForAll;
+			} else {
+				array = array.concat(allowedAttributesForAll);
+			}
+			allowedAttributes[tag] = array;
+		}
+	}
+
+	return { ...opts, allowedAttributes };
+}
 
 const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
 	createHTML(value, options: InsaneOptions) {
@@ -1345,10 +1345,9 @@ const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
 
-	const options = newInsaneOptions(
-		['a', 'button', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'textarea', 'ul'],
-		['class', 'id', 'role', 'tabindex'],
-		{
+	const options = _extInsaneOptions({
+		allowedTags: ['a', 'button', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'textarea', 'ul'],
+		allowedAttributes: {
 			'a': ['href'],
 			'button': ['data-href'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
@@ -1356,8 +1355,9 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 			'select': ['required'],
 			'span': ['data-command', 'role'],
 			'textarea': ['name', 'placeholder', 'required'],
-		}
-	);
+		},
+		allowedSchemes: ['http', 'https', 'command']
+	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
 	node.innerHTML = html as unknown as string;
