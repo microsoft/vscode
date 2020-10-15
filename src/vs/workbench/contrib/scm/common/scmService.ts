@@ -120,7 +120,7 @@ class SCMInput implements ISCMInput {
 		if (this.value && this.value !== this.current()) {
 			if (uncommittedValue) {
 				this.historyNavigator.add(new SCMIValue(this.value, false));
-				let item = this.historyNavigator.getHistory.filter(item => !item.isCommitMessage);
+				let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage)[0];
 				this.historyNavigator.remove(item);
 			} else {
 				this.historyNavigator.add(new SCMIValue(this.value, false));
@@ -173,7 +173,7 @@ class SCMInput implements ISCMInput {
 	next() : string {
 		let nextItem = this.historyNavigator.previous();
 		if(nextItem) {
-			return nextItem.value;e;
+			return nextItem.value;
 		}
 		return "";
 	}
