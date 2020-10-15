@@ -144,7 +144,7 @@ class SCMInput implements ISCMInput {
 	private addToHistory(isCommit: boolean): void {
 		if (this.value && this.value !== this.current()) {
 			let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
-			if (item.length > 0 && !isCommit) {
+			if (item.length > 0) {
 				this.historyNavigator.remove(item[0]);
 			}
 			if (!this.has(this.value)) {
