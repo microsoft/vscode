@@ -463,7 +463,7 @@ suite('ParameterHintsModel', () => {
 		await getNextHint(model);
 	});
 
-	test.only('Retrigger while a pending resolve is still going on should preserve last active signature #96702', (done) => {
+	test('Retrigger while a pending resolve is still going on should preserve last active signature #96702', (done) => {
 		const editor = createMockEditor('');
 		const model = new ParameterHintsModel(editor, 50);
 		disposables.add(model);
