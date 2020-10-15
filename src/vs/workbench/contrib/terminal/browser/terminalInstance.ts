@@ -45,6 +45,7 @@ import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/bro
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { LatencyTelemetryAddon } from 'vs/workbench/contrib/terminal/browser/terminalLatencyTelemetryAddon';
+import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -451,6 +452,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const latencyAddon = this._register(this._instantiationService.createInstance(LatencyTelemetryAddon, this._processManager));
 		this._xterm.loadAddon(latencyAddon);
+
+		this._xterm.loadAddon(new TypeAheadAddon(this._processManager, this._configHelper));
 
 		return xterm;
 	}

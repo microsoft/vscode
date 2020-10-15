@@ -135,6 +135,8 @@ export interface ITerminalConfiguration {
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
+	typeaheadThreshold: number;
+	typeaheadStyle: number | string;
 }
 
 export interface ITerminalConfigHelper {
