@@ -318,7 +318,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 
 		// Overwrite isReplaceRevealed
-		if (opts.forceRevealReplace) {
+		if (opts.forceRevealReplace || stateChanges.isReplaceRevealed) {
 			stateChanges.isReplaceRevealed = true;
 		} else if (!this._findWidgetVisible.get()) {
 			stateChanges.isReplaceRevealed = false;
