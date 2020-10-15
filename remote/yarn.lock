@@ -390,10 +390,10 @@ universalify@^0.1.0:
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
   integrity sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
 
-vscode-nsfw@1.2.8:
-  version "1.2.8"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.2.8.tgz#1bf452e72ff1304934de63692870d039a2d972af"
-  integrity sha512-yRLFDk2nwV0Fp+NWJkIbeXkHYIWoTuWC2siz6JfHc21FkRUjDmuI/1rVL6B+MXW15AsSbXnH5dw4Fo9kUyYclw==
+vscode-nsfw@1.2.9:
+  version "1.2.9"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.2.9.tgz#87def7c538ae713d08c88592a8a043d2b2009951"
+  integrity sha512-VwaB8H1fS0ngl9eAHgFqtF/q3N3J/ZWfI17zvC8Gfj33cL4UrIW/XxdoFYptBZR/MIA6Qj8FZyYu9D/JvlKWXg==
   dependencies:
     fs-extra "^7.0.0"
     lodash.isinteger "^4.0.4"
