@@ -91,32 +91,16 @@ class SCMInput implements ISCMInput {
 		@IStorageService private storageService: IStorageService
 	) {
 		const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
-		let savedHistory = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
-		if (savedHistory) {
-			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
+		let history = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
+		if (history) {
+			this.historyNavigator = new HistoryNavigator(JSON.parse(history), 50);
 			this.setValue(this.latestTyped(), true);
-			// let currentValue = this.historyNavigator.current();
-			// if (currentValue) {
-			// 	this.setValue(currentValue.value, true);
-			// }
 		} else {
 			this.historyNavigator = new HistoryNavigator<SCMValue>([], 50);
 		}
 		this.storageService.onWillSaveState(() => {
-			if (!this.has(this.value)) {
-				this.addToHistory(false);
-			}
-			this.save();
+			this.addToHistory(false);
 		});
-	}
-
-	private latestTyped() {
-		let current = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
-		if (current.length > 0) {
-			return current[0].value;
-		} else {
-			return '';
-		}
 	}
 
 	showNextValue(): void {
@@ -149,21 +133,12 @@ class SCMInput implements ISCMInput {
 		return filtered.length > 0;
 	}
 
-	private current() {
-		let current = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
-		if (current.length > 0) {
-			return current[0].value;
-		} else {
-			return '';
-		}
-	}
-
 	private addToHistory(isCommit: boolean): void {
+		let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
+		if (item.length > 0) {
+			this.historyNavigator.remove(item[0]);
+		}
 		if (this.value) {
-			let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
-			if (item.length > 0) {
-				this.historyNavigator.remove(item[0]);
-			}
 			if (!this.has(this.value)) {
 				this.historyNavigator.add(new SCMValue(this.value, isCommit));
 			} else if (isCommit && item.length > 0) {
@@ -171,14 +146,23 @@ class SCMInput implements ISCMInput {
 					this.historyNavigator.add(new SCMValue(this.value, isCommit));
 				}
 			}
-			this.save();
 		}
+		this.save();
 	}
 
 	private save(): void {
 		if (this.repository.provider.rootUri) {
 			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
 			this.storageService.store(key, JSON.stringify(this.historyNavigator.getHistory()), StorageScope.WORKSPACE);
+		}
+	}
+
+	private latestTyped() {
+		let current = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
+		if (current.length > 0) {
+			return current[0].value;
+		} else {
+			return '';
 		}
 	}
 }
