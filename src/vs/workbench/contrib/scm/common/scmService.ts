@@ -119,9 +119,9 @@ class SCMInput implements ISCMInput {
 	addToHistory(uncommittedValue: boolean) : void {
 		if (this.value && this.value !== this.current()) {
 			if (uncommittedValue) {
-				this.historyNavigator.add(new SCMIValue(this.value, false));
 				let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage)[0];
 				this.historyNavigator.remove(item);
+				this.historyNavigator.add(new SCMIValue(this.value, false));
 			} else {
 				this.historyNavigator.add(new SCMIValue(this.value, false));
 			}
