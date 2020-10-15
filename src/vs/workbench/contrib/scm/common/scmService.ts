@@ -11,6 +11,25 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator } from 'vs/base/common/history';
 
+class SCMIValue {
+
+	private _value: string;
+	private _isCommitMessage: boolean;
+
+	get value(): string {
+		return this._value;
+	}
+
+	get isCommitMessage(): boolean {
+		return this._isCommitMessage;
+	}
+
+	constructor(value: string, isCommitMessage: boolean) {
+		this._value = value;
+		this._isCommitMessage = isCommitMessage;
+	}
+}
+
 class SCMInput implements ISCMInput {
 
 	private _value = '';
@@ -74,7 +93,7 @@ class SCMInput implements ISCMInput {
 	}
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
-	private historyNavigator: HistoryNavigator<string>;
+	private historyNavigator: HistoryNavigator<SCMIValue>;
 	constructor(
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
@@ -83,7 +102,7 @@ class SCMInput implements ISCMInput {
 		let savedHistory = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
 		if (savedHistory) {
 			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
-			let currentValue = this.historyNavigator.current();
+			let currentValue = this.current();
 			this.setValue(currentValue ? currentValue : this._value, false);
 		} else {
 			this.historyNavigator = new HistoryNavigator([], 50);
@@ -98,21 +117,24 @@ class SCMInput implements ISCMInput {
 	}
 
 	addToHistory(uncommittedValue: boolean) : void {
-		if (this.value && this.value !== this.historyNavigator.current()) {
+		if (this.value && this.value !== this.current()) {
 			if (uncommittedValue) {
-			//	this.historyNavigator.remove();
+				this.historyNavigator.add(new SCMIValue(this.value, false));
+				let item = this.historyNavigator.getHistory.filter(item => !item.isCommitMessage);
+				this.historyNavigator.remove(item);
+			} else {
+				this.historyNavigator.add(new SCMIValue(this.value, false));
 			}
-			this.historyNavigator.add(this.value);
 			this.save();
 		}
 	}
 
 	showNextValue(): void {
-		if (!this.historyNavigator.has(this.value)) {
+		if (!this.has(this.value)) {
 			this.addToHistory(false);
 		}
 
-		let next = this.historyNavigator.next();
+		let next = this.next();
 
 		if (next) {
 			this.setValue(next, true);
@@ -120,14 +142,48 @@ class SCMInput implements ISCMInput {
 	}
 
 	showPreviousValue(): void {
-		if (!this.historyNavigator.has(this.value)) {
+		if (!this.has(this.value)) {
 			this.addToHistory(true);
 		}
-		let previous = this.historyNavigator.previous();
+		let previous = this.previous();
 
 		if (previous) {
 			this.setValue(previous, true);
 		}
+	}
+
+	has(value: string) : boolean {
+		let history = this.historyNavigator.getHistory();
+		history.forEach(item => {
+			if (item.value === value) {
+				return true;
+			}
+		});
+		return false;
+	}
+
+	previous() : string {
+		let previousItem = this.historyNavigator.previous();
+		if(previousItem) {
+			return previousItem.value;
+		}
+		return "";
+	}
+
+	next() : string {
+		let nextItem = this.historyNavigator.previous();
+		if(nextItem) {
+			return nextItem.value;e;
+		}
+		return "";
+	}
+
+	current() : string {
+		let currentItem = this.historyNavigator.current();
+		if(currentItem) {
+			return currentItem.value;
+		}
+		return "";
 	}
 }
 
