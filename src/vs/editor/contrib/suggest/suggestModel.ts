@@ -468,7 +468,7 @@ export class SuggestModel implements IDisposable {
 			);
 
 			// store containers so that they can be disposed later
-			this._completionDisposables.add(completions.dispoables);
+			this._completionDisposables.add(completions.disposable);
 
 			this._onNewContext(ctx);
 
