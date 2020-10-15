@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/co
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
-import { multibyteAwareBtoa } from 'vs/base/common/strings';
+import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
@@ -348,7 +348,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	private static toWorkingCopyResource(viewType: string, resource: URI) {
 		const authority = viewType.replace(/[^a-z0-9\-_]/gi, '-');
-		const path = '/' + multibyteAwareBtoa(resource.with({ query: null, fragment: null }).toString(true));
+		const path = `/${multibyteAwareBtoa(resource.with({ query: null, fragment: null }).toString(true))}`;
 		return URI.from({
 			scheme: Schemas.vscodeCustomEditor,
 			authority: authority,

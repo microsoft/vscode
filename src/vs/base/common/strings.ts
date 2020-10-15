@@ -538,27 +538,6 @@ export function getCharContainingOffset(str: string, offset: number): [number, n
 }
 
 /**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
-}
-
-/**
  * A manual encoding of `str` to UTF8.
  * Use only in environments which do not offer native conversion methods!
  */
