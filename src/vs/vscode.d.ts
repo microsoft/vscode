@@ -5659,7 +5659,7 @@ declare module 'vscode' {
 		 * Get the absolute path of a resource contained in the extension.
 		 *
 		 * *Note* that an absolute uri can be constructed via [`Uri.joinPath`](#Uri.joinPath) and
-		 * [`extensionUri`](#ExtensionContent.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+		 * [`extensionUri`](#ExtensionContext.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
 		 *
 		 * @param relativePath A relative path to a resource contained in the extension.
 		 * @return The absolute path of the resource.
@@ -5688,7 +5688,7 @@ declare module 'vscode' {
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 * @deprecated Use [storagePath](#ExtensionContext.storageUri) instead.
 		 */
 		readonly storagePath: string | undefined;
 
@@ -5711,7 +5711,7 @@ declare module 'vscode' {
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 * @deprecated Use [globalStorageUri](#ExtensionContext.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
 
