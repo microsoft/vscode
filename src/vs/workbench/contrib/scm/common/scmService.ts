@@ -142,8 +142,8 @@ class SCMInput implements ISCMInput {
 	}
 
 	private addToHistory(isCommit: boolean): void {
+		let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
 		if (this.value && this.value !== this.current()) {
-			let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
 			if (item.length > 0) {
 				this.historyNavigator.remove(item[0]);
 			}
@@ -151,8 +151,13 @@ class SCMInput implements ISCMInput {
 				this.historyNavigator.add(new SCMValue(this.value, isCommit));
 			}
 			this.save();
+		} else if (this.value === this.current() && isCommit && item.length > 0) {
+			this.historyNavigator.remove(item[0]);
+			if (item[0].value === this.value && !item[0].isCommitMessage) {
+				this.historyNavigator.add(new SCMValue(this.value, true));
+			}
+		}
 	}
-}
 
 	private save(): void {
 		if (this.repository.provider.rootUri) {
