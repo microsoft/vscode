@@ -51,12 +51,13 @@ function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selecti
 
 	let ranges = [openRange];
 	if (closeRange) {
-		for (let i = openRange.start.line + 1; i <= closeRange.start.line; i++) {
+		const indentAdjustAmount: number = getAdjustedIndentAmount(editor, openRange, indentInSpaces);
+		for (let i = openRange.start.line + 1; i <= closeRange.start.line && indentAdjustAmount !== 0; i++) {
 			let lineContent = editor.document.lineAt(i).text;
-			if (lineContent.startsWith('\t')) {
-				ranges.push(new vscode.Range(i, 0, i, 1));
-			} else if (lineContent.startsWith(indentInSpaces)) {
-				ranges.push(new vscode.Range(i, 0, i, indentInSpaces.length));
+			if (lineContent.startsWith('\t'.repeat(indentAdjustAmount))) {
+				ranges.push(new vscode.Range(i, 0, i, indentAdjustAmount));
+			} else if (lineContent.startsWith(indentInSpaces.repeat(indentAdjustAmount))) {
+				ranges.push(new vscode.Range(i, 0, i, indentInSpaces.length*indentAdjustAmount));
 			}
 		}
 		ranges.push(closeRange);
@@ -64,3 +65,26 @@ function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selecti
 	return ranges;
 }
 
+function getAdjustedIndentAmount(editor: vscode.TextEditor ,openRange: vscode.Range, indentInSpaces: string): number {
+	const startLineContent: string = editor.document.lineAt(openRange.end.line).text;
+	// If there is some content in the same line as opening tag, then don't adjust indentation.
+	if(startLineContent.length !== openRange.end.character) {
+		return 0;
+	}
+	const nextLineContent: string = editor.document.lineAt(openRange.end.line+1).text;
+
+	return Math.max(0, findRelativeIndent(nextLineContent, startLineContent, indentInSpaces));
+}
+
+function findRelativeIndent(nextLineContent: string, startLineContent: string, indentInSpaces: string) : number {
+	return findIndent(nextLineContent, indentInSpaces) - findIndent(startLineContent, indentInSpaces);
+}
+
+// Finds out how many tabs or tab-spaces at the begining.
+function findIndent(line: string, indentInSpaces: string): number {
+	let currentIndent: number = 0;
+	while(line.substring(indentInSpaces.length*currentIndent).startsWith(indentInSpaces) || line.substring(currentIndent).startsWith('\t')) {
+		currentIndent++;
+	}
+	return currentIndent;
+}
