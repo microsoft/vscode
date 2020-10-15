@@ -94,7 +94,11 @@ class SCMInput implements ISCMInput {
 		let savedHistory = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
 		if (savedHistory) {
 			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
-			this.setValue(this.current(), true);
+			this.setValue(this.latestTyped(), true);
+			// let currentValue = this.historyNavigator.current();
+			// if (currentValue) {
+			// 	this.setValue(currentValue.value, true);
+			// }
 		} else {
 			this.historyNavigator = new HistoryNavigator<SCMValue>([], 50);
 		}
@@ -102,10 +106,23 @@ class SCMInput implements ISCMInput {
 			if (!this.has(this.value)) {
 				this.addToHistory(false);
 			}
+			this.save();
 		});
 	}
 
+	private latestTyped() {
+		let current = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
+		if (current.length > 0) {
+			return current[0].value;
+		} else {
+			return '';
+		}
+	}
+
 	showNextValue(): void {
+		if (!this.has(this.value)) {
+			this.addToHistory(false);
+		}
 
 		let next = this.historyNavigator.next();
 
@@ -142,20 +159,19 @@ class SCMInput implements ISCMInput {
 	}
 
 	private addToHistory(isCommit: boolean): void {
-		let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
-		if (this.value && this.value !== this.current()) {
+		if (this.value) {
+			let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
 			if (item.length > 0) {
 				this.historyNavigator.remove(item[0]);
 			}
 			if (!this.has(this.value)) {
 				this.historyNavigator.add(new SCMValue(this.value, isCommit));
+			} else if (isCommit && item.length > 0) {
+				if (item[0].value === this.value && !item[0].isCommitMessage) {
+					this.historyNavigator.add(new SCMValue(this.value, isCommit));
+				}
 			}
 			this.save();
-		} else if (this.value === this.current() && isCommit && item.length > 0) {
-			this.historyNavigator.remove(item[0]);
-			if (item[0].value === this.value && !item[0].isCommitMessage) {
-				this.historyNavigator.add(new SCMValue(this.value, true));
-			}
 		}
 	}
 
