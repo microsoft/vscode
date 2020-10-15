@@ -84,6 +84,8 @@ interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: NativeParsedArgs;
 	logLevel: LogLevel;
+	nodeCachedDataDir?: string;
+	backupWorkspacesPath: string;
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -260,9 +262,9 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			(localizationsService as LocalizationsService).update();
 			// cache clean ups
 			disposables.add(combinedDisposable(
-				instantiationService2.createInstance(NodeCachedDataCleaner),
+				new NodeCachedDataCleaner(initData.nodeCachedDataDir),
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
-				instantiationService2.createInstance(StorageDataCleaner),
+				instantiationService2.createInstance(StorageDataCleaner, initData.backupWorkspacesPath),
 				instantiationService2.createInstance(LogsDataCleaner),
 				userDataAutoSync
 			));

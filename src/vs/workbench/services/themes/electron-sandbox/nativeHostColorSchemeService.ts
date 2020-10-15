@@ -26,7 +26,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	private registerListeners(): void {
 
 		// Color Scheme
-		this._register(this.nativeHostService.onColorSchemeChange(({ highContrast, dark }) => {
+		this._register(this.nativeHostService.onDidChangeColorScheme(({ highContrast, dark }) => {
 			this.dark = dark;
 			this.highContrast = highContrast;
 			this._onDidChangeColorScheme.fire();

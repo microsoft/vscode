@@ -25,7 +25,8 @@ export class LatencyTelemetryAddon extends Disposable implements ITerminalAddon 
 
 	constructor(
 		private readonly _processManager: ITerminalProcessManager,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService) {
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
+	) {
 		super();
 	}
 
@@ -34,10 +35,6 @@ export class LatencyTelemetryAddon extends Disposable implements ITerminalAddon 
 		this._register(terminal.onData(e => this._onData(e)));
 		this._register(this._processManager.onBeforeProcessData(e => this._onBeforeProcessData(e)));
 	}
-
-	public dispose(): void {
-	}
-
 
 	private async _triggerTelemetryReport(): Promise<void> {
 		if (!this._activeTimer) {
@@ -72,7 +69,7 @@ export class LatencyTelemetryAddon extends Disposable implements ITerminalAddon 
 	}
 
 	private _onData(data: string): void {
-		if (this._terminal.buffer.active === this._terminal.buffer.normal) {
+		if (this._terminal.buffer.active.type === 'alternate') {
 			return;
 		}
 
@@ -87,6 +84,10 @@ export class LatencyTelemetryAddon extends Disposable implements ITerminalAddon 
 	}
 
 	private _onBeforeProcessData(event: IBeforeProcessDataEvent): void {
+		if (!this._typedQueue.length) {
+			return;
+		}
+
 		const cleanText = removeAnsiEscapeCodes(event.data);
 		for (let i = 0; i < cleanText.length; i++) {
 			if (this._typedQueue[0] && this._typedQueue[0].char === cleanText[i]) {

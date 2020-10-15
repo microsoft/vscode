@@ -35,12 +35,12 @@ export function getEmmetHelper() {
 /**
  * Update Emmet Helper to use user snippets from the extensionsPath setting
  */
-export function updateEmmetExtensionsPath() {
+export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	if (!_emmetHelper) {
 		return;
 	}
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-	if (_currentExtensionsPath !== extensionsPath) {
+	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
 		if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
 			return;
@@ -646,4 +646,10 @@ export function isNumber(obj: any): obj is number {
 
 export function toLSTextDocument(doc: vscode.TextDocument): LSTextDocument {
 	return LSTextDocument.create(doc.uri.toString(), doc.languageId, doc.version, doc.getText());
+}
+
+export function getPathBaseName(path: string): string {
+	const pathAfterSlashSplit = path.split('/').pop();
+	const pathAfterBackslashSplit = pathAfterSlashSplit ? pathAfterSlashSplit.split('\\').pop() : '';
+	return pathAfterBackslashSplit ?? '';
 }

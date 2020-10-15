@@ -23,7 +23,7 @@ import { productService, TestLifecycleService } from 'vs/workbench/test/browser/
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+// import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -60,7 +60,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService),
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
-			instantiationService.get(IHostService),
+			// instantiationService.get(IHostService),
 		);
 	}
 

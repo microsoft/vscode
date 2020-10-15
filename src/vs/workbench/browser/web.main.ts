@@ -84,7 +84,7 @@ class BrowserMain extends Disposable {
 		);
 
 		// Listeners
-		this.registerListeners(workbench, services.storageService);
+		this.registerListeners(workbench, services.configurationService, services.storageService, services.logService);
 
 		// Driver
 		if (this.configuration.driver) {
@@ -106,11 +106,14 @@ class BrowserMain extends Disposable {
 		});
 	}
 
-	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
+	private registerListeners(workbench: Workbench, configurationService: IConfigurationService, storageService: BrowserStorageService, logService: ILogService): void {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
+			workbench.layout();
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
@@ -126,6 +129,9 @@ class BrowserMain extends Disposable {
 			if (storageService.hasPendingUpdate) {
 				console.warn('Unload prevented: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
+			} else if (configurationService.getValue<boolean>('window.confirmBeforeQuit')) {
+				console.warn('Unload prevented: window.confirmBeforeQuit=true');
+				event.veto(true);
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => {
@@ -144,7 +150,7 @@ class BrowserMain extends Disposable {
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -233,7 +239,7 @@ class BrowserMain extends Disposable {
 			mark('didInitRequiredUserData');
 		}
 
-		return { serviceCollection, logService, storageService };
+		return { serviceCollection, configurationService, logService, storageService };
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {

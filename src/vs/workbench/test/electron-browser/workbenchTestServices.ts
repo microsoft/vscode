@@ -160,13 +160,13 @@ export class TestNativeHostService implements INativeHostService {
 
 	readonly windowId = -1;
 
-	onWindowOpen: Event<number> = Event.None;
-	onWindowMaximize: Event<number> = Event.None;
-	onWindowUnmaximize: Event<number> = Event.None;
-	onWindowFocus: Event<number> = Event.None;
-	onWindowBlur: Event<number> = Event.None;
-	onOSResume: Event<unknown> = Event.None;
-	onColorSchemeChange = Event.None;
+	onDidOpenWindow: Event<number> = Event.None;
+	onDidMaximizeWindow: Event<number> = Event.None;
+	onDidUnmaximizeWindow: Event<number> = Event.None;
+	onDidFocusWindow: Event<number> = Event.None;
+	onDidBlurWindow: Event<number> = Event.None;
+	onDidResumeOS: Event<unknown> = Event.None;
+	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
 
 	windowCount = Promise.resolve(1);

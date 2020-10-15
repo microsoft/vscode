@@ -18,6 +18,7 @@ import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnectio
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
 const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
+export const TUNNEL_VIEW_ID = '~remote.forwardedPorts';
 
 export enum TunnelType {
 	Candidate = 'Candidate',

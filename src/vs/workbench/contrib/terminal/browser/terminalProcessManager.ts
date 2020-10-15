@@ -18,7 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -98,7 +98,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IPathService private readonly _pathService: IPathService,
-		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService
+		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
+		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 	) {
 		super();
 		this.ptyProcessReady = new Promise<void>(c => {
@@ -157,7 +158,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue('terminal.integrated.serverSpawn');
+				if (enableRemoteAgentTerminals) {
+					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				} else {
+					this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				}
 			} else {
 				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 			}
@@ -240,8 +246,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const initialCwd = terminalEnvironment.getCwd(
 			shellLaunchConfig,
 			userHome,
-			lastActiveWorkspace,
-			this._configurationResolverService,
+			terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService),
 			activeWorkspaceRootUri,
 			this._configHelper.config.cwd,
 			this._logService
@@ -250,7 +255,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
+		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService), isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
 		// Fetch any extension environment additions and apply them
 		if (!shellLaunchConfig.strictEnv) {

@@ -73,8 +73,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			getSystemShell(platform.platform),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
-			this._lastActiveWorkspace,
-			this._variableResolver,
+			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver),
 			this._logService,
 			useAutomationShell
 		);
@@ -88,7 +87,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			return this._apiInspectConfigToPlain<string | string[]>(setting);
 		};
 
-		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, useAutomationShell, this._lastActiveWorkspace, this._variableResolver, this._logService);
+		return terminalEnvironment.getDefaultShellArgs(fetchSetting, this._isWorkspaceShellAllowed, useAutomationShell, terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver), this._logService);
 	}
 
 	private _apiInspectConfigToPlain<T>(
@@ -177,16 +176,15 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver), activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
 		shellLaunchConfig.cwd = initialCwd;
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
-			lastActiveWorkspace,
 			envFromConfig,
-			this._variableResolver,
+			terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver),
 			isWorkspaceShellAllowed,
 			this._extHostInitDataService.version,
 			terminalConfig.get<'auto' | 'off' | 'on'>('detectLocale', 'auto'),
