@@ -40,7 +40,6 @@ import 'vs/workbench/services/configurationResolver/browser/configurationResolve
 import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
-import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
 import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
@@ -123,6 +122,9 @@ import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/taskService';
+
+// Tags
+import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';
