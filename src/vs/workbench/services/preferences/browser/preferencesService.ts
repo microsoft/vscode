@@ -557,7 +557,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.textFileService.read(resource, { acceptTextOnly: true }).then(undefined, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.textFileService.write(resource, contents).then(undefined, error => {
-					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
+					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error.message)));
 				});
 			}
 
