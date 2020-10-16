@@ -141,7 +141,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			let toAdd: IExtension[] = [];
 			let toRemove: string[] = [];
 			for (const extension of extensions) {
-				if (this._extensionEnablementService.isEnabled(extension)) {
+				if (this._safeInvokeIsEnabled(extension)) {
 					// an extension has been enabled
 					toAdd.push(extension);
 				} else {
@@ -154,7 +154,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionManagementService.onDidInstallExtension((event) => {
 			if (event.local) {
-				if (this._extensionEnablementService.isEnabled(event.local)) {
+				if (this._safeInvokeIsEnabled(event.local)) {
 					// an extension has been installed
 					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
 				}
@@ -618,7 +618,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return false;
 		}
 
-		return this._extensionEnablementService.isEnabled(toExtension(extension));
+		return this._safeInvokeIsEnabled(toExtension(extension));
+	}
+
+	protected _safeInvokeIsEnabled(extension: IExtension): boolean {
+		try {
+			return this._extensionEnablementService.isEnabled(extension);
+		} catch (err) {
+			return false;
+		}
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
