@@ -293,7 +293,7 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		dom.addClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
+		this.toggleReplaceButton.element.classList.add(...searchHideReplaceIcon.classNamesArray);
 		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
@@ -356,7 +356,7 @@ export class SearchWidget extends Widget {
 
 		if (options.showContextToggle) {
 			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
-			dom.addClass(this.contextLinesInput.element, 'context-lines-input');
+			this.contextLinesInput.element.classList.add('context-lines-input');
 			this.contextLinesInput.value = '' + (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines ?? 1);
 			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
 			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
@@ -365,7 +365,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onContextLinesChanged() {
-		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
+		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 		this._onDidToggleContext.fire();
 
 		if (this.contextLinesInput.value.includes('-')) {
@@ -383,7 +383,7 @@ export class SearchWidget extends Widget {
 			this.showContextCheckbox.checked = true;
 			this.contextLinesInput.value = '' + lines;
 		}
-		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
+		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 	}
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -429,13 +429,13 @@ export class SearchWidget extends Widget {
 	}
 
 	private onToggleReplaceButton(): void {
-		dom.toggleClass(this.replaceContainer, 'disabled');
+		this.replaceContainer.classList.toggle('disabled');
 		if (this.isReplaceShown()) {
-			dom.removeClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
-			dom.addClasses(this.toggleReplaceButton.element, searchShowReplaceIcon.classNames);
+			this.toggleReplaceButton.element.classList.remove(...searchHideReplaceIcon.classNamesArray);
+			this.toggleReplaceButton.element.classList.add(...searchShowReplaceIcon.classNamesArray);
 		} else {
-			dom.removeClasses(this.toggleReplaceButton.element, searchShowReplaceIcon.classNames);
-			dom.addClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
+			this.toggleReplaceButton.element.classList.remove(...searchShowReplaceIcon.classNamesArray);
+			this.toggleReplaceButton.element.classList.add(...searchHideReplaceIcon.classNamesArray);
 		}
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
