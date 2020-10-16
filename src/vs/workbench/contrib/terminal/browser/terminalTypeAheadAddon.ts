@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, ITerminalAddon, IDisposable, IBuffer, IBufferCell } from 'xterm';
-import { ITerminalProcessManager, IBeforeProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { Color } from 'vs/base/common/color';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
 
 const CSI = '\x1b[';
 const SHOW_CURSOR = `${CSI}?25h`;
 const HIDE_CURSOR = `${CSI}?25l`;
+const DELETE_CHAR = `${CSI}X`;
+const CSI_STYLE_RE = /^\x1b\[[0-9;]+m/;
+const CSI_MOVE_RE = /^\x1b\[([0-9]*)([DC])/;
+
+const enum CursorMoveDirection {
+	Back = 'D',
+	Forwards = 'C',
+}
 
 const setCursorPos = (x: number, y: number) => `${CSI}${y + 1};${x + 1}H`;
 const setCursorCoordinate = (buffer: IBuffer, c: ICoordinate) => setCursorPos(c.x, c.y + (c.baseY - buffer.baseY));
-
-const enum ReapplyBehavior {
-	/** Applying the prediction to the line is a no-op */
-	NoOp,
-	/** The prediction can be applied to the given line */
-	Apply,
-	/** The prediction would overwrite other, unexpected data on the line */
-	Mismatch,
-}
 
 interface ICoordinate {
 	x: number;
@@ -41,47 +40,86 @@ interface IPrediction {
 	apply(buffer: IBuffer, cursor: ICoordinate): string;
 
 	/**
-	 * Returns a sequence to roll back a previous `apply()` call.
+	 * Returns a sequence to roll back a previous `apply()` call. If
+	 * `rollForwards` is not given, then this is also called if a prediction
+	 * is correct before show the user's data.
 	 */
 	rollback(buffer: IBuffer): string;
 
 	/**
+	 * If available, this will be called when the prediction is correct.
+	 */
+	rollForwards?(buffer: IBuffer, withInput: string): string;
+
+	/**
 	 * Returns whether the given input is one expected by this prediction.
 	 */
-	matches(input: string): boolean;
-
-	/**
-	 * Returns the reapply behavior for the given line.
-	 */
-	getReapplyBehavior(buffer: IBuffer, allPredictions: ReadonlyArray<IPrediction>): ReapplyBehavior;
+	matches(input: StringReader): boolean;
 }
 
-/**
- * Boundary added to the prediction timeline to indicate that predictions
- * should be held and not applied until all previous predictions are validated.
- */
-interface IPredictionBoundary {
-	/**
-	 * Checks whether a change was made that satisfies the expectation for the
-	 * prediction boundary. For instance is pressing enter, it checks that that
-	 * results in a new line.
-	 */
-	test(input: string): boolean;
-}
 
-const csiRe = /\x1b\[*?[a-zA-Z]/g;
+class StringReader {
+	public index = 0;
+
+	public get remaining() {
+		return this.input.length - this.index;
+	}
+
+	constructor(private readonly input: string) { }
+
+	public eatStr(substr: string) {
+		if (this.input.slice(this.index, this.index + substr.length) !== substr) {
+			return;
+		}
+
+		this.index += substr.length;
+		return substr;
+	}
+
+	public eatRe(re: RegExp) {
+		const match = re.exec(this.input.slice(this.index));
+		if (!match) {
+			return;
+		}
+
+		this.index += match[0].length;
+		return match;
+	}
+
+	public eatCharCode(min = 0, max = Infinity) {
+		const code = this.input.charCodeAt(this.index);
+		if (code < min || code >= max) {
+			return undefined;
+		}
+
+		this.index++;
+		return code;
+	}
+
+	public rest() {
+		return this.input.slice(this.index);
+	}
+}
 
 /**
  * Boundary which never tests true. Will always discard predictions.
  */
-class HardBoundary implements IPredictionBoundary {
-	public test() {
+class HardBoundary implements IPrediction {
+	public apply() {
+		return '';
+	}
+
+	public rollback() {
+		return '';
+	}
+
+	public matches() {
 		return false;
 	}
 }
 
 class CharacterPrediction implements IPrediction {
-	private appliedAt?: {
+	protected appliedAt?: {
 		x: number;
 		y: number;
 		baseY: number;
@@ -108,51 +146,112 @@ class CharacterPrediction implements IPrediction {
 
 		const a = this.appliedAt;
 		this.appliedAt = undefined;
-		return setCursorCoordinate(buffer, a) + (a.oldChar ? `${a.oldAttributes}${a.oldChar}${setCursorCoordinate(buffer, a)}` : `${CSI}X`);
+		return setCursorCoordinate(buffer, a) + (a.oldChar ? `${a.oldAttributes}${a.oldChar}${setCursorCoordinate(buffer, a)}` : DELETE_CHAR);
 	}
 
-	public matches(input: string) {
-		csiRe.lastIndex = 0;
-		return input.replace(csiRe, '') === this.char;
-	}
+	public matches(input: StringReader) {
+		let startIndex = input.index;
 
-	public getReapplyBehavior(buffer: IBuffer) {
-		if (!this.appliedAt) {
-			return ReapplyBehavior.Apply;
+		// remove any styling CSI before checking the char
+		while (input.eatRe(CSI_STYLE_RE)) { }
+		if (input.eatStr(this.char)) {
+			return true;
 		}
 
-		const cellText = getCellAtCoordinate(buffer, this.appliedAt)?.getChars() ?? '';
-		if (cellText === this.char) {
-			return ReapplyBehavior.NoOp;
-		} else if (cellText === this.appliedAt.oldChar) {
-			return ReapplyBehavior.Apply;
-		} else {
-			return ReapplyBehavior.Mismatch;
-		}
+		input.index = startIndex;
+		return false;
 	}
 }
 
-interface IPredictionGroup {
-	boundary?: IPredictionBoundary;
-	predictions: IPrediction[];
+class BackspacePrediction extends CharacterPrediction {
+	public apply(buffer: IBuffer, cursor: ICoordinate) {
+		const cell = getCellAtCoordinate(buffer, cursor);
+		this.appliedAt = cell
+			? { ...cursor, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
+			: { ...cursor, oldAttributes: '', oldChar: '' };
+
+		cursor.x--;
+		return setCursorCoordinate(buffer, cursor) + DELETE_CHAR;
+	}
+
+	public matches(input: StringReader) {
+		return !!input.eatStr('\b');
+	}
 }
 
-const invalidatedRestoreInterval = 200;
+class NewlinePrediction implements IPrediction {
+	protected prevPosition?: ICoordinate;
+
+	public apply(_: IBuffer, cursor: ICoordinate) {
+		this.prevPosition = { ...cursor };
+		cursor.x = 0;
+		cursor.y++;
+		return '\r\n';
+	}
+
+	public rollback(buffer: IBuffer) {
+		if (!this.prevPosition) {
+			return ''; // not applied
+		}
+
+		const p = this.prevPosition;
+		this.prevPosition = undefined;
+		return setCursorCoordinate(buffer, p) + DELETE_CHAR;
+	}
+
+	public rollForwards() {
+		return ''; // does not need to rewrite
+	}
+
+	public matches(input: StringReader) {
+		return !!input.eatStr('\r\n');
+	}
+}
+
+class CursorMovePrediction implements IPrediction {
+	constructor(private readonly direction: CursorMoveDirection, private readonly amount: number) { }
+
+	public apply(_: IBuffer, cursor: ICoordinate) {
+		const { amount, direction } = this;
+		cursor.x += (direction === CursorMoveDirection.Back ? -1 : 1) * amount;
+		return `${CSI}${amount}${direction}`;
+	}
+
+	public rollback() {
+		const fn = this.direction === CursorMoveDirection.Back ? CursorMoveDirection.Forwards : CursorMoveDirection.Back;
+		return `${CSI}${this.amount}${fn}`;
+	}
+
+	public rollForwards() {
+		return ''; // does not need to rewrite
+	}
+
+	public matches(input: StringReader) {
+		const { amount, direction } = this;
+		if (amount === 1 && input.eatStr(`${CSI}${direction}`)) {
+			return true;
+		}
+
+		if (amount === 1 && this.direction === CursorMoveDirection.Back && input.eatStr('\b')) {
+			return true;
+		}
+
+		return !!input.eatStr(`${CSI}${amount}${direction}`);
+	}
+}
+
 
 class PredictionTimeline {
 	/**
-	 * Expected queue of events, separated whenever a PredictionBoundary is
-	 * emitted. Prediction groups _always_ apply to the active row.
+	 * Expected queue of events. Only predictions for the lowest are
+	 * written into the terminal.
 	 */
-	private expected: IPredictionGroup[] = [];
+	private expected: ({ gen: number; p: IPrediction })[] = [];
 
 	/**
-	 * Last-invalidated set of predictions. These are restored if the predictions
-	 * become valid again in a short period of time. Some terminal programs
-	 * rewrite lines or the entire display on backspace, for example, which will
-	 * invalidate the predictions even if they become valid again a moment later.
+	 * Current prediction generation.
 	 */
-	private invalidated: { at: number; p: IPredictionGroup[] } | undefined;
+	private currentGen = 0;
 
 	/**
 	 * Cursor position -- kept outside the buffer since it can be ahead if
@@ -178,42 +277,43 @@ class PredictionTimeline {
 		}
 
 		let output = '';
-		let brokeBoundary = false;
-		for (let i = 0; i < input.length; i++) {
-			const test = this.expected[0]?.predictions[0];
-			const char = input[i];
 
-			// if we reached the end of our tests, try to break through the boundary
-			// and start applying its items.
-			if (!test) {
-				this.expected.shift();
-				if (!this.expected.length) {
-					return output + input.slice(i);
-				}
-				brokeBoundary = true;
-				if (this.expected[0].boundary?.test(char) === false) {
-					this.expected = [];
-					return output + input.slice(i); // boundary assumption invalid, throw out predictions
-				}
-			}
+		const reader = new StringReader(input);
+		const startingGen = this.expected[0].gen;
+		while (this.expected.length && reader.remaining > 0) {
+			const prediction = this.expected[0].p;
+			let beforeTestReaderIndex = reader.index;
+
 			// if the input character matches what the next prediction expected, undo
 			// the prediction and write the real character out.
-			else if (test.matches(char)) {
-				output += test.rollback(buffer) + char;
-				this.expected[0].predictions.shift();
+			if (prediction.matches(reader)) {
+				const eaten = input.slice(beforeTestReaderIndex, reader.index);
+				output += prediction.rollForwards?.(buffer, eaten)
+					?? (prediction.rollback(buffer) + input.slice(beforeTestReaderIndex, reader.index));
+				this.expected.shift();
 			}
-			// otherwise, roll back all pending predictions and move the current stack
-			// of predictions into the "invalidated" key (for possible resurrection).
+			// otherwise, roll back all pending predictions
 			else {
-				this.invalidated = { at: Date.now(), p: this.expected };
+				output += this.expected.filter(p => p.gen === startingGen)
+					.map(({ p }) => p.rollback(buffer))
+					.reverse()
+					.join('');
 				this.expected = [];
 				this.cursor = undefined;
-				if (!brokeBoundary) { // on a new boundary, we did not apply predictions yet
-					output += this.invalidated.p[0].predictions.map(p => p.rollback(buffer)).reverse().join('');
+				break;
+			}
+		}
+
+		output += reader.rest();
+
+		// If we passed a generation boundary, apply the current generation's predictions
+		if (this.expected.length && startingGen !== this.expected[0].gen) {
+			for (const { p, gen } of this.expected) {
+				if (gen !== this.expected[0].gen) {
+					break;
 				}
 
-				output += input.slice(i);
-				break;
+				output += p.apply(buffer, this.getCursor(buffer));
 			}
 		}
 
@@ -229,41 +329,25 @@ class PredictionTimeline {
 	}
 
 	/**
-	 * Should be called after data is applied to the terminal.
-	 */
-	public afterServerInput() {
-		const buffer = this.getActiveBuffer();
-		if (buffer && this.invalidated && Date.now() - this.invalidated.at < invalidatedRestoreInterval) {
-			this.tryReapplyInvalidated(buffer, this.invalidated.p);
-		}
-	}
-
-	/**
 	 * Appends a typeahead prediction.
 	 */
 	public addPrediction(buffer: IBuffer, prediction: IPrediction) {
-		const l = this.expected.length - 1;
-		if (l === -1) {
-			this.expected = [{ predictions: [prediction] }];
-		} else {
-			this.expected[l].predictions.push(prediction);
-		}
-
-		if (l <= 1) {
+		this.expected.push({ gen: this.currentGen, p: prediction });
+		if (this.currentGen === this.expected[0].gen) {
 			const text = prediction.apply(buffer, this.getCursor(buffer));
-			console.log('prediction:', text);
+			console.log('prediction:', JSON.stringify(text));
 			this.terminal.write(text);
 		}
 	}
 
 	/**
-	 * Appends a boundary to the preduction.
+	 * Appends a boundary to the prediction.
 	 */
-	public addBoundary(boundary: IPredictionBoundary) {
-		this.expected.push({ boundary, predictions: [] });
+	public addBoundary() {
+		this.currentGen++;
 	}
 
-	private getCursor(buffer: IBuffer) {
+	public getCursor(buffer: IBuffer) {
 		if (!this.cursor) {
 			this.cursor = { baseY: buffer.baseY, y: buffer.cursorY, x: buffer.cursorX };
 		}
@@ -274,42 +358,6 @@ class PredictionTimeline {
 	private getActiveBuffer() {
 		const buffer = this.terminal.buffer.active;
 		return buffer.type === 'normal' ? buffer : undefined;
-	}
-
-	private tryReapplyInvalidated(buffer: IBuffer, invalidated: IPredictionGroup[]) {
-		if (!invalidated.length) {
-			return;
-		}
-
-		const predictions = invalidated[0].predictions;
-		let lastNoop = -1;
-		let hasApply = false;
-		for (let i = 0; i < predictions.length; i++) {
-			switch (predictions[i].getReapplyBehavior(buffer, predictions)) {
-				case ReapplyBehavior.NoOp:
-					if (!hasApply) { lastNoop = i; }
-					break;
-				case ReapplyBehavior.Mismatch:
-					return; // do not reapply any prediction in this set if there's a mismatch
-				case ReapplyBehavior.Apply:
-					hasApply = true;
-					break;
-			}
-		}
-
-		if (!hasApply) {
-			return;
-		}
-
-		for (let i = lastNoop + 1; i < predictions.length; i++) {
-			this.terminal.write(predictions[i].apply(buffer, this.getCursor(buffer)));
-		}
-
-		this.expected = invalidated.slice(1);
-
-		if (lastNoop < predictions.length - 1) {
-			this.expected.unshift({ predictions: predictions.slice(lastNoop) });
-		}
 	}
 }
 /**
@@ -368,19 +416,38 @@ export class TypeAheadAddon implements ITerminalAddon {
 			return;
 		}
 
-		console.log('user data:', data);
-		if (data.length !== 1) {
-			this.timeline.addBoundary(new HardBoundary());
-			return;
-		}
+		console.log('user data:', JSON.stringify(data));
 
 		const terminal = this.timeline.terminal;
-		const code = data.charCodeAt(0);
-		if (code >= 32 && code < 126) {
-			if (terminal.buffer.active.cursorX === terminal.cols - 1) {
-			} else {
-				this.timeline.addPrediction(terminal.buffer.active, new CharacterPrediction(this.typeheadStyle, data));
+		const buffer = terminal.buffer.active;
+		const reader = new StringReader(data);
+		while (reader.remaining > 0) {
+			if (reader.eatStr('\b')) { // backspace
+				this.timeline.addPrediction(buffer, new BackspacePrediction(this.typeheadStyle, '\b'));
+				continue;
 			}
+
+			if (reader.eatCharCode(32, 126)) { // alphanum
+				const char = data[reader.index - 1];
+				this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeheadStyle, char));
+				if (this.timeline.getCursor(buffer).x === terminal.cols) {
+					this.timeline.addPrediction(buffer, new NewlinePrediction());
+					this.timeline.addBoundary();
+				}
+				continue;
+			}
+
+			const cursorMv = reader.eatRe(CSI_MOVE_RE);
+			if (cursorMv) {
+				this.timeline.addPrediction(buffer, new CursorMovePrediction(
+					cursorMv[2] as CursorMoveDirection, Number(cursorMv[1]) || 1));
+				continue;
+			}
+
+			// something else
+			this.timeline.addPrediction(buffer, new HardBoundary());
+			this.timeline.addBoundary();
+			break;
 		}
 	}
 
@@ -389,8 +456,8 @@ export class TypeAheadAddon implements ITerminalAddon {
 			return;
 		}
 
-		console.log('incoming data:', event.data);
+		console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
-		console.log('emitted data:', event.data);
+		console.log('emitted data:', JSON.stringify(event.data));
 	}
 }
