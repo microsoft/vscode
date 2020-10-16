@@ -7805,7 +7805,8 @@ declare module 'vscode' {
 		 * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
 		 * they only execute when there is an active editor when the command is called. Also, the
 		 * command handler of an editor command has access to the active editor and to an
-		 * [edit](#TextEditorEdit)-builder.
+		 * [edit](#TextEditorEdit)-builder. Note that the edit-builder is only valid while the
+		 * callback executes.
 		 *
 		 * @param command A unique identifier for the command.
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
