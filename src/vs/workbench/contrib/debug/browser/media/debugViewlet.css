@@ -55,6 +55,11 @@
 	padding-bottom: 0;
 }
 
+
+.monaco-workbench.safari .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
+	margin-bottom: 0px;
+}
+
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
 	opacity: 0.7;
 	font-style: italic;
