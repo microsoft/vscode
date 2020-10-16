@@ -98,8 +98,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		// Veto is setting is configured as such and we are not
 		// expecting a navigation that was triggered by the user
-		if (!this.signalExpectedShutdown && this.configurationService.getValue<boolean>('window.confirmBeforeQuit')) {
-			console.warn('Unload prevented: window.confirmBeforeQuit=true');
+		if (!this.signalExpectedShutdown && this.configurationService.getValue<boolean>('window.confirmBeforeClose')) {
+			console.warn('Unload prevented: window.confirmBeforeClose=true');
 			e.veto(true);
 		}
 

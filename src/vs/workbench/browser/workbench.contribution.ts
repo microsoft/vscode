@@ -403,10 +403,10 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			},
-			'window.confirmBeforeQuit': {
+			'window.confirmBeforeClose': {
 				'type': 'boolean',
 				'default': isWeb && !isStandalone, // on by default in web, unless PWA
-				'description': nls.localize('confirmBeforeQuitWeb', "Controls whether to ask for confirmation before closing the browser tab or window."),
+				'description': nls.localize('confirmBeforeCloseWeb', "Controls whether to ask for confirmation before closing the browser tab or window."),
 				'scope': ConfigurationScope.APPLICATION,
 				'included': isWeb
 			}
