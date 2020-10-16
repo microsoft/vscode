@@ -152,12 +152,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		const fileIconData = FileIconThemeData.fromStorageData(this.storageService);
 		if (fileIconData) {
-			this.applyAndSetFileIconTheme(fileIconData);
+			this.applyAndSetFileIconTheme(fileIconData, true);
 		}
 
 		const productIconData = ProductIconThemeData.fromStorageData(this.storageService);
 		if (productIconData) {
-			this.applyAndSetProductIconTheme(productIconData);
+			this.applyAndSetProductIconTheme(productIconData, true);
 		}
 
 		this.initialize().then(undefined, errors.onUnexpectedError).then(_ => {
@@ -569,7 +569,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return false;
 	}
 
-	private applyAndSetFileIconTheme(iconThemeData: FileIconThemeData): void {
+	private applyAndSetFileIconTheme(iconThemeData: FileIconThemeData, silent = false): void {
 		this.currentFileIconTheme = iconThemeData;
 
 		_applyRules(iconThemeData.styleSheetContent!, fileIconThemeRulesClassName);
@@ -585,8 +585,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (iconThemeData.id) {
 			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'fileIcon');
 		}
-		this.onFileIconThemeChange.fire(this.currentFileIconTheme);
 
+		if (!silent) {
+			this.onFileIconThemeChange.fire(this.currentFileIconTheme);
+		}
 	}
 
 	public getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]> {
@@ -639,7 +641,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return false;
 	}
 
-	private applyAndSetProductIconTheme(iconThemeData: ProductIconThemeData): void {
+	private applyAndSetProductIconTheme(iconThemeData: ProductIconThemeData, silent = false): void {
 
 		this.currentProductIconTheme = iconThemeData;
 
@@ -650,8 +652,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (iconThemeData.id) {
 			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'productIcon');
 		}
-		this.onProductIconThemeChange.fire(this.currentProductIconTheme);
-
+		if (!silent) {
+			this.onProductIconThemeChange.fire(this.currentProductIconTheme);
+		}
 	}
 }
 
