@@ -1233,7 +1233,7 @@ export class Repository {
 		}
 
 		if (paths && paths.length) {
-			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 				await this.run([...args, '--', ...chunk]);
 			}
 		} else {
@@ -1455,7 +1455,7 @@ export class Repository {
 		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {
-			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 				promises.push(limiter.queue(() => this.run([...args, '--', ...chunk])));
 			}
 		}
@@ -1495,7 +1495,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 					await this.run([...args, '--', ...chunk]);
 				}
 			} else {
