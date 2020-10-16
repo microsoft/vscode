@@ -12,59 +12,47 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	constructor(
 		private readonly engine: MarkdownEngine
 	) { }
+
 	public async provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[]> {
+		return await Promise.all(positions.map(async (position) => {
+			return await this.provideSelectionRange(document, position, _token);
+		}));
+	}
 
-		let rangesForPositions : vscode.SelectionRange[] = [];
-
-		positions.forEach(async (position) => {
-
-		let ranges : vscode.SelectionRange[] = await Promise.all([
+	private async provideSelectionRange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange> {
+		let ranges : (vscode.SelectionRange|undefined) [] = await Promise.all([
 			await this.getHeaderSelectionRanges(document, position),
 			await this.getBlockSelectionRanges(document, position)
 		]);
-
-		let result : vscode.SelectionRange[] = ranges.filter(range => range);
-
+		let result : (vscode.SelectionRange) [] = ranges.filter(range => range !== undefined) as vscode.SelectionRange[];
 		if (result.length === 2) {
-			// need to combine them to return only smallest child range
-			let parent = result[0];
-			let child = result[1];
-			let childParent = child.parent;
+			let header = result[0];
+			let block = result[1];
+			let blockParent = block.parent;
 
-			if (childParent) {
-				if (parent.range.contains(childParent.range)) {
-					let revisedParent = new vscode.SelectionRange(childParent.range, parent);
-					if (revisedParent.range.contains(child.range)) {
-						rangesForPositions.push(new vscode.SelectionRange(child.range, revisedParent));
+			if (blockParent) {
+				if (header.range.contains(blockParent.range)) {
+					let revisedParent = new vscode.SelectionRange(blockParent.range, header);
+					if (revisedParent.range.contains(block.range)) {
+						return new vscode.SelectionRange(block.range, revisedParent);
 					}
 				} else {
-					// they're one line off
-					let overlap = childParent.range.union(parent.range);
-					if (overlap) {
-						parent.range = overlap;
-					}
-					if (parent.range.contains(childParent.range)) {
-						childParent.parent = parent;
-						rangesForPositions.push(new vscode.SelectionRange(child.range, childParent));
+					if (header.range.contains(block.range)) {
+						return new vscode.SelectionRange(block.range, header);
 					}
 				}
 			} else {
-				if (parent.range.contains(child.range)) {
-					rangesForPositions.push(new vscode.SelectionRange(child.range, parent));
+				if (header.range.contains(block.range)) {
+					return new vscode.SelectionRange(block.range, header);
 				}
 			}
-			rangesForPositions.push(child);
+			return block;
 		} else {
-			rangesForPositions.push(result[0]);
+			return result[0];
 		}
-		});
-		if (rangesForPositions) {
-			// stop here
-		}
-		return rangesForPositions;
 	}
 
-	private async getBlockSelectionRanges(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange> {
+	private async getBlockSelectionRanges(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange| undefined> {
 
 		const tokens = await this.engine.parse(document);
 
@@ -73,6 +61,10 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		// sort from smallest to largest line range
 		let sortedTokens = nearbyTokens.sort((tokenOne, tokenTwo) => (tokenTwo.map[1] - tokenTwo.map[0] - tokenOne.map[1] - tokenOne.map[0]));
 
+		if (sortedTokens.length === 0) {
+			return undefined;
+		}
+
 		let parentToken = sortedTokens.pop();
 
 		if (parentToken) {
@@ -80,8 +72,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				let parentRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(parentToken.map[0] > 0 ? parentToken.map[0]-1 : 0, 0), new vscode.Position(parentToken.map[1], 0)));
 				let childRange = new vscode.Range(new vscode.Position(parentToken.map[0] + 1, 0), new vscode.Position(parentToken.map[1] - 1, 0));
 				if (parentRange.range.contains(childRange)) {
-					let child = new vscode.SelectionRange(childRange, parentRange);
-					return child;
+					return new vscode.SelectionRange(childRange, parentRange);
 				}
 			} else {
 				let parentRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(parentToken.map[0], 0), new vscode.Position(parentToken.map[1], 0)));
@@ -101,7 +92,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		}
 	}
 
-	private async getHeaderSelectionRanges(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange> {
+	private async getHeaderSelectionRanges(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
 
@@ -109,6 +100,10 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		let nearbyHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
 		let sortedHeaders = nearbyHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
+
+		if (sortedHeaders.length === 0) {
+			return undefined;
+		}
 
 		let parentHeader = sortedHeaders.shift();
 		let parentRange: vscode.SelectionRange;
@@ -121,6 +116,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				parentRange = new vscode.SelectionRange(contentRange, headerPlusContent);
 			}
 		}
+
 		let index = 0;
 		sortedHeaders.forEach(header => {
 			if (parentHeader) {
