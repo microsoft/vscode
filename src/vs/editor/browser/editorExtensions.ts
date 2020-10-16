@@ -129,8 +129,8 @@ export abstract class Command {
 			command: {
 				id: this.id,
 				title: item.title,
-				icon: item.icon
-				// precondition: this.precondition
+				icon: item.icon,
+				precondition: this.precondition
 			},
 			when: item.when,
 			order: item.order
