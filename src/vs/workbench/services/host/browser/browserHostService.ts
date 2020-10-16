@@ -23,6 +23,7 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { BeforeShutdownEvent, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -63,6 +64,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private workspaceProvider: IWorkspaceProvider;
 
+	private signalExpectedShutdown = false;
+
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -70,7 +73,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -82,6 +86,25 @@ export class BrowserHostService extends Disposable implements IHostService {
 				async open() { }
 			};
 		}
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
+	}
+
+	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+
+		// Veto is setting is configured as such and we are not
+		// expecting a navigation that was triggered by the user
+		if (!this.signalExpectedShutdown && this.configurationService.getValue<boolean>('window.confirmBeforeQuit')) {
+			console.warn('Unload prevented: window.confirmBeforeQuit=true');
+			e.veto(true);
+		}
+
+		// Unset for next shutdown
+		this.signalExpectedShutdown = false;
 	}
 
 	//#region Focus
@@ -137,13 +160,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				if (options?.addMode) {
 					foldersToAdd.push(({ uri: openable.folderUri }));
 				} else {
-					this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 				}
 			}
 
 			// Workspace
 			else if (isWorkspaceToOpen(openable)) {
-				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+				this.doOpen({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 			}
 
 			// File (handled later in bulk)
@@ -184,7 +207,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					environment.set('diffFileSecondary', editors[0].resource.toString());
 					environment.set('diffFilePrimary', editors[1].resource.toString());
 
-					this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
+					this.doOpen(undefined, { payload: Array.from(environment.entries()) });
 				}
 			}
 
@@ -220,7 +243,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 							environment.set('gotoLineMode', 'true');
 						}
 
-						this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
+						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
 					}
 				}
 			}
@@ -290,7 +313,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
+		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
+	}
+
+	private doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+		if (options?.reuse) {
+			this.signalExpectedShutdown = true;
+		}
+
+		return this.workspaceProvider.open(workspace, options);
 	}
 
 	async toggleFullScreen(): Promise<void> {
@@ -336,6 +367,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async reload(): Promise<void> {
+		this.signalExpectedShutdown = true;
+
 		window.location.reload();
 	}
 
