@@ -69,9 +69,10 @@ class TestBackupTracker extends NativeBackupTracker {
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService);
+	}
 
-		// Reduce timeout for tests
-		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
+	protected getBackupScheduleDelay(): number {
+		return 10; // Reduce timeout for tests
 	}
 }
 
