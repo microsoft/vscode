@@ -8,6 +8,7 @@ import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/l
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export abstract class BackupTracker extends Disposable {
 
@@ -96,39 +97,58 @@ export abstract class BackupTracker extends Disposable {
 	protected abstract getBackupScheduleDelay(workingCopy: IWorkingCopy): number;
 
 	private scheduleBackup(workingCopy: IWorkingCopy): void {
-		if (!this.shouldScheduleBackup(workingCopy)) {
-			return; // subclass prevented backup for working copy
-		}
 
 		// Clear any running backup operation
-		dispose(this.pendingBackups.get(workingCopy));
-		this.pendingBackups.delete(workingCopy);
+		this.cancelBackup(workingCopy);
+
+		// subclass prevented backup for working copy
+		if (!this.shouldScheduleBackup(workingCopy)) {
+			return;
+		}
 
 		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString());
 
 		// Schedule new backup
+		const cts = new CancellationTokenSource();
 		const handle = setTimeout(async () => {
-
-			// Clear disposable
-			this.pendingBackups.delete(workingCopy);
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
 
 			// Backup if dirty
 			if (workingCopy.isDirty()) {
-				this.logService.trace(`[backup tracker] running backup`, workingCopy.resource.toString());
+				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString());
 
 				try {
 					const backup = await workingCopy.backup();
-					await this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+
+					if (workingCopy.isDirty()) {
+						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString());
+
+						await this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
+					}
 				} catch (error) {
 					this.logService.error(error);
 				}
 			}
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			// Clear disposable
+			this.pendingBackups.delete(workingCopy);
+
 		}, this.getBackupScheduleDelay(workingCopy));
 
 		// Keep in map for disposal as needed
 		this.pendingBackups.set(workingCopy, toDisposable(() => {
 			this.logService.trace(`[backup tracker] clearing pending backup`, workingCopy.resource.toString());
 
+			cts.dispose(true);
 			clearTimeout(handle);
 		}));
 	}
@@ -141,11 +161,15 @@ export abstract class BackupTracker extends Disposable {
 		this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString());
 
 		// Clear any running backup operation
-		dispose(this.pendingBackups.get(workingCopy));
-		this.pendingBackups.delete(workingCopy);
+		this.cancelBackup(workingCopy);
 
 		// Forward to backup file service
 		this.backupFileService.discardBackup(workingCopy.resource);
+	}
+
+	private cancelBackup(workingCopy: IWorkingCopy): void {
+		dispose(this.pendingBackups.get(workingCopy));
+		this.pendingBackups.delete(workingCopy);
 	}
 
 	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;
