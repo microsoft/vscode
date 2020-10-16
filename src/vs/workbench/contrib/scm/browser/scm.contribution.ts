@@ -221,40 +221,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!repository || !repository.provider.acceptInputCommand) {
 			return Promise.resolve(null);
 		}
-		repository?.input.save();
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
 
 		const commandService = accessor.get(ICommandService);
 		return commandService.executeCommand(id, ...(args || []));
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'scm.viewNextCommit',
-	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmRepository'),
-	primary: KeyCode.DownArrow,
-	handler: accessor => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
-		repository?.input.showNextValue();
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'scm.viewPriorCommit',
-	description: { description: localize('scm view prior commit', "SCM: View Prior Commit"), args: [] },
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmRepository'),
-	primary: KeyCode.UpArrow,
-	handler: accessor => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
-		repository?.input.showPreviousValue();
 	}
 });
 

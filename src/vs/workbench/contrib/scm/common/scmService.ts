@@ -9,7 +9,6 @@ import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator }
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { HistoryNavigator } from 'vs/base/common/history';
 
 class SCMInput implements ISCMInput {
 
@@ -23,8 +22,14 @@ class SCMInput implements ISCMInput {
 		if (value === this._value) {
 			return;
 		}
+
 		this._value = value;
-		this.saveCurrent();
+
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this.storageService.store(key, value, StorageScope.WORKSPACE);
+		}
+
 		this._onDidChange.fire(value);
 	}
 
@@ -70,52 +75,17 @@ class SCMInput implements ISCMInput {
 		this._validateInput = validateInput;
 		this._onDidChangeValidateInput.fire();
 	}
+
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
-	private historyNavigator: HistoryNavigator<string>;
+
 	constructor(
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
 	) {
-		const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
-		let savedHistory = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
-		if (savedHistory) {
-			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
-		} else {
-			this.historyNavigator = new HistoryNavigator([], 50);
-		}
-		let currentValue = this.storageService.get(`${key}/latest`, StorageScope.WORKSPACE);
-		if (currentValue) {
-			this._value = currentValue;
-		}
-	}
-
-	save(): void {
-		this.historyNavigator.add(this.value);
 		if (this.repository.provider.rootUri) {
 			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
-			this.storageService.store(key, JSON.stringify(this.historyNavigator.getHistory()), StorageScope.WORKSPACE);
-		}
-	}
-
-	showNextValue(): void {
-		let next = this.historyNavigator.next();
-		if (next) {
-			this.value = next;
-		}
-	}
-
-	showPreviousValue(): void {
-		let prev = this.historyNavigator.previous();
-		if (prev) {
-			this.value = prev;
-		}
-	}
-
-	saveCurrent(): void {
-		if (this.repository.provider.rootUri) {
-			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}/latest`;
-			this.storageService.store(key, this.value, StorageScope.WORKSPACE);
+			this._value = this.storageService.get(key, StorageScope.WORKSPACE, '');
 		}
 	}
 }
@@ -129,6 +99,7 @@ class SCMRepository implements ISCMRepository {
 
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
+
 	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(
