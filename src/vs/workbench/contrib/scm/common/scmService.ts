@@ -134,7 +134,7 @@ class SCMInput implements ISCMInput {
 	}
 
 	private addToHistory(isCommit: boolean): void {
-		let item = this.historyNavigator._elements.filter(item => !item.isCommitMessage);
+		let item = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
 		if (item.length > 0) {
 			this.historyNavigator.remove(item[0]);
 		}
@@ -176,6 +176,7 @@ class SCMRepository implements ISCMRepository {
 
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
+
 	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(

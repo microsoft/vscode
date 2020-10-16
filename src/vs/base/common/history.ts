@@ -95,7 +95,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		}
 	}
 
-	public get _elements(): T[] {
+	private get _elements(): T[] {
 		const elements: T[] = [];
 		this._history.forEach(e => elements.push(e));
 		return elements;
