@@ -34,6 +34,18 @@
 	text-align: right;
 	word-break: break-word;
 }
+
+.tiw-metadata-values {
+	list-style: none;
+	max-height: 300px;
+	overflow-y: auto;
+	margin-right: -10px;
+}
+
+.tiw-metadata-values > .tiw-metadata-value {
+	margin-right: 10px;
+}
+
 .tiw-metadata-key {
 	vertical-align: top;
 }
