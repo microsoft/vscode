@@ -236,7 +236,7 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 	let result: WorkspaceFolder[] = [];
 	let seen: Set<string> = new Set();
 
-	const extUri = resources.extUriBiasedIgnorePathCase;
+	const extUri = resources.extUriBiasedIgnorePathCase; // To be replaced by the UriIdentityService as parameter: #108793
 
 	const relativeTo = extUri.dirname(workspaceConfigFile);
 	for (let configuredFolder of configuredFolders) {

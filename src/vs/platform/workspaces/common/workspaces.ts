@@ -9,7 +9,7 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { extname, isAbsolute } from 'vs/base/common/path';
-import { dirname, resolvePath, isEqualAuthority, relativePath, extname as resourceExtname, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { isEqualAuthority, extname as resourceExtname, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
@@ -217,7 +217,9 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
 
-	let folderPath = !forceAbsolute ? relativePath(targetConfigFolderURI, folderURI) : undefined;
+	const extUri = extUriBiasedIgnorePathCase; // To be replaced by the UriIdentityService as parameter: #108793
+
+	let folderPath = !forceAbsolute ? extUri.relativePath(targetConfigFolderURI, folderURI) : undefined;
 	if (folderPath !== undefined) {
 		if (folderPath.length === 0) {
 			folderPath = '.';
@@ -258,14 +260,16 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, isFromUntitledWorkspace: boolean, targetConfigPathURI: URI) {
 	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
 
-	const sourceConfigFolder = dirname(configPathURI);
-	const targetConfigFolder = dirname(targetConfigPathURI);
+	const extUri = extUriBiasedIgnorePathCase; // To be replaced by the UriIdentityService as parameter: #108793
+
+	const sourceConfigFolder = extUri.dirname(configPathURI);
+	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
 
 	const rewrittenFolders: IStoredWorkspaceFolder[] = [];
 	const slashForPath = useSlashForPath(storedWorkspace.folders);
 
 	for (const folder of storedWorkspace.folders) {
-		const folderURI = isRawFileWorkspaceFolder(folder) ? resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
+		const folderURI = isRawFileWorkspaceFolder(folder) ? extUri.resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
 		let absolute;
 		if (isFromUntitledWorkspace) {
 			// if it was an untitled workspace, try to make paths relative
