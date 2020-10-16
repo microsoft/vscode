@@ -1637,6 +1637,7 @@
             "null"
           ],
           "default": null,
+          "scope": "machine",
           "description": "%config.defaultCloneDirectory%"
         },
         "git.enableSmartCommit": {
