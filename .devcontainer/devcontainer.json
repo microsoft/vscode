@@ -15,14 +15,12 @@
 		"resmon.show.cpufreq": false
 	},
 
-	// noVNC, VNC ports, debug
+	// noVNC, VNC, debug ports
 	"forwardPorts": [6080, 5901, 9222],
 
 	"extensions": [
 		"dbaeumer.vscode-eslint",
-		"EditorConfig.EditorConfig",
-		"mutantdino.resourcemonitor",
-		"GitHub.vscode-pull-request-github"
+		"mutantdino.resourcemonitor"
 	],
 
 	// Optionally loads a cached yarn install for the repo
