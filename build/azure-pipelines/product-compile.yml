@@ -53,6 +53,10 @@ steps:
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
 - script: |
+    npx https://aka.ms/enablesecurefeed
+  displayName: Switch to Terrapin packages
+
+- script: |
     echo -n $VSCODE_ARCH > .build/arch
   displayName: Prepare arch cache flag
 
