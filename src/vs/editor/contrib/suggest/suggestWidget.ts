@@ -34,10 +34,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SuggestionDetails, canExpandCompletionItem } from './suggestWidgetDetails';
 import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/suggestWidgetStatus';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
-
-const expandSuggestionDocsByDefault = false;
-
-
+import { ResizableHTMLElement } from './resizable';
 
 /**
  * Suggest widget colors
@@ -47,8 +44,6 @@ export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.bord
 export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
-
-
 
 
 const enum State {
@@ -87,14 +82,14 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private ignoreFocusEvents: boolean = false;
 	private completionModel?: CompletionModel;
 
-	private element: HTMLElement;
+	private element: ResizableHTMLElement;
 	private messageElement: HTMLElement;
 	private mainElement: HTMLElement;
 	private listContainer: HTMLElement;
 	private list: List<CompletionItem>;
 	private status: SuggestWidgetStatus;
 	private details: SuggestionDetails;
-	private listHeight?: number;
+	// private listHeight?: number;
 
 	private readonly ctxSuggestWidgetVisible: IContextKey<boolean>;
 	private readonly ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
@@ -141,21 +136,25 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const markdownRenderer = this._disposables.add(new MarkdownRenderer({ editor }, modeService, openerService));
 		const kbToggleDetails = keybindingService.lookupKeybinding('toggleSuggestionDetails')?.getLabel() ?? '';
 
-		this.element = $('.editor-widget.suggest-widget');
-		this._disposables.add(addDisposableListener(this.element, 'click', e => {
-			if (e.target === this.element) {
+		this.element = new ResizableHTMLElement();
+		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
+		this._disposables.add(this.element.onDidResize(e => {
+			this.layout(e.height, e.width);
+		}));
+		this._disposables.add(addDisposableListener(this.element.domNode, 'click', e => {
+			if (e.target === this.element.domNode) {
 				this.hideWidget();
 			}
 		}));
 
-		this.messageElement = append(this.element, $('.message'));
-		this.mainElement = append(this.element, $('.tree'));
+		this.messageElement = append(this.element.domNode, $('.message'));
+		this.mainElement = append(this.element.domNode, $('.tree'));
 
-		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this.editor, markdownRenderer, kbToggleDetails);
+		this.details = instantiationService.createInstance(SuggestionDetails, this.element.domNode, this.editor, markdownRenderer, kbToggleDetails);
 		this.details.onDidClose(this.toggleDetails, this, this._disposables);
 		hide(this.details.element);
 
-		const applyIconStyle = () => this.element.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
+		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
 
 		this.listContainer = append(this.mainElement, $('.list-container'));
@@ -189,7 +188,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		});
 
 		this.status = instantiationService.createInstance(SuggestWidgetStatus, this.mainElement);
-		const applyStatusBarStyle = () => this.element.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
+		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
 		applyStatusBarStyle();
 
 		this._disposables.add(attachListStyler(this.list, themeService, {
@@ -223,6 +222,17 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this._disposables.add(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
 	}
 
+	dispose(): void {
+		this.details.dispose();
+		this.list.dispose();
+		this.status.dispose();
+		this._disposables.dispose();
+		this.loadingTimeout.dispose();
+		this.showTimeout.dispose();
+		this.editor.removeContentWidget(this);
+		this.element.dispose();
+	}
+
 	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		// Clicking inside details
 		if (this.details.element.contains(mouseEvent.target.element)) {
@@ -230,7 +240,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}
 		// Clicking outside details and inside suggest
 		else {
-			if (this.element.contains(mouseEvent.target.element)) {
+			if (this.element.domNode.contains(mouseEvent.target.element)) {
 				this.editor.focus();
 			}
 		}
@@ -356,7 +366,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				if (this._isDetailsVisible()) {
 					this.showDetails(false);
 				} else {
-					this.element.classList.remove('docs-side');
+					this.element.domNode.classList.remove('docs-side');
 				}
 
 				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
@@ -380,13 +390,13 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const stateChanged = this.state !== state;
 		this.state = state;
 
-		this.element.classList.toggle('frozen', state === State.Frozen);
+		this.element.domNode.classList.toggle('frozen', state === State.Frozen);
 
 		switch (state) {
 			case State.Hidden:
 				hide(this.messageElement, this.details.element, this.mainElement);
 				this.hide();
-				this.listHeight = 0;
+				// this.listHeight = 0;
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
 				}
@@ -396,7 +406,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				hide(this.mainElement, this.details.element);
 				show(this.messageElement);
-				this.element.classList.remove('docs-side');
+				this.element.domNode.classList.remove('docs-side');
 				this.show();
 				this.focusedItem = undefined;
 				break;
@@ -404,7 +414,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				hide(this.mainElement, this.details.element);
 				show(this.messageElement);
-				this.element.classList.remove('docs-side');
+				this.element.domNode.classList.remove('docs-side');
 				this.show();
 				this.focusedItem = undefined;
 				break;
@@ -626,7 +636,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.ctxSuggestWidgetDetailsVisible.set(false);
 			this._setDetailsVisible(false);
 			hide(this.details.element);
-			this.element.classList.remove('docs-side', 'doc-below');
+			this.element.domNode.classList.remove('docs-side', 'doc-below');
 			this.editor.layoutContentWidget(this);
 			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
 
@@ -672,16 +682,16 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private show(): void {
-		const newHeight = this.updateListHeight();
-		if (newHeight !== this.listHeight) {
-			this.editor.layoutContentWidget(this);
-			this.listHeight = newHeight;
-		}
-
+		// const newHeight = this.updateListHeight();
+		// if (newHeight !== this.listHeight) {
+		// 	this.editor.layoutContentWidget(this);
+		// 	this.listHeight = newHeight;
+		// }
+		this.layout();
 		this.ctxSuggestWidgetVisible.set(true);
 
 		this.showTimeout.cancelAndSet(() => {
-			this.element.classList.add('visible');
+			this.element.domNode.classList.add('visible');
 			this.onDidShowEmitter.fire(this);
 		}, 100);
 	}
@@ -691,7 +701,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.editor.layoutContentWidget(this);
 		this.ctxSuggestWidgetVisible.reset();
 		this.ctxSuggestWidgetMultipleSuggestions.reset();
-		this.element.classList.remove('visible');
+		this.element.domNode.classList.remove('visible');
 	}
 
 	hideWidget(): void {
@@ -717,7 +727,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	getDomNode(): HTMLElement {
-		return this.element;
+		return this.element.domNode;
 	}
 
 	getId(): string {
@@ -728,20 +738,49 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		return this.state === State.Frozen;
 	}
 
-	private updateListHeight(): number {
-		let height = this.unfocusedHeight;
+	// private updateListHeight(): number {
+	// 	this.layout();
+	// 	return this.element.size.height;
+	// }
 
-		if (this.state !== State.Empty && this.state !== State.Loading) {
-			const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
-			const { maxVisibleSuggestions } = this.editor.getOption(EditorOption.suggest);
-			height = Math.min(suggestionCount, maxVisibleSuggestions) * this.unfocusedHeight;
+	layout(height?: number, width?: number): void {
+
+		height = height ?? this.storageService.getNumber('suggestWidget.height', StorageScope.GLOBAL);
+		width = width ?? this.storageService.getNumber('suggestWidget.width', StorageScope.GLOBAL);
+
+		const statusBarHeight = this.editor.getOption(EditorOption.suggest).statusBar.visible ? this.unfocusedHeight : 0;
+
+		if (width && width < 250) {
+			width = 250;
 		}
 
-		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
-		this.listContainer.style.height = `${height}px`;
-		this.mainElement.style.height = `${height + (this.editor.getOption(EditorOption.suggest).statusBar.visible ? this.unfocusedHeight : 0)}px`;
-		this.list.layout(height);
-		return height;
+		if (height && height < 3 * this.unfocusedHeight + statusBarHeight) {
+			height = 3 * this.unfocusedHeight + statusBarHeight;
+		}
+
+		if (height === undefined) {
+			let contentHeight = this.unfocusedHeight;
+			if (this.state !== State.Empty && this.state !== State.Loading) {
+				const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
+				const { maxVisibleSuggestions } = this.editor.getOption(EditorOption.suggest);
+				contentHeight = Math.min(suggestionCount, maxVisibleSuggestions) * this.unfocusedHeight;
+			}
+			height = contentHeight + statusBarHeight;
+		}
+
+		if (width === undefined) {
+			width = 500;
+		}
+
+		this.element.domNode.style.lineHeight = `${this.unfocusedHeight}px`;
+		this.listContainer.style.height = `${height - statusBarHeight}px`;
+		this.mainElement.style.height = `${height}px`;
+		this.element.layout(height, width);
+		this.list.layout(height, width);
+		this.editor.layoutContentWidget(this);
+
+		this.storageService.store('suggestWidget.height', height, StorageScope.GLOBAL);
+		this.storageService.store('suggestWidget.width', width, StorageScope.GLOBAL);
 	}
 
 	/**
@@ -757,7 +796,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
-		const widgetCoords = getDomNodePagePosition(this.element);
+		const widgetCoords = getDomNodePagePosition(this.element.domNode);
 		const widgetX = widgetCoords.left;
 		const widgetY = widgetCoords.top;
 
@@ -774,11 +813,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.docsPositionPreviousWidgetY = widgetY;
 
 		const aboveCursor = cursorY - lineHeight > widgetY;
-		const rowMode = this.element.classList.contains('docs-side');
+		const rowMode = this.element.domNode.classList.contains('docs-side');
 
 		// row mode: reverse doc/list when being too far right
 		// column mode: reverse doc/list when being too far down
-		this.element.classList.toggle(
+		this.element.domNode.classList.toggle(
 			'reverse',
 			(rowMode && widgetX < cursorX - this.listWidth) || (!rowMode && aboveCursor)
 		);
@@ -796,17 +835,17 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	 */
 	private expandSideOrBelow() {
 		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {
-			this.element.classList.remove('docs-side', 'docs-below');
+			this.element.domNode.classList.remove('docs-side', 'docs-below');
 			return;
 		}
 
-		let matches = this.element.style.maxWidth.match(/(\d+)px/);
+		let matches = this.element.domNode.style.maxWidth.match(/(\d+)px/);
 		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
-			this.element.classList.add('docs-below');
-			this.element.classList.remove('docs-side');
+			this.element.domNode.classList.add('docs-below');
+			this.element.domNode.classList.remove('docs-side');
 		} else if (canExpandCompletionItem(this.focusedItem)) {
-			this.element.classList.add('docs-side');
-			this.element.classList.remove('docs-below');
+			this.element.domNode.classList.add('docs-side');
+			this.element.domNode.classList.remove('docs-below');
 		}
 	}
 
@@ -832,21 +871,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private _isDetailsVisible(): boolean {
-		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
+		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
 	}
 
 	private _setDetailsVisible(value: boolean) {
 		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
-	}
-
-	dispose(): void {
-		this.details.dispose();
-		this.list.dispose();
-		this.status.dispose();
-		this._disposables.dispose();
-		this.loadingTimeout.dispose();
-		this.showTimeout.dispose();
-		this.editor.removeContentWidget(this);
 	}
 }
 
