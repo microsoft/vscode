@@ -224,8 +224,8 @@ export class ModesHoverController implements IEditorContribution {
 		this._glyphWidget.value = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
 
-	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
-		this.contentWidget.startShowingAt(range, mode, focus);
+	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean, force?: boolean): void {
+		this.contentWidget.startShowingAt(range, mode, focus, force);
 	}
 
 	public dispose(): void {
@@ -267,10 +267,22 @@ class ShowHoverAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		const position = editor.getPosition();
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+
+		let force;
+		let range;
+		const hp = controller.contentWidget.getPosition();
+		if (hp?.range) {
+			force = true;
+			range = new Range(hp.range.startLineNumber, hp.range.startColumn, hp.range.endLineNumber, hp.range.endColumn);
+		} else if (hp?.position) {
+			force = true;
+			range = new Range(hp.position.lineNumber, hp.position.column, hp.position.lineNumber, hp.position.column);
+		} else {
+			const position = editor.getPosition();
+			range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		}
 		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
-		controller.showContentHover(range, HoverStartMode.Immediate, focus);
+		controller.showContentHover(range, HoverStartMode.Immediate, focus, force);
 	}
 }
 

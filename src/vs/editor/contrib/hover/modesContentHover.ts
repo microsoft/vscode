@@ -278,8 +278,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
-		if (this._lastRange && this._lastRange.equalsRange(range)) {
+	startShowingAt(range: Range, mode: HoverStartMode, focus: boolean, force: boolean = false): void {
+		if (!force && this._lastRange && this._lastRange.equalsRange(range)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
 		}
