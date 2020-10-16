@@ -129,9 +129,6 @@ class BrowserMain extends Disposable {
 			if (storageService.hasPendingUpdate) {
 				console.warn('Unload prevented: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
-			} else if (configurationService.getValue<boolean>('window.confirmBeforeQuit')) {
-				console.warn('Unload prevented: window.confirmBeforeQuit=true');
-				event.veto(true);
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => {
