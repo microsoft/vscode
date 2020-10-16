@@ -273,6 +273,8 @@ suite('Resources', () => {
 		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://A/FOO/BAR/GOO'), 'BAR/GOO', false, true);
 		assertRelativePath(URI.parse('foo://a/foo/xoo'), URI.parse('foo://A/FOO/BAR/GOO'), '../BAR/GOO', false, true);
 		assertRelativePath(URI.parse('foo:///c:/a/foo'), URI.parse('foo:///C:/a/foo/xoo/'), 'xoo', false, true);
+		assertRelativePath(URI.parse('foo:///c:/a/foo'), URI.parse('foo:///D:/a/foo/xoo/'), undefined, false, true);
+		assertRelativePath(URI.parse('file:///c:/a/foo'), URI.parse('file:///D:/a/foo/xoo/'), undefined, false, true);
 
 		if (isWindows) {
 			assertRelativePath(URI.file('c:\\foo\\bar'), URI.file('c:\\foo\\bar'), '');

@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/path';
 import { URI, uriToFsPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -229,11 +229,10 @@ export class ExtUri implements IExtUri {
 		if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
 			return undefined;
 		}
-		if (from.scheme === Schemas.file) {
-			const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
-			return isWindows ? extpath.toSlashes(relativePath) : relativePath;
-		}
 		let fromPath = from.path || '/', toPath = to.path || '/';
+		if (getWindowsDriveLetter(fromPath) !== getWindowsDriveLetter(toPath)) {
+			return undefined; // no relative path possible if the drive letter doesn't match
+		}
 		if (this._ignorePathCasing(from)) {
 			// make casing of fromPath match toPath
 			let i = 0;
@@ -391,6 +390,17 @@ export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => UR
 	}
 
 	return distinctParents;
+}
+
+/**
+ * Given a URI path (not a fs path!), tests if the path looks like a Window path with drive letter and returns the lowercase variant of that drive letter.
+ * @param path returns the drive letter (lower case) or undefined if the path does not look like a windows path
+ */
+function getWindowsDriveLetter(path: string): string | undefined {
+	if (/^\/[a-zA-Z]:(\/|$)/.test(path)) {
+		return path.charAt(1).toLowerCase();
+	}
+	return undefined;
 }
 
 /**
