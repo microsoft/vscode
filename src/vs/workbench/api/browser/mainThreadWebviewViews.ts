@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
+import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 
@@ -43,10 +43,16 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		webviewView.show(preserveFocus);
 	}
 
-	public $registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void {
+	public $registerWebviewViewProvider(
+		extensionData: extHostProtocol.WebviewExtensionDescription,
+		viewType: string,
+		options?: { retainContextWhenHidden?: boolean }
+	): void {
 		if (this._webviewViewProviders.has(viewType)) {
 			throw new Error(`View provider for ${viewType} already registered`);
 		}
+
+		const extension = reviveWebviewExtension(extensionData);
 
 		this._webviewViewService.register(viewType, {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
@@ -63,6 +69,8 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 						console.error('Could not load webview state', e, webviewView.webview.state);
 					}
 				}
+
+				webviewView.webview.extension = extension;
 
 				if (options) {
 					webviewView.webview.options = options;
