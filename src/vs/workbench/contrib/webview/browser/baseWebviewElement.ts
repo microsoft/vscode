@@ -83,7 +83,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		public readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		public extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
