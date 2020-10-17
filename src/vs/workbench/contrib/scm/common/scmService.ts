@@ -35,7 +35,7 @@ class SCMInput implements ISCMInput {
 			return;
 		}
 		if (!fromKeyboard) {
-			this.addToHistory(true);
+			this.addToHistory(this.value, true);
 		}
 		this._value = value;
 		this._onDidChange.fire(value);
@@ -99,53 +99,58 @@ class SCMInput implements ISCMInput {
 			this.historyNavigator = new HistoryNavigator<SCMValue>([], 50);
 		}
 		this.storageService.onWillSaveState(() => {
-			this.addToHistory(false);
+			this.addToHistory(this.value, false);
 		});
 	}
 
 	showNextValue(): void {
-		if (!this.has(this.value)) {
-			this.addToHistory(false);
-		}
+		let currentValue = this.value;
 
 		let next = this.historyNavigator.next();
 
 		if (next) {
-			this.setValue(next.value, true);
+			if (next.value === currentValue) {
+				let after = this.historyNavigator.next();
+				if (after) {
+					this.setValue(after.value, false);
+				}
+			} else {
+					this.setValue(next.value, false);
+			}
 		}
 	}
 
 	showPreviousValue(): void {
-		if (!this.has(this.value)) {
-			this.addToHistory(false);
-		}
+		let currentValue = this.value;
 
 		let previous = this.historyNavigator.previous();
 
 		if (previous) {
-			this.setValue(previous.value, true);
+			if (previous.value === currentValue) {
+				let before = this.historyNavigator.previous();
+				if (before) {
+					this.setValue(before.value, false);
+				}
+			} else {
+				this.setValue(previous.value, false);
+			}
 		}
+		this.addToHistory(currentValue, false);
 	}
 
-	private has(value: string): boolean {
+	private has(value: string, isCommit: boolean): boolean {
 		let values = this.historyNavigator.getHistory();
-		let filtered = values.filter(item => item.value === value);
+		let filtered = values.filter(item => item.value === value &&  item.isCommitMessage === isCommit);
 		return filtered.length > 0;
 	}
 
-	private addToHistory(isCommit: boolean): void {
-		let item = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
-		if (item.length > 0) {
-			this.historyNavigator.remove(item[0]);
+	private addToHistory(value: string, isCommit: boolean): void {
+		let items = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
+		if (items.length > 0 && !isCommit) {
+			this.historyNavigator.remove(items[0]);
 		}
-		if (this.value) {
-			if (!this.has(this.value)) {
-				this.historyNavigator.add(new SCMValue(this.value, isCommit));
-			} else if (isCommit && item.length > 0) {
-				if (item[0].value === this.value && !item[0].isCommitMessage) {
-					this.historyNavigator.add(new SCMValue(this.value, isCommit));
-				}
-			}
+		if (!this.has(value, isCommit)) {
+			this.historyNavigator.add(new SCMValue(value, isCommit));
 		}
 		this.save();
 	}

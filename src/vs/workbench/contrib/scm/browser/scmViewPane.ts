@@ -1433,6 +1433,18 @@ export class SCMInputWidget extends Disposable {
 			this.validationDisposable.dispose();
 		}));
 
+		const firstLineKey = contextKeyService2.createKey('scmInputIsInFirstLine', false);
+		const lastLineKey = contextKeyService2.createKey('scmInputIsInLastLine', false);
+
+		this._register(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this.inputEditor._getViewModel()!;
+			const lastLineNumber = viewModel.getLineCount();
+			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+
+			firstLineKey.set(viewPosition.lineNumber === 1);
+			lastLineKey.set(viewPosition.lineNumber === lastLineNumber);
+		}));
+
 		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
 		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
