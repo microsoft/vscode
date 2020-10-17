@@ -359,7 +359,7 @@ export class AzureActiveDirectoryService {
 			case 'online.dev.core.vsengsaas.visualstudio.com':
 				return 'vsodev,';
 			default:
-				return '';
+				return `${callbackUri.scheme},`;
 		}
 	}
 
