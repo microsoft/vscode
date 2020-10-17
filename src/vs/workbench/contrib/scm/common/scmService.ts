@@ -166,7 +166,6 @@ class SCMInput implements ISCMInput {
 		}
 	}
 }
-
 class SCMRepository implements ISCMRepository {
 
 	private _selected = false;
