@@ -80,7 +80,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash),
 	primary: KeyCode.Delete,
 	mac: {
-		primary: KeyMod.CtrlCmd | KeyCode.Backspace
+		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+		secondary: [KeyCode.Delete]
 	},
 	handler: moveFileToTrashHandler
 });
