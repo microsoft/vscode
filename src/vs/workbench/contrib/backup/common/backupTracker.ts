@@ -120,7 +120,7 @@ export abstract class BackupTracker extends Disposable {
 				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString());
 
 				try {
-					const backup = await workingCopy.backup();
+					const backup = await workingCopy.backup(cts.token);
 					if (cts.token.isCancellationRequested) {
 						return;
 					}

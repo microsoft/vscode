@@ -20,6 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
@@ -195,7 +196,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 				// Backup does not exist
 				else {
-					const backup = await workingCopy.backup();
+					const backup = await workingCopy.backup(CancellationToken.None);
 					await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta);
 
 					backups.push(workingCopy);
