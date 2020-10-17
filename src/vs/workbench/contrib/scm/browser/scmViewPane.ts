@@ -1387,7 +1387,7 @@ export class SCMInputWidget extends Disposable {
 
 		const contextKeyService2 = contextKeyService.createScoped(this.element);
 		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
-
+		
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
 			lineDecorationsWidth: 4,
