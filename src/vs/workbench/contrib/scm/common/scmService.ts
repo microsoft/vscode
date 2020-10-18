@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator } from 'vs/base/common/history';
 
 class SCMValue {
@@ -99,8 +99,14 @@ class SCMInput implements ISCMInput {
 		} else {
 			this.historyNavigator = new HistoryNavigator<SCMValue>([], 50);
 		}
-		this.storageService.onWillSaveState(() => {
-			this.addToHistory(false);
+		this.storageService.onWillSaveState((e) => {
+			if (e.reason == WillSaveStateReason.SHUTDOWN) {
+			if (!this.has(this.value)) {
+				this.addToHistory(false);
+			} else {
+				this.save();
+			}
+		}
 		});
 	}
 
@@ -146,7 +152,7 @@ class SCMInput implements ISCMInput {
 
 	private addToHistory(isCommit: boolean): void {
 		let item = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
-		if (!isCommit && item.length > 0) {
+		if (!isCommit && item.length > 0 && item[0].value !== this.value) {
 			this.historyNavigator.remove(item[0]);
 		}
 		if (!this.has(this.value)) {
