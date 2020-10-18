@@ -905,6 +905,8 @@ export class SearchView extends ViewPane {
 			return false;
 		}
 
+		this.searchWidget.searchInput.setCaseSensitive(controller.getState().matchCase);
+		this.searchWidget.searchInput.setWholeWords(controller.getState().wholeWord);
 		this.searchWidget.searchInput.setRegex(controller.getState().isRegex);
 		this.updateText(searchString, allowSearchOnType);
 
