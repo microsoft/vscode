@@ -101,12 +101,12 @@ class SCMInput implements ISCMInput {
 		}
 		this.storageService.onWillSaveState((e) => {
 			if (e.reason == WillSaveStateReason.SHUTDOWN) {
-			if (!this.has(this.value)) {
-				this.addToHistory(false);
-			} else {
-				this.save();
+				if (!this.has(this.value)) {
+					this.addToHistory(false);
+				} else {
+					this.save();
+				}
 			}
-		}
 		});
 	}
 
@@ -151,14 +151,14 @@ class SCMInput implements ISCMInput {
 	}
 
 	private addToHistory(isCommit: boolean): void {
-		let item = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
-		if (!isCommit && item.length > 0 && item[0].value !== this.value) {
-			this.historyNavigator.remove(item[0]);
+		let latestInput = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
+		if (!isCommit && latestInput.length > 0 && latestInput[0].value !== this.value) {
+			this.historyNavigator.remove(latestInput[0]);
 		}
 		if (!this.has(this.value)) {
 			this.historyNavigator.add(new SCMValue(this.value, isCommit));
-		} else if (isCommit && item.length > 0) {
-			if (item[0].value === this.value && !item[0].isCommitMessage) {
+		} else if (isCommit && latestInput.length > 0) {
+			if (latestInput[0].value === this.value && !latestInput[0].isCommitMessage) {
 				this.historyNavigator.add(new SCMValue(this.value, isCommit));
 			}
 		}
