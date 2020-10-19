@@ -2535,10 +2535,10 @@ typescript@^3.0.1:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.5.3.tgz#c830f657f93f1ea846819e929092f5fe5983e977"
   integrity sha512-ACzBtm/PhXBDId6a6sDJfroT2pOWt/oOnk4/dElG5G33ZL776N3Y6/6bKZJBFpd+b05F3Ct9qDjMeJmRWtE2/g==
 
-typescript@^4.1.0-dev.20200924:
-  version "4.1.0-dev.20200924"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.1.0-dev.20200924.tgz#d8b2aaa6f94ec22725eafcadf0b9a17aae9c32b9"
-  integrity sha512-AXwqVrp2AeVZ3jaZ/gcvxb0nnvqEbDFuFFjvV5/9wfcyz7KZx5KvyJENUgGoJHywCvl1PHKasQKYjzjk1QixnQ==
+typescript@^4.1.0-dev.20201018:
+  version "4.1.0-dev.20201018"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.1.0-dev.20201018.tgz#1a4b8e3f9b640218a44299773371354d75bcfa34"
+  integrity sha512-cOFYP1I+IrMWa6ZfefxcacZha1pQMxrq8DGMBLkvrl8k3CqIdD8APq9LXaMj/PWrB8IPgDprY6jHwqiHg0/oGA==
 
 typical@^4.0.0:
   version "4.0.0"
