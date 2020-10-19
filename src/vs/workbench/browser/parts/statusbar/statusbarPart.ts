@@ -21,7 +21,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { EventHelper, createStyleSheet, addDisposableListener, EventType, hide, show, isAncestor } from 'vs/base/browser/dom';
+import { EventHelper, createStyleSheet, addDisposableListener, EventType, hide, show, isAncestor, appendChildren } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -39,6 +39,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { renderCodicon, renderCodicons } from 'vs/base/browser/codicons';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -64,17 +65,18 @@ class StatusbarViewModel extends Disposable {
 
 	static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 
+	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
+	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
+
 	private readonly _entries: IStatusbarViewModelEntry[] = [];
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
 
-	private hidden!: Set<string>;
+	private _lastFocusedEntry: IStatusbarViewModelEntry | undefined;
 	get lastFocusedEntry(): IStatusbarViewModelEntry | undefined {
 		return this._lastFocusedEntry && !this.isHidden(this._lastFocusedEntry.id) ? this._lastFocusedEntry : undefined;
 	}
-	private _lastFocusedEntry: IStatusbarViewModelEntry | undefined;
 
-	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
-	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
+	private hidden!: Set<string>;
 
 	constructor(private readonly storageService: IStorageService) {
 		super();
@@ -706,12 +708,67 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 }
 
+class StatusBarCodiconLabel extends CodiconLabel {
+
+	private readonly progressCodicon = renderCodicon('sync', 'spin');
+
+	private currentText = '';
+	private currentShowProgress = false;
+
+	constructor(
+		private readonly container: HTMLElement
+	) {
+		super(container);
+	}
+
+	set showProgress(showProgress: boolean) {
+		if (this.currentShowProgress !== showProgress) {
+			this.currentShowProgress = showProgress;
+			this.text = this.currentText;
+		}
+	}
+
+	set text(text: string) {
+
+		// Progress: insert progress codicon as first element as needed
+		// but keep it stable so that the animation does not reset
+		if (this.currentShowProgress) {
+
+			// Append as needed
+			if (this.container.firstChild !== this.progressCodicon) {
+				this.container.appendChild(this.progressCodicon);
+			}
+
+			// Remove others
+			for (const node of Array.from(this.container.childNodes)) {
+				if (node !== this.progressCodicon) {
+					node.remove();
+				}
+			}
+
+			// If we have text to show, add a space to separate from progress
+			let textContent = text ?? '';
+			if (textContent) {
+				textContent = ` ${textContent}`;
+			}
+
+			// Append new elements
+			appendChildren(this.container, ...renderCodicons(textContent));
+		}
+
+		// No Progress: no special handling
+		else {
+			super.text = text;
+		}
+	}
+}
+
 class StatusbarEntryItem extends Disposable {
 
-	private entry!: IStatusbarEntry;
+	readonly labelContainer: HTMLElement;
+	private readonly label: StatusBarCodiconLabel;
 
-	labelContainer!: HTMLElement;
-	private label!: CodiconLabel;
+	private entry: IStatusbarEntry | undefined = undefined;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -729,25 +786,24 @@ class StatusbarEntryItem extends Disposable {
 	) {
 		super();
 
-		this.create();
-		this.update(entry);
-	}
-
-	private create(): void {
-
 		// Label Container
 		this.labelContainer = document.createElement('a');
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 		this.labelContainer.setAttribute('role', 'button');
 
-		// Label
-		this.label = new CodiconLabel(this.labelContainer);
+		// Label (with support for progress)
+		this.label = new StatusBarCodiconLabel(this.labelContainer);
 
 		// Add to parent
 		this.container.appendChild(this.labelContainer);
+
+		this.update(entry);
 	}
 
 	update(entry: IStatusbarEntry): void {
+
+		// Update: Progress
+		this.label.showProgress = !!entry.showProgress;
 
 		// Update: Text
 		if (!this.entry || entry.text !== this.entry.text) {
@@ -760,8 +816,9 @@ class StatusbarEntryItem extends Disposable {
 			}
 		}
 
+		// Set the aria label on both elements so screen readers would read
+		// the correct thing without duplication #96210
 		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
-			// Set the aria label on both elements so screen readers would read the correct thing without duplication #96210
 			this.container.setAttribute('aria-label', entry.ariaLabel);
 			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
 		}

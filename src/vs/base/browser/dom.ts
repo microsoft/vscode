@@ -998,8 +998,15 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 /**
  * Removes all children from `parent` and appends `children`
  */
-export function reset(parent: HTMLElement, ...children: Array<Node | string>) {
+export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
+	appendChildren(parent, ...children);
+}
+
+/**
+ * Appends `children` to `parent`
+ */
+export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
 	for (const child of children) {
 		if (child instanceof Node) {
 			parent.appendChild(child);
