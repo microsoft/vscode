@@ -12,8 +12,18 @@ const CSI = '\x1b[';
 const SHOW_CURSOR = `${CSI}?25h`;
 const HIDE_CURSOR = `${CSI}?25l`;
 const DELETE_CHAR = `${CSI}X`;
-const CSI_STYLE_RE = /^\x1b\[[0-9;]+m/;
-const CSI_MOVE_RE = /^\x1b\[([0-9]*)([DC])/;
+const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
+const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;5)?([DC])/;
+const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*: /i;
+const WHITESPACE_RE = /\s/;
+
+/**
+ * Codes that should be omitted from sending to the prediction engine and
+ * insted omitted directly:
+ *  - cursor hide/show
+ *  - mode set/reset
+ */
+const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -30,6 +40,46 @@ interface ICoordinate {
 }
 
 const getCellAtCoordinate = (b: IBuffer, c: ICoordinate) => b.getLine(c.y + c.baseY)?.getCell(c.x);
+
+const moveToWordBoundary = (b: IBuffer, cursor: ICoordinate, direction: -1 | 1) => {
+	let ateLeadingWhitespace = false;
+	if (direction < 0) {
+		cursor.x--;
+	}
+
+	while (cursor.x >= 0) {
+		const cell = getCellAtCoordinate(b, cursor);
+		if (!cell?.getCode()) {
+			return;
+		}
+
+		const chars = cell.getChars();
+		if (WHITESPACE_RE.test(chars)) {
+			if (ateLeadingWhitespace) {
+				break;
+			}
+		} else {
+			ateLeadingWhitespace = true;
+		}
+
+		cursor.x += direction;
+	}
+
+	if (direction < 0) {
+		cursor.x++; // we want to place the cursor after the whitespace starting the word
+	}
+
+	cursor.x = Math.max(0, cursor.x);
+};
+
+const enum MatchResult {
+	/** matched successfully */
+	Success,
+	/** failed to match */
+	Failure,
+	/** buffer data, it might match in the future one more data comes in */
+	Buffer,
+}
 
 interface IPrediction {
 	/**
@@ -54,9 +104,8 @@ interface IPrediction {
 	/**
 	 * Returns whether the given input is one expected by this prediction.
 	 */
-	matches(input: StringReader): boolean;
+	matches(input: StringReader): MatchResult;
 }
-
 
 class StringReader {
 	public index = 0;
@@ -65,10 +114,33 @@ class StringReader {
 		return this.input.length - this.index;
 	}
 
+	public get eof() {
+		return this.index === this.input.length;
+	}
+
+	public get rest() {
+		return this.input.slice(this.index);
+	}
+
 	constructor(private readonly input: string) { }
 
+	/**
+	 * Advances the reader and returns the character if it matches.
+	 */
+	public eatChar(char: string) {
+		if (this.input[this.index] !== char) {
+			return;
+		}
+
+		this.index++;
+		return char;
+	}
+
+	/**
+	 * Advances the reader and returns the string if it matches.
+	 */
 	public eatStr(substr: string) {
-		if (this.input.slice(this.index, this.index + substr.length) !== substr) {
+		if (this.input.slice(this.index, substr.length) !== substr) {
 			return;
 		}
 
@@ -76,6 +148,30 @@ class StringReader {
 		return substr;
 	}
 
+	/**
+	 * Matches and eats the substring character-by-character. If EOF is reached
+	 * before the substring is consumed, it will buffer. Index is not moved
+	 * if it's not a match.
+	 */
+	public eatGradually(substr: string): MatchResult {
+		let prevIndex = this.index;
+		for (const char of substr) {
+			if (!this.eatChar(char)) {
+				this.index = prevIndex;
+				return MatchResult.Failure;
+			}
+
+			if (this.eof) {
+				return MatchResult.Buffer;
+			}
+		}
+
+		return MatchResult.Success;
+	}
+
+	/**
+	 * Advances the reader and returns the regex if it matches.
+	 */
 	public eatRe(re: RegExp) {
 		const match = re.exec(this.input.slice(this.index));
 		if (!match) {
@@ -86,7 +182,10 @@ class StringReader {
 		return match;
 	}
 
-	public eatCharCode(min = 0, max = Infinity) {
+	/**
+	 * Advances the reader and returns the character if the code matches.
+	 */
+	public eatCharCode(min = 0, max = min + 1) {
 		const code = this.input.charCodeAt(this.index);
 		if (code < min || code >= max) {
 			return undefined;
@@ -95,14 +194,11 @@ class StringReader {
 		this.index++;
 		return code;
 	}
-
-	public rest() {
-		return this.input.slice(this.index);
-	}
 }
 
 /**
- * Boundary which never tests true. Will always discard predictions.
+ * Preidction which never tests true. Will always discard predictions made
+ * after it.
  */
 class HardBoundary implements IPrediction {
 	public apply() {
@@ -114,15 +210,15 @@ class HardBoundary implements IPrediction {
 	}
 
 	public matches() {
-		return false;
+		return MatchResult.Failure;
 	}
 }
 
+/**
+ * Prediction for a single alphanumeric character.
+ */
 class CharacterPrediction implements IPrediction {
-	protected appliedAt?: {
-		x: number;
-		y: number;
-		baseY: number;
+	protected appliedAt?: ICoordinate & {
 		oldAttributes: string;
 		oldChar: string;
 	};
@@ -154,16 +250,25 @@ class CharacterPrediction implements IPrediction {
 
 		// remove any styling CSI before checking the char
 		while (input.eatRe(CSI_STYLE_RE)) { }
-		if (input.eatStr(this.char)) {
-			return true;
+
+		if (input.eof) {
+			return MatchResult.Buffer;
+		}
+
+		if (input.eatChar(this.char)) {
+			return MatchResult.Success;
 		}
 
 		input.index = startIndex;
-		return false;
+		return MatchResult.Failure;
 	}
 }
 
 class BackspacePrediction extends CharacterPrediction {
+	constructor() {
+		super('', '\b');
+	}
+
 	public apply(buffer: IBuffer, cursor: ICoordinate) {
 		const cell = getCellAtCoordinate(buffer, cursor);
 		this.appliedAt = cell
@@ -175,7 +280,15 @@ class BackspacePrediction extends CharacterPrediction {
 	}
 
 	public matches(input: StringReader) {
-		return !!input.eatStr('\b');
+		// if at end of line, allow backspace + clear line. Zsh does this.
+		if (this.appliedAt?.oldChar === '') {
+			const r = input.eatGradually(`\b${CSI}K`);
+			if (r !== MatchResult.Failure) {
+				return r;
+			}
+		}
+
+		return input.eatChar('\b') ? MatchResult.Success : MatchResult.Failure;
 	}
 }
 
@@ -204,22 +317,48 @@ class NewlinePrediction implements IPrediction {
 	}
 
 	public matches(input: StringReader) {
-		return !!input.eatStr('\r\n');
+		return input.eatGradually('\r\n');
 	}
 }
 
 class CursorMovePrediction implements IPrediction {
-	constructor(private readonly direction: CursorMoveDirection, private readonly amount: number) { }
+	private applied?: {
+		rollForward: string;
+		rollBack: string;
+		amount: number;
+	};
 
-	public apply(_: IBuffer, cursor: ICoordinate) {
-		const { amount, direction } = this;
-		cursor.x += (direction === CursorMoveDirection.Back ? -1 : 1) * amount;
-		return `${CSI}${amount}${direction}`;
+	constructor(
+		private readonly direction: CursorMoveDirection,
+		private readonly moveByWords: boolean,
+		private readonly amount: number,
+	) { }
+
+	public apply(buffer: IBuffer, cursor: ICoordinate) {
+		let rollBack = setCursorCoordinate(buffer, cursor);
+		const currentCell = getCellAtCoordinate(buffer, cursor);
+		if (currentCell) {
+			rollBack += getBufferCellAttributes(currentCell);
+		}
+
+		const { amount, direction, moveByWords } = this;
+		const delta = direction === CursorMoveDirection.Back ? -1 : 1;
+		const startX = cursor.x;
+		if (moveByWords) {
+			for (let i = 0; i < amount; i++) {
+				moveToWordBoundary(buffer, cursor, delta);
+			}
+		} else {
+			cursor.x += delta * amount;
+		}
+
+		const rollForward = setCursorCoordinate(buffer, cursor);
+		this.applied = { amount: Math.abs(cursor.x - startX), rollBack, rollForward };
+		return this.applied.rollForward;
 	}
 
 	public rollback() {
-		const fn = this.direction === CursorMoveDirection.Back ? CursorMoveDirection.Forwards : CursorMoveDirection.Back;
-		return `${CSI}${this.amount}${fn}`;
+		return this.applied?.rollBack ?? '';
 	}
 
 	public rollForwards() {
@@ -227,16 +366,36 @@ class CursorMovePrediction implements IPrediction {
 	}
 
 	public matches(input: StringReader) {
-		const { amount, direction } = this;
-		if (amount === 1 && input.eatStr(`${CSI}${direction}`)) {
-			return true;
+		if (!this.applied) {
+			return MatchResult.Failure;
 		}
 
-		if (amount === 1 && this.direction === CursorMoveDirection.Back && input.eatStr('\b')) {
-			return true;
+		const direction = this.direction;
+		const { amount, rollForward } = this.applied;
+
+		if (amount === 1) {
+			// arg can be omitted to move one character
+			const r = input.eatGradually(`${CSI}${direction}`);
+			if (r !== MatchResult.Failure) {
+				return r;
+			}
+
+			// \b is the equivalent to moving one character back
+			if (direction === CursorMoveDirection.Back && input.eatChar('\b')) {
+				return MatchResult.Success;
+			}
 		}
 
-		return !!input.eatStr(`${CSI}${amount}${direction}`);
+		// check if the cursor position is set absolutely
+		if (rollForward) {
+			const r = input.eatGradually(rollForward);
+			if (r !== MatchResult.Failure) {
+				return r;
+			}
+		}
+
+		// check for a relative move in the direction
+		return input.eatGradually(`${CSI}${amount}${direction}`);
 	}
 }
 
@@ -259,12 +418,23 @@ class PredictionTimeline {
 	 */
 	private cursor: ICoordinate | undefined;
 
+	/**
+	 * Previously sent data that was buffered and should be prepended to the
+	 * next input.
+	 */
+	private inputBuffer?: string;
+
 	constructor(public readonly terminal: Terminal) { }
 
 	/**
 	 * Should be called when input is incoming to the temrinal.
 	 */
 	public beforeServerInput(input: string): string {
+		if (this.inputBuffer) {
+			input = this.inputBuffer + input;
+			this.inputBuffer = undefined;
+		}
+
 		if (!this.expected.length) {
 			this.cursor = undefined;
 			return input;
@@ -280,31 +450,55 @@ class PredictionTimeline {
 
 		const reader = new StringReader(input);
 		const startingGen = this.expected[0].gen;
-		while (this.expected.length && reader.remaining > 0) {
+		const emitPredictionOmitted = () => {
+			const omit = reader.eatRe(PREDICTION_OMIT_RE);
+			if (omit) {
+				output += omit[0];
+			}
+		};
+
+		ReadLoop: while (this.expected.length && reader.remaining > 0) {
+			emitPredictionOmitted();
+
 			const prediction = this.expected[0].p;
 			let beforeTestReaderIndex = reader.index;
-
-			// if the input character matches what the next prediction expected, undo
-			// the prediction and write the real character out.
-			if (prediction.matches(reader)) {
-				const eaten = input.slice(beforeTestReaderIndex, reader.index);
-				output += prediction.rollForwards?.(buffer, eaten)
-					?? (prediction.rollback(buffer) + input.slice(beforeTestReaderIndex, reader.index));
-				this.expected.shift();
-			}
-			// otherwise, roll back all pending predictions
-			else {
-				output += this.expected.filter(p => p.gen === startingGen)
-					.map(({ p }) => p.rollback(buffer))
-					.reverse()
-					.join('');
-				this.expected = [];
-				this.cursor = undefined;
-				break;
+			switch (prediction.matches(reader)) {
+				case MatchResult.Success:
+					// if the input character matches what the next prediction expected, undo
+					// the prediction and write the real character out.
+					const eaten = input.slice(beforeTestReaderIndex, reader.index);
+					output += prediction.rollForwards?.(buffer, eaten)
+						?? (prediction.rollback(buffer) + input.slice(beforeTestReaderIndex, reader.index));
+					this.expected.shift();
+					break;
+				case MatchResult.Buffer:
+					// on a buffer, store the remaining data and completely read data
+					// to be output as normal.
+					this.inputBuffer = input.slice(beforeTestReaderIndex);
+					reader.index = input.length;
+					break ReadLoop;
+				case MatchResult.Failure:
+					// on a failure, roll back all remaining items in this generation
+					// and clear predictions, since they are no longer valid
+					output += this.expected.filter(p => p.gen === startingGen)
+						.map(({ p }) => p.rollback(buffer))
+						.reverse()
+						.join('');
+					this.expected = [];
+					this.cursor = undefined;
+					break ReadLoop;
 			}
 		}
 
-		output += reader.rest();
+		emitPredictionOmitted();
+
+		// Extra data (like the result of running a command) should cause us to
+		// reset the cursor
+		if (!reader.eof) {
+			output += reader.rest;
+			this.expected = [];
+			this.cursor = undefined;
+		}
 
 		// If we passed a generation boundary, apply the current generation's predictions
 		if (this.expected.length && startingGen !== this.expected[0].gen) {
@@ -315,6 +509,10 @@ class PredictionTimeline {
 
 				output += p.apply(buffer, this.getCursor(buffer));
 			}
+		}
+
+		if (output.length === 0) {
+			return '';
 		}
 
 		if (this.cursor) {
@@ -422,8 +620,8 @@ export class TypeAheadAddon implements ITerminalAddon {
 		const buffer = terminal.buffer.active;
 		const reader = new StringReader(data);
 		while (reader.remaining > 0) {
-			if (reader.eatStr('\b')) { // backspace
-				this.timeline.addPrediction(buffer, new BackspacePrediction(this.typeheadStyle, '\b'));
+			if (reader.eatCharCode(127)) { // backspace
+				this.timeline.addPrediction(buffer, new BackspacePrediction());
 				continue;
 			}
 
@@ -440,7 +638,15 @@ export class TypeAheadAddon implements ITerminalAddon {
 			const cursorMv = reader.eatRe(CSI_MOVE_RE);
 			if (cursorMv) {
 				this.timeline.addPrediction(buffer, new CursorMovePrediction(
-					cursorMv[2] as CursorMoveDirection, Number(cursorMv[1]) || 1));
+					cursorMv[3] as CursorMoveDirection,
+					!!cursorMv[2],
+					Number(cursorMv[1]) || 1)
+				);
+				continue;
+			}
+
+			if (reader.eatChar('\r') && buffer.cursorY < terminal.rows - 1) {
+				this.timeline.addPrediction(buffer, new NewlinePrediction());
 				continue;
 			}
 
@@ -459,5 +665,14 @@ export class TypeAheadAddon implements ITerminalAddon {
 		console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
 		console.log('emitted data:', JSON.stringify(event.data));
+
+		// If there's something that looks like a password prompt, omit giving
+		// input. This is approximate since there's no TTY "password here" code,
+		// but should be enough to cover common cases like sudo
+		if (PASSWORD_INPUT_RE.test(event.data)) {
+			const terminal = this.timeline.terminal;
+			this.timeline.addPrediction(terminal.buffer.active, new HardBoundary());
+			this.timeline.addBoundary();
+		}
 	}
 }
