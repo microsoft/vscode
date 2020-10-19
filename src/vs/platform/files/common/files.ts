@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isNumber, isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -978,8 +978,12 @@ export class BinarySize {
 	static readonly TB = BinarySize.GB * BinarySize.KB;
 
 	static formatSize(size: number): string {
+		if (!isNumber(size)) {
+			size = 0;
+		}
+
 		if (size < BinarySize.KB) {
-			return localize('sizeB', "{0}B", size);
+			return localize('sizeB', "{0}B", size.toFixed(0));
 		}
 
 		if (size < BinarySize.MB) {

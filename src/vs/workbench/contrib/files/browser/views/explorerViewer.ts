@@ -1037,6 +1037,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			title: localize('uploadingFiles', "Uploading")
 		}, async progress => {
 			for (let entry of entries) {
+				if (cts.token.isCancellationRequested) {
+					break;
+				}
 
 				// Confirm overwrite as needed
 				if (target && entry.name && target.getChild(entry.name)) {
@@ -1081,15 +1084,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			const bytesUploadedPerSecond = operation.bytesUploaded / ((Date.now() - operation.startTime) / 1000);
 
+			// Small file
 			let message: string;
-			if (operation.filesTotal === 1 && entry.name) {
-				message = entry.name;
-			} else {
-				message = localize('uploadProgress', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, BinarySize.formatSize(bytesUploadedPerSecond));
+			if (fileSize < BinarySize.MB) {
+				if (operation.filesTotal === 1) {
+					message = `${entry.name}`;
+				} else {
+					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, BinarySize.formatSize(bytesUploadedPerSecond));
+				}
 			}
 
-			if (fileSize > BinarySize.MB) {
-				message = localize('uploadProgressDetail', "{0} ({1} of {2}, {3}/s)", message, BinarySize.formatSize(fileBytesUploaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesUploadedPerSecond));
+			// Large file
+			else {
+				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, BinarySize.formatSize(fileBytesUploaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesUploadedPerSecond));
 			}
 
 			progress.report({ message });
@@ -1140,7 +1147,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				} else {
 					done = true; // an empty array is a signal that all entries have been read
 				}
-			} while (!done);
+			} while (!done && !token.isCancellationRequested);
 
 			// Update operation total based on new counts
 			operation.filesTotal += childEntries.length;
