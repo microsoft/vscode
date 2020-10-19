@@ -1390,3 +1390,48 @@ function toBinary(str: string): string {
 export function multibyteAwareBtoa(str: string): string {
 	return btoa(toBinary(str));
 }
+
+/**
+ * Typings for the https://wicg.github.io/file-system-access
+ *
+ * Use `supported(window)` to find out if the browser supports this kind of API.
+ */
+export namespace WebFileSystemAccess {
+
+	// https://wicg.github.io/file-system-access/#dom-window-showdirectorypicker
+	export interface FileSystemAccess {
+		showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemdirectoryhandle
+	export interface FileSystemDirectoryHandle {
+		readonly kind: 'directory',
+		readonly name: string,
+
+		getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
+		getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemfilehandle
+	export interface FileSystemFileHandle {
+		readonly kind: 'file',
+		readonly name: string,
+
+		createWritable: (options?: { keepExistingData?: boolean }) => Promise<FileSystemWritableFileStream>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemwritablefilestream
+	export interface FileSystemWritableFileStream {
+		write: (buffer: Uint8Array) => Promise<void>;
+		close: () => Promise<void>;
+	}
+
+	export function supported(obj: any & Window): obj is FileSystemAccess {
+		const candidate = obj as FileSystemAccess;
+		if (typeof candidate?.showDirectoryPicker === 'function') {
+			return true;
+		}
+
+		return false;
+	}
+}
