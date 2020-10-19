@@ -62,7 +62,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
-	public remove(value: T) : void {
+	public remove(value: T): void {
 		this._history.delete(value);
 	}
 
