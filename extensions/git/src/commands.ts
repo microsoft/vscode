@@ -107,7 +107,9 @@ class RebaseOntoItem implements QuickPickItem {
 	constructor(protected ref: Ref) { }
 
 	async run(repository: Repository): Promise<void> {
-		await repository.rebaseOnto(repository.HEAD, this.ref);
+		if (this.ref?.name) {
+			await repository.rebase(this.ref.name);
+		}
 	}
 }
 

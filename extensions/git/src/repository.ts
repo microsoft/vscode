@@ -1149,14 +1149,6 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async rebaseOnto(head: Branch | undefined, branch: Branch | undefined): Promise<void> {
-		if (head?.name && branch?.name) {
-			await this.checkout(branch.name);
-			await this.rebase(head.name);
-		}
-	}
-
-	@throttle
 	async pull(head?: Branch, unshallow?: boolean): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
