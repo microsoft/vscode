@@ -13,21 +13,22 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import {
-	configureOpenerTrustedDomainsHandler,
-	readTrustedDomains
-} from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { configureOpenerTrustedDomainsHandler, ITrustedDomains, readTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IdleValue } from 'vs/base/common/async';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
+
+	private readonly _readTrustedDomainsResult: IdleValue<Promise<ITrustedDomains>>;
+
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -41,6 +42,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
+
+		this._readTrustedDomainsResult = new IdleValue(() => this._instantiationService.invokeFunction(readTrustedDomains));
 	}
 
 	async validateLink(resource: URI | string): Promise<boolean> {
@@ -54,7 +57,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		const { scheme, authority, path, query, fragment } = resource;
 
 		const domainToOpen = `${scheme}://${authority}`;
-		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this._instantiationService.invokeFunction(readTrustedDomains);
+		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this._readTrustedDomainsResult.value;
 		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
 
 		if (isURLDomainTrusted(resource, allTrustedDomains)) {

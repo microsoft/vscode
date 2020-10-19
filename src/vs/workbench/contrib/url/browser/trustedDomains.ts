@@ -174,7 +174,14 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 	return [...set];
 }
 
-export async function readTrustedDomains(accessor: ServicesAccessor) {
+export interface ITrustedDomains {
+	readonly defaultTrustedDomains: string[];
+	readonly trustedDomains: string[];
+	readonly userDomains: string[];
+	readonly workspaceDomains: string[];
+}
+
+export async function readTrustedDomains(accessor: ServicesAccessor): Promise<ITrustedDomains> {
 
 	const storageService = accessor.get(IStorageService);
 	const productService = accessor.get(IProductService);
