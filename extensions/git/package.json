@@ -624,6 +624,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.rebaseAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitRebaseInProgress"
+        },
+        {
           "command": "git.commitNoVerify",
           "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
         },
