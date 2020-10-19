@@ -62,10 +62,6 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
-	public remove(value: T): void {
-		this._history.delete(value);
-	}
-
 	public _onChange() {
 		this._reduceToLimit();
 		const elements = this._elements;
