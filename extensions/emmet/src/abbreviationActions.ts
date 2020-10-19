@@ -300,7 +300,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 				return [rangeToReplace, abbr, ''];
 			}
 		}
-		const extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, false);
+		const extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, { lookAhead: false });
 		if (!extractedResults) {
 			return [null, '', ''];
 		}
