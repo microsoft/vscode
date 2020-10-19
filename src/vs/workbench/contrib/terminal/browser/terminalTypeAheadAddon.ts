@@ -14,9 +14,9 @@ const SHOW_CURSOR = `${CSI}?25h`;
 const HIDE_CURSOR = `${CSI}?25l`;
 const DELETE_CHAR = `${CSI}X`;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
-const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;5)?([DC])/;
-const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*: /i;
-const WHITESPACE_RE = /\s/;
+const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
+const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*:/i;
+const NOT_WORD_RE = /\W/;
 
 /**
  * Codes that should be omitted from sending to the prediction engine and
@@ -55,7 +55,7 @@ const moveToWordBoundary = (b: IBuffer, cursor: ICoordinate, direction: -1 | 1) 
 		}
 
 		const chars = cell.getChars();
-		if (WHITESPACE_RE.test(chars)) {
+		if (NOT_WORD_RE.test(chars)) {
 			if (ateLeadingWhitespace) {
 				break;
 			}
@@ -87,6 +87,8 @@ interface IPrediction {
 	 * Returns a sequence to apply the prediction.
 	 * @param buffer to write to
 	 * @param cursor position to write the data. Should advance the cursor.
+	 * @returns a string to be written to the user terminal, or optionally a
+	 * string for the user terminal and real pty.
 	 */
 	apply(buffer: IBuffer, cursor: ICoordinate): string;
 
@@ -156,14 +158,14 @@ class StringReader {
 	 */
 	public eatGradually(substr: string): MatchResult {
 		let prevIndex = this.index;
-		for (const char of substr) {
-			if (!this.eatChar(char)) {
-				this.index = prevIndex;
-				return MatchResult.Failure;
+		for (let i = 0; i < substr.length; i++) {
+			if (i > 0 && this.eof) {
+				return MatchResult.Buffer;
 			}
 
-			if (this.eof) {
-				return MatchResult.Buffer;
+			if (!this.eatChar(substr[i])) {
+				this.index = prevIndex;
+				return MatchResult.Failure;
 			}
 		}
 
@@ -212,6 +214,27 @@ class HardBoundary implements IPrediction {
 
 	public matches() {
 		return MatchResult.Failure;
+	}
+}
+
+/**
+ * Wraps another prediction. Does not apply the prediction, but will pass
+ * through its `matches` request.
+ */
+class TentativeBoundary implements IPrediction {
+	constructor(private readonly inner: IPrediction) { }
+
+	public apply(buffer: IBuffer, cursor: ICoordinate) {
+		this.inner.apply(buffer, cursor);
+		return '';
+	}
+
+	public rollback() {
+		return '';
+	}
+
+	public matches(input: StringReader) {
+		return this.inner.matches(input);
 	}
 }
 
@@ -289,7 +312,7 @@ class BackspacePrediction extends CharacterPrediction {
 			}
 		}
 
-		return input.eatChar('\b') ? MatchResult.Success : MatchResult.Failure;
+		return input.eatGradually('\b');
 	}
 }
 
@@ -382,8 +405,9 @@ class CursorMovePrediction implements IPrediction {
 			}
 
 			// \b is the equivalent to moving one character back
-			if (direction === CursorMoveDirection.Back && input.eatChar('\b')) {
-				return MatchResult.Success;
+			const r2 = input.eatGradually(`\b`);
+			if (r2 !== MatchResult.Failure) {
+				return r2;
 			}
 		}
 
@@ -534,15 +558,17 @@ class PredictionTimeline {
 		this.expected.push({ gen: this.currentGen, p: prediction });
 		if (this.currentGen === this.expected[0].gen) {
 			const text = prediction.apply(buffer, this.getCursor(buffer));
-			console.log('prediction:', JSON.stringify(text));
 			this.terminal.write(text);
 		}
 	}
 
 	/**
-	 * Appends a boundary to the prediction.
+	 * Appends a prediction followed by a boundary. The predictions applied
+	 * after this one will only be displayed after the give prediction matches
+	 * pty output/
 	 */
-	public addBoundary() {
+	public addBoundary(buffer: IBuffer, prediction: IPrediction) {
+		this.addPrediction(buffer, prediction);
 		this.currentGen++;
 	}
 
@@ -594,6 +620,8 @@ const parseTypeheadStyle = (style: string | number) => {
 export class TypeAheadAddon implements ITerminalAddon {
 	private disposables: IDisposable[] = [];
 	private typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
+	private typeaheadThreshold = this.config.config.typeaheadThreshold;
+	private lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
 
 	constructor(private readonly _processManager: ITerminalProcessManager, private readonly config: TerminalConfigHelper) {
@@ -602,27 +630,51 @@ export class TypeAheadAddon implements ITerminalAddon {
 	public activate(terminal: Terminal): void {
 		this.timeline = new PredictionTimeline(terminal);
 		this.disposables.push(terminal.onData(e => this.onUserData(e)));
-		this.disposables.push(this.config.onConfigChanged(() => this.typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle)));
+		this.disposables.push(this.config.onConfigChanged(() => {
+			this.typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
+			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
+		}));
 		this.disposables.push(this._processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 	}
 
 	public dispose(): void {
-		// this.disposables.forEach(d => d.dispose());
+		this.disposables.forEach(d => d.dispose());
 	}
 
 	private onUserData(data: string): void {
+		if (this.typeaheadThreshold !== 0) {
+			return;
+		}
+
 		if (this.timeline?.terminal.buffer.active.type !== 'normal') {
 			return;
 		}
 
-		console.log('user data:', JSON.stringify(data));
+		// console.log('user data:', JSON.stringify(data));
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
+
+		// the following code guards the terminal prompt to avoid being able to
+		// arrow or backspace-into the prompt. Record the lowest X value at which
+		// the user gave input, and mark all additions before that as tentative.
+		const actualY = buffer.baseY + buffer.cursorY;
+		if (actualY !== this.lastRow?.y) {
+			this.lastRow = { y: actualY, startingX: buffer.cursorX };
+		} else {
+			this.lastRow.startingX = Math.min(this.lastRow.startingX, buffer.cursorX);
+		}
+
+		const addLeftNavigating = (p: IPrediction) =>
+			this.timeline!.getCursor(buffer).x <= this.lastRow!.startingX
+				? this.timeline!.addBoundary(buffer, new TentativeBoundary(p))
+				: this.timeline!.addPrediction(buffer, p);
+
+		/** @see https://github.com/xtermjs/xterm.js/blob/1913e9512c048e3cf56bb5f5df51bfff6899c184/src/common/input/Keyboard.ts */
 		const reader = new StringReader(data);
 		while (reader.remaining > 0) {
 			if (reader.eatCharCode(127)) { // backspace
-				this.timeline.addPrediction(buffer, new BackspacePrediction());
+				addLeftNavigating(new BackspacePrediction());
 				continue;
 			}
 
@@ -630,19 +682,20 @@ export class TypeAheadAddon implements ITerminalAddon {
 				const char = data[reader.index - 1];
 				this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeheadStyle, char));
 				if (this.timeline.getCursor(buffer).x === terminal.cols) {
-					this.timeline.addPrediction(buffer, new NewlinePrediction());
-					this.timeline.addBoundary();
+					this.timeline.addBoundary(buffer, new NewlinePrediction());
 				}
 				continue;
 			}
 
 			const cursorMv = reader.eatRe(CSI_MOVE_RE);
 			if (cursorMv) {
-				this.timeline.addPrediction(buffer, new CursorMovePrediction(
-					cursorMv[3] as CursorMoveDirection,
-					!!cursorMv[2],
-					Number(cursorMv[1]) || 1)
-				);
+				const direction = cursorMv[3] as CursorMoveDirection;
+				const p = new CursorMovePrediction(direction, !!cursorMv[2], Number(cursorMv[1]) || 1);
+				if (direction === CursorMoveDirection.Back) {
+					addLeftNavigating(p);
+				} else {
+					this.timeline.addPrediction(buffer, p);
+				}
 				continue;
 			}
 
@@ -652,7 +705,7 @@ export class TypeAheadAddon implements ITerminalAddon {
 			}
 
 			if (reader.eatStr(`${ESC}b`)) {
-				this.timeline.addPrediction(buffer, new CursorMovePrediction(CursorMoveDirection.Back, true, 1));
+				addLeftNavigating(new CursorMovePrediction(CursorMoveDirection.Back, true, 1));
 				continue;
 			}
 
@@ -662,28 +715,30 @@ export class TypeAheadAddon implements ITerminalAddon {
 			}
 
 			// something else
-			this.timeline.addPrediction(buffer, new HardBoundary());
-			this.timeline.addBoundary();
+			this.timeline.addBoundary(buffer, new HardBoundary());
 			break;
 		}
 	}
 
 	private onBeforeProcessData(event: IBeforeProcessDataEvent): void {
+		if (this.typeaheadThreshold !== 0) {
+			return;
+		}
+
 		if (!this.timeline) {
 			return;
 		}
 
-		console.log('incoming data:', JSON.stringify(event.data));
+		// console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
-		console.log('emitted data:', JSON.stringify(event.data));
+		// console.log('emitted data:', JSON.stringify(event.data));
 
 		// If there's something that looks like a password prompt, omit giving
 		// input. This is approximate since there's no TTY "password here" code,
 		// but should be enough to cover common cases like sudo
 		if (PASSWORD_INPUT_RE.test(event.data)) {
 			const terminal = this.timeline.terminal;
-			this.timeline.addPrediction(terminal.buffer.active, new HardBoundary());
-			this.timeline.addBoundary();
+			this.timeline.addBoundary(terminal.buffer.active, new HardBoundary());
 		}
 	}
 }

@@ -353,7 +353,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.typeaheadThreshold': {
-			description: localize('terminal.integrated.typeaheadThreshold', "Experimental: length of time, in milliseconds, where typeahead will active. If '0', typeahead will always be on, and if '-1' it will be disabled."),
+			description: localize('terminal.integrated.typeaheadThreshold', "Experimental: length of time, in milliseconds, where typeahead will active. If '0', typeahead will always be on, and if '-1' it will be disabled. Note: currently only -1 and 0 supported."),
 			type: 'integer',
 			minimum: -1,
 			default: -1,

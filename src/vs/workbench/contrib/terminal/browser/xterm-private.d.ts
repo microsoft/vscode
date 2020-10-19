@@ -12,8 +12,6 @@ export interface XTermCore {
 		height: number;
 	};
 
-	writeSync(input: Buffer | string): void;
-
 	_coreService: {
 		triggerDataEvent(data: string, wasUserInput?: boolean): void;
 	};
