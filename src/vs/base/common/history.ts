@@ -112,7 +112,7 @@ export class HistoryNavigator2<T> {
 	private size: number;
 
 	constructor(history: readonly T[], private capacity: number = 10) {
-		if (history.length <= 1) {
+		if (history.length < 1) {
 			throw new Error('not supported');
 		}
 
