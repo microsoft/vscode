@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
 /**
  * A service used by TerminalInstance (and components owned by it) that allows it to break its
@@ -172,6 +173,14 @@ export interface ITerminalService {
 	extHostReady(remoteAuthority: string): void;
 	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
+}
+
+export interface IRemoteTerminalService {
+	readonly _serviceBrand: undefined;
+
+	dispose(): void;
+
+	createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
 }
 
 /**

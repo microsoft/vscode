@@ -127,6 +127,8 @@ stages:
   jobs:
   - job: macOS
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
+    variables:
+      VSCODE_ARCH: x64
     steps:
     - template: darwin/product-build-darwin.yml
 

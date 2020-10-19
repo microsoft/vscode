@@ -2168,14 +2168,14 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The optional ThemeColor of the icon.
+		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
 		readonly themeColor?: ThemeColor;
 
 		/**
 		 * Creates a reference to a theme icon.
 		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
-		 * @param color optional `ThemeColor` for the icon.
+		 * @param color optional `ThemeColor` for the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
 		constructor(id: string, color?: ThemeColor);
 	}
@@ -2188,6 +2188,17 @@ declare module 'vscode' {
 		 * Defaults to true.
 		 */
 		canReply: boolean;
+	}
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
+	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
+
+		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChangeFoldingRanges?: Event<void>;
+
 	}
 	//#endregion
 }

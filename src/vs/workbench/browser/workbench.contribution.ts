@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { isStandalone } from 'vs/base/browser/browser';
 
 // Configuration
 (function registerConfiguration(): void {
@@ -401,6 +402,13 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': 'default',
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': nls.localize('openFoldersInNewWindow', "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+			},
+			'window.confirmBeforeClose': {
+				'type': 'boolean',
+				'default': isWeb && !isStandalone, // on by default in web, unless PWA
+				'description': nls.localize('confirmBeforeCloseWeb', "Controls whether to ask for confirmation before closing the browser tab or window."),
+				'scope': ConfigurationScope.APPLICATION,
+				'included': isWeb
 			}
 		}
 	});

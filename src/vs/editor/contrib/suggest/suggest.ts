@@ -168,7 +168,7 @@ class CompletionItemModel {
 	constructor(
 		readonly items: CompletionItem[],
 		readonly needsClipboard: boolean,
-		readonly dispoables: IDisposable,
+		readonly disposable: IDisposable,
 	) { }
 }
 
@@ -343,7 +343,7 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', async (model, p
 		await Promise.all(resolving);
 		return result;
 	} finally {
-		setTimeout(() => completions.dispoables.dispose(), 100);
+		setTimeout(() => completions.disposable.dispose(), 100);
 	}
 });
 

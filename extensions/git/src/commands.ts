@@ -2498,7 +2498,11 @@ export class CommandCenter {
 
 	@command('git.rebaseAbort', { repository: true })
 	async rebaseAbort(repository: Repository): Promise<void> {
-		await repository.rebaseAbort();
+		if (repository.rebaseCommit) {
+			await repository.rebaseAbort();
+		} else {
+			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
+		}
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {

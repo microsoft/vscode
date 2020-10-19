@@ -298,6 +298,8 @@ class GoHomeContributor implements IWorkbenchContribution {
 	}
 }
 
+// --- Actions Registration
+
 const actionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
 actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', CATEGORIES.View.value);

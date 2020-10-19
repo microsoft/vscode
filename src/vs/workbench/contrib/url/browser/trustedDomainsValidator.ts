@@ -188,76 +188,97 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 		return true;
 	}
 
-	const domain = `${url.scheme}://${url.authority}`;
-
 	for (let i = 0; i < trustedDomains.length; i++) {
 		if (trustedDomains[i] === '*') {
 			return true;
 		}
 
-		if (trustedDomains[i] === domain) {
+		if (isTrusted(url.toString(), trustedDomains[i])) {
 			return true;
-		}
-
-		let parsedTrustedDomain;
-		if (/^https?:\/\//.test(trustedDomains[i])) {
-			parsedTrustedDomain = URI.parse(trustedDomains[i]);
-			if (url.scheme !== parsedTrustedDomain.scheme) {
-				continue;
-			}
-		} else {
-			parsedTrustedDomain = URI.parse('https://' + trustedDomains[i]);
-		}
-
-		if (url.authority === parsedTrustedDomain.authority) {
-			if (pathMatches(url.path, parsedTrustedDomain.path)) {
-				return true;
-			} else {
-				continue;
-			}
-		}
-
-		if (trustedDomains[i].indexOf('*') !== -1) {
-
-			let reversedAuthoritySegments = url.authority.split('.').reverse();
-			const reversedTrustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.').reverse();
-
-			if (
-				reversedTrustedDomainAuthoritySegments.length < reversedAuthoritySegments.length &&
-				reversedTrustedDomainAuthoritySegments[reversedTrustedDomainAuthoritySegments.length - 1] === '*'
-			) {
-				reversedAuthoritySegments = reversedAuthoritySegments.slice(0, reversedTrustedDomainAuthoritySegments.length);
-			}
-
-			const authorityMatches = reversedAuthoritySegments.every((val, i) => {
-				return reversedTrustedDomainAuthoritySegments[i] === '*' || val === reversedTrustedDomainAuthoritySegments[i];
-			});
-
-			if (authorityMatches && pathMatches(url.path, parsedTrustedDomain.path)) {
-				return true;
-			}
 		}
 	}
 
 	return false;
 }
 
-function pathMatches(open: string, rule: string) {
-	if (rule === '/') {
-		return true;
+export const isTrusted = (url: string, trustedURL: string): boolean => {
+	const normalize = (url: string) => url.replace(/\/+$/, '');
+	trustedURL = normalize(trustedURL);
+	url = normalize(url);
+
+	const memo = Array.from({ length: url.length + 1 }).map(() =>
+		Array.from({ length: trustedURL.length + 1 }).map(() => undefined),
+	);
+
+	if (/^[^./:]*:\/\//.test(trustedURL)) {
+		return doURLMatch(memo, url, trustedURL, 0, 0);
 	}
 
-	if (rule[rule.length - 1] === '/') {
-		rule = rule.slice(0, -1);
+	const scheme = /^(https?):\/\//.exec(url)?.[1];
+	if (scheme) {
+		return doURLMatch(memo, url, `${scheme}://${trustedURL}`, 0, 0);
 	}
 
-	const openSegments = open.split('/');
-	const ruleSegments = rule.split('/');
-	for (let i = 0; i < ruleSegments.length; i++) {
-		if (ruleSegments[i] !== openSegments[i]) {
-			return false;
+	return false;
+};
+
+const doURLMatch = (
+	memo: (boolean | undefined)[][],
+	url: string,
+	trustedURL: string,
+	urlOffset: number,
+	trustedURLOffset: number,
+): boolean => {
+	if (memo[urlOffset]?.[trustedURLOffset] !== undefined) {
+		return memo[urlOffset][trustedURLOffset]!;
+	}
+
+	const options = [];
+
+	// Endgame.
+	// Fully exact match
+	if (urlOffset === url.length) {
+		return trustedURLOffset === trustedURL.length;
+	}
+
+	// Some path remaining in url
+	if (trustedURLOffset === trustedURL.length) {
+		const remaining = url.slice(urlOffset);
+		return remaining[0] === '/';
+	}
+
+	if (url[urlOffset] === trustedURL[trustedURLOffset]) {
+		// Exact match.
+		options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset + 1));
+	}
+
+	if (trustedURL[trustedURLOffset] + trustedURL[trustedURLOffset + 1] === '*.') {
+		// Any subdomain match. Either consume one thing that's not a / or : and don't advance base or consume nothing and do.
+		if (!['/', ':'].includes(url[urlOffset])) {
+			options.push(doURLMatch(memo, url, trustedURL, urlOffset + 1, trustedURLOffset));
+		}
+		options.push(doURLMatch(memo, url, trustedURL, urlOffset, trustedURLOffset + 2));
+	}
+
+	if (trustedURL[trustedURLOffset] + trustedURL[trustedURLOffset + 1] === '.*' && url[urlOffset] === '.') {
+		// IP mode. Consume one segment of numbers or nothing.
+		let endBlockIndex = urlOffset + 1;
+		do { endBlockIndex++; } while (/[0-9]/.test(url[endBlockIndex]));
+		if (['.', ':', '/', undefined].includes(url[endBlockIndex])) {
+			options.push(doURLMatch(memo, url, trustedURL, endBlockIndex, trustedURLOffset + 2));
 		}
 	}
 
-	return true;
-}
+	if (trustedURL[trustedURLOffset] + trustedURL[trustedURLOffset + 1] === ':*') {
+		// any port match. Consume a port if it exists otherwise nothing. Always comsume the base.
+		if (url[urlOffset] === ':') {
+			let endPortIndex = urlOffset + 1;
+			do { endPortIndex++; } while (/[0-9]/.test(url[endPortIndex]));
+			options.push(doURLMatch(memo, url, trustedURL, endPortIndex, trustedURLOffset + 2));
+		} else {
+			options.push(doURLMatch(memo, url, trustedURL, urlOffset, trustedURLOffset + 2));
+		}
+	}
+
+	return (memo[urlOffset][trustedURLOffset] = options.some(a => a === true));
+};

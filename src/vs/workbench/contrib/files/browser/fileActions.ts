@@ -11,10 +11,10 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { BinarySize, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -39,7 +39,7 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { triggerDownload } from 'vs/base/browser/dom';
+import { WebFileSystemAccess, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -49,6 +49,9 @@ import { once } from 'vs/base/common/functional';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { trim, rtrim } from 'vs/base/common/strings';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -66,7 +69,7 @@ export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
 
 export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
 
-export const DOWNLOAD_LABEL = nls.localize('download', "Download");
+export const DOWNLOAD_LABEL = nls.localize('download', "Download...");
 
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 
@@ -997,49 +1000,212 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = (accessor: ServicesAccessor) => {
+	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
 	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const progressService = accessor.get(IProgressService);
 
-	let canceled = false;
-	sequence(stats.map(s => async () => {
-		if (canceled) {
-			return;
-		}
+	const context = explorerService.getContext(true);
+	const explorerItems = context.length ? context : explorerService.roots;
 
-		if (isWeb) {
-			if (!s.isDirectory) {
-				let bufferOrUri: Uint8Array | URI;
-				try {
-					bufferOrUri = (await fileService.readFile(s.resource, { limits: { size: 1024 * 1024  /* set a limit to reduce memory pressure */ } })).value.buffer;
-				} catch (error) {
-					bufferOrUri = FileAccess.asBrowserUri(s.resource);
+	const cts = new CancellationTokenSource();
+
+	const downloadPromise = progressService.withProgress({
+		location: ProgressLocation.Window,
+		delay: 800,
+		cancellable: isWeb,
+		title: nls.localize('downloadingFiles', "Downloading")
+	}, async progress => {
+		return sequence(explorerItems.map(explorerItem => async () => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			// Web: use DOM APIs to download files with optional support
+			// for folders and large files
+			if (isWeb) {
+				const stat = await fileService.resolve(explorerItem.resource, { resolveMetadata: true });
+
+				if (cts.token.isCancellationRequested) {
+					return;
 				}
 
-				triggerDownload(bufferOrUri, s.name);
-			}
-		} else {
-			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath(Schemas.file) : fileDialogService.defaultFilePath(Schemas.file);
-			if (defaultUri) {
-				defaultUri = resources.joinPath(defaultUri, s.name);
+				const maxBlobDownloadSize = 32 * BinarySize.MB; // avoid to download via blob-trick >32MB to avoid memory pressure
+				const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
+
+				// Folder: use FS APIs to download files and folders if available and preferred
+				if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
+
+					interface IDownloadOperation {
+						startTime: number,
+
+						filesTotal: number;
+						filesDownloaded: number;
+
+						totalBytesDownloaded: 0
+						fileBytesDownloaded: 0
+					}
+
+					async function pipeContents(name: string, source: IFileStreamContent, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+						return new Promise<void>((resolve, reject) => {
+							const sourceStream = source.value;
+
+							const disposables = new DisposableStore();
+							disposables.add(toDisposable(() => target.close()));
+
+							let disposed = false;
+							disposables.add(toDisposable(() => disposed = true));
+
+							disposables.add(once(cts.token.onCancellationRequested)(() => {
+								disposables.dispose();
+								reject();
+							}));
+
+							sourceStream.on('data', data => {
+								if (!disposed) {
+									target.write(data.buffer);
+									reportProgress(name, source.size, data.byteLength, operation);
+								}
+							});
+
+							sourceStream.on('error', error => {
+								disposables.dispose();
+								reject(error);
+							});
+
+							sourceStream.on('end', () => {
+								disposables.dispose();
+								resolve();
+							});
+						});
+					}
+
+					async function downloadFile(targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, name: string, resource: URI, operation: IDownloadOperation): Promise<void> {
+
+						// Report progress
+						operation.filesDownloaded++;
+						operation.fileBytesDownloaded = 0; // reset for this file
+						reportProgress(name, 0, 0, operation);
+
+						// Start to download
+						const targetFile = await targetFolder.getFileHandle(name, { create: true });
+						const targetFileWriter = await targetFile.createWritable();
+
+						return pipeContents(name, await fileService.readFileStream(resource), targetFileWriter, operation);
+					}
+
+					async function downloadFolder(folder: IFileStatWithMetadata, targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, operation: IDownloadOperation): Promise<void> {
+						if (folder.children) {
+							operation.filesTotal += (folder.children.map(child => child.isFile)).length;
+
+							for (const child of folder.children) {
+								if (cts.token.isCancellationRequested) {
+									return;
+								}
+
+								if (child.isFile) {
+									await downloadFile(targetFolder, child.name, child.resource, operation);
+								} else {
+									const childFolder = await targetFolder.getDirectoryHandle(child.name, { create: true });
+									const resolvedChildFolder = await fileService.resolve(child.resource, { resolveMetadata: true });
+
+									await downloadFolder(resolvedChildFolder, childFolder, operation);
+								}
+							}
+						}
+					}
+
+					function reportProgress(name: string, fileSize: number, bytesDownloaded: number, operation: IDownloadOperation): void {
+						operation.fileBytesDownloaded += bytesDownloaded;
+						operation.totalBytesDownloaded += bytesDownloaded;
+
+						const bytesDownloadedPerSecond = operation.totalBytesDownloaded / ((Date.now() - operation.startTime) / 1000);
+
+						// Small file
+						let message: string;
+						if (fileSize < BinarySize.MB) {
+							if (operation.filesTotal === 1) {
+								message = name;
+							} else {
+								message = nls.localize('downloadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesDownloaded, operation.filesTotal, BinarySize.formatSize(bytesDownloadedPerSecond));
+							}
+						}
+
+						// Large file
+						else {
+							message = nls.localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, BinarySize.formatSize(operation.fileBytesDownloaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesDownloadedPerSecond));
+						}
+
+						progress.report({ message });
+					}
+
+					try {
+						const targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle = await window.showDirectoryPicker();
+						const operation: IDownloadOperation = {
+							startTime: Date.now(),
+
+							filesTotal: stat.isDirectory ? 0 : 1, // folders increment filesTotal within downloadFolder method
+							filesDownloaded: 0,
+
+							totalBytesDownloaded: 0,
+							fileBytesDownloaded: 0
+						};
+
+						if (stat.isDirectory) {
+							await downloadFolder(stat, targetFolder, operation);
+						} else {
+							await downloadFile(targetFolder, stat.name, stat.resource, operation);
+						}
+					} catch (error) {
+						logService.trace(error);
+						cts.cancel(); // `showDirectoryPicker` will throw an error when the user cancels
+					}
+				}
+
+				// File: use traditional download to circumvent browser limitations
+				else if (stat.isFile) {
+					let bufferOrUri: Uint8Array | URI;
+					try {
+						bufferOrUri = (await fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } })).value.buffer;
+					} catch (error) {
+						bufferOrUri = FileAccess.asBrowserUri(stat.resource);
+					}
+
+					if (!cts.token.isCancellationRequested) {
+						triggerDownload(bufferOrUri, stat.name);
+					}
+				}
 			}
 
-			const destination = await fileDialogService.showSaveDialog({
-				availableFileSystems: [Schemas.file],
-				saveLabel: mnemonicButtonLabel(nls.localize('download', "Download")),
-				title: s.isDirectory ? nls.localize('downloadFolder', "Download Folder") : nls.localize('downloadFile', "Download File"),
-				defaultUri
-			});
-			if (destination) {
-				await workingCopyFileService.copy([{ source: s.resource, target: destination }], { overwrite: true });
-			} else {
-				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
-				canceled = true;
+			// Native: use working copy file service to get at the contents
+			else {
+				progress.report({ message: explorerItem.name });
+
+				let defaultUri = explorerItem.isDirectory ? fileDialogService.defaultFolderPath(Schemas.file) : fileDialogService.defaultFilePath(Schemas.file);
+				if (defaultUri) {
+					defaultUri = resources.joinPath(defaultUri, explorerItem.name);
+				}
+
+				const destination = await fileDialogService.showSaveDialog({
+					availableFileSystems: [Schemas.file],
+					saveLabel: mnemonicButtonLabel(nls.localize('downloadButton', "Download")),
+					title: explorerItem.isDirectory ? nls.localize('downloadFolder', "Download Folder") : nls.localize('downloadFile', "Download File"),
+					defaultUri
+				});
+
+				if (destination) {
+					await workingCopyFileService.copy([{ source: explorerItem.resource, target: destination }], { overwrite: true });
+				} else {
+					cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
+				}
 			}
-		}
-	}));
+		}));
+	}, () => cts.dispose(true));
+
+	// Also indicate progress in the files view
+	progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => downloadPromise);
 };
 
 CommandsRegistry.registerCommand({

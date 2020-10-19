@@ -17,7 +17,7 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath } from './util';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, getPathBaseName } from './util';
 import { reflectCssValue } from './reflectCssValue';
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
@@ -132,6 +132,13 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		}
 		if (e.affectsConfiguration('emmet.extensionsPath')) {
 			updateEmmetExtensionsPath();
+		}
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((e) => {
+		const basefileName: string = getPathBaseName(e.fileName);
+		if (basefileName.startsWith('snippets') && basefileName.endsWith('.json')) {
+			updateEmmetExtensionsPath(true);
 		}
 	}));
 }

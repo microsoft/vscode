@@ -207,7 +207,7 @@ export interface IFileDialogService {
 	 * The default path for a new workspace based on previously used workspaces.
 	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultWorkspacePath(schemeFilter?: string): URI | undefined;
+	defaultWorkspacePath(schemeFilter?: string, filename?: string): URI | undefined;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.

@@ -6138,6 +6138,10 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRangeProvider {
 		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChange?: IEvent<this>;
+		/**
 		 * Provides the folding ranges for a specific model.
 		 */
 		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;

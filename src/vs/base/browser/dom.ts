@@ -998,8 +998,15 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 /**
  * Removes all children from `parent` and appends `children`
  */
-export function reset(parent: HTMLElement, ...children: Array<Node | string>) {
+export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
+	appendChildren(parent, ...children);
+}
+
+/**
+ * Appends `children` to `parent`
+ */
+export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
 	for (const child of children) {
 		if (child instanceof Node) {
 			parent.appendChild(child);
@@ -1315,23 +1322,24 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 // -- sanitize and trusted html
 
-function newInsaneOptions(allowedTags: string[], allowedAttributesForAll: string[], allowedAttributes: Record<string, string[]>): InsaneOptions {
-	for (let tag of allowedTags) {
-		let array = allowedAttributes[tag];
-		if (!array) {
-			array = allowedAttributesForAll;
-		} else {
-			array = array.concat(allowedAttributesForAll);
-		}
-		allowedAttributes[tag] = array;
-	}
-	const value: InsaneOptions = {
-		allowedTags,
-		allowedAttributes,
-	};
-	return value;
-}
+function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
 
+	let allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
+
+	if (opts.allowedTags) {
+		for (let tag of opts.allowedTags) {
+			let array = allowedAttributes[tag];
+			if (!array) {
+				array = allowedAttributesForAll;
+			} else {
+				array = array.concat(allowedAttributesForAll);
+			}
+			allowedAttributes[tag] = array;
+		}
+	}
+
+	return { ...opts, allowedAttributes };
+}
 
 const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
 	createHTML(value, options: InsaneOptions) {
@@ -1344,10 +1352,9 @@ const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
 
-	const options = newInsaneOptions(
-		['a', 'button', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'textarea', 'ul'],
-		['class', 'id', 'role', 'tabindex'],
-		{
+	const options = _extInsaneOptions({
+		allowedTags: ['a', 'button', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'textarea', 'ul'],
+		allowedAttributes: {
 			'a': ['href'],
 			'button': ['data-href'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
@@ -1355,9 +1362,76 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 			'select': ['required'],
 			'span': ['data-command', 'role'],
 			'textarea': ['name', 'placeholder', 'required'],
-		}
-	);
+		},
+		allowedSchemes: ['http', 'https', 'command']
+	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
 	node.innerHTML = html as unknown as string;
+}
+
+/**
+ * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
+ *
+ * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
+ */
+function toBinary(str: string): string {
+	const codeUnits = new Uint16Array(str.length);
+	for (let i = 0; i < codeUnits.length; i++) {
+		codeUnits[i] = str.charCodeAt(i);
+	}
+	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+}
+
+/**
+ * Version of the global `btoa` function that handles multi-byte characters instead
+ * of throwing an exception.
+ */
+export function multibyteAwareBtoa(str: string): string {
+	return btoa(toBinary(str));
+}
+
+/**
+ * Typings for the https://wicg.github.io/file-system-access
+ *
+ * Use `supported(window)` to find out if the browser supports this kind of API.
+ */
+export namespace WebFileSystemAccess {
+
+	// https://wicg.github.io/file-system-access/#dom-window-showdirectorypicker
+	export interface FileSystemAccess {
+		showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemdirectoryhandle
+	export interface FileSystemDirectoryHandle {
+		readonly kind: 'directory',
+		readonly name: string,
+
+		getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
+		getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemfilehandle
+	export interface FileSystemFileHandle {
+		readonly kind: 'file',
+		readonly name: string,
+
+		createWritable: (options?: { keepExistingData?: boolean }) => Promise<FileSystemWritableFileStream>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemwritablefilestream
+	export interface FileSystemWritableFileStream {
+		write: (buffer: Uint8Array) => Promise<void>;
+		close: () => Promise<void>;
+	}
+
+	export function supported(obj: any & Window): obj is FileSystemAccess {
+		const candidate = obj as FileSystemAccess;
+		if (typeof candidate?.showDirectoryPicker === 'function') {
+			return true;
+		}
+
+		return false;
+	}
 }

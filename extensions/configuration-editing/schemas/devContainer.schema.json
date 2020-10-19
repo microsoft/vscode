@@ -23,7 +23,7 @@
 				},
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
-					"description": "Machine specific settings that should be copied into the container."
+					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
 				"forwardPorts": {
 					"type": "array",
@@ -298,7 +298,7 @@
 				},
 				"workspaceFolder": {
 					"type": "string",
-					"description": "The path of the workspace folder inside the container."
+					"description": "The path of the workspace folder inside the container. This is typically the target path of a volume mount in the docker-compose.yml."
 				},
 				"shutdownAction": {
 					"type": "string",

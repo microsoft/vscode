@@ -288,8 +288,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			type: 'warning',
 			message: localize('sync in progress', "Settings Sync is being turned on. Would you like to cancel it?"),
 			title: localize('settings sync', "Settings Sync"),
-			primaryButton: localize('yes', "Yes"),
-			secondaryButton: localize('no', "No"),
+			primaryButton: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+			secondaryButton: localize({ key: 'no', comment: ['&& denotes a mnemonic'] }, "&&No"),
 		});
 		if (result.confirmed) {
 			await manualSyncTask.stop();
@@ -429,7 +429,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			message: localize('reset', "This will clear your data in the cloud and stop sync on all your devices."),
 			title: localize('reset title', "Clear"),
 			type: 'info',
-			primaryButton: localize('reset button', "Reset"),
+			primaryButton: localize({ key: 'resetButton', comment: ['&& denotes a mnemonic'] }, "&&Reset"),
 		});
 		if (result.confirmed) {
 			await this.userDataSyncService.resetRemote();

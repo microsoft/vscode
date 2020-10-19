@@ -37,7 +37,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
-			content: `Forwarded ports allow you to access your running applications locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
+			content: `Forwarded ports allow you to access your running services locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
 		}));
 		this.enableBadgeAndStatusBar();
 		this.enableForwardedPortsView();
@@ -99,19 +99,28 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private updateStatusBar() {
-		if (!this.entryAccessor && this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
+		if (!this.entryAccessor) {
 			this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', nls.localize('status.forwardedPorts', "Forwarded Ports"), StatusbarAlignment.LEFT, 40));
-		} else if (this.entryAccessor && this.remoteExplorerService.tunnelModel.forwarded.size === 0) {
-			this.entryAccessor.dispose();
-			this.entryAccessor = undefined;
+		} else {
+			this.entryAccessor.update(this.entry);
 		}
 	}
 
 	private get entry(): IStatusbarEntry {
+		let text: string;
+		if (this.remoteExplorerService.tunnelModel.forwarded.size === 0) {
+			text = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Available");
+		} else if (this.remoteExplorerService.tunnelModel.forwarded.size === 1) {
+			text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available");
+		} else {
+			text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", this.remoteExplorerService.tunnelModel.forwarded.size);
+		}
+		const tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Available Ports: {0}",
+			Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).map(forwarded => forwarded.remotePort).join(', '));
 		return {
-			text: '$(radio-tower) ' + nls.localize('remote.forwardedPorts.statusbarText', "Application running"),
-			ariaLabel: nls.localize('remote.forwardedPorts.statusbarAria', "Application running and available locally through port forwarding"),
-			tooltip: nls.localize('remote.forwardedPorts.statusbarTooltip', "Application available locally (port forwarded)"),
+			text: `$(radio-tower) ${text}`,
+			ariaLabel: tooltip,
+			tooltip,
 			command: `${TUNNEL_VIEW_ID}.focus`
 		};
 	}
@@ -173,7 +182,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 			const forwarded = await this.remoteExplorerService.forward(localUrl);
 			if (forwarded) {
 				const address = MakeAddress(forwarded.tunnelRemoteHost, forwarded.tunnelRemotePort);
-				const message = nls.localize('remote.tunnelsView.automaticForward', "Your application running on port {0} is available.",
+				const message = nls.localize('remote.tunnelsView.automaticForward', "Your service running on port {0} is available.",
 					forwarded.tunnelRemotePort);
 				const browserChoice: IPromptChoice = {
 					label: OpenPortInBrowserAction.LABEL,
