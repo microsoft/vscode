@@ -50,6 +50,7 @@
 	"command.deleteBranch": "Delete Branch...",
 	"command.renameBranch": "Rename Branch...",
 	"command.merge": "Merge Branch...",
+	"command.rebaseOnto": "Rebase Branch Onto...",
 	"command.createTag": "Create Tag",
 	"command.deleteTag": "Delete Tag",
 	"command.fetch": "Fetch",

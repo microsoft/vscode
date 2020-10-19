@@ -300,6 +300,7 @@ export const enum Operation {
 	RenameBranch = 'RenameBranch',
 	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
+	Rebase = 'Rebase',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
 	DeleteTag = 'DeleteTag',
@@ -1067,6 +1068,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
+	async rebase(branch: string): Promise<void> {
+		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
+	}
+
 	async tag(name: string, message?: string): Promise<void> {
 		await this.run(Operation.Tag, () => this.repository.tag(name, message));
 	}
@@ -1141,6 +1146,14 @@ export class Repository implements Disposable {
 		}
 
 		return this.pullFrom(true, remote, branch);
+	}
+
+	@throttle
+	async rebaseOnto(head: Branch | undefined, branch: Branch | undefined): Promise<void> {
+		if (head?.name && branch?.name) {
+			await this.checkout(branch.name);
+			await this.rebase(head.name);
+		}
 	}
 
 	@throttle
