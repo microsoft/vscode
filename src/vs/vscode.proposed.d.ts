@@ -2190,4 +2190,15 @@ declare module 'vscode' {
 		canReply: boolean;
 	}
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
+	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
+
+		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChangeFoldingRanges?: Event<void>;
+
+	}
+	//#endregion
 }

@@ -571,13 +571,27 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- folding
 
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const proxy = this._proxy;
-		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, <modes.FoldingRangeProvider>{
+	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
-				return proxy.$provideFoldingRanges(handle, model.uri, context, token);
+				return this._proxy.$provideFoldingRanges(handle, model.uri, context, token);
 			}
-		}));
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<modes.FoldingRangeProvider>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChange = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, provider));
+	}
+
+	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 	}
 
 	// -- smart select
