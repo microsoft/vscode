@@ -31,7 +31,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SuggestionDetails, canExpandCompletionItem } from './suggestWidgetDetails';
+import { SuggestDetailsWidget, canExpandCompletionItem } from './suggestWidgetDetails';
 import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/suggestWidgetStatus';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 import { ResizableHTMLElement } from './resizable';
@@ -88,8 +88,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private listContainer: HTMLElement;
 	private list: List<CompletionItem>;
 	private status: SuggestWidgetStatus;
-	private details: SuggestionDetails;
-	// private listHeight?: number;
+	private details: SuggestDetailsWidget;
 
 	private readonly ctxSuggestWidgetVisible: IContextKey<boolean>;
 	private readonly ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
@@ -139,7 +138,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
 		this._disposables.add(this.element.onDidResize(e => {
-			this.layout(e.height, e.width);
+			this.layout(e.dimenion.height, e.dimenion.width);
 		}));
 		this._disposables.add(addDisposableListener(this.element.domNode, 'click', e => {
 			if (e.target === this.element.domNode) {
@@ -150,7 +149,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.messageElement = append(this.element.domNode, $('.message'));
 		this.mainElement = append(this.element.domNode, $('.tree'));
 
-		this.details = instantiationService.createInstance(SuggestionDetails, this.element.domNode, this.editor, markdownRenderer, kbToggleDetails);
+		this.details = instantiationService.createInstance(SuggestDetailsWidget, this.element.domNode, this.editor, markdownRenderer, kbToggleDetails);
 		this.details.onDidClose(this.toggleDetails, this, this._disposables);
 		hide(this.details.element);
 

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
 import { CompletionItem } from './suggest';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -19,7 +19,7 @@ export function canExpandCompletionItem(item: CompletionItem | undefined): boole
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
-export class SuggestionDetails {
+export class SuggestDetailsWidget {
 
 	readonly element: HTMLElement;
 
@@ -185,5 +185,39 @@ export class SuggestionDetails {
 
 	setBorderWidth(width: number): void {
 		this._borderWidth = width;
+	}
+}
+
+
+export class SuggestDetailsOverlay implements IOverlayWidget {
+
+	constructor(
+		private readonly _widget: SuggestDetailsWidget,
+		private readonly _editor: ICodeEditor
+	) { }
+
+	dispose(): void {
+		this.hide();
+	}
+
+	getId(): string {
+		return 'suggest.details';
+	}
+
+	getDomNode(): HTMLElement {
+		return this._widget.element;
+	}
+
+	getPosition(): null {
+		// custom position
+		return null;
+	}
+
+	show(): void {
+		this._editor.addOverlayWidget(this);
+	}
+
+	hide(): void {
+		this._editor.removeOverlayWidget(this);
 	}
 }

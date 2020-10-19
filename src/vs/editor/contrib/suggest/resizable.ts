@@ -9,12 +9,20 @@ import { Dimension } from 'vs/base/browser/dom';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 
 
+export interface IResizeEvent {
+	dimenion: Dimension;
+	done: boolean;
+}
+
 export class ResizableHTMLElement {
 
 	readonly domNode: HTMLElement;
 
-	private readonly _onDidResize = new Emitter<Dimension>();
-	readonly onDidResize: Event<Dimension> = this._onDidResize.event;
+	private readonly _onDidWillResize = new Emitter<void>();
+	readonly onDidWillResize: Event<void> = this._onDidWillResize.event;
+
+	private readonly _onDidResize = new Emitter<IResizeEvent>();
+	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
 
 	private readonly _eastSash: Sash;
 	private readonly _southSash: Sash;
@@ -34,26 +42,31 @@ export class ResizableHTMLElement {
 		let deltaY = 0;
 		let deltaX = 0;
 
-		this._sashListener.add(Event.any(this._eastSash.onDidEnd, this._southSash.onDidEnd)(() => {
-			currentSize = undefined;
-			deltaY = 0;
-			deltaX = 0;
-		}));
 		this._sashListener.add(Event.any(this._eastSash.onDidStart, this._southSash.onDidStart)(() => {
+			this._onDidWillResize.fire();
 			currentSize = this._size;
 			deltaY = 0;
 			deltaX = 0;
 		}));
+		this._sashListener.add(Event.any(this._eastSash.onDidEnd, this._southSash.onDidEnd)(() => {
+			currentSize = undefined;
+			deltaY = 0;
+			deltaX = 0;
+			this._onDidResize.fire({ dimenion: this._size!, done: false });
+		}));
+
 		this._sashListener.add(this._southSash.onDidChange(e => {
 			if (currentSize) {
 				deltaY = e.currentY - e.startY;
-				this._resize(currentSize.height + deltaY, currentSize.width + deltaX);
+				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
+				this._onDidResize.fire({ dimenion: this._size!, done: false });
 			}
 		}));
 		this._sashListener.add(this._eastSash.onDidChange(e => {
 			if (currentSize) {
 				deltaX = e.currentX - e.startX;
-				this._resize(currentSize.height + deltaY, currentSize.width + deltaX);
+				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
+				this._onDidResize.fire({ dimenion: this._size!, done: false });
 			}
 		}));
 	}
@@ -63,11 +76,6 @@ export class ResizableHTMLElement {
 		this._eastSash.dispose();
 		this._sashListener.dispose();
 		this.domNode.remove();
-	}
-
-	private _resize(height: number, width: number): void {
-		this.layout(height, width);
-		this._onDidResize.fire(this._size!);
 	}
 
 	layout(height: number, width: number): void {
