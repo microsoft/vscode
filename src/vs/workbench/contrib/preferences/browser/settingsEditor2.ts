@@ -334,7 +334,7 @@ export class SettingsEditor2 extends EditorPane {
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
-		this.searchWidget.layout({ height: 20, width: monacoWidth });
+		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
 		this.rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);

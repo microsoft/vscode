@@ -500,6 +500,22 @@ export class Dimension implements IDimension {
 		public readonly height: number,
 	) { }
 
+	with(width: number = this.width, height: number = this.height): Dimension {
+		if (width !== this.width || height !== this.height) {
+			return new Dimension(width, height);
+		} else {
+			return this;
+		}
+	}
+
+	static lift(obj: IDimension): Dimension {
+		if (obj instanceof Dimension) {
+			return obj;
+		} else {
+			return new Dimension(obj.width, obj.height);
+		}
+	}
+
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
 			return true;

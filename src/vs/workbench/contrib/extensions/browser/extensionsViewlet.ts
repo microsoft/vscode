@@ -499,7 +499,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.root.classList.toggle('narrow', dimension.width <= 300);
 		}
 		if (this.searchBox) {
-			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
+			this.searchBox.layout(new Dimension(dimension.width - 34, 20));
 		}
 		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}

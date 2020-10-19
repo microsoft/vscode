@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -131,7 +132,7 @@ export class WebviewViewPane extends ViewPane {
 		}
 
 		if (this._container) {
-			this._webview.layoutWebviewOverElement(this._container, { width, height });
+			this._webview.layoutWebviewOverElement(this._container, new Dimension(width, height));
 		}
 	}
 

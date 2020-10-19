@@ -150,7 +150,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	protected _fillBody(parent: HTMLElement): void {
 
 		this._layoutInfo = LayoutInfo.retrieve(this._storageService);
-		this._dim = { height: 0, width: 0 };
+		this._dim = new Dimension(0, 0);
 
 		this._parent = parent;
 		parent.classList.add('call-hierarchy');
@@ -427,7 +427,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	protected _doLayoutBody(height: number, width: number): void {
 		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
-			this._dim = { height, width };
+			this._dim = new Dimension(width, height);
 			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
 			this._splitView.layout(width);
 			this._splitView.resizeView(0, width * this._layoutInfo.ratio);
