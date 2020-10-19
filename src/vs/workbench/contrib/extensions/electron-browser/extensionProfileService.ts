@@ -82,7 +82,8 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		if (visible) {
 			const indicator: IStatusbarEntry = {
-				text: '$(sync~spin) ' + nls.localize('profilingExtensionHost', "Profiling Extension Host"),
+				text: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
+				showProgress: true,
 				ariaLabel: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
 				tooltip: nls.localize('selectAndStartDebug', "Click to stop profiling."),
 				command: 'workbench.action.extensionHostProfilder.stop'
@@ -91,7 +92,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			const timeStarted = Date.now();
 			const handle = setInterval(() => {
 				if (this.profilingStatusBarIndicator) {
-					this.profilingStatusBarIndicator.update({ ...indicator, text: '$(sync~spin) ' + nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
+					this.profilingStatusBarIndicator.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
 				}
 			}, 1000);
 			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
