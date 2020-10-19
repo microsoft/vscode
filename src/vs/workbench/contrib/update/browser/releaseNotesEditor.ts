@@ -133,7 +133,19 @@ export class ReleaseNotesManager {
 				return resolvedKeybindings[0].getLabel() || unassigned;
 			};
 
+			const kbCode = (match: string, binding: string) => {
+				const resolved = kb(match, binding);
+				return resolved ? `<code title="${binding}">${resolved}</code>` : resolved;
+			};
+
+			const kbstyleCode = (match: string, binding: string) => {
+				const resolved = kbstyle(match, binding);
+				return resolved ? `<code title="${binding}">${resolved}</code>` : resolved;
+			};
+
 			return text
+				.replace(/`kb\(([a-z.\d\-]+)\)`/gi, kbCode)
+				.replace(/`kbstyle\(([^\)]+)\)`/gi, kbstyleCode)
 				.replace(/kb\(([a-z.\d\-]+)\)/gi, kb)
 				.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 		};
