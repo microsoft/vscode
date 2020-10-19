@@ -8,7 +8,8 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
 
-const CSI = '\x1b[';
+const ESC = '\x1b';
+const CSI = `${ESC}[`;
 const SHOW_CURSOR = `${CSI}?25h`;
 const HIDE_CURSOR = `${CSI}?25l`;
 const DELETE_CHAR = `${CSI}X`;
@@ -642,6 +643,16 @@ export class TypeAheadAddon implements ITerminalAddon {
 					!!cursorMv[2],
 					Number(cursorMv[1]) || 1)
 				);
+				continue;
+			}
+
+			if (reader.eatStr(`${ESC}f`)) {
+				this.timeline.addPrediction(buffer, new CursorMovePrediction(CursorMoveDirection.Forwards, true, 1));
+				continue;
+			}
+
+			if (reader.eatStr(`${ESC}b`)) {
+				this.timeline.addPrediction(buffer, new CursorMovePrediction(CursorMoveDirection.Back, true, 1));
 				continue;
 			}
 
