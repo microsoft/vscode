@@ -642,7 +642,7 @@ export class Repository implements Disposable {
 		}
 
 		this._rebaseCommit = rebaseCommit;
-		commands.executeCommand('setContext', 'gitRebaseInProgress', (this._rebaseCommit !== undefined));
+		commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
 	}
 
 	get rebaseCommit(): Commit | undefined {
