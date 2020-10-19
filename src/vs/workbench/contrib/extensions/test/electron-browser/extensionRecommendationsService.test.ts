@@ -448,9 +448,9 @@ suite('ExtensionRecommendationsService Test', () => {
 		await testObject.activationPromise;
 
 		const recommendations = testObject.getAllRecommendationsWithReason();
-		assert.ok(recommendations['ms-python.python']);
-		assert.ok(!recommendations['mockpublisher2.mockextension2']);
-		assert.ok(!recommendations['ms-dotnettools.csharp']);
+		assert.ok(recommendations['ms-python.python'], 'ms-python.python extension shall exist');
+		assert.ok(!recommendations['mockpublisher2.mockextension2'], 'mockpublisher2.mockextension2 extension shall not exist');
+		assert.ok(!recommendations['ms-dotnettools.csharp'], 'ms-dotnettools.csharp extension shall not exist');
 	});
 
 	test('ExtensionRecommendationsService: Able to dynamically ignore/unignore global recommendations', async () => {
