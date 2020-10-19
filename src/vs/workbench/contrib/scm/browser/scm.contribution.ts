@@ -239,7 +239,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
 		const repository = context.getValue<ISCMRepository>('scmRepository');
-		repository?.input.showNextValue();
+		repository?.input.showNextHistoryValue();
 	}
 });
 
@@ -253,7 +253,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
 		const repository = context.getValue<ISCMRepository>('scmRepository');
-		repository?.input.showPreviousValue();
+		repository?.input.showPreviousHistoryValue();
 	}
 });
 

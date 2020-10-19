@@ -98,8 +98,8 @@ export interface ISCMInput {
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	showNextValue(): void;
-	showPreviousValue(): void;
+	showNextHistoryValue(): void;
+	showPreviousHistoryValue(): void;
 	setValue(value: string, fromKeyboard: boolean): void;
 }
 

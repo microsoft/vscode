@@ -110,7 +110,7 @@ class SCMInput implements ISCMInput {
 		});
 	}
 
-	showNextValue(): void {
+	showNextHistoryValue(): void {
 		if (this.historyNavigator.getHistory().length > 0) {
 			if (!this.has(this.value)) {
 				this.addToHistory(false);
@@ -129,7 +129,7 @@ class SCMInput implements ISCMInput {
 		}
 	}
 
-	showPreviousValue(): void {
+	showPreviousHistoryValue(): void {
 		if (this.historyNavigator.getHistory().length > 0) {
 			if (!this.has(this.value)) {
 				this.addToHistory(false);
