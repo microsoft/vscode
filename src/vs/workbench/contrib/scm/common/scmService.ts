@@ -9,18 +9,7 @@ import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator }
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { HistoryNavigator } from 'vs/base/common/history';
-
-class SCMValue {
-
-	value: string;
-	isCommitMessage: boolean;
-
-	constructor(value: string, isCommitMessage: boolean) {
-		this.value = value;
-		this.isCommitMessage = isCommitMessage;
-	}
-}
+import { HistoryNavigator2 } from 'vs/base/common/history';
 
 class SCMInput implements ISCMInput {
 
@@ -28,17 +17,6 @@ class SCMInput implements ISCMInput {
 
 	get value(): string {
 		return this._value;
-	}
-
-	public setValue(value: string, fromKeyboard: boolean) {
-		if (value === this._value) {
-			return;
-		}
-		if (!fromKeyboard) {
-			this.addToHistory(true);
-		}
-		this._value = value;
-		this._onDidChange.fire(value);
 	}
 
 	private readonly _onDidChange = new Emitter<string>();
@@ -83,102 +61,77 @@ class SCMInput implements ISCMInput {
 		this._validateInput = validateInput;
 		this._onDidChangeValidateInput.fire();
 	}
+
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
-	private historyNavigator: HistoryNavigator<SCMValue>;
+
+	private historyNavigator: HistoryNavigator2<string>;
+
 	constructor(
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
 	) {
-		const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
-		let history = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
-		if (history) {
-			this.historyNavigator = new HistoryNavigator(JSON.parse(history), 50);
-			let prev = this.historyNavigator.previous();
-			this.setValue(prev ? prev.value : '', true);
-		} else {
-			this.historyNavigator = new HistoryNavigator<SCMValue>([], 50);
+		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
+		let history: string[] | undefined;
+		let rawHistory = this.storageService.get(historyKey, StorageScope.WORKSPACE, '');
+
+		if (rawHistory) {
+			try {
+				history = JSON.parse(rawHistory);
+			} catch {
+				// noop
+			}
 		}
-		this.storageService.onWillSaveState((e) => {
+
+		if (!history || history.length === 0) {
+			history = [this._value];
+		} else {
+			this._value = history[history.length - 1];
+		}
+
+		this.historyNavigator = new HistoryNavigator2(history, 50);
+		console.log([...this.historyNavigator]);
+
+		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				if (!this.has(this.value)) {
-					this.addToHistory(false);
-				} else {
-					this.save();
+				this.historyNavigator.replaceLast(this._value);
+
+				if (this.repository.provider.rootUri) {
+					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.WORKSPACE);
 				}
 			}
 		});
 	}
 
-	showNextHistoryValue(): void {
-		if (this.historyNavigator.getHistory().length > 0) {
-			if (!this.has(this.value)) {
-				this.addToHistory(false);
-			}
-
-			let next = this.historyNavigator.next();
-			if (next) {
-				if (next.value === this.value) {
-					next = this.historyNavigator.next();
-				}
-			}
-
-			if (next) {
-				this.setValue(next.value, true);
-			}
+	setValue(value: string, transient: boolean) {
+		if (value === this._value) {
+			return;
 		}
+
+		if (!transient) {
+			this.historyNavigator.replaceLast(this._value);
+			this.historyNavigator.add(value);
+		}
+
+		this._value = value;
+		this._onDidChange.fire(value);
+	}
+
+	showNextHistoryValue(): void {
+		const value = this.historyNavigator.next();
+		this.setValue(value, true);
 	}
 
 	showPreviousHistoryValue(): void {
-		if (this.historyNavigator.getHistory().length > 0) {
-			if (!this.has(this.value)) {
-				this.addToHistory(false);
-			}
-
-			let previous = this.historyNavigator.previous();
-			if (previous) {
-				if (previous.value === this.value) {
-					previous = this.historyNavigator.previous();
-				}
-			}
-
-			if (previous) {
-				this.setValue(previous.value, true);
-			}
+		if (this.historyNavigator.isAtEnd()) {
+			this.historyNavigator.replaceLast(this._value);
 		}
-	}
 
-	private has(value: string): boolean {
-		let values = this.historyNavigator.getHistory();
-		let filtered = values.filter(item => item.value === value);
-		return filtered.length > 0;
-	}
-
-	private addToHistory(isCommit: boolean): void {
-		let latestInput = this.historyNavigator.getHistory().filter(item => !item.isCommitMessage);
-		if (latestInput.length > 0) {
-			this.historyNavigator.remove(latestInput[0]);
-		}
-		if (!this.has(this.value)) {
-			this.historyNavigator.add(new SCMValue(this.value, isCommit));
-			if (isCommit && latestInput.length > 0) {
-				this.historyNavigator.add(latestInput[0]);
-			}
-		} else if (isCommit && latestInput.length > 0) {
-			if (latestInput[0].value === this.value && !latestInput[0].isCommitMessage) {
-				this.historyNavigator.add(new SCMValue(this.value, isCommit));
-			}
-		}
-		this.save();
-	}
-
-	private save(): void {
-		if (this.repository.provider.rootUri) {
-			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
-			this.storageService.store(key, JSON.stringify(this.historyNavigator.getHistory()), StorageScope.WORKSPACE);
-		}
+		const value = this.historyNavigator.previous();
+		this.setValue(value, true);
 	}
 }
+
 class SCMRepository implements ISCMRepository {
 
 	private _selected = false;
