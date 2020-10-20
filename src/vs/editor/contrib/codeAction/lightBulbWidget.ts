@@ -16,7 +16,7 @@ import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { editorLightBulbForeground, editorLightBulbAutoFixForeground, editorBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { editorLightBulbForeground, editorLightBulbAutoFixForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Gesture } from 'vs/base/browser/touch';
 import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { Codicon } from 'vs/base/common/codicons';
