@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
+import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';

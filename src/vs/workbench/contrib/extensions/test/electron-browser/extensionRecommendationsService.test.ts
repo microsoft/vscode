@@ -37,7 +37,7 @@ import { TestExtensionEnablementService } from 'vs/workbench/services/extensionM
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';

@@ -6,7 +6,7 @@
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class BrowserTextFileService extends AbstractTextFileService {
 

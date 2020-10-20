@@ -21,7 +21,7 @@ import { StorageManager } from 'vs/platform/extensionManagement/common/extension
 import { webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';

@@ -21,7 +21,7 @@ import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authe
 import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');

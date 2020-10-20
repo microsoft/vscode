@@ -52,7 +52,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class BrowserMain extends Disposable {
 

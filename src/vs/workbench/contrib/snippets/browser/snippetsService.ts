@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';

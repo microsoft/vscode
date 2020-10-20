@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { TERMINAL_VIEW_ID, IShellLaunchConfig, ITerminalConfigHelper, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, ITerminalProcessExtHostProxy, IShellDefinition, LinuxDistro, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, ITerminalLaunchError, ITerminalNativeWindowsDelegate } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
