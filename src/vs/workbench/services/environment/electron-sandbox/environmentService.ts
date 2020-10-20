@@ -27,9 +27,6 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly log?: string;
 
-	// TODO@ben this is a bit ugly
-	updateBackupPath(newPath: string | undefined): void;
-
 	/**
 	 * @deprecated this property will go away eventually as it
 	 * duplicates many properties of the environment service

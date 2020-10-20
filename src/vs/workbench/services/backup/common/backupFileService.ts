@@ -115,11 +115,11 @@ export class BackupFileService implements IBackupFileService {
 	private impl: BackupFileServiceImpl | InMemoryBackupFileService;
 
 	constructor(
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileService protected fileService: IFileService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.impl = this.initialize();
+		this.impl = this.initialize(environmentService.initialBackupWorkspaceHome);
 	}
 
 	protected hashPath(resource: URI): string {
@@ -128,22 +128,20 @@ export class BackupFileService implements IBackupFileService {
 		return hash(str).toString(16);
 	}
 
-	private initialize(): BackupFileServiceImpl | InMemoryBackupFileService {
-		const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
-		if (backupWorkspaceResource) {
-			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService, this.logService);
+	private initialize(backupWorkspaceHome: URI | undefined): BackupFileServiceImpl | InMemoryBackupFileService {
+		if (backupWorkspaceHome) {
+			return new BackupFileServiceImpl(backupWorkspaceHome, this.hashPath, this.fileService, this.logService);
 		}
 
 		return new InMemoryBackupFileService(this.hashPath);
 	}
 
-	reinitialize(): void {
+	reinitialize(backupWorkspaceHome: URI | undefined): void {
 
 		// Re-init implementation (unless we are running in-memory)
 		if (this.impl instanceof BackupFileServiceImpl) {
-			const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
-			if (backupWorkspaceResource) {
-				this.impl.initialize(backupWorkspaceResource);
+			if (backupWorkspaceHome) {
+				this.impl.initialize(backupWorkspaceHome);
 			} else {
 				this.impl = new InMemoryBackupFileService(this.hashPath);
 			}

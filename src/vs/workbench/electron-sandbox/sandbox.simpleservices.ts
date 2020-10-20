@@ -88,8 +88,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
 
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
-	updateBackupPath(newPath: string | undefined): void { }
+	get initialBackupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 
 	sessionId = this.configuration.sessionId;
 	machineId = this.configuration.machineId;

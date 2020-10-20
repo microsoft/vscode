@@ -38,7 +38,7 @@ export class FileUserDataProvider extends Disposable implements
 		super();
 
 		this.userDataHome = environmentService.userRoamingDataHome;
-		this.backupHome = environmentService.backupWorkspaceHome;
+		this.backupHome = environmentService.initialBackupWorkspaceHome;
 
 		this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
 		// update extUri as capabilites might change.

@@ -250,30 +250,30 @@ suite('FileUserDataProvider', () => {
 
 	test('read backup file', async () => {
 		await testObject.writeFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.readFile(joinPath(environmentService.backupWorkspaceHome!, `backup.json`));
+		const result = await testObject.readFile(joinPath(environmentService.initialBackupWorkspaceHome!, `backup.json`));
 		assert.equal(result.value, '{}');
 	});
 
 	test('create backup file', async () => {
-		await testObject.createFile(joinPath(environmentService.backupWorkspaceHome!, `backup.json`), VSBuffer.fromString('{}'));
+		await testObject.createFile(joinPath(environmentService.initialBackupWorkspaceHome!, `backup.json`), VSBuffer.fromString('{}'));
 		const result = await testObject.readFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'));
 		assert.equal(result.value.toString(), '{}');
 	});
 
 	test('write backup file', async () => {
 		await testObject.writeFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'), VSBuffer.fromString('{}'));
-		await testObject.writeFile(joinPath(environmentService.backupWorkspaceHome!, `backup.json`), VSBuffer.fromString('{a:1}'));
+		await testObject.writeFile(joinPath(environmentService.initialBackupWorkspaceHome!, `backup.json`), VSBuffer.fromString('{a:1}'));
 		const result = await testObject.readFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'));
 		assert.equal(result.value.toString(), '{a:1}');
 	});
 
 	test('resolve backups folder', async () => {
 		await testObject.writeFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.resolve(environmentService.backupWorkspaceHome!);
+		const result = await testObject.resolve(environmentService.initialBackupWorkspaceHome!);
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
 		assert.equal(result.children!.length, 1);
-		assert.equal(result.children![0].resource.toString(), joinPath(environmentService.backupWorkspaceHome!, `backup.json`).toString());
+		assert.equal(result.children![0].resource.toString(), joinPath(environmentService.initialBackupWorkspaceHome!, `backup.json`).toString());
 	});
 });
 
@@ -431,7 +431,7 @@ suite('FileUserDataProvider - Watching', () => {
 	});
 
 	test('backup file created change event', done => {
-		const expected = joinPath(environmentService.backupWorkspaceHome!, 'settings.json');
+		const expected = joinPath(environmentService.initialBackupWorkspaceHome!, 'settings.json');
 		const target = joinPath(localBackupsResource, 'settings.json');
 		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.ADDED)) {
@@ -445,7 +445,7 @@ suite('FileUserDataProvider - Watching', () => {
 	});
 
 	test('backup file update change event', done => {
-		const expected = joinPath(environmentService.backupWorkspaceHome!, 'settings.json');
+		const expected = joinPath(environmentService.initialBackupWorkspaceHome!, 'settings.json');
 		const target = joinPath(localBackupsResource, 'settings.json');
 		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.UPDATED)) {
@@ -459,7 +459,7 @@ suite('FileUserDataProvider - Watching', () => {
 	});
 
 	test('backup file delete change event', done => {
-		const expected = joinPath(environmentService.backupWorkspaceHome!, 'settings.json');
+		const expected = joinPath(environmentService.initialBackupWorkspaceHome!, 'settings.json');
 		const target = joinPath(localBackupsResource, 'settings.json');
 		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.DELETED)) {
