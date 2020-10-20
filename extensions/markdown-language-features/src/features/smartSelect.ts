@@ -51,6 +51,8 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			return headerRange;
 		} else if (blockRange) {
 			return blockRange;
+		} else {
+			return new vscode.SelectionRange(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)));
 		}
 	}
 
