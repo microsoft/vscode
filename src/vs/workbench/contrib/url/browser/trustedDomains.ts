@@ -174,14 +174,47 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 	return [...set];
 }
 
-export async function readTrustedDomains(accessor: ServicesAccessor) {
+export interface IStaticTrustedDomains {
+	readonly defaultTrustedDomains: string[];
+	readonly trustedDomains: string[];
+}
 
-	const storageService = accessor.get(IStorageService);
-	const productService = accessor.get(IProductService);
-	const authenticationService = accessor.get(IAuthenticationService);
+export interface ITrustedDomains extends IStaticTrustedDomains {
+	readonly userDomains: string[];
+	readonly workspaceDomains: string[];
+}
+
+export async function readTrustedDomains(accessor: ServicesAccessor): Promise<ITrustedDomains> {
+	const { defaultTrustedDomains, trustedDomains } = readStaticTrustedDomains(accessor);
+	const [workspaceDomains, userDomains] = await Promise.all([readWorkspaceTrustedDomains(accessor), readAuthenticationTrustedDomains(accessor)]);
+	return {
+		workspaceDomains,
+		userDomains,
+		defaultTrustedDomains,
+		trustedDomains,
+	};
+}
+
+export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
+	console.log('reading workspace domains');
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	return getRemotes(fileService, textFileService, workspaceContextService);
+}
+
+export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
+	console.log('reading auth domains');
+
+	const authenticationService = accessor.get(IAuthenticationService);
+	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
+		? [`https://github.com`]
+		: [];
+}
+
+export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {
+	const storageService = accessor.get(IStorageService);
+	const productService = accessor.get(IProductService);
 
 	const defaultTrustedDomains: string[] = productService.linkProtectionTrustedDomains
 		? [...productService.linkProtectionTrustedDomains]
@@ -195,17 +228,8 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 		}
 	} catch (err) { }
 
-	const userDomains =
-		authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
-			? [`https://github.com`]
-			: [];
-
-	const workspaceDomains = await getRemotes(fileService, textFileService, workspaceContextService);
-
 	return {
 		defaultTrustedDomains,
 		trustedDomains,
-		userDomains,
-		workspaceDomains
 	};
 }
