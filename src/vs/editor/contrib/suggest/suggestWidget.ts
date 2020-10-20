@@ -35,6 +35,7 @@ import { SuggestDetailsWidget, canExpandCompletionItem, SuggestDetailsOverlay } 
 import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/suggestWidgetStatus';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 import { ResizableHTMLElement } from './resizable';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 /**
  * Suggest widget colors
@@ -62,10 +63,17 @@ export interface ISelectedSuggestion {
 
 class PersistedWidgetSize {
 
-	private static _key = 'suggestWidget.size';
+	private readonly _key: string;
 
-	static restore(service: IStorageService): dom.Dimension | undefined {
-		const raw = service.get(PersistedWidgetSize._key, StorageScope.GLOBAL) ?? '';
+	constructor(
+		private readonly _service: IStorageService,
+		editor: ICodeEditor
+	) {
+		this._key = `suggestWidget.size/${editor.getEditorType()}/${editor instanceof EmbeddedCodeEditorWidget}`;
+	}
+
+	restore(): dom.Dimension | undefined {
+		const raw = this._service.get(this._key, StorageScope.GLOBAL) ?? '';
 		try {
 			const obj = JSON.parse(raw);
 			if (dom.Dimension.is(obj)) {
@@ -77,8 +85,8 @@ class PersistedWidgetSize {
 		return undefined;
 	}
 
-	static store(service: IStorageService, size: dom.Dimension) {
-		service.store(PersistedWidgetSize._key, JSON.stringify(size), StorageScope.GLOBAL);
+	store(size: dom.Dimension) {
+		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL);
 	}
 }
 
@@ -116,6 +124,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private readonly showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
 
+	private readonly _persistedSize: PersistedWidgetSize;
+
 	private readonly onDidSelectEmitter = new Emitter<ISelectedSuggestion>();
 	private readonly onDidFocusEmitter = new Emitter<ISelectedSuggestion>();
 	private readonly onDidHideEmitter = new Emitter<this>();
@@ -152,10 +162,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
 
+		this._persistedSize = new PersistedWidgetSize(storageService, editor);
+
 		this._disposables.add(this.element.onDidResize(e => {
 			this._layout(e.dimension);
 			if (e.done) {
-				PersistedWidgetSize.store(this.storageService, this.element.size);
+				this._persistedSize.store(this.element.size);
 			}
 		}));
 
@@ -676,7 +688,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private show(): void {
-		this._layout(PersistedWidgetSize.restore(this.storageService));
+		this._layout(this._persistedSize.restore());
 		this.ctxSuggestWidgetVisible.set(true);
 
 		this.showTimeout.cancelAndSet(() => {
@@ -686,7 +698,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private hide(): void {
-		this._positionPreferences = undefined;
+		this._actualPosition = undefined;
 		// let the editor know that the widget is hidden
 		this.editor.layoutContentWidget(this);
 		this.ctxSuggestWidgetVisible.reset();
@@ -706,7 +718,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 		return {
 			position: this.editor.getPosition(),
-			preference: this._positionPreferences ?? [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			preference: this._actualPosition ? [this._actualPosition] : [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
 	}
 
@@ -723,13 +735,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	beforeRender() {
-		// if (this.state === State.Empty || this.state === State.Loading) {
-		// 	return null;
-		// }
 		return this.element.size;
 	}
 
-	private _positionPreferences?: ContentWidgetPositionPreference[];
+	private _actualPosition?: ContentWidgetPositionPreference;
 
 	afterRender(position: ContentWidgetPositionPreference | null) {
 		if (position === null) {
@@ -742,7 +751,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			// no special positioning when widget isn't showing list
 			return;
 		}
-		this._positionPreferences = [position];
+		this._actualPosition = position;
 		if (this._isDetailsVisible()) {
 			this._details.show();
 		}
@@ -779,6 +788,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 			if (width === undefined) {
 				width = 430;
+			}
+			if (width > maxWidth) {
+				width = maxWidth;
 			}
 
 			if (height === undefined) {
