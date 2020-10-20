@@ -541,7 +541,7 @@ class PredictionTimeline {
 			return;
 		}
 
-		console.log('set predictions:', show);
+		// console.log('set predictions:', show);
 		this.showPredictions = show;
 
 		const buffer = this.getActiveBuffer();
@@ -821,7 +821,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		console.log('user data:', JSON.stringify(data));
+		// console.log('user data:', JSON.stringify(data));
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
@@ -896,9 +896,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		console.log('incoming data:', JSON.stringify(event.data));
+		// console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
-		console.log('emitted data:', JSON.stringify(event.data));
+		// console.log('emitted data:', JSON.stringify(event.data));
 
 		// If there's something that looks like a password prompt, omit giving
 		// input. This is approximate since there's no TTY "password here" code,
