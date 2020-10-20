@@ -354,15 +354,13 @@ export class TerminalService implements ITerminalService {
 				for (let term of remoteTerms.slice(1)) {
 					this.createTerminal({ remoteAttach: term });
 				}
-			} else {
+			} else if (this.terminalInstances.length === 0) {
 				// Remote, no terminals to attach to
 				this.createTerminal(undefined, emptyTab);
 			}
-		} else {
-			if (this.terminalInstances.length === 0) {
-				// Local, just create a terminal
-				this.createTerminal();
-			}
+		} else if (this.terminalInstances.length === 0) {
+			// Local, just create a terminal
+			this.createTerminal();
 		}
 	}
 
