@@ -168,11 +168,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
 				default: false
 			},
-			'remote.restoreForwardedPorts': {
-				type: 'boolean',
-				markdownDescription: nls.localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
-				default: false
-			},
 		}
 	});
 
