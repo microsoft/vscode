@@ -20,20 +20,19 @@ suite.only('markdown.SmartSelect', () => {
 		assert.strictEqual(selections[0].range.start.line, 0);
 		assert.strictEqual(selections[0].range.end.line, 1);
 	});
-
-	test('Smart select html blocks', async () => {
+	test('Smart select paragraph', async () => {
+		const selections = await getSelectionRangesForDocument(`Many of the core components and extensions to ${CURSOR}VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).`);
+		assert.strictEqual(selections[0].range.start.line, 0);
+		assert.strictEqual(selections[0].range.end.line, 1);
+	});
+	test('Smart select html block', async () => {
 		const selections = await getSelectionRangesForDocument(
 			joinLines(
 				`<p align="center">`,
 				`${CURSOR}<img alt="VS Code in action" src="https://user-images.githubusercontent.com/1487073/58344409-70473b80-7e0a-11e9-8570-b2efc6f8fa44.png">`,
 				`</p>`));
 		assert.strictEqual(selections[0].range.start.line, 0);
-		assert.strictEqual(selections[0].range.end.line, 2);
-	});
-	test('Smart select paragraph', async () => {
-		const selections = await getSelectionRangesForDocument(`Many of the core components and extensions to ${CURSOR}VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).`);
-		assert.strictEqual(selections[0].range.start.line, 0);
-		assert.strictEqual(selections[0].range.end.line, 1);
+		assert.strictEqual(selections[0].range.end.line, 3);
 	});
 	test('Smart select single word w parent header on header line', async () => {
 		const selections = await getSelectionRangesForDocument(
@@ -50,7 +49,7 @@ suite.only('markdown.SmartSelect', () => {
 				`# Header`,
 				`${CURSOR}Hello`
 			));
-		assert.strictEqual(selections[0].range.start.line, 0);
+		assert.strictEqual(selections[0].range.start.line, 2);
 		assert.strictEqual(selections[0].range.end.line, 3);
 	});
 	test('Smart select html block w parent header', async () => {
@@ -81,6 +80,18 @@ suite.only('markdown.SmartSelect', () => {
 				`- item 4`));
 		assert.strictEqual(selections[0].range.start.line, 0);
 		assert.strictEqual(selections[0].range.end.line, 4);
+	});
+	test('Smart select list with fenced code block', async () => {
+		const selections = await getSelectionRangesForDocument(
+			joinLines(
+				`- item 1`,
+				`- ~~~`,
+				`- ${CURSOR}a`,
+				`- ~~~`,
+				`- item 3`,
+				`- item 4`));
+		assert.strictEqual(selections[0].range.start.line, 1);
+		assert.strictEqual(selections[0].range.end.line, 3);
 	});
 });
 
