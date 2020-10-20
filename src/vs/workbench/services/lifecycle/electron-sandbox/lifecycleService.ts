@@ -156,6 +156,10 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		onUnexpectedError(error);
 	}
+
+	shutdown(): void {
+		this.nativeHostService.closeWindow();
+	}
 }
 
 registerSingleton(ILifecycleService, NativeLifecycleService);

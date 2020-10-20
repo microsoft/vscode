@@ -71,4 +71,9 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 		await barrier.wait();
 	}
+
+	/**
+	 * Subclasses to implement the explicit shutdown method.
+	 */
+	abstract shutdown(): void;
 }

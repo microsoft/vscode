@@ -52,6 +52,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 class BrowserMain extends Disposable {
 
@@ -97,11 +98,13 @@ class BrowserMain extends Disposable {
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);
+			const lifecycleService = accessor.get(ILifecycleService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
-				}
+				},
+				shutdown: () => lifecycleService.shutdown()
 			};
 		});
 	}
@@ -127,7 +130,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				console.warn('Unload prevented: pending storage update');
+				console.warn('Unload veto: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
 			}
 		}));
