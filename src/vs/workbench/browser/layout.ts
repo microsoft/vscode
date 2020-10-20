@@ -1397,9 +1397,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onCenteredLayoutChange.fire(this.state.editor.centered);
 	}
 
-	resizePart(part: Parts, sizeChange: number): void {
-		const sizeChangePxWidth = this.workbenchGrid.width * sizeChange / 100;
-		const sizeChangePxHeight = this.workbenchGrid.height * sizeChange / 100;
+	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
+		const sizeChangePxWidth = this.workbenchGrid.width * sizeChangeWidth / 100;
+		const sizeChangePxHeight = this.workbenchGrid.height * sizeChangeHeight / 100;
 
 		let viewSize: IViewSize;
 

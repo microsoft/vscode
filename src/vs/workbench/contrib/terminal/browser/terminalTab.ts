@@ -56,7 +56,7 @@ class SplitPaneContainer extends Disposable {
 				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
 				amount *= -1;
 			}
-			this._layoutService.resizePart(Parts.PANEL_PART, amount);
+			this._layoutService.resizePart(Parts.PANEL_PART, amount, amount);
 			return;
 		}
 
