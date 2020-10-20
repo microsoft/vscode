@@ -288,6 +288,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		this.widget.minSize = minSize;
 		this.widget.maxSize = maxSize;
 		this.widget.layout();
+		this.widget.enableSashes(false, true, true);
 
 		this.getDomNode().style.position = 'fixed';
 		this.getDomNode().style.left = left + 'px';

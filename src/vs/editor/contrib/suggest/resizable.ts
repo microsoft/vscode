@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
-import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 
 
 export interface IResizeEvent {
@@ -24,6 +24,7 @@ export class ResizableHTMLElement {
 	private readonly _onDidResize = new Emitter<IResizeEvent>();
 	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
 
+	private readonly _northSash: Sash;
 	private readonly _eastSash: Sash;
 	private readonly _southSash: Sash;
 	private readonly _sashListener = new DisposableStore();
@@ -35,17 +36,19 @@ export class ResizableHTMLElement {
 
 	constructor() {
 		this.domNode = document.createElement('div');
+		this._northSash = new Sash(this.domNode, { getHorizontalSashTop: () => 0 }, { orientation: Orientation.HORIZONTAL });
 		this._eastSash = new Sash(this.domNode, { getVerticalSashLeft: () => this._size.width }, { orientation: Orientation.VERTICAL });
 		this._southSash = new Sash(this.domNode, { getHorizontalSashTop: () => this._size.height }, { orientation: Orientation.HORIZONTAL });
 
 		this._eastSash.orthogonalEndSash = this._southSash;
 		this._southSash.orthogonalEndSash = this._eastSash;
+		this._northSash.orthogonalEndSash = this._eastSash;
 
 		let currentSize: Dimension | undefined;
 		let deltaY = 0;
 		let deltaX = 0;
 
-		this._sashListener.add(Event.any(this._eastSash.onDidStart, this._southSash.onDidStart)(() => {
+		this._sashListener.add(Event.any(this._northSash.onDidStart, this._eastSash.onDidStart, this._southSash.onDidStart)(() => {
 			if (currentSize === undefined) {
 				this._onDidWillResize.fire();
 				currentSize = this._size;
@@ -53,7 +56,7 @@ export class ResizableHTMLElement {
 				deltaX = 0;
 			}
 		}));
-		this._sashListener.add(Event.any(this._eastSash.onDidEnd, this._southSash.onDidEnd)(() => {
+		this._sashListener.add(Event.any(this._northSash.onDidEnd, this._eastSash.onDidEnd, this._southSash.onDidEnd)(() => {
 			if (currentSize !== undefined) {
 				currentSize = undefined;
 				deltaY = 0;
@@ -66,6 +69,13 @@ export class ResizableHTMLElement {
 			if (currentSize) {
 				deltaX = e.currentX - e.startX;
 				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
+				this._onDidResize.fire({ dimension: this._size, done: false });
+			}
+		}));
+		this._sashListener.add(this._northSash.onDidChange(e => {
+			if (currentSize) {
+				deltaY = e.currentY - e.startY;
+				this.layout(currentSize.height + -deltaY, currentSize.width + deltaX);
 				this._onDidResize.fire({ dimension: this._size, done: false });
 			}
 		}));
@@ -83,7 +93,7 @@ export class ResizableHTMLElement {
 				this._onDidResize.fire({ dimension: this._size, done: true });
 			}
 		}));
-		this._sashListener.add(this._southSash.onDidReset(e => {
+		this._sashListener.add(Event.any(this._northSash.onDidReset, this._southSash.onDidReset)(e => {
 			if (this._preferredSize) {
 				this.layout(this._preferredSize.height, this._size.width);
 				this._onDidResize.fire({ dimension: this._size, done: true });
@@ -96,6 +106,12 @@ export class ResizableHTMLElement {
 		this._eastSash.dispose();
 		this._sashListener.dispose();
 		this.domNode.remove();
+	}
+
+	enableSashes(north: boolean, east: boolean, south: boolean): void {
+		this._northSash.state = north ? SashState.Enabled : SashState.Disabled;
+		this._eastSash.state = east ? SashState.Enabled : SashState.Disabled;
+		this._southSash.state = south ? SashState.Enabled : SashState.Disabled;
 	}
 
 	layout(height: number = this.size.height, width: number = this.size.width): void {
