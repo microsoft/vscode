@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
 
 export default class MarkdownSmartSelect implements vscode.SelectionRangeProvider {
 
@@ -109,34 +109,23 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			return undefined;
 		}
 
-		let parentHeader = sortedHeaders.shift();
-		let parentRange: vscode.SelectionRange;
-		let currentRange: vscode.SelectionRange;
-
-		if (parentHeader) {
-			let contentRange = new vscode.Range(parentHeader.location.range.start.translate(1), parentHeader.location.range.end);
-			let headerPlusContent = new vscode.SelectionRange(parentHeader.location.range);
-			if (headerPlusContent.range.contains(contentRange)) {
-				parentRange = new vscode.SelectionRange(contentRange, headerPlusContent);
-			}
-		}
+		let parentRange = createHeaderRange(sortedHeaders.shift());
+		let currentRange: vscode.SelectionRange | undefined;
 
 		let index = 0;
 		for (const header of sortedHeaders) {
-			if (parentHeader) {
-				let contentRange = new vscode.Range(header.location.range.start.translate(1), header.location.range.end);
+			if (parentRange) {
 				if (parentRange.range.contains(header.location.range)) {
 					if (index === sortedHeaders.length - 1 && headerOnThisLine) {
 						currentRange = new vscode.SelectionRange(header.location.range, parentRange);
 					} else {
-						let headerPlusContent = new vscode.SelectionRange(header.location.range, parentRange);
-						currentRange = new vscode.SelectionRange(contentRange, headerPlusContent);
+						currentRange = createHeaderRange(header, parentRange);
 					}
 				}
 			}
-			parentHeader = header;
-			let parentWithHeader = new vscode.SelectionRange(parentHeader.location.range, parentRange);
-			parentRange = new vscode.SelectionRange(new vscode.Range(parentHeader.location.range.start.translate(1), parentHeader.location.range.end), parentWithHeader);
+			if (currentRange && currentRange.parent) {
+				parentRange = createHeaderRange(header, currentRange.parent);
+			}
 			index++;
 		}
 		if (!currentRange && parentRange) {
@@ -145,6 +134,20 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		return currentRange;
 	}
 }
+
+let createHeaderRange = (header: TocEntry | undefined, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined => {
+	if (header) {
+		let contentRange = new vscode.Range(header.location.range.start.translate(1), header.location.range.end);
+		let headerPlusContentRange = header.location.range;
+		if (parent && parent.range.contains(headerPlusContentRange)) {
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(headerPlusContentRange, parent));
+		} else {
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(headerPlusContentRange));
+		}
+	} else {
+		return undefined;
+	}
+};
 
 let getEndCharacter = (document: vscode.TextDocument, startLine: number, endLine: number): number => {
 	let startLength = document.lineAt(startLine).text ? document.lineAt(startLine).text.length : 0;
