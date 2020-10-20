@@ -727,10 +727,12 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 
+		const config = workspace.getConfiguration('workbench.editor');
+
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
-				preview: false,
+				preview: config.enablePreview,
 				viewColumn: ViewColumn.Active
 			};
 
