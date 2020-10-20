@@ -113,7 +113,7 @@ export interface ThemeChangeEvent<T> {
 export interface IThemeData {
 	id: string;
 	settingsId: string | null;
-	extensionData?: ExtensionData;
+	location?: URI;
 }
 
 export class ThemeRegistry<T extends IThemeData> {
@@ -152,10 +152,9 @@ export class ThemeRegistry<T extends IThemeData> {
 					extensionId: ext.description.identifier.value,
 					extensionPublisher: ext.description.publisher,
 					extensionName: ext.description.name,
-					extensionIsBuiltin: ext.description.isBuiltin,
-					extensionLocation: ext.description.extensionLocation
+					extensionIsBuiltin: ext.description.isBuiltin
 				};
-				this.onThemes(extensionData, ext.value, ext.collector);
+				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, ext.collector);
 			}
 			for (const theme of this.extensionThemes) {
 				if (!previousIds[theme.id]) {
@@ -169,7 +168,7 @@ export class ThemeRegistry<T extends IThemeData> {
 		});
 	}
 
-	private onThemes(extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onThemes(extensionData: ExtensionData, extensionLocation: URI, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -198,9 +197,9 @@ export class ThemeRegistry<T extends IThemeData> {
 				return;
 			}
 
-			const themeLocation = resources.joinPath(extensionData.extensionLocation, theme.path);
-			if (!resources.isEqualOrParent(themeLocation, extensionData.extensionLocation)) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionData.extensionLocation.path));
+			const themeLocation = resources.joinPath(extensionLocation, theme.path);
+			if (!resources.isEqualOrParent(themeLocation, extensionLocation)) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
 			let themeData = this.create(theme, themeLocation, extensionData);
@@ -245,7 +244,7 @@ export class ThemeRegistry<T extends IThemeData> {
 	public findThemeByExtensionLocation(extLocation: URI | undefined): Promise<T[]> {
 		if (extLocation) {
 			return this.getThemes().then(allThemes => {
-				return allThemes.filter(t => t.extensionData && resources.isEqual(t.extensionData.extensionLocation, extLocation));
+				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, extLocation));
 			});
 		}
 		return Promise.resolve([]);
