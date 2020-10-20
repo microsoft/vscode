@@ -114,7 +114,7 @@ export class OneSnippet {
 					const range = this._editor.getModel().getDecorationRange(id)!;
 					const currentValue = this._editor.getModel().getValueInRange(range);
 
-					operations.push(EditOperation.replaceMove(range, placeholder.transform.resolve(currentValue)));
+					operations.push(EditOperation.replace(range, placeholder.transform.resolve(currentValue)));
 				}
 			}
 			if (operations.length > 0) {
