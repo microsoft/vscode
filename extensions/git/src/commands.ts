@@ -797,7 +797,9 @@ export class CommandCenter {
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		const preserveFocus = arg instanceof Resource;
-		const preview = !(arg instanceof Resource);
+
+		const config = workspace.getConfiguration('workbench.editor');
+		const preview = !(arg instanceof Resource) || config.enablePreview;
 
 		const preserveSelection = arg instanceof Uri || !arg;
 		let resources: Resource[] | undefined = undefined;
