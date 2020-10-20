@@ -357,8 +357,10 @@ export class TerminalService implements ITerminalService {
 				this.createTerminal(undefined, emptyTab);
 			}
 		} else {
-			// Local, just create a terminal
-			this.createTerminal();
+			if (this.terminalInstances.length === 0) {
+				// Local, just create a terminal
+				this.createTerminal();
+			}
 		}
 	}
 
