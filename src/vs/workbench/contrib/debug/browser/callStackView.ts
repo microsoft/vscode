@@ -111,8 +111,8 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 }
 
 export class CallStackView extends ViewPane {
-	private pauseMessage!: HTMLSpanElement;
-	private pauseMessageLabel!: HTMLSpanElement;
+	private stateMessage!: HTMLSpanElement;
+	private stateMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private ignoreSelectionChangedEvent = false;
@@ -156,15 +156,19 @@ export class CallStackView extends ViewPane {
 
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
-				this.pauseMessageLabel.textContent = thread.stateLabel;
-				this.pauseMessageLabel.title = thread.stateLabel;
-				this.pauseMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
-				this.pauseMessage.hidden = false;
-				this.updateActions();
+				this.stateMessageLabel.textContent = thread.stateLabel;
+				this.stateMessageLabel.title = thread.stateLabel;
+				this.stateMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
+				this.stateMessage.hidden = false;
+			} else if (sessions.length === 1 && sessions[0].state === State.Running) {
+				this.stateMessageLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+				this.stateMessageLabel.title = sessions[0].getLabel();
+				this.stateMessageLabel.classList.remove('exception');
+				this.stateMessage.hidden = false;
 			} else {
-				this.pauseMessage.hidden = true;
-				this.updateActions();
+				this.stateMessage.hidden = true;
 			}
+			this.updateActions();
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
@@ -195,13 +199,13 @@ export class CallStackView extends ViewPane {
 		const titleContainer = dom.append(container, $('.debug-call-stack-title'));
 		super.renderHeaderTitle(titleContainer, this.options.title);
 
-		this.pauseMessage = dom.append(titleContainer, $('span.pause-message'));
-		this.pauseMessage.hidden = true;
-		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
+		this.stateMessage = dom.append(titleContainer, $('span.state-message'));
+		this.stateMessage.hidden = true;
+		this.stateMessageLabel = dom.append(this.stateMessage, $('span.label'));
 	}
 
 	getActions(): IAction[] {
-		if (this.pauseMessage.hidden) {
+		if (this.stateMessage.hidden) {
 			return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 		}
 
