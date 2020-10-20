@@ -79,22 +79,8 @@ export class ToggleTerminalAction extends ToggleViewAction {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(id, label, TERMINAL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService);
-	}
-
-	async run() {
-		if (this.terminalService.isProcessSupportRegistered && this.terminalService.terminalInstances.length === 0) {
-			// If there is not yet an instance attempt to create it here so that we can suggest a
-			// new shell on Windows (and not do so when the panel is restored on reload).
-			const newTerminalInstance = this.terminalService.createTerminal(undefined);
-			const toDispose = newTerminalInstance.onProcessIdReady(() => {
-				newTerminalInstance.focus();
-				toDispose.dispose();
-			});
-		}
-		return super.run();
 	}
 }
 
