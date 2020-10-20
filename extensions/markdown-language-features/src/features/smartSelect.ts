@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
+import { TableOfContentsProvider } from '../tableOfContentsProvider';
 
 export default class MarkdownSmartSelect implements vscode.SelectionRangeProvider {
 
@@ -58,10 +58,10 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		const tokens = await this.engine.parse(document);
 
-		let nearbyTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
+		let enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
 
 		// sort from smallest to largest line range
-		let sortedTokens = nearbyTokens.sort((tokenOne, tokenTwo) => (tokenTwo.map[1] - tokenTwo.map[0] - tokenOne.map[1] - tokenOne.map[0]));
+		let sortedTokens = enclosingTokens.sort((tokenOne, tokenTwo) => (tokenTwo.map[1] - tokenTwo.map[0] - tokenOne.map[1] - tokenOne.map[0]));
 
 		if (sortedTokens.length === 0) {
 			return undefined;
@@ -98,10 +98,10 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
 
-		let headerOnThisLine = toc.filter(header => header.line === position.line).length > 0;
+		let headerOnThisLine = toc.find(header => header.line === position.line);
 
-		let nearbyHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
-		let sortedHeaders = nearbyHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
+		let enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
+		let sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 
 		if (sortedHeaders.length === 0) {
 			return undefined;
