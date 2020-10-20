@@ -93,7 +93,9 @@ class SCMInput implements ISCMInput {
 
 		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.historyNavigator.replaceLast(this.historyNavigator.last());
+				if (this.historyNavigator.isAtEnd()) {
+					this.historyNavigator.replaceLast(this._value);
+				}
 
 				if (this.repository.provider.rootUri) {
 					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.WORKSPACE);

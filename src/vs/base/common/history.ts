@@ -147,10 +147,6 @@ export class HistoryNavigator2<T> {
 		}
 	}
 
-	last(): T {
-		return this.tail.value;
-	}
-
 	replaceLast(value: T): void {
 		this.tail.value = value;
 	}
