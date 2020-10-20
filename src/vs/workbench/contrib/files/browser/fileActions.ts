@@ -1044,8 +1044,8 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 						filesTotal: number;
 						filesDownloaded: number;
 
-						totalBytesDownloaded: 0
-						fileBytesDownloaded: 0
+						totalBytesDownloaded: number;
+						fileBytesDownloaded: number;
 					}
 
 					async function pipeContents(name: string, source: IFileStreamContent, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
@@ -1142,7 +1142,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 					}
 
 					try {
-						const targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle = await window.showDirectoryPicker();
+						const parentFolder: WebFileSystemAccess.FileSystemDirectoryHandle = await window.showDirectoryPicker();
 						const operation: IDownloadOperation = {
 							startTime: Date.now(),
 
@@ -1154,12 +1154,13 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 						};
 
 						if (stat.isDirectory) {
+							const targetFolder = await parentFolder.getDirectoryHandle(stat.name, { create: true });
 							await downloadFolder(stat, targetFolder, operation);
 						} else {
-							await downloadFile(targetFolder, stat.name, stat.resource, operation);
+							await downloadFile(parentFolder, stat.name, stat.resource, operation);
 						}
 					} catch (error) {
-						logService.trace(error);
+						logService.warn(error);
 						cts.cancel(); // `showDirectoryPicker` will throw an error when the user cancels
 					}
 				}
