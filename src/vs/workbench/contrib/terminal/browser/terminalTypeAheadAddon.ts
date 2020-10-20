@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from 'vs/base/common/color';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
@@ -17,6 +20,12 @@ const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
 const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
 const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*:/i;
 const NOT_WORD_RE = /\W/;
+
+const statsBufferSize = 25;
+const statsSendTelemetryEvery = 1000 * 60 * 5; // how often to collect stats
+const statsMinSamplesToTurnOn = 5;
+const statsMinAccuracyToTurnOn = 0.3;
+const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * this`, turn off
 
 /**
  * Codes that should be omitted from sending to the prediction engine and
@@ -424,6 +433,68 @@ class CursorMovePrediction implements IPrediction {
 	}
 }
 
+class PredictionStats implements IDisposable {
+	private readonly stats: [latency: number, correct: boolean][] = [];
+	private index = 0;
+	private readonly addedAtTime = new WeakMap<IPrediction, number>();
+	private readonly disposables: IDisposable[] = [];
+	private readonly changeEmitter = new Emitter<void>();
+	public readonly onChange = this.changeEmitter.event;
+
+	/**
+	 * Gets the percent (0-1) of predictions that were accurate.
+	 */
+	public get accuracy() {
+		let correctCount = 0;
+		for (const [, correct] of this.stats) {
+			if (correct) {
+				correctCount++;
+			}
+		}
+
+		return correctCount / this.stats.length;
+	}
+
+	/**
+	 * Gets the number of recorded stats.
+	 */
+	public get sampleSize() {
+		return this.stats.length;
+	}
+
+	/**
+	 * Gets latency stats of successful predictions.
+	 */
+	public get latency() {
+		const latencies = this.stats.filter(([, correct]) => correct).map(([s]) => s).sort();
+
+		return {
+			count: latencies.length,
+			min: latencies[0],
+			median: latencies[Math.floor(latencies.length / 2)],
+			max: latencies[latencies.length - 1],
+		};
+	}
+
+	constructor(timeline: PredictionTimeline) {
+		this.disposables = [
+			timeline.onPredictionAdded(p => this.addedAtTime.set(p, Date.now())),
+			timeline.onPredictionSucceeded(this.pushStat.bind(this, true)),
+			timeline.onPredictionFailed(this.pushStat.bind(this, false)),
+		];
+	}
+
+	public dispose() {
+		this.disposables.forEach(d => d.dispose());
+	}
+
+	private pushStat(correct: boolean, prediction: IPrediction) {
+		const started = this.addedAtTime.get(prediction)!;
+		this.stats[this.index] = [Date.now() - started, correct];
+		this.index = (this.index + 1) % statsBufferSize;
+		this.changeEmitter.fire();
+	}
+}
 
 class PredictionTimeline {
 	/**
@@ -449,7 +520,43 @@ class PredictionTimeline {
 	 */
 	private inputBuffer?: string;
 
+	/**
+	 * Whether predictions are echoed to the terminal. If false, predictions
+	 * will still be computed internally for latency metrics, but input will
+	 * never be adjusted.
+	 */
+	private showPredictions = false;
+
+	private readonly addedEmitter = new Emitter<IPrediction>();
+	public readonly onPredictionAdded = this.addedEmitter.event;
+	private readonly failedEmitter = new Emitter<IPrediction>();
+	public readonly onPredictionFailed = this.failedEmitter.event;
+	private readonly succeededEmitter = new Emitter<IPrediction>();
+	public readonly onPredictionSucceeded = this.succeededEmitter.event;
+
 	constructor(public readonly terminal: Terminal) { }
+
+	public setShowPredictions(show: boolean) {
+		if (show === this.showPredictions) {
+			return;
+		}
+
+		console.log('set predictions:', show);
+		this.showPredictions = show;
+
+		const buffer = this.getActiveBuffer();
+		if (!buffer) {
+			return;
+		}
+
+		const toApply = this.expected.filter(({ gen }) => gen === this.expected[0].gen).map(({ p }) => p);
+		if (show) {
+			this.cursor = undefined;
+			this.terminal.write(toApply.map(p => p.apply(buffer, this.getCursor(buffer))).join(''));
+		} else {
+			this.terminal.write(toApply.reverse().map(p => p.rollback(buffer)).join(''));
+		}
+	}
 
 	/**
 	 * Should be called when input is incoming to the temrinal.
@@ -494,6 +601,7 @@ class PredictionTimeline {
 					const eaten = input.slice(beforeTestReaderIndex, reader.index);
 					output += prediction.rollForwards?.(buffer, eaten)
 						?? (prediction.rollback(buffer) + input.slice(beforeTestReaderIndex, reader.index));
+					this.succeededEmitter.fire(prediction);
 					this.expected.shift();
 					break;
 				case MatchResult.Buffer:
@@ -511,6 +619,7 @@ class PredictionTimeline {
 						.join('');
 					this.expected = [];
 					this.cursor = undefined;
+					this.failedEmitter.fire(prediction);
 					break ReadLoop;
 			}
 		}
@@ -536,6 +645,10 @@ class PredictionTimeline {
 			}
 		}
 
+		if (!this.showPredictions) {
+			return input;
+		}
+
 		if (output.length === 0) {
 			return '';
 		}
@@ -556,9 +669,13 @@ class PredictionTimeline {
 	 */
 	public addPrediction(buffer: IBuffer, prediction: IPrediction) {
 		this.expected.push({ gen: this.currentGen, p: prediction });
+		this.addedEmitter.fire(prediction);
+
 		if (this.currentGen === this.expected[0].gen) {
 			const text = prediction.apply(buffer, this.getCursor(buffer));
-			this.terminal.write(text);
+			if (this.showPredictions) {
+				this.terminal.write(text);
+			}
 		}
 	}
 
@@ -617,40 +734,94 @@ const parseTypeheadStyle = (style: string | number) => {
 	return `${CSI}32;${r};${g};${b}m`;
 };
 
-export class TypeAheadAddon implements ITerminalAddon {
-	private disposables: IDisposable[] = [];
+export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
 	private typeaheadThreshold = this.config.config.typeaheadThreshold;
 	private lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
 
-	constructor(private readonly _processManager: ITerminalProcessManager, private readonly config: TerminalConfigHelper) {
+	constructor(
+		private readonly processManager: ITerminalProcessManager,
+		private readonly config: TerminalConfigHelper,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
 	}
 
 	public activate(terminal: Terminal): void {
-		this.timeline = new PredictionTimeline(terminal);
-		this.disposables.push(terminal.onData(e => this.onUserData(e)));
-		this.disposables.push(this.config.onConfigChanged(() => {
+		const timeline = this.timeline = new PredictionTimeline(terminal);
+		const stats = this._register(new PredictionStats(this.timeline));
+
+		timeline.setShowPredictions(this.typeaheadThreshold === 0);
+		this._register(terminal.onData(e => this.onUserData(e)));
+		this._register(this.config.onConfigChanged(() => {
 			this.typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
 			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
+			this.reevaluatePredictorState(stats, timeline);
 		}));
-		this.disposables.push(this._processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
+		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
+
+		let nextStatsSend: any;
+		let reevaluateTimer: any;
+		this._register(stats.onChange(() => {
+			if (!nextStatsSend) {
+				nextStatsSend = setTimeout(() => {
+					this.sendLatencyStats(stats);
+					nextStatsSend = undefined;
+				}, statsSendTelemetryEvery);
+			}
+
+			// We want to toggle the state only when the user has a pause in their
+			// typing. Otherwise, we could turn this on when the PTY sent data but
+			// the terminal cursor is not updated, causes issues.
+			if (reevaluateTimer) {
+				clearTimeout(reevaluateTimer);
+			}
+
+			reevaluateTimer = setTimeout(() => {
+				this.reevaluatePredictorState(stats, timeline);
+				reevaluateTimer = undefined;
+			}, 100);
+		}));
 	}
 
-	public dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+	private reevaluatePredictorState(stats: PredictionStats, timeline: PredictionTimeline) {
+		if (this.typeaheadThreshold < 0) {
+			timeline.setShowPredictions(false);
+		} else if (this.typeaheadThreshold === 0) {
+			timeline.setShowPredictions(true);
+		} else if (stats.sampleSize > statsMinSamplesToTurnOn && stats.accuracy > statsMinAccuracyToTurnOn) {
+			const latency = stats.latency.median;
+			if (latency >= this.typeaheadThreshold) {
+				timeline.setShowPredictions(true);
+			} else if (latency < this.typeaheadThreshold / statsToggleOffThreshold) {
+				timeline.setShowPredictions(false);
+			}
+		}
+	}
+
+	private sendLatencyStats(stats: PredictionStats) {
+		/* __GDPR__
+			"terminalLatencyStats" : {
+				"min" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"max" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"median" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"count" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"predictionAccuracy" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			}
+		 */
+		this.telemetryService.publicLog('terminalLatencyStats', {
+			...stats.latency,
+			predictionAccuracy: stats.accuracy,
+		});
 	}
 
 	private onUserData(data: string): void {
-		if (this.typeaheadThreshold !== 0) {
-			return;
-		}
-
 		if (this.timeline?.terminal.buffer.active.type !== 'normal') {
 			return;
 		}
 
-		// console.log('user data:', JSON.stringify(data));
+		console.log('user data:', JSON.stringify(data));
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
@@ -721,17 +892,13 @@ export class TypeAheadAddon implements ITerminalAddon {
 	}
 
 	private onBeforeProcessData(event: IBeforeProcessDataEvent): void {
-		if (this.typeaheadThreshold !== 0) {
-			return;
-		}
-
 		if (!this.timeline) {
 			return;
 		}
 
-		// console.log('incoming data:', JSON.stringify(event.data));
+		console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
-		// console.log('emitted data:', JSON.stringify(event.data));
+		console.log('emitted data:', JSON.stringify(event.data));
 
 		// If there's something that looks like a password prompt, omit giving
 		// input. This is approximate since there's no TTY "password here" code,
