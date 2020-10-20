@@ -204,8 +204,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private _updateLightBulbTitleAndIcon(): void {
 		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
 			// update icon
-			dom.removeClasses(this._domNode, Codicon.lightBulb.classNames);
-			dom.addClasses(this._domNode, Codicon.lightbulbAutofix.classNames);
+			this._domNode.classList.remove(...Codicon.lightBulb.classNamesArray);
+			this._domNode.classList.add(...Codicon.lightbulbAutofix.classNamesArray);
 
 			const preferredKb = this._keybindingService.lookupKeybinding(this._preferredFixActionId);
 			if (preferredKb) {
@@ -215,8 +215,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		// update icon
-		dom.removeClasses(this._domNode, Codicon.lightbulbAutofix.classNames);
-		dom.addClasses(this._domNode, Codicon.lightBulb.classNames);
+		this._domNode.classList.remove(...Codicon.lightbulbAutofix.classNamesArray);
+		this._domNode.classList.add(...Codicon.lightBulb.classNamesArray);
 
 		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
 		if (kb) {
