@@ -44,7 +44,7 @@ import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/wi
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { WebResourceIdentityService, IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
