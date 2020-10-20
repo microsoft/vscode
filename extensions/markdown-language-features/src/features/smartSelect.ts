@@ -21,9 +21,8 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 
 	private async provideSelectionRange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange> {
-		const headerRange = await this.getHeaderSelectionRanges(document, position);
-		const blockRange = await this.getBlockSelectionRanges(document, position);
-
+		const headerRange = await this.getHeaderSelectionRange(document, position);
+		const blockRange = await this.getBlockSelectionRange(document, position);
 		return this.consolidateRanges(headerRange, blockRange);
 	}
 
@@ -33,9 +32,17 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 			if (blockParent) {
 				if (headerRange.range.contains(blockParent.range)) {
-					const revisedParent = new vscode.SelectionRange(blockParent.range, headerRange);
-					if (revisedParent.range.contains(blockRange.range)) {
-						return new vscode.SelectionRange(blockRange.range, revisedParent);
+					if (blockParent.parent && headerRange.range.contains(blockParent.parent.range)) {
+						const revisedGrandparent = new vscode.SelectionRange(blockParent.parent.range, headerRange);
+						const revisedParent = new vscode.SelectionRange(blockParent.range, revisedGrandparent);
+						if (revisedParent.range.contains(blockRange.range)) {
+							return new vscode.SelectionRange(blockRange.range, revisedParent);
+						}
+					} else {
+						const revisedParent = new vscode.SelectionRange(blockParent.range, headerRange);
+						if (revisedParent.range.contains(blockRange.range)) {
+							return new vscode.SelectionRange(blockRange.range, revisedParent);
+						}
 					}
 				} else {
 					if (headerRange.range.contains(blockRange.range)) {
@@ -57,28 +64,41 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		}
 	}
 
-	private async getBlockSelectionRanges(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
+	private async getBlockSelectionRange(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
 
 		const tokens = await this.engine.parse(document);
 
-		let enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
+		let enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && isBlockElement(token));
 
-		// sort from smallest to largest line range
-		let sortedTokens = enclosingTokens.sort((tokenOne, tokenTwo) => (tokenTwo.map[1] - tokenTwo.map[0] - tokenOne.map[1] - tokenOne.map[0]));
-
-		if (sortedTokens.length === 0) {
-			return undefined;
+		if (enclosingTokens.length === 0) {
+			return;
 		}
 
-		let parentRange = createBlockRange(sortedTokens.pop(), document);
+		let sortedTokens = enclosingTokens.sort(
+			function (token1, token2) {
+				if (token2.map[1] - token2.map[0] > token1.map[1] - token1.map[0]) {
+					return 1;
+				} else if (token2.map[1] - token2.map[0] < token1.map[1] - token1.map[0]) {
+					return -1;
+				}
+				if (Math.abs(position.line - ((token2.map[1] - token2.map[0]) / 2)) < Math.abs(position.line - ((token1.map[1] - token1.map[0]) / 2))) {
+					return 1;
+				} else if (Math.abs(position.line - ((token2.map[1] - token2.map[0]) / 2)) > Math.abs(position.line - ((token1.map[1] - token1.map[0]) / 2))) {
+					return -1;
+				} else {
+					return 0;
+				}
+			});
+		let parentRange = createBlockRange(sortedTokens.shift(), document);
 		let currentRange: vscode.SelectionRange | undefined;
-
 		for (const token of sortedTokens) {
 			currentRange = createBlockRange(token, document, parentRange);
-			if (currentRange && currentRange.parent) {
-				parentRange = createBlockRange(token, document, currentRange.parent);
-			} else if (currentRange) {
+			if (currentRange && currentRange.parent && parentRange) {
 				parentRange = currentRange;
+			} else if (currentRange) {
+				return currentRange;
+			} else {
+				return parentRange;
 			}
 		}
 		if (currentRange) {
@@ -88,7 +108,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		}
 	}
 
-	private async getHeaderSelectionRanges(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
+	private async getHeaderSelectionRange(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
 
@@ -128,6 +148,10 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 }
 
+let isBlockElement = (token: Token): boolean => {
+	return !['list_item_close', 'paragraph_close', 'bullet_list_close', 'inline', 'heading_close', 'heading_open'].includes(token.type);
+};
+
 let createHeaderRange = (header: TocEntry | undefined, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined => {
 	if (header) {
 		let contentRange = new vscode.Range(header.location.range.start.translate(1), header.location.range.end);
@@ -145,8 +169,8 @@ let createHeaderRange = (header: TocEntry | undefined, parent?: vscode.Selection
 let createBlockRange = (block: Token | undefined, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined => {
 	if (block) {
 		if (block.type === 'fence') {
-			let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(block.map[0] > 0 ? block.map[0] - 1 : 0, 0), new vscode.Position(block.map[1], 0)));
-			let childRange = new vscode.Range(new vscode.Position(block.map[0] + 1, 0), new vscode.Position(block.map[1] - 1, 0));
+			let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(block.map[0] > 0 ? block.map[0] - 1 : 0, 0), new vscode.Position(block.map[1], getEndCharacter(document, block.map[0], block.map[1]))));
+			let childRange = new vscode.Range(new vscode.Position(block.map[0] + 1, 0), new vscode.Position(block.map[1] - 1, getEndCharacter(document, block.map[0], block.map[1])));
 			if (blockRange.range.contains(childRange)) {
 				if (parent && parent.range.contains(blockRange.range)) {
 					return new vscode.SelectionRange(childRange, new vscode.SelectionRange(blockRange.range, parent));
