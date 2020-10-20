@@ -81,10 +81,11 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				parentRange = currentRange;
 			}
 		}
-		if (!currentRange && parentRange) {
+		if (currentRange) {
+			return currentRange;
+		} else {
 			return parentRange;
 		}
-		return currentRange;
 	}
 
 	private async getHeaderSelectionRanges(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
@@ -119,10 +120,11 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			}
 			index++;
 		}
-		if (!currentRange && parentRange) {
+		if (currentRange) {
+			return currentRange;
+		} else {
 			return parentRange;
 		}
-		return currentRange;
 	}
 }
 
