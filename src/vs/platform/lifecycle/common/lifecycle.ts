@@ -163,6 +163,15 @@ export interface ILifecycleService {
 	 * has started.
 	 */
 	when(phase: LifecyclePhase): Promise<void>;
+
+	/**
+	 * Triggers a shutdown of the workbench. Depending on native or web, this can have
+	 * different implementations and behaviour.
+	 *
+	 * **Note:** this should normally not be called. See related methods in `IHostService`
+	 * and `INativeHostService` to close a window or quit the application.
+	 */
+	shutdown(): void;
 }
 
 export const NullLifecycleService: ILifecycleService = {
@@ -176,7 +185,8 @@ export const NullLifecycleService: ILifecycleService = {
 	phase: LifecyclePhase.Restored,
 	startupKind: StartupKind.NewWindow,
 
-	when() { return Promise.resolve(); }
+	async when() { },
+	shutdown() { }
 };
 
 // Shared veto handling across main and renderer

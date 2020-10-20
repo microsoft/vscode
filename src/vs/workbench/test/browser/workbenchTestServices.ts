@@ -932,6 +932,10 @@ export class TestLifecycleService implements ILifecycleService {
 	}
 
 	fireWillShutdown(event: BeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
+
+	shutdown(): void {
+		this.fireShutdown();
+	}
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
