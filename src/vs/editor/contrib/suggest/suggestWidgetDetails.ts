@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -14,14 +14,13 @@ import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
-export class SuggestDetailsWidget {
-
-	readonly element: HTMLElement;
+export class SuggestDetailsWidget extends ResizableHTMLElement {
 
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
@@ -38,18 +37,17 @@ export class SuggestDetailsWidget {
 	private _borderWidth: number = 1;
 
 	constructor(
-		container: HTMLElement,
 		private readonly _editor: ICodeEditor,
 		private readonly _markdownRenderer: MarkdownRenderer,
 		private readonly _kbToggleDetails: string
 	) {
-		this.element = dom.append(container, dom.$('.details'));
-		this._disposables.add(toDisposable(() => this.element.remove()));
+		super();
+		this.domNode.classList.add('suggest-details');
 
 		this._body = dom.$('.body');
 
 		this._scrollbar = new DomScrollableElement(this._body, {});
-		dom.append(this.element, this._scrollbar.getDomNode());
+		dom.append(this.domNode, this._scrollbar.getDomNode());
 		this._disposables.add(this._scrollbar);
 
 		this._header = dom.append(this._body, dom.$('.header'));
@@ -67,7 +65,7 @@ export class SuggestDetailsWidget {
 			}
 		}));
 
-		_markdownRenderer.onDidRenderCodeBlock(() => this._scrollbar.scanDomNode(), this, this._disposables);
+		// _markdownRenderer.onDidRenderCodeBlock(this.layout, this, this._disposables);
 	}
 
 	dispose(): void {
@@ -76,7 +74,7 @@ export class SuggestDetailsWidget {
 		this._renderDisposeable = undefined;
 	}
 
-	private _configureFont() {
+	private _configureFont(): void {
 		const options = this._editor.getOptions();
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const fontFamily = fontInfo.fontFamily;
@@ -86,17 +84,22 @@ export class SuggestDetailsWidget {
 		const fontSizePx = `${fontSize}px`;
 		const lineHeightPx = `${lineHeight}px`;
 
-		this.element.style.fontSize = fontSizePx;
-		this.element.style.fontWeight = fontWeight;
-		this.element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
+		this.domNode.style.fontSize = fontSizePx;
+		this.domNode.style.fontWeight = fontWeight;
+		this.domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		this._type.style.fontFamily = fontFamily;
 		this._close.style.height = lineHeightPx;
 		this._close.style.width = lineHeightPx;
 	}
 
+	private _lineHeight(): number {
+		return this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
+	}
+
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
+		this.layout(this._lineHeight(), 220);
 	}
 
 	renderItem(item: CompletionItem, explainMode: boolean): void {
@@ -117,10 +120,10 @@ export class SuggestDetailsWidget {
 		if (!explainMode && !canExpandCompletionItem(item)) {
 			this._type.textContent = '';
 			this._docs.textContent = '';
-			this.element.classList.add('no-docs');
+			this.domNode.classList.add('no-docs');
 			return;
 		}
-		this.element.classList.remove('no-docs');
+		this.domNode.classList.remove('no-docs');
 		if (typeof documentation === 'string') {
 			this._docs.classList.remove('markdown-docs');
 			this._docs.textContent = documentation;
@@ -141,9 +144,8 @@ export class SuggestDetailsWidget {
 			dom.hide(this._type);
 		}
 
-		this.element.style.height = this._header.offsetHeight + this._docs.offsetHeight + (this._borderWidth * 2) + 'px';
-		this.element.style.userSelect = 'text';
-		this.element.tabIndex = -1;
+		this.domNode.style.userSelect = 'text';
+		this.domNode.tabIndex = -1;
 
 		this._close.onmousedown = e => {
 			e.preventDefault();
@@ -156,6 +158,11 @@ export class SuggestDetailsWidget {
 		};
 
 		this._body.scrollTop = 0;
+		this.layout(this._lineHeight() * 7, 430);
+	}
+
+	layout(height: number = this.size.height, width: number = this.size.width): void {
+		super.layout(height, width);
 		this._scrollbar.scanDomNode();
 	}
 
@@ -183,16 +190,27 @@ export class SuggestDetailsWidget {
 		this.scrollUp(80);
 	}
 
-	setBorderWidth(width: number): void {
+	set borderWidth(width: number) {
 		this._borderWidth = width;
+	}
+
+	get borderWidth() {
+		return this._borderWidth;
 	}
 }
 
+export const enum SuggestDetailsPosition {
+	East,
+	South,
+	West
+}
 
 export class SuggestDetailsOverlay implements IOverlayWidget {
 
+	private _added = false;
+
 	constructor(
-		private readonly _widget: SuggestDetailsWidget,
+		readonly widget: SuggestDetailsWidget,
 		private readonly _editor: ICodeEditor
 	) { }
 
@@ -205,19 +223,74 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	getDomNode(): HTMLElement {
-		return this._widget.element;
+		return this.widget.domNode;
 	}
 
 	getPosition(): null {
-		// custom position
 		return null;
 	}
 
 	show(): void {
-		this._editor.addOverlayWidget(this);
+		if (!this._added) {
+			this._editor.addOverlayWidget(this);
+			this.getDomNode().style.position = 'fixed';
+			this._added = true;
+		}
 	}
 
 	hide(): void {
-		this._editor.removeOverlayWidget(this);
+		if (this._added) {
+			this._editor.removeOverlayWidget(this);
+			this._added = false;
+		}
+	}
+
+	placeAtAnchor(anchor: HTMLElement) {
+		const bodyBox = dom.getClientArea(document.body);
+		const anchorBox = dom.getDomNodePagePosition(anchor);
+
+		let size = this.widget.size;
+		let maxSize: dom.Dimension;
+		let minSize = new dom.Dimension(220, this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight);
+
+		// position: east, west, south
+		let pos = SuggestDetailsPosition.East;
+		let width = bodyBox.width - (anchorBox.left + anchorBox.width); // east width
+
+		if (anchorBox.left > width) {
+			pos = SuggestDetailsPosition.West;
+			width = anchorBox.left;
+		}
+
+		if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
+			pos = SuggestDetailsPosition.South;
+			width = anchorBox.width;
+		}
+
+		let left = 0;
+		let top = anchorBox.top;
+
+		if (pos === SuggestDetailsPosition.East) {
+			left = -this.widget.borderWidth + anchorBox.left + anchorBox.width;
+			maxSize = new dom.Dimension(bodyBox.width - (anchorBox.left + anchorBox.width), bodyBox.height - anchorBox.top);
+
+		} else if (pos === SuggestDetailsPosition.West) {
+			left = Math.max(0, anchorBox.left - (size.width + this.widget.borderWidth));
+			maxSize = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
+
+		} else {
+			left = anchorBox.left;
+			top = -this.widget.borderWidth + anchorBox.top + anchorBox.height;
+			maxSize = new dom.Dimension(anchorBox.width - (this.widget.borderWidth * 2), bodyBox.height - (anchorBox.top + anchorBox.height));
+			minSize = minSize.with(maxSize.width);
+		}
+
+		this.widget.minSize = minSize;
+		this.widget.maxSize = maxSize;
+		this.widget.layout();
+
+		this.getDomNode().style.position = 'fixed';
+		this.getDomNode().style.left = left + 'px';
+		this.getDomNode().style.top = top + 'px';
 	}
 }
