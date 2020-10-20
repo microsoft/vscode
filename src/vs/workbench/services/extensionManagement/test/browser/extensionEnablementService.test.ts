@@ -24,7 +24,7 @@ import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagemen
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 // import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 

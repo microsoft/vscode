@@ -23,7 +23,7 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BeforeShutdownEvent, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 /**
  * A workspace to open in the workbench can either be:

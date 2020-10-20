@@ -7,7 +7,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopy, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 
