@@ -515,7 +515,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			selector: this.id.split(' ').join('.'), // to not break old clients
 			themeTokenColors: this.themeTokenColors,
 			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
@@ -527,7 +526,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	get baseTheme(): string {
-		return this.id.split(' ')[0];
+		return this.classNames[0];
+	}
+
+	get classNames(): string[] {
+		return this.id.split(' ');
 	}
 
 	get type(): ColorScheme {
