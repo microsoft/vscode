@@ -999,22 +999,43 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (target.isReadonly) {
 			return;
 		}
+		const resolvedTarget = target;
+		if (!resolvedTarget) {
+			return;
+		}
 
 		// Desktop DND (Import file)
 		if (data instanceof NativeDragAndDropData) {
-			if (isWeb) {
-				this.handleWebExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
-			} else {
-				this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
-			}
+			const cts = new CancellationTokenSource();
+
+			// Indicate progress globally
+			const dropPromise = this.progressService.withProgress({
+				location: ProgressLocation.Window,
+				delay: 800,
+				cancellable: true,
+				title: isWeb ? localize('uploadingFiles', "Uploading") : localize('copyingFiles', "Copying")
+			}, async progress => {
+				try {
+					if (isWeb) {
+						await this.handleWebExternalDrop(data, resolvedTarget, originalEvent, progress, cts.token);
+					} else {
+						await this.handleExternalDrop(data, resolvedTarget, originalEvent, progress, cts.token);
+					}
+				} catch (error) {
+					this.notificationService.warn(error);
+				}
+			}, () => cts.dispose(true));
+
+			// Also indicate progress in the files view
+			this.progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => dropPromise);
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
-			this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+			this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, resolvedTarget, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 	}
 
-	private async handleWebExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleWebExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		const items = (originalEvent.dataTransfer as unknown as IWebkitDataTransfer).items;
 
 		// Somehow the items thing is being modified at random, maybe as a security
@@ -1026,48 +1047,38 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const results: { isFile: boolean, resource: URI }[] = [];
-		const cts = new CancellationTokenSource();
 		const operation: IUploadOperation = { filesTotal: entries.length, filesUploaded: 0, startTime: Date.now(), bytesUploaded: 0 };
 
-		// Start upload and report progress globally
-		const uploadPromise = this.progressService.withProgress({
-			location: ProgressLocation.Window,
-			delay: 800,
-			cancellable: true,
-			title: localize('uploadingFiles', "Uploading")
-		}, async progress => {
-			for (let entry of entries) {
-				if (cts.token.isCancellationRequested) {
+		for (let entry of entries) {
+			if (token.isCancellationRequested) {
+				break;
+			}
+
+			// Confirm overwrite as needed
+			if (target && entry.name && target.getChild(entry.name)) {
+				const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
+				if (!confirmed) {
+					continue;
+				}
+
+				await this.workingCopyFileService.delete([joinPath(target.resource, entry.name)], { recursive: true });
+
+				if (token.isCancellationRequested) {
 					break;
 				}
-
-				// Confirm overwrite as needed
-				if (target && entry.name && target.getChild(entry.name)) {
-					const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
-					if (!confirmed) {
-						continue;
-					}
-
-					await this.workingCopyFileService.delete([joinPath(target.resource, entry.name)], { recursive: true });
-				}
-
-				// Upload entry
-				const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, operation, cts.token);
-				if (result) {
-					results.push(result);
-				}
 			}
-		}, () => cts.dispose(true));
 
-		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => uploadPromise);
-
-		// Wait until upload is done
-		await uploadPromise;
+			// Upload entry
+			const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, operation, token);
+			if (result) {
+				results.push(result);
+			}
+		}
 
 		// Open uploaded file in editor only if we upload just one
-		if (!cts.token.isCancellationRequested && results.length === 1 && results[0].isFile) {
-			await this.editorService.openEditor({ resource: results[0].resource, options: { pinned: true } });
+		const firstUploadedFile = results[0];
+		if (!token.isCancellationRequested && firstUploadedFile?.isFile) {
+			await this.editorService.openEditor({ resource: firstUploadedFile.resource, options: { pinned: true } });
 		}
 	}
 
@@ -1234,11 +1245,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		});
 	}
 
-	private async handleExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		// Check for dropped external files to be folders
 		const droppedResources = extractResources(originalEvent, true);
 		const result = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		// Pass focus to window
 		this.hostService.focus();
@@ -1264,7 +1279,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return this.workspaceEditingService.addFolders(folders);
 			}
 			if (choice === buttons.length - 2) {
-				return this.addResources(target, droppedResources.map(res => res.resource));
+				return this.addResources(target, droppedResources.map(res => res.resource), progress, token);
 			}
 
 			return undefined;
@@ -1272,15 +1287,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.addResources(target, droppedResources.map(res => res.resource));
+			return this.addResources(target, droppedResources.map(res => res.resource), progress, token);
 		}
 	}
 
-	private async addResources(target: ExplorerItem, resources: URI[]): Promise<void> {
+	private async addResources(target: ExplorerItem, resources: URI[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
 			const targetStat = await this.fileService.resolve(target.resource);
+
+			if (token.isCancellationRequested) {
+				return;
+			}
 
 			// Check for name collisions
 			const targetNames = new Set<string>();
@@ -1302,8 +1321,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 
 				addPromisesFactory.push(async () => {
+					if (token.isCancellationRequested) {
+						return;
+					}
+
 					const sourceFile = resource;
-					const targetFile = joinPath(target.resource, basename(sourceFile));
+					const sourceFileName = basename(sourceFile);
+					const targetFile = joinPath(target.resource, sourceFileName);
+
+					progress.report({ message: sourceFileName });
 
 					const stat = (await this.workingCopyFileService.copy([{ source: sourceFile, target: targetFile }], { overwrite: true }))[0];
 					// if we only add one file, just open it directly

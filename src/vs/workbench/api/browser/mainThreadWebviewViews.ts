@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
@@ -26,6 +26,15 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
+	}
+
+	dispose() {
+		super.dispose();
+
+		dispose(this._webviewViewProviders.values());
+		this._webviewViewProviders.clear();
+
+		dispose(this._webviewViews.values());
 	}
 
 	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
@@ -54,7 +63,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 
 		const extension = reviveWebviewExtension(extensionData);
 
-		this._webviewViewService.register(viewType, {
+		const registration = this._webviewViewService.register(viewType, {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
 				const handle = webviewView.webview.id;
 
@@ -93,6 +102,8 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 				}
 			}
 		});
+
+		this._webviewViewProviders.set(viewType, registration);
 	}
 
 	public $unregisterWebviewViewProvider(viewType: string): void {
