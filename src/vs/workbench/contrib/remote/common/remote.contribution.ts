@@ -124,6 +124,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					'pub.name': ['ui']
 				}
 			},
+			'remote.restoreForwardedPorts': {
+				type: 'boolean',
+				markdownDescription: localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
+				default: false
+			},
 			'remote.autoForwardPorts': {
 				type: 'boolean',
 				markdownDescription: localize('remote.autoForwardPorts', "When enabled, URLs with ports (ex. `http://127.0.0.1:3000`) that are printed to your terminals are automatically forwarded."),
