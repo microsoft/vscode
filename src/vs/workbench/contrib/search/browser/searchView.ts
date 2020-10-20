@@ -84,6 +84,74 @@ export enum SearchViewPosition {
 	Panel
 }
 
+export interface IMatchContext {
+	/** Identifies which kind of match this is (text,file,folder) */
+	matchingType: 'textMatch';
+	/** vscode id for this match */
+	id: string;
+	/** The text that was matched */
+	matchedText: string;
+	/** Text we would replace the matched text for, if we apply the match */
+	replacementText: string;
+	/** uri of the file were this match happened */
+	fileUri: string;
+	/** location of where the matched text is inside the file */
+	range: { start: { line: number, character: number }, end: { line: number, character: number } };
+}
+
+export interface IFileMatchContext {
+	/** Identifies which kind of match this is (text,file,folder) */
+	matchingType: 'fileMatch';
+	/** uri of the file were all these matches happened */
+	fileUri: string;
+	/** matches for this particular file */
+	matches: IMatchContext[];
+}
+
+export interface IFolderMatchContext {
+	/** Identifies which kind of match this is (text,file,folder) */
+	matchingType: 'folderMatch';
+	/** vscode id for this match */
+	id: string;
+	/** matches for this particular folder */
+	matches: IFileMatchContext[];
+	/** resource that might be associate with this match  */
+	resource: string;
+}
+
+export type IRenderableMatchContext = IMatchContext | IFileMatchContext | IFolderMatchContext;
+
+function toMatchContext(match: Match): IMatchContext {
+	const range = match.range();
+	return {
+		matchingType: 'textMatch',
+		id: match.id(),
+		fileUri: match.parent().id(),
+		matchedText: match.fullMatchText(),
+		replacementText: match.replaceString,
+		range: {
+			start: { line: range.startLineNumber, character: range.startColumn },
+			end: { line: range.endLineNumber, character: range.endColumn }
+		}
+	} as IMatchContext;
+}
+
+function toFileMatchContext(fileMatch: FileMatch): IFileMatchContext {
+	return {
+		matchingType: 'fileMatch',
+		fileUri: fileMatch.id(),
+		matches: fileMatch.matches().map(toMatchContext)
+	} as IFileMatchContext;
+}
+
+function toFolderMatchContext<T extends IFolderMatchContext>(folderMatch: FolderMatch): T {
+	return {
+		matchingType: 'folderMatch',
+		matches: folderMatch.matches().map(toFileMatchContext),
+		id: folderMatch.id()
+	} as T;
+}
+
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
 export class SearchView extends ViewPane {
 
@@ -779,13 +847,26 @@ export class SearchView extends ViewPane {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
+		const match = e.element;
+		let context: IRenderableMatchContext | undefined = undefined;
+		if (match instanceof FileMatch) {
+			context = toFileMatchContext(match);
+		} else if (match instanceof Match) {
+			context = toMatchContext(match);
+		} else if (match instanceof FolderMatchWithResource) {
+			context = toFolderMatchContext(match);
+			context.resource = match.resource.toString();
+		} else if (match instanceof FolderMatch) {
+			context = toFolderMatchContext(match);
+		}
+
 		const actions: IAction[] = [];
 		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => e.element,
+			getActionsContext: () => context || e.element,
 			onHide: () => dispose(actionsDisposable)
 		});
 	}
