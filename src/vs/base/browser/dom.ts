@@ -508,6 +508,10 @@ export class Dimension implements IDimension {
 		}
 	}
 
+	static is(obj: unknown): obj is IDimension {
+		return typeof obj === 'object' && typeof (<IDimension>obj).height === 'number' && typeof (<IDimension>obj).width === 'number';
+	}
+
 	static lift(obj: IDimension): Dimension {
 		if (obj instanceof Dimension) {
 			return obj;

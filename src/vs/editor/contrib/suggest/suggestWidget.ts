@@ -60,6 +60,28 @@ export interface ISelectedSuggestion {
 	model: CompletionModel;
 }
 
+class PersistedWidgetSize {
+
+	private static _key = 'suggestWidget.size';
+
+	static restore(service: IStorageService): dom.Dimension | undefined {
+		const raw = service.get(PersistedWidgetSize._key, StorageScope.GLOBAL) ?? '';
+		try {
+			const obj = JSON.parse(raw);
+			if (dom.Dimension.is(obj)) {
+				return dom.Dimension.lift(obj);
+			}
+		} catch {
+			// ignore
+		}
+		return undefined;
+	}
+
+	static store(service: IStorageService, size: dom.Dimension) {
+		service.store(PersistedWidgetSize._key, JSON.stringify(size), StorageScope.GLOBAL);
+	}
+}
+
 export class SuggestWidget implements IContentWidget, IDisposable {
 
 	private static readonly ID: string = 'editor.widget.suggestWidget';
@@ -82,8 +104,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 	private element: ResizableHTMLElement;
 	private messageElement: HTMLElement;
-	private mainElement: HTMLElement;
-	private listContainer: HTMLElement;
+	private listElement: HTMLElement;
 	private list: List<CompletionItem>;
 	private status: SuggestWidgetStatus;
 	private _details: SuggestDetailsOverlay;
@@ -131,19 +152,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
 
-		this._disposables.add(this.element.onDidWillResize(() => {
-			// update min/max sizes
-			const bodyBox = dom.getClientArea(document.body);
-			const pagePos = dom.getDomNodePagePosition(this.element.domNode);
-			const maxHeight = bodyBox.height - pagePos.top;
-			const maxWidth = bodyBox.width - pagePos.left;
-			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
-			this.element.minSize = new dom.Dimension(220, this._itemHeight);
+		this._disposables.add(this.element.onDidResize(e => {
+			this._layout(e.dimension);
+			if (e.done) {
+				PersistedWidgetSize.store(this.storageService, this.element.size);
+			}
 		}));
-		this._disposables.add(this.element.onDidResize(e => this._layout(e.dimenion.height, e.dimenion.width)));
 
 		this.messageElement = dom.append(this.element.domNode, dom.$('.message'));
-		this.mainElement = dom.append(this.element.domNode, dom.$('.tree'));
+		this.listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
 		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor, markdownRenderer, kbToggleDetails);
 		details.onDidClose(this.toggleDetails, this, this._disposables);
@@ -152,14 +169,13 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
 
-		this.listContainer = dom.append(this.mainElement, dom.$('.list-container'));
 
 		const renderer = instantiationService.createInstance(ItemRenderer, this.editor, kbToggleDetails);
 		this._disposables.add(renderer);
 		this._disposables.add(renderer.onDidToggleDetails(() => this.toggleDetails()));
 
-		this.list = new List('SuggestWidget', this.listContainer, {
-			getHeight: (_element: CompletionItem): number => this._itemHeight,
+		this.list = new List('SuggestWidget', this.listElement, {
+			getHeight: (_element: CompletionItem): number => this._getLayoutInfo().itemHeight,
 			getTemplateId: (_element: CompletionItem): string => 'suggestion'
 		}, [renderer], {
 			useShadows: false,
@@ -185,7 +201,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			}
 		});
 
-		this.status = instantiationService.createInstance(SuggestWidgetStatus, this.mainElement);
+		this.status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode);
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
 		applyStatusBarStyle();
 
@@ -386,7 +402,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		switch (state) {
 			case State.Hidden:
-				dom.hide(this.messageElement, this.mainElement, this.status.element);
+				dom.hide(this.messageElement, this.listElement, this.status.element);
 				this._details.hide();
 				this.hide();
 				// this.listHeight = 0;
@@ -397,7 +413,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				break;
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
-				dom.hide(this.mainElement, this.status.element);
+				dom.hide(this.listElement, this.status.element);
 				dom.show(this.messageElement);
 				this._details.hide();
 				this.show();
@@ -405,7 +421,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				dom.hide(this.mainElement, this.status.element);
+				dom.hide(this.listElement, this.status.element);
 				dom.show(this.messageElement);
 				this._details.hide();
 				this.show();
@@ -413,17 +429,17 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				break;
 			case State.Open:
 				dom.hide(this.messageElement);
-				dom.show(this.mainElement, this.status.element);
+				dom.show(this.listElement, this.status.element);
 				this.show();
 				break;
 			case State.Frozen:
 				dom.hide(this.messageElement);
-				dom.show(this.mainElement, this.status.element);
+				dom.show(this.listElement, this.status.element);
 				this.show();
 				break;
 			case State.Details:
 				dom.hide(this.messageElement);
-				dom.show(this.mainElement, this.status.element);
+				dom.show(this.listElement, this.status.element);
 				this._details.show();
 				this.show();
 				break;
@@ -660,7 +676,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private show(): void {
-		this._layout();
+		this._layout(PersistedWidgetSize.restore(this.storageService));
 		this.ctxSuggestWidgetVisible.set(true);
 
 		this.showTimeout.cancelAndSet(() => {
@@ -706,17 +722,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		return this.state === State.Frozen;
 	}
 
-	// beforeRender() {
-	// 	if (this.state === State.Empty || this.state === State.Loading) {
-	// 		return null;
-	// 	}
-	// 	const height = this.storageService.getNumber('suggestWidget.height', StorageScope.GLOBAL);
-	// 	const width = this.storageService.getNumber('suggestWidget.width', StorageScope.GLOBAL);
-	// 	if (!height || !width) {
-	// 		return null;
-	// 	}
-	// 	return { height, width };
-	// }
+	beforeRender() {
+		// if (this.state === State.Empty || this.state === State.Loading) {
+		// 	return null;
+		// }
+		return this.element.size;
+	}
 
 	private _positionPreferences?: ContentWidgetPositionPreference[];
 
@@ -727,6 +738,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			}
 			return;
 		}
+		if (this.state === State.Empty || this.state === State.Loading) {
+			// no special positioning when widget isn't showing list
+			return;
+		}
 		this._positionPreferences = [position];
 		if (this._isDetailsVisible()) {
 			this._details.show();
@@ -734,48 +749,58 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this._positionDetails();
 	}
 
-	private _layout(height?: number, width?: number): void {
+	private _layout(size: dom.Dimension | undefined): void {
 
-		let transient = false;
+		let height = size?.height;
+		let width = size?.width;
+
+		const { itemHeight, statusBarHeight } = this._getLayoutInfo();
+
 		if (this.state === State.Empty || this.state === State.Loading) {
-			height = this._itemHeight;
-			width = 220;
-			transient = true;
+			// showing a message only
+			height = itemHeight;
+			width = 230;
+			const size = new dom.Dimension(width, height);
+			this.element.minSize = size;
+			this.element.maxSize = size;
+
+		} else {
+			// showing items
+			const suggestionCount = this.list.contentHeight / itemHeight;
+			const { maxVisibleSuggestions } = this.editor.getOption(EditorOption.suggest);
+
+			const preferredHeight = statusBarHeight + (itemHeight * maxVisibleSuggestions);
+			const minHeight = itemHeight + statusBarHeight;
+
+			const bodyBox = dom.getClientArea(document.body);
+			const myBox = dom.getDomNodePagePosition(this.element.domNode);
+			const maxHeight = Math.min(bodyBox.height - myBox.top, statusBarHeight + (itemHeight * suggestionCount));
+			const maxWidth = bodyBox.width - myBox.left;
+
+			if (width === undefined) {
+				width = 430;
+			}
+
+			if (height === undefined) {
+				height = statusBarHeight + Math.min(suggestionCount, maxVisibleSuggestions) * itemHeight;
+			}
+			if (height < minHeight) {
+				height = minHeight;
+			}
+			if (height > maxHeight) {
+				height = maxHeight;
+			}
+
+			this.list.layout(height - statusBarHeight, width);
+			this.listElement.style.height = `${height - statusBarHeight}px`;
+
+			this.element.preferredSize = new dom.Dimension(width, preferredHeight);
+			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
+			this.element.minSize = new dom.Dimension(220, minHeight);
 		}
 
-		const statusBarHeight = this.editor.getOption(EditorOption.suggest).statusBar.visible ? this._itemHeight : 0;
-		const suggestionCount = this.list.contentHeight / this._itemHeight;
-		const { maxVisibleSuggestions } = this.editor.getOption(EditorOption.suggest);
-
-		if (height === undefined) {
-			height = this.storageService.getNumber('suggestWidget.height', StorageScope.GLOBAL);
-		}
-		if (height === undefined) {
-			let contentHeight = Math.min(suggestionCount, maxVisibleSuggestions) * this._itemHeight;
-			height = contentHeight + statusBarHeight;
-		}
-
-		if (width === undefined) {
-			width = this.storageService.getNumber('suggestWidget.width', StorageScope.GLOBAL);
-		}
-		if (width === undefined) {
-			width = 430;
-		}
-
-		this.element.preferredSize = new dom.Dimension(width, statusBarHeight + (this._itemHeight * maxVisibleSuggestions));
-		this.element.maxSize = this.element.maxSize.with(undefined, statusBarHeight + (this._itemHeight * Math.max(1, suggestionCount)));
-
-		// this.element.domNode.style.lineHeight = `${this._itemHeight}px`;
-		this.listContainer.style.height = `${height - statusBarHeight}px`;
-		this.mainElement.style.height = `${height}px`;
 		this.element.layout(height, width);
-		this.list.layout(height - statusBarHeight, width);
 		this.editor.layoutContentWidget(this);
-
-		if (!transient) {
-			this.storageService.store('suggestWidget.height', height, StorageScope.GLOBAL);
-			this.storageService.store('suggestWidget.width', width, StorageScope.GLOBAL);
-		}
 
 		this._positionDetails();
 	}
@@ -784,10 +809,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this._details.placeAtAnchor(this.element.domNode);
 	}
 
-	// Heights
-	private get _itemHeight(): number {
-		const options = this.editor.getOptions();
-		return options.get(EditorOption.suggestLineHeight) || options.get(EditorOption.fontInfo).lineHeight;
+	private _getLayoutInfo() {
+		const itemHeight = this.editor.getOption(EditorOption.suggestLineHeight) || this.editor.getOption(EditorOption.fontInfo).lineHeight;
+		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).statusBar.visible || this.state === State.Empty || this.state === State.Loading ? 0 : itemHeight;
+		return { itemHeight, statusBarHeight };
 	}
 
 	private _isDetailsVisible(): boolean {

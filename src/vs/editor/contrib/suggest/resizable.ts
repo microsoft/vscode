@@ -10,7 +10,7 @@ import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 
 
 export interface IResizeEvent {
-	dimenion: Dimension;
+	dimension: Dimension;
 	done: boolean;
 }
 
@@ -58,7 +58,7 @@ export class ResizableHTMLElement {
 				currentSize = undefined;
 				deltaY = 0;
 				deltaX = 0;
-				this._onDidResize.fire({ dimenion: this._size, done: true });
+				this._onDidResize.fire({ dimension: this._size, done: true });
 			}
 		}));
 
@@ -66,27 +66,27 @@ export class ResizableHTMLElement {
 			if (currentSize) {
 				deltaX = e.currentX - e.startX;
 				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
-				this._onDidResize.fire({ dimenion: this._size, done: false });
+				this._onDidResize.fire({ dimension: this._size, done: false });
 			}
 		}));
 		this._sashListener.add(this._southSash.onDidChange(e => {
 			if (currentSize) {
 				deltaY = e.currentY - e.startY;
 				this.layout(currentSize.height + deltaY, currentSize.width + deltaX);
-				this._onDidResize.fire({ dimenion: this._size, done: false });
+				this._onDidResize.fire({ dimension: this._size, done: false });
 			}
 		}));
 
 		this._sashListener.add(this._eastSash.onDidReset(e => {
 			if (this._preferredSize) {
 				this.layout(this._size.height, this._preferredSize.width);
-				this._onDidResize.fire({ dimenion: this._size, done: true });
+				this._onDidResize.fire({ dimension: this._size, done: true });
 			}
 		}));
 		this._sashListener.add(this._southSash.onDidReset(e => {
 			if (this._preferredSize) {
 				this.layout(this._preferredSize.height, this._size.width);
-				this._onDidResize.fire({ dimenion: this._size, done: true });
+				this._onDidResize.fire({ dimension: this._size, done: true });
 			}
 		}));
 	}

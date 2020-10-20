@@ -9,8 +9,7 @@
 	width: 430px; /** Initial widths **/
 	z-index: 40;
 	display: flex;
-	flex-wrap: nowrap;
-	flex-direction: row;
+	flex-direction: column;
 }
 
 .monaco-editor .suggest-widget,
@@ -30,9 +29,8 @@
 
 
 .monaco-editor .suggest-widget .suggest-status-bar {
-	visibility: hidden;
 	box-sizing: border-box;
-	display: flex;
+	display: none;
 	flex-flow: row nowrap;
 	justify-content: space-between;
 	width: 100%;
@@ -41,13 +39,8 @@
 	border-top: 1px solid transparent;
 }
 
-.monaco-editor .suggest-widget.list-right.docs-side .suggest-status-bar {
-	left: auto;
-	right: 0;
-}
-
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
-	visibility: visible;
+	display: flex;
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {
