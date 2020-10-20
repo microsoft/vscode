@@ -698,8 +698,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private hide(): void {
-		this._actualPosition = undefined;
-		// let the editor know that the widget is hidden
 		this.editor.layoutContentWidget(this);
 		this.ctxSuggestWidgetVisible.reset();
 		this.ctxSuggestWidgetMultipleSuggestions.reset();
@@ -716,9 +714,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		if (this.state === State.Hidden) {
 			return null;
 		}
+		if (!this._widgetPosition) {
+			return null;
+		}
 		return {
 			position: this.editor.getPosition(),
-			preference: this._actualPosition ? [this._actualPosition] : [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			preference: [this._widgetPosition]
 		};
 	}
 
@@ -738,8 +739,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		return this.element.size;
 	}
 
-	private _actualPosition?: ContentWidgetPositionPreference;
-
 	afterRender(position: ContentWidgetPositionPreference | null) {
 		if (position === null) {
 			if (this._isDetailsVisible()) {
@@ -751,41 +750,43 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			// no special positioning when widget isn't showing list
 			return;
 		}
-		this._actualPosition = position;
 		if (this._isDetailsVisible()) {
 			this._details.show();
 		}
 		this._positionDetails();
 	}
 
+	private _widgetPosition?: ContentWidgetPositionPreference;
+
 	private _layout(size: dom.Dimension | undefined): void {
 
+		if (!this.editor.hasModel()) {
+			return;
+		}
+
+		const bodyBox = dom.getClientArea(document.body);
 		let height = size?.height;
 		let width = size?.width;
 
-		const { itemHeight, statusBarHeight } = this._getLayoutInfo();
+		const { itemHeight, statusBarHeight, borderHeight } = this._getLayoutInfo();
+
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			// showing a message only
-			height = itemHeight;
+			height = itemHeight + borderHeight;
 			width = 230;
-			const size = new dom.Dimension(width, height);
-			this.element.minSize = size;
-			this.element.maxSize = size;
+			this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
+			this._widgetPosition = ContentWidgetPositionPreference.BELOW;
 
 		} else {
 			// showing items
-			const suggestionCount = this.list.contentHeight / itemHeight;
-			const { maxVisibleSuggestions } = this.editor.getOption(EditorOption.suggest);
-
-			const preferredHeight = statusBarHeight + (itemHeight * maxVisibleSuggestions);
+			const fullHeight = statusBarHeight + this.list.contentHeight + borderHeight;
+			const preferredHeight = statusBarHeight + (itemHeight * this.editor.getOption(EditorOption.suggest).maxVisibleSuggestions) + borderHeight;
 			const minHeight = itemHeight + statusBarHeight;
+			const maxHeight = Math.min(bodyBox.height - borderHeight, fullHeight);
+			const maxWidth = bodyBox.width - borderHeight;
 
-			const bodyBox = dom.getClientArea(document.body);
-			const myBox = dom.getDomNodePagePosition(this.element.domNode);
-			const maxHeight = Math.min(bodyBox.height - myBox.top, statusBarHeight + (itemHeight * suggestionCount));
-			const maxWidth = bodyBox.width - myBox.left;
-
+			// width
 			if (width === undefined) {
 				width = 430;
 			}
@@ -793,8 +794,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				width = maxWidth;
 			}
 
+			// height
 			if (height === undefined) {
-				height = statusBarHeight + Math.min(suggestionCount, maxVisibleSuggestions) * itemHeight;
+				height = Math.min(preferredHeight, fullHeight);
 			}
 			if (height < minHeight) {
 				height = minHeight;
@@ -811,6 +813,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.element.minSize = new dom.Dimension(220, minHeight);
 		}
 
+		const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
+		const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
+		const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
+		const heightBelowCursor = bodyBox.height - cursorBottom;
+		if (height > heightBelowCursor) {
+			this._widgetPosition = ContentWidgetPositionPreference.ABOVE;
+		} else {
+			this._widgetPosition = ContentWidgetPositionPreference.BELOW;
+		}
 		this.element.layout(height, width);
 		this.editor.layoutContentWidget(this);
 
@@ -824,7 +835,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private _getLayoutInfo() {
 		const itemHeight = this.editor.getOption(EditorOption.suggestLineHeight) || this.editor.getOption(EditorOption.fontInfo).lineHeight;
 		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).statusBar.visible || this.state === State.Empty || this.state === State.Loading ? 0 : itemHeight;
-		return { itemHeight, statusBarHeight };
+		const borderWidth = this._details.widget.borderWidth;
+		const borderHeight = 2 * borderWidth;
+		return { itemHeight, statusBarHeight, borderWidth, borderHeight };
 	}
 
 	private _isDetailsVisible(): boolean {
