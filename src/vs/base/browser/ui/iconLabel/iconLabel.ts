@@ -94,7 +94,7 @@ export class IconLabel extends Disposable {
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	private hoverDelegate: IHoverDelegate | undefined = undefined;
-	private customHovers: Map<HTMLElement, IDisposable> = new Map();;
+	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
@@ -165,8 +165,9 @@ export class IconLabel extends Disposable {
 	}
 
 	private setupHover(htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
-		if (this.customHovers.has(htmlElement)) {
-			this.customHovers.get(htmlElement)!.dispose();
+		const previousCustomHover = this.customHovers.get(htmlElement);
+		if (previousCustomHover) {
+			previousCustomHover.dispose();
 			this.customHovers.delete(htmlElement);
 		}
 
@@ -223,17 +224,12 @@ export class IconLabel extends Disposable {
 				mouseLeaveDisposable.dispose();
 			}, hoverDelay);
 		}
-		const mouseOverDisposable = domEvent(htmlElement, dom.EventType.MOUSE_OVER, true)(mouseOver.bind(htmlElement));
+		const mouseOverDisposable = this._register(domEvent(htmlElement, dom.EventType.MOUSE_OVER, true)(mouseOver.bind(htmlElement)));
 		this.customHovers.set(htmlElement, mouseOverDisposable);
 	}
 
 	private setupNativeHover(htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
 		htmlElement.title = isString(tooltip) ? tooltip : '';
-	}
-
-	dispose() {
-		Array.from(this.customHovers.values()).forEach(hover => hover.dispose());
-		this.customHovers.clear();
 	}
 }
 
