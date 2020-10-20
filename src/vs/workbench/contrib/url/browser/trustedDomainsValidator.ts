@@ -13,13 +13,15 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { configureOpenerTrustedDomainsHandler, ITrustedDomains, readTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { configureOpenerTrustedDomainsHandler, readAuthenticationTrustedDomains, readStaticTrustedDomains, readWorkspaceTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IdleValue } from 'vs/base/common/async';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -27,7 +29,8 @@ type TrustedDomainsDialogActionClassification = {
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 
-	private readonly _readTrustedDomainsResult: IdleValue<Promise<ITrustedDomains>>;
+	private _readWorkspaceTrustedDomainsResult: IdleValue<Promise<string[]>>;
+	private _readAuthenticationTrustedDomainsResult: IdleValue<Promise<string[]>>;
 
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -40,10 +43,26 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 
-		this._readTrustedDomainsResult = new IdleValue(() => this._instantiationService.invokeFunction(readTrustedDomains));
+		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
+		this._authenticationService.onDidRegisterAuthenticationProvider(() => {
+			this._readAuthenticationTrustedDomainsResult?.dispose();
+			this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+				this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
+		});
+
+		this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+			this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
+		this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this._readWorkspaceTrustedDomainsResult?.dispose();
+			this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+				this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
+		});
 	}
 
 	async validateLink(resource: URI | string): Promise<boolean> {
@@ -57,7 +76,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		const { scheme, authority, path, query, fragment } = resource;
 
 		const domainToOpen = `${scheme}://${authority}`;
-		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this._readTrustedDomainsResult.value;
+		const [workspaceDomains, userDomains] = await Promise.all([this._readWorkspaceTrustedDomainsResult.value, this._readAuthenticationTrustedDomainsResult.value]);
+		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
 		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
 
 		if (isURLDomainTrusted(resource, allTrustedDomains)) {
