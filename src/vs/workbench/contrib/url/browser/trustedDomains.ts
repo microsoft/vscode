@@ -196,7 +196,6 @@ export async function readTrustedDomains(accessor: ServicesAccessor): Promise<IT
 }
 
 export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	console.log('reading workspace domains');
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -204,8 +203,6 @@ export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): P
 }
 
 export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	console.log('reading auth domains');
-
 	const authenticationService = accessor.get(IAuthenticationService);
 	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
 		? [`https://github.com`]
