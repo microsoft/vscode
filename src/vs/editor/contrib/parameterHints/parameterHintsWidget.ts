@@ -192,7 +192,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		const multiple = hints.signatures.length > 1;
-		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
+		this.domNodes.element.classList.toggle('multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
 		this.domNodes.signature.innerText = '';
@@ -243,8 +243,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		const hasDocs = this.hasDocs(signature, activeParameter);
 
-		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
-		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
+		this.domNodes.signature.classList.toggle('has-docs', hasDocs);
+		this.domNodes.docs.classList.toggle('empty', !hasDocs);
 
 		this.domNodes.overloads.textContent =
 			String(hints.activeSignature + 1).padStart(hints.signatures.length.toString().length, '0') + '/' + hints.signatures.length;
