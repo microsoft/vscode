@@ -74,12 +74,11 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		let currentRange: vscode.SelectionRange | undefined;
 
 		for (const token of sortedTokens) {
-			currentRange = createBlockRange(token, document);
-			if (parentRange && currentRange && parentRange.range.contains(currentRange.range)) {
-				currentRange = createBlockRange(token, document, parentRange);
-			}
+			currentRange = createBlockRange(token, document, parentRange);
 			if (currentRange && currentRange.parent) {
 				parentRange = createBlockRange(token, document, currentRange.parent);
+			} else if (currentRange) {
+				parentRange = currentRange;
 			}
 		}
 		if (!currentRange && parentRange) {
