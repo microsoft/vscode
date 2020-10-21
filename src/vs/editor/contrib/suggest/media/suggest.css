@@ -191,7 +191,8 @@
 
 /** Details: if using CompletionItemLabel#details, always show **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label)>.contents>.main>.right>.details-label, .monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused:not(.string-label)>.contents>.main>.right>.details-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label)>.contents>.main>.right>.details-label,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused:not(.string-label)>.contents>.main>.right>.details-label {
 	display: inline;
 }
 
@@ -221,8 +222,8 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right {
 	overflow: hidden;
-	flex-shrink: 2;
-	max-width: 77%;
+	flex-shrink: 4;
+	max-width: 70%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
