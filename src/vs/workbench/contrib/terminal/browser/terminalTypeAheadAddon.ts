@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
+import type { IBuffer, IBufferCell, IBufferLine, ITerminalAddon, Terminal } from 'xterm';
 
 const ESC = '\x1b';
 const CSI = `${ESC}[`;
@@ -51,6 +51,62 @@ interface ICoordinate {
 }
 
 const getCellAtCoordinate = (b: IBuffer, c: ICoordinate) => b.getLine(c.y + c.baseY)?.getCell(c.x);
+
+type Edit = { insert: string; x: number } | { delete: string; x: number } | { /* no edit */ };
+
+/**
+ * Simple line diff that returns the edit if there is exactly one edit made
+ * in th string.
+ */
+export const simpleDiff = (a: string, b: string): Edit | undefined => {
+	for (let i = 0; i < a.length || i < b.length; i++) {
+		if (a[i] === b[i]) {
+			continue;
+		}
+
+		if (b.endsWith(a.slice(i))) {
+			return { insert: b.slice(i, b.length - (a.length - i)), x: i };
+		}
+
+		if (a.endsWith(b.slice(i))) {
+			return { delete: a.slice(i, a.length - (b.length - i)), x: i };
+		}
+
+		return undefined;
+	}
+
+	return {};
+};
+
+/**
+ * Gets a string containing the range of cells, including styling attributes.
+ */
+const rangeToString = (line: IBufferLine, startX = 0, endX = line.length) => {
+	let output = '';
+	let lastStyle = '';
+	let cell: IBufferCell | undefined;
+	while (startX < endX) {
+		cell = line.getCell(startX);
+		if (!cell) {
+			return output;
+		}
+
+		const style = getBufferCellAttributes(cell);
+		if (style !== lastStyle) {
+			lastStyle = style;
+			output += style;
+		}
+
+		output += cell.getChars();
+		startX += cell.getWidth() || 1;
+	}
+
+	return output;
+};
+
+const getLineEdit = (line: IBufferLine, input: string) => {
+
+};
 
 const moveToWordBoundary = (b: IBuffer, cursor: ICoordinate, direction: -1 | 1) => {
 	let ateLeadingWhitespace = false;
@@ -260,13 +316,16 @@ class CharacterPrediction implements IPrediction {
 	constructor(private readonly style: string, private readonly char: string) { }
 
 	public apply(buffer: IBuffer, cursor: ICoordinate) {
-		const cell = getCellAtCoordinate(buffer, cursor);
+		const line = buffer.getLine(cursor.y + cursor.baseY);
+		const cell = line?.getCell(cursor.x);
+
+		const restOfLine = line && rangeToString(line, cursor.x);
 		this.appliedAt = cell
 			? { ...cursor, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
 			: { ...cursor, oldAttributes: '', oldChar: '' };
 
 		cursor.x++;
-		return this.style + this.char + this.appliedAt.oldAttributes;
+		return this.style + this.char + this.appliedAt.oldAttributes + (restOfLine ? `${restOfLine}${CSI}K` : '');
 	}
 
 	public rollback(buffer: IBuffer) {
@@ -545,7 +604,7 @@ export class PredictionTimeline {
 			return;
 		}
 
-		// console.log('set predictions:', show);
+		console.log('set predictions:', show);
 		this.showPredictions = show;
 
 		const buffer = this.getActiveBuffer();
@@ -822,7 +881,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		// console.log('user data:', JSON.stringify(data));
+		console.log('user data:', JSON.stringify(data));
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
@@ -897,9 +956,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		// console.log('incoming data:', JSON.stringify(event.data));
+		console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
-		// console.log('emitted data:', JSON.stringify(event.data));
+		console.log('emitted data:', JSON.stringify(event.data));
 
 		// If there's something that looks like a password prompt, omit giving
 		// input. This is approximate since there's no TTY "password here" code,

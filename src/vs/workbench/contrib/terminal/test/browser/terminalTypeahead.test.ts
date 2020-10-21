@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
-import { IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
+import { IPrediction, PredictionStats, simpleDiff, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -66,6 +66,22 @@ suite('Workbench - Terminal Typeahead', () => {
 			for (const s of stubs.slice(bufferSize * 3 / 2)) { add.fire(s); fail.fire(s); }
 			assert.strictEqual(stats.accuracy, 0);
 		});
+	});
+
+	test('simpleDiff', () => {
+		const ttable: [a: string, b: string, expected: ReturnType<typeof simpleDiff>][] = [
+			['hello', 'hello', {}],
+			['heello', 'helllo', undefined],
+			['helloo', 'heello', undefined],
+			['hello', 'hetttllo', { insert: 'ttt', x: 2 }],
+			['hetttllo', 'hello', { delete: 'ttt', x: 2 }],
+			['hello', 'hello world', { insert: ' world', x: 5 }],
+			['hello world', 'hello', { delete: ' world', x: 5 }],
+		];
+
+		for (const [a, b, expected] of ttable) {
+			assert.deepStrictEqual(simpleDiff(a, b), expected, `diff(${a}, ${b}) !== ${JSON.stringify(expected)}`);
+		}
 	});
 
 	suite('timeline', () => {
