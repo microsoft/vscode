@@ -7,7 +7,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 	LINUX_NO_SANDBOX="--no-sandbox" # Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
-	LINUX_EXTRA_ARGS="--disable-dev-shm-usage" # Docker container used for prod builds has < 64MB shared memory.
+	#LINUX_EXTRA_ARGS="--disable-dev-shm-usage" # Docker container used for prod builds has < 64MB shared memory.
 fi
 
 VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
