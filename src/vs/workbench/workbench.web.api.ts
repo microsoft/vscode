@@ -278,6 +278,11 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
+	 * An URL pointing to the web worker extension host <iframe> src.
+	 */
+	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
