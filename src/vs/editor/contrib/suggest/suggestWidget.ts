@@ -799,7 +799,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		let width = size?.width;
 
 		const bodyBox = dom.getClientArea(document.body);
-		const { itemHeight, statusBarHeight, borderHeight } = this._getLayoutInfo();
+		const { itemHeight, statusBarHeight, borderHeight, typicalHalfwidthCharacterWidth } = this._getLayoutInfo();
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			// showing a message only
@@ -811,7 +811,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		} else {
 			// showing items
-			// width
+
+			// width math
 			const maxWidth = bodyBox.width - borderHeight;
 			if (width === undefined) {
 				width = 430;
@@ -819,8 +820,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			if (width > maxWidth) {
 				width = maxWidth;
 			}
+			const preferredWidth = this.completionModel ? this.completionModel.stats.avgLabelLen.value * typicalHalfwidthCharacterWidth : width;
 
-			// height
+			// height math
 			const fullHeight = statusBarHeight + this.list.contentHeight + borderHeight;
 			const preferredHeight = statusBarHeight + (itemHeight * this.editor.getOption(EditorOption.suggest).maxVisibleSuggestions) + borderHeight;
 			const minHeight = itemHeight + statusBarHeight;
@@ -856,7 +858,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.list.layout(height - statusBarHeight, width);
 			this.listElement.style.height = `${height - statusBarHeight}px`;
 
-			this.element.preferredSize = new dom.Dimension(width, preferredHeight);
+			this.element.preferredSize = new dom.Dimension(preferredWidth, preferredHeight);
 			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
 			this.element.minSize = new dom.Dimension(220, minHeight);
 		}
@@ -875,11 +877,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private _getLayoutInfo() {
-		const itemHeight = this.editor.getOption(EditorOption.suggestLineHeight) || this.editor.getOption(EditorOption.fontInfo).lineHeight;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		const itemHeight = this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).statusBar.visible || this.state === State.Empty || this.state === State.Loading ? 0 : itemHeight;
 		const borderWidth = this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
-		return { itemHeight, statusBarHeight, borderWidth, borderHeight };
+		return { itemHeight, statusBarHeight, borderWidth, borderHeight, typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth };
 	}
 
 	private _isDetailsVisible(): boolean {
