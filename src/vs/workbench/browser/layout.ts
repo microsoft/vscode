@@ -1095,7 +1095,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const availableWidth = this.dimension.width - takenWidth;
 		const availableHeight = this.dimension.height - takenHeight;
 
-		return { width: availableWidth, height: availableHeight };
+		return new Dimension(availableWidth, availableHeight);
 	}
 
 	getWorkbenchContainer(): HTMLElement {
