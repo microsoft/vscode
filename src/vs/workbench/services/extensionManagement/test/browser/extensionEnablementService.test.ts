@@ -60,7 +60,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService),
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
-			// instantiationService.get(IHostService),
+			instantiationService,
 		);
 	}
 
