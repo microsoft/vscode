@@ -22,7 +22,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { productService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 // import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -56,7 +56,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
 			productService,
-			instantiationService.get(IUserDataAutoSyncService) || instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return false; } }),
+			instantiationService.get(IUserDataAutoSyncEnablementService) || instantiationService.stub(IUserDataAutoSyncEnablementService, <Partial<IUserDataAutoSyncEnablementService>>{ isEnabled() { return false; } }),
 			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService),
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
@@ -401,7 +401,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test canChangeEnablement return false for auth extension and user data sync account depends on it and auto sync is on', () => {
-		instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return true; } });
+		instantiationService.stub(IUserDataAutoSyncEnablementService, <Partial<IUserDataAutoSyncEnablementService>>{ isEnabled() { return true; } });
 		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
 			account: { authenticationProviderId: 'a' }
 		});
