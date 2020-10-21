@@ -13,7 +13,7 @@ import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, i
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { trackFocus } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -58,13 +58,31 @@ export interface IWorkspaceProvider {
 	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void>;
 }
 
+enum HostShutdownReason {
+
+	/**
+	 * An unknown shutdown reason.
+	 */
+	Unknown = 1,
+
+	/**
+	 * A shutdown that was potentially triggered by keyboard use.
+	 */
+	Keyboard = 2,
+
+	/**
+	 * An explicit shutdown via code.
+	 */
+	Api = 3
+}
+
 export class BrowserHostService extends Disposable implements IHostService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private workspaceProvider: IWorkspaceProvider;
 
-	private signalExpectedShutdown = false;
+	private shutdownReason = HostShutdownReason.Unknown;
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -91,20 +109,37 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private registerListeners(): void {
+
+		// Veto shutdown depending on `window.confirmBeforeClose` setting
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
+
+		// Track certain DOM events to detect keybinding usage
+		this._register(addDisposableListener(this.layoutService.container, EventType.KEY_DOWN, e => this.updateShutdownReasonFromEvent(e)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.KEY_UP, () => this.updateShutdownReasonFromEvent(undefined)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, () => this.updateShutdownReasonFromEvent(undefined)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, () => this.updateShutdownReasonFromEvent(undefined)));
+		this._register(this.onDidChangeFocus(() => this.updateShutdownReasonFromEvent(undefined)));
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
 
-		// Veto is setting is configured as such and we are not
-		// expecting a navigation that was triggered by the user
-		if (!this.signalExpectedShutdown && this.configurationService.getValue<boolean>('window.confirmBeforeClose')) {
+		// Veto the shutdown depending on `window.confirmBeforeClose` setting
+		const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+		if (confirmBeforeClose === 'always' || (this.shutdownReason === HostShutdownReason.Keyboard && confirmBeforeClose === 'keyboardOnly')) {
 			console.warn('Unload veto: window.confirmBeforeClose=true');
 			e.veto(true);
 		}
 
 		// Unset for next shutdown
-		this.signalExpectedShutdown = false;
+		this.shutdownReason = HostShutdownReason.Unknown;
+	}
+
+	private updateShutdownReasonFromEvent(e: KeyboardEvent | undefined): void {
+		if (this.shutdownReason === HostShutdownReason.Api) {
+			return; // do not overwrite any explicitly set shutdown reason
+		}
+
+		this.shutdownReason = e ? HostShutdownReason.Keyboard : HostShutdownReason.Unknown;
 	}
 
 	//#region Focus
@@ -317,8 +352,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+
+		// We know that `workspaceProvider.open` will trigger a shutdown
+		// with `options.reuse` so we update `shutdownReason` to reflect that
 		if (options?.reuse) {
-			this.signalExpectedShutdown = true;
+			this.shutdownReason = HostShutdownReason.Api;
 		}
 
 		return this.workspaceProvider.open(workspace, options);
@@ -367,7 +405,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async reload(): Promise<void> {
-		this.signalExpectedShutdown = true;
+
+		// We know that `window.location.reload` will trigger a shutdown
+		// so we update `shutdownReason` to reflect that
+		this.shutdownReason = HostShutdownReason.Api;
 
 		window.location.reload();
 	}

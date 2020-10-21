@@ -403,9 +403,9 @@ KeybindingsRegistry.registerKeybindingRule({
 
 CommandsRegistry.registerCommand('workbench.action.toggleConfirmBeforeClose', accessor => {
 	const configurationService = accessor.get(IConfigurationService);
-	const setting = configurationService.inspect<boolean>('window.confirmBeforeClose').userValue;
+	const setting = configurationService.inspect<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose').userValue;
 
-	return configurationService.updateValue('window.confirmBeforeClose', setting === false ? true : false, ConfigurationTarget.USER);
+	return configurationService.updateValue('window.confirmBeforeClose', setting === 'never' ? 'keyboardOnly' : 'never', ConfigurationTarget.USER);
 });
 
 // --- Menu Registration
@@ -415,7 +415,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: 'workbench.action.toggleConfirmBeforeClose',
 		title: nls.localize('miConfirmClose', "Confirm Before Close"),
-		toggled: ContextKeyExpr.equals('config.window.confirmBeforeClose', true)
+		toggled: ContextKeyExpr.notEquals('config.window.confirmBeforeClose', 'never')
 	},
 	order: 1,
 	when: IsWebContext
