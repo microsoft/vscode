@@ -19,7 +19,7 @@ import {
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -36,10 +36,10 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { isWeb } from 'vs/base/common/platform';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { FileAccess } from 'vs/base/common/network';
+import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
+import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -523,6 +523,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IModeService private readonly modeService: IModeService,
+		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
+		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService
 	) {
 		super();
@@ -980,34 +982,40 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	isExtensionIgnoredToSync(extension: IExtension): boolean {
-		const localExtensions = (!isWeb && this.localExtensions ? this.localExtensions.local : this.local)
-			.filter(l => !!l.local)
-			.map(l => l.local!);
-
-		const ignoredExtensions = getIgnoredExtensions(localExtensions, this.configurationService);
-		return ignoredExtensions.includes(extension.identifier.id.toLowerCase());
+		return extension.local ? !this.isInstalledExtensionSynced(extension.local)
+			: this.extensionsSyncManagementService.hasToNeverSyncExtension(extension.identifier.id);
 	}
 
-	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void> {
+	async toggleExtensionIgnoredToSync(extension: IExtension): Promise<void> {
 		const isIgnored = this.isExtensionIgnoredToSync(extension);
-		const isDefaultIgnored = extension.local?.isMachineScoped;
-		const id = extension.identifier.id.toLowerCase();
-
-		// first remove the extension completely from ignored extensions
-		let currentValue = [...this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions')].map(id => id.toLowerCase());
-		currentValue = currentValue.filter(v => v !== id && v !== `-${id}`);
-
-		// If ignored, then add only if it is ignored by default
-		if (isIgnored && isDefaultIgnored) {
-			currentValue.push(`-${id}`);
+		if (extension.local && isIgnored) {
+			(<Extension>extension).local = await this.updateSynchronizingInstalledExtension(extension.local, true);
+			this._onChange.fire(extension);
+		} else {
+			this.extensionsSyncManagementService.updateIgnoredExtensions(extension.identifier.id, !isIgnored);
 		}
+		await this.userDataAutoSyncService.triggerSync(['IgnoredExtensionsUpdated'], false, false);
+	}
 
-		// If asked not to sync, then add only if it is not ignored by default
-		if (!isIgnored && !isDefaultIgnored) {
-			currentValue.push(id);
+	private isInstalledExtensionSynced(extension: ILocalExtension): boolean {
+		if (extension.isMachineScoped) {
+			return false;
 		}
+		if (this.extensionsSyncManagementService.hasToAlwaysSyncExtension(extension.identifier.id)) {
+			return true;
+		}
+		return !this.extensionsSyncManagementService.hasToNeverSyncExtension(extension.identifier.id);
+	}
 
-		return this.configurationService.updateValue('settingsSync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+	async updateSynchronizingInstalledExtension(extension: ILocalExtension, sync: boolean): Promise<ILocalExtension> {
+		const isMachineScoped = !sync;
+		if (extension.isMachineScoped !== isMachineScoped) {
+			extension = await this.extensionManagementService.updateExtensionScope(extension, isMachineScoped);
+		}
+		if (sync) {
+			this.extensionsSyncManagementService.updateIgnoredExtensions(extension.identifier.id, false);
+		}
+		return extension;
 	}
 
 	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string): Promise<T> {

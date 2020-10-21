@@ -69,6 +69,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'reinstallFromGallery': return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
 			case 'getInstalled': return this.service.getInstalled(args[0]).then(extensions => extensions.map(e => transformOutgoingExtension(e, uriTransformer)));
 			case 'updateMetadata': return this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
+			case 'updateExtensionScope': return this.service.updateExtensionScope(transformIncomingExtension(args[0], uriTransformer), args[1]).then(e => transformOutgoingExtension(e, uriTransformer));
 			case 'getExtensionsReport': return this.service.getExtensionsReport();
 		}
 
@@ -128,6 +129,11 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('updateMetadata', [local, metadata]))
+			.then(extension => transformIncomingExtension(extension, null));
+	}
+
+	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('updateExtensionScope', [local, isMachineScoped]))
 			.then(extension => transformIncomingExtension(extension, null));
 	}
 

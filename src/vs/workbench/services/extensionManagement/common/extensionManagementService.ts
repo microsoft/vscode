@@ -136,6 +136,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
+	updateExtensionScope(extension: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
+		const server = this.getServer(extension);
+		if (server) {
+			return server.extensionManagementService.updateExtensionScope(extension, isMachineScoped);
+		}
+		return Promise.reject(`Invalid location ${extension.location.toString()}`);
+	}
+
 	zip(extension: ILocalExtension): Promise<URI> {
 		const server = this.getServer(extension);
 		if (server) {
