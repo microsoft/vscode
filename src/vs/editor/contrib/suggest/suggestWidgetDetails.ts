@@ -40,7 +40,7 @@ export class SuggestDetailsWidget {
 
 	private _renderDisposeable?: IDisposable;
 	private _borderWidth: number = 1;
-	private _size = new dom.Dimension(0, 0);
+	private _size = new dom.Dimension(220, 50);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -70,7 +70,7 @@ export class SuggestDetailsWidget {
 			}
 		}));
 
-		// _markdownRenderer.onDidRenderCodeBlock(this.layout, this, this._disposables);
+		// this._disposables.add(this._markdownRenderer.onDidRenderCodeBlock(() => this.layout()));
 	}
 
 	dispose(): void {
@@ -100,7 +100,6 @@ export class SuggestDetailsWidget {
 	private _lineHeight(): number {
 		return this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
 	}
-
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
@@ -112,7 +111,19 @@ export class SuggestDetailsWidget {
 		this._renderDisposeable?.dispose();
 		this._renderDisposeable = undefined;
 
-		let { documentation, detail } = item.completion;
+		this.domNode.classList.remove('no-docs');
+
+		let { detail, documentation } = item.completion;
+
+		// --- details
+		if (detail) {
+			this._type.textContent = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
+			dom.show(this._type);
+		} else {
+			dom.clearNode(this._type);
+			dom.hide(this._type);
+		}
+
 		// --- documentation
 		if (explainMode) {
 			let md = '';
@@ -129,25 +140,18 @@ export class SuggestDetailsWidget {
 			this.domNode.classList.add('no-docs');
 			return;
 		}
-		this.domNode.classList.remove('no-docs');
+
+		dom.clearNode(this._docs);
 		if (typeof documentation === 'string') {
 			this._docs.classList.remove('markdown-docs');
 			this._docs.textContent = documentation;
-		} else {
+
+		} else if (documentation) {
 			this._docs.classList.add('markdown-docs');
-			this._docs.innerText = '';
+			dom.clearNode(this._docs);
 			const renderedContents = this._markdownRenderer.render(documentation);
 			this._renderDisposeable = renderedContents;
 			this._docs.appendChild(renderedContents.element);
-		}
-
-		// --- details
-		if (detail) {
-			this._type.textContent = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
-			dom.show(this._type);
-		} else {
-			dom.clearNode(this._type);
-			dom.hide(this._type);
 		}
 
 		this.domNode.style.userSelect = 'text';
@@ -164,7 +168,7 @@ export class SuggestDetailsWidget {
 		};
 
 		this._body.scrollTop = 0;
-		this.layout(430, this._lineHeight() * 7);
+		this.layout(430, this._lineHeight() * (2 + (documentation ? 5 : 0)));
 		this._onDidChangeContents.fire(this);
 	}
 
