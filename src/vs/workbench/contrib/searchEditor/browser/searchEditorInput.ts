@@ -32,13 +32,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {
 	query: string,
-	includes: string,
-	excludes: string,
+	filesToInclude: string,
+	filesToExclude: string,
 	contextLines: number,
-	wholeWord: boolean,
-	caseSensitive: boolean,
-	regexp: boolean,
-	useIgnores: boolean,
+	matchWholeWord: boolean,
+	isCaseSensitive: boolean,
+	isRegexp: boolean,
+	useExcludeSettingsAndIgnoreFiles: boolean,
 	showIncludesExcludes: boolean,
 };
 
