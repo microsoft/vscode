@@ -5,20 +5,6 @@ steps:
     echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
-- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-  inputs:
-    keyfile: 'build/.cachesalt, .build/commit, .build/quality'
-    targetfolder: '.build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min'
-    vstsFeed: 'npm-vscode'
-    platformIndependent: true
-    alias: 'Compilation'
-
-- script: |
-    set -e
-    exit 1
-  displayName: Check RestoreCache
-  condition: and(succeeded(), ne(variables['CacheRestored-Compilation'], 'true'))
-
 - task: NodeTool@0
   inputs:
     versionSpec: "12.18.3"
@@ -54,21 +40,10 @@ steps:
   displayName: Merge distro
 
 - script: |
-    echo -n $VSCODE_ARCH > .build/arch
-  displayName: Prepare arch cache flag
-
-- task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-  inputs:
-    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
-    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: 'npm-vscode'
-
-- script: |
     set -e
     npm install -g node-gyp@7.1.0
     node-gyp --version
   displayName: Update node-gyp
-  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - script: |
     set -e
@@ -77,14 +52,13 @@ steps:
     export npm_config_node_gyp=$(which node-gyp)
     CHILD_CONCURRENCY=1 yarn --frozen-lockfile --verbose
   displayName: Install dependencies
-  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
-- task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
-  inputs:
-    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
-    targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: 'npm-vscode'
-  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- script: |
+    set -e
+    export SDKROOT=/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+    ls /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
+    yarn electron-rebuild
+  displayName: Rebuild native modules for ARM64
 
 - script: |
     set -e
@@ -93,7 +67,6 @@ steps:
     export npm_config_node_gyp=$(which node-gyp)
     yarn postinstall
   displayName: Run postinstall scripts
-  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
 - script: |
     set -e
@@ -102,18 +75,25 @@ steps:
 
 - script: |
     set -e
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
-  displayName: Build
+    yarn gulp hygiene
+    yarn monaco-compile-check
+    yarn valid-layers-check
+  displayName: Run hygiene, monaco compile & valid layers checks
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    yarn gulp compile-build
+    yarn gulp compile-extensions-build
+    yarn gulp minify-vscode
+    yarn gulp minify-vscode-reh
+  displayName: Compile
 
 - script: |
     set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-darwin-min-ci
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-web-darwin-min-ci
-  displayName: Build reh
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+      yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+  displayName: Build
 
 - script: |
     set -e
@@ -128,12 +108,6 @@ steps:
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
-    set -e
-    yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
-  displayName: Run unit tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
     # Figure out the full absolute path of the product we just built
     # including the remote server and configure the integration tests
     # to run with these builds instead of running out of sources.
@@ -145,13 +119,6 @@ steps:
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests (Electron)
   condition: and(succeeded(),  eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
-    set -e
-    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-    ./resources/server/test/test-web-integration.sh --browser webkit
-  displayName: Run integration tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -171,14 +138,6 @@ steps:
   continueOnError: true
   displayName: Run smoke tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
-    set -e
-    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-    yarn smoketest --web --headless
-  continueOnError: true
-  displayName: Run smoke tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - task: PublishPipelineArtifact@0
   inputs:
