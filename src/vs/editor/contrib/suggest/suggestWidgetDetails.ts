@@ -188,8 +188,8 @@ export class SuggestDetailsWidget {
 		if (!dom.Dimension.equals(newSize, this._size)) {
 			this._size = newSize;
 			dom.size(this.domNode, width, height);
-			this._scrollbar.scanDomNode();
 		}
+		this._scrollbar.scanDomNode();
 	}
 
 	scrollDown(much = 8): void {
