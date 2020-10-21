@@ -36,25 +36,11 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			return;
 		}
 
-		let sortedTokens = enclosingTokens.sort(
-			function (token1, token2) {
-				// sort by size of range
-				if (token2.map[1] - token2.map[0] > token1.map[1] - token1.map[0]) {
-					return 1;
-				} else if (token2.map[1] - token2.map[0] < token1.map[1] - token1.map[0]) {
-					return -1;
-				}
-				// if same range size, then see which is closer to this line
-				if (Math.abs(position.line - ((token2.map[1] - token2.map[0]) / 2)) < Math.abs(position.line - ((token1.map[1] - token1.map[0]) / 2))) {
-					return 1;
-				} else if (Math.abs(position.line - ((token2.map[1] - token2.map[0]) / 2)) > Math.abs(position.line - ((token1.map[1] - token1.map[0]) / 2))) {
-					return -1;
-				} else {
-					return 0;
-				}
-			});
+		let sortedTokens = enclosingTokens.sort((token1, token2) => (token2.map[1] - token2.map[0]) - (token1.map[1] - token1.map[0]));
+
 		let parentRange = headerRange ? headerRange : createBlockRange(sortedTokens.shift(), document);
 		let currentRange: vscode.SelectionRange | undefined;
+
 		for (const token of sortedTokens) {
 			currentRange = createBlockRange(token, document, parentRange);
 			if (currentRange && currentRange.parent && parentRange) {
@@ -134,7 +120,7 @@ let createBlockRange = (block: Token | undefined, document: vscode.TextDocument,
 	if (block) {
 		if (block.type === 'fence') {
 			let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(block.map[0], 0), new vscode.Position(block.map[1], getEndCharacter(document, block.map[0], block.map[1]))));
-			let childRange = new vscode.Range(new vscode.Position(block.map[0] + 1, 0), new vscode.Position(block.map[1] - 1, getEndCharacter(document, block.map[0], block.map[1])));
+			let childRange = new vscode.Range(new vscode.Position(block.map[0] + 1, 0), new vscode.Position(block.map[1] - 1, getEndCharacter(document, block.map[0] + 1, block.map[1] - 1)));
 			if (blockRange.range.contains(childRange)) {
 				if (parent && parent.range.contains(blockRange.range)) {
 					return new vscode.SelectionRange(childRange, new vscode.SelectionRange(blockRange.range, parent));
@@ -154,8 +140,9 @@ let createBlockRange = (block: Token | undefined, document: vscode.TextDocument,
 				return new vscode.SelectionRange(range);
 			}
 		}
+	} else {
+		return undefined;
 	}
-	return undefined;
 };
 
 let getEndCharacter = (document: vscode.TextDocument, startLine: number, endLine: number): number => {
