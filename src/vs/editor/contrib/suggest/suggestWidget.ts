@@ -166,14 +166,36 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		this._persistedSize = new PersistedWidgetSize(storageService, editor);
 
-		this._disposables.add(this.element.onDidWillResize(e => {
+		let persistedSize: dom.Dimension | undefined;
+		let persistHeight = false;
+		let persistWidth = false;
+		this._disposables.add(this.element.onDidWillResize(() => {
 			this._resizePosition = this._widgetPosition;
+			persistedSize = this._persistedSize.restore();
 		}));
 		this._disposables.add(this.element.onDidResize(e => {
 			this._layout(e.dimension);
+			persistHeight = persistHeight || !!e.north || !!e.south;
+			persistWidth = persistWidth || !!e.east || !!e.west;
 			if (e.done) {
-				this._persistedSize.store(this.element.size);
+
+				// only store width or height value that have changed
+				let { width, height } = this.element.size;
+				if (persistedSize) {
+					if (!persistHeight) {
+						height = persistedSize.height;
+					}
+					if (!persistWidth) {
+						width = persistedSize.width;
+					}
+				}
+				this._persistedSize.store(new dom.Dimension(width, height));
+
+				// reset working state
 				this._resizePosition = undefined;
+				persistedSize = undefined;
+				persistHeight = false;
+				persistWidth = false;
 			}
 		}));
 
