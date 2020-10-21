@@ -17,6 +17,8 @@ const CSI = `${ESC}[`;
 const SHOW_CURSOR = `${CSI}?25h`;
 const HIDE_CURSOR = `${CSI}?25l`;
 const DELETE_CHAR = `${CSI}X`;
+const DELETE_REST_OF_LINE = `${CSI}K`;
+const CSI_SET_POSITION_RE = /^\x1b\[([0-9]+);([0-9]+)H/;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
 const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
 const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*:/i;
@@ -31,10 +33,9 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
 /**
  * Codes that should be omitted from sending to the prediction engine and
  * insted omitted directly:
- *  - cursor hide/show
  *  - mode set/reset
  */
-const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
+const PREDICTION_OMIT_RE = /^(\x1b\[25[hl])+/;
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -104,8 +105,60 @@ const rangeToString = (line: IBufferLine, startX = 0, endX = line.length) => {
 	return output;
 };
 
-const getLineEdit = (line: IBufferLine, input: string) => {
+const getLineEdit = (line: IBufferLine, { x, y, baseY }: Readonly<ICoordinate>, reader: StringReader): Edit | undefined => {
+	let cell: IBufferCell | undefined;
+	const columns: string[] = [];
+	for (let i = 0; i < line.length;) {
+		cell = line.getCell(i)!;
+		columns[i] = cell.getChars();
+		i += cell.getWidth() || 1;
+	}
 
+	const original = columns.join('');
+	while (reader.remaining > 0) {
+		if (reader.eatCharCode(32, 126)) {
+			columns[x++] = reader.input[reader.index - 1];
+			continue;
+		}
+
+		const setPosition = reader.eatRe(CSI_SET_POSITION_RE);
+		if (setPosition) {
+			if (Number(setPosition[1]) !== y + baseY + 1) {
+				return; // different row, we don't handle it
+			}
+
+			x = Number(setPosition[2]) - 1;
+			continue;
+		}
+
+		const cursorMv = reader.eatRe(CSI_MOVE_RE);
+		if (cursorMv) {
+			x += (cursorMv[3] === CursorMoveDirection.Back ? -1 : 1) * Number(cursorMv[1]) || 1;
+			continue;
+		}
+
+		if (reader.eatStr(`${ESC}b`)) {
+			x--;
+			continue;
+		}
+
+		if (reader.eatStr(DELETE_REST_OF_LINE)) {
+			columns.splice(x, columns.length - x);
+			continue;
+		}
+
+		if (reader.eatRe(CSI_STYLE_RE) || reader.eatRe(PREDICTION_OMIT_RE)) {
+			continue;
+		}
+
+		if (reader.eatStr(SHOW_CURSOR)) {
+			break; // after running the edit, most programs show the cursor, use that as the boundary
+		}
+
+		return; // something we don't know about
+	}
+
+	return simpleDiff(original.trimRight(), columns.join('').trimRight());
 };
 
 const moveToWordBoundary = (b: IBuffer, cursor: ICoordinate, direction: -1 | 1) => {
@@ -173,7 +226,7 @@ export interface IPrediction {
 	/**
 	 * Returns whether the given input is one expected by this prediction.
 	 */
-	matches(input: StringReader): MatchResult;
+	matches(input: StringReader, buffer: IBuffer): MatchResult;
 }
 
 class StringReader {
@@ -191,7 +244,7 @@ class StringReader {
 		return this.input.slice(this.index);
 	}
 
-	constructor(private readonly input: string) { }
+	constructor(public readonly input: string) { }
 
 	/**
 	 * Advances the reader and returns the character if it matches.
@@ -209,7 +262,7 @@ class StringReader {
 	 * Advances the reader and returns the string if it matches.
 	 */
 	public eatStr(substr: string) {
-		if (this.input.slice(this.index, substr.length) !== substr) {
+		if (this.input.substr(this.index, substr.length) !== substr) {
 			return;
 		}
 
@@ -299,19 +352,22 @@ class TentativeBoundary implements IPrediction {
 		return '';
 	}
 
-	public matches(input: StringReader) {
-		return this.inner.matches(input);
+	public matches(input: StringReader, buffer: IBuffer) {
+		return this.inner.matches(input, buffer);
 	}
+}
+
+interface ICharacterAppliedData extends ICoordinate {
+	oldAttributes: string;
+	oldChar: string;
+	restOfLine: string | undefined;
 }
 
 /**
  * Prediction for a single alphanumeric character.
  */
 class CharacterPrediction implements IPrediction {
-	protected appliedAt?: ICoordinate & {
-		oldAttributes: string;
-		oldChar: string;
-	};
+	protected appliedAt?: ICharacterAppliedData;
 
 	constructor(private readonly style: string, private readonly char: string) { }
 
@@ -321,11 +377,12 @@ class CharacterPrediction implements IPrediction {
 
 		const restOfLine = line && rangeToString(line, cursor.x);
 		this.appliedAt = cell
-			? { ...cursor, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
-			: { ...cursor, oldAttributes: '', oldChar: '' };
+			? { ...cursor, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars(), restOfLine }
+			: { ...cursor, oldAttributes: '', oldChar: '', restOfLine };
 
 		cursor.x++;
-		return this.style + this.char + this.appliedAt.oldAttributes + (restOfLine ? `${restOfLine}${CSI}K` : '');
+		return this.style + this.char + this.appliedAt.oldAttributes
+			+ (restOfLine ? `${restOfLine}${CSI}K${setCursorCoordinate(buffer, cursor)}` : '');
 	}
 
 	public rollback(buffer: IBuffer) {
@@ -338,17 +395,59 @@ class CharacterPrediction implements IPrediction {
 		return setCursorCoordinate(buffer, a) + (a.oldChar ? `${a.oldAttributes}${a.oldChar}${setCursorCoordinate(buffer, a)}` : DELETE_CHAR);
 	}
 
-	public matches(input: StringReader) {
-		let startIndex = input.index;
+	public matches(input: StringReader, buffer: IBuffer) {
+		if (!this.appliedAt) {
+			return MatchResult.Failure;
+		}
 
 		// remove any styling CSI before checking the char
 		while (input.eatRe(CSI_STYLE_RE)) { }
 
+		const advanced = this.tryMatchAdvanced(input, buffer, this.appliedAt);
+		if (advanced !== MatchResult.Failure) {
+			return advanced;
+		}
+
+		return this.tryMatchSimple(input);
+	}
+
+	/**
+	 * Tries to match a simple character insertion.
+	 */
+	private tryMatchSimple(input: StringReader) {
+		let startIndex = input.index;
 		if (input.eof) {
 			return MatchResult.Buffer;
 		}
 
 		if (input.eatChar(this.char)) {
+			return MatchResult.Success;
+		}
+
+		input.index = startIndex;
+		return MatchResult.Failure;
+	}
+
+	/**
+	 * Matches a rewritten line of text. Handles midline edits as well as prompts
+	 * that rewrite the entire line for each character, like powershell.
+	 */
+	private tryMatchAdvanced(input: StringReader, buffer: IBuffer, appliedAt: ICharacterAppliedData) {
+		let startIndex = input.index;
+
+		const cursorHide = input.eatGradually(HIDE_CURSOR);
+		if (cursorHide !== MatchResult.Success) {
+			return cursorHide;
+		}
+
+		const showIndex = input.rest.indexOf(SHOW_CURSOR);
+		if (showIndex === -1) {
+			return MatchResult.Buffer;
+		}
+
+		const line = buffer.getLine(appliedAt.y + appliedAt.baseY);
+		const edit = line && getLineEdit(line, appliedAt, input);
+		if (edit && 'insert' in edit && edit.x === appliedAt.x && edit.insert === this.char) {
 			return MatchResult.Success;
 		}
 
@@ -657,7 +756,7 @@ export class PredictionTimeline {
 
 			const prediction = this.expected[0].p;
 			let beforeTestReaderIndex = reader.index;
-			switch (prediction.matches(reader)) {
+			switch (prediction.matches(reader, buffer)) {
 				case MatchResult.Success:
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
