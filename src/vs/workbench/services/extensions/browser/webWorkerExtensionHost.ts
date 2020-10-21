@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -121,6 +121,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 </html>`;
 		const iframeContent = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 		iframe.setAttribute('src', iframeContent);
+		const timeout = setTimeout(() => {
+			this._onDidExit.fire([ExtensionHostExitCode.StartTimeout10s, 'The Web Worker Extension Host did not start in 10s']);
+		}, 10000);
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
@@ -139,16 +142,19 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				err.name = name;
 				err.stack = stack;
 				onUnexpectedError(err);
-				this._onDidExit.fire([18, err.message]);
+				clearTimeout(timeout);
+				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, err.message]);
 				return;
 			}
 			const { data } = event.data;
 			if (barrier.isOpen() || !(data instanceof MessagePort)) {
 				console.warn('UNEXPECTED message', event);
-				this._onDidExit.fire([81, 'UNEXPECTED message']);
+				clearTimeout(timeout);
+				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'UNEXPECTED message']);
 				return;
 			}
 			port = data;
+			clearTimeout(timeout);
 			barrier.open();
 		}));
 
@@ -193,7 +199,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			const { data } = event;
 			if (barrier.isOpen() || !(data instanceof MessagePort)) {
 				console.warn('UNEXPECTED message', event);
-				this._onDidExit.fire([81, 'UNEXPECTED message']);
+				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'UNEXPECTED message']);
 				return;
 			}
 			port = data;
@@ -217,7 +223,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		worker.onerror = (event) => {
 			console.error(event.message, event.error);
-			this._onDidExit.fire([81, event.message || event.error]);
+			this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
 		};
 
 		// keep for cleanup
