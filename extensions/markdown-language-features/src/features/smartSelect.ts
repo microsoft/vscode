@@ -30,18 +30,16 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		const tokens = await this.engine.parse(document);
 
-		let enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && isBlockElement(token));
+		let blockTokens = getTokensForPosition(tokens, position);
 
-		if (enclosingTokens.length === 0) {
-			return;
-		}
-
-		let sortedTokens = enclosingTokens.sort((token1, token2) => (token2.map[1] - token2.map[0]) - (token1.map[1] - token1.map[0]));
-
-		let parentRange = headerRange ? headerRange : createBlockRange(sortedTokens.shift(), document);
+		let parentRange = headerRange ? headerRange : createBlockRange(blockTokens.shift(), document);
 		let currentRange: vscode.SelectionRange | undefined;
 
-		for (const token of sortedTokens) {
+		if (blockTokens.length === 0) {
+			return undefined;
+		}
+
+		for (const token of blockTokens) {
 			currentRange = createBlockRange(token, document, parentRange);
 			if (currentRange && currentRange.parent && parentRange) {
 				parentRange = currentRange;
@@ -62,23 +60,22 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
 
-		let headerOnThisLine = toc.find(header => header.line === position.line);
+		let headerInfo = getHeadersForPosition(toc, position);
 
-		let enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
-		let sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
+		let headers = headerInfo.headers;
 
-		if (sortedHeaders.length === 0) {
+		if (headers.length === 0) {
 			return undefined;
 		}
 
-		let parentRange = createHeaderRange(sortedHeaders.shift());
+		let parentRange = createHeaderRange(headers.shift());
 		let currentRange: vscode.SelectionRange | undefined;
 
 		let index = 0;
-		for (const header of sortedHeaders) {
+		for (const header of headers) {
 			if (parentRange) {
 				if (parentRange.range.contains(header.location.range)) {
-					if (index === sortedHeaders.length - 1 && headerOnThisLine) {
+					if (index === headers.length - 1 && headerInfo.headerOnThisLine) {
 						currentRange = new vscode.SelectionRange(header.location.range, parentRange);
 					} else {
 						currentRange = createHeaderRange(header, parentRange);
@@ -97,6 +94,27 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		}
 	}
 }
+
+let getTokensForPosition = (tokens: Token[], position: vscode.Position): Token[] => {
+	let enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && isBlockElement(token));
+
+	if (enclosingTokens.length === 0) {
+		return [];
+	}
+
+	let sortedTokens = enclosingTokens.sort((token1, token2) => (token2.map[1] - token2.map[0]) - (token1.map[1] - token1.map[0]));
+	return sortedTokens;
+};
+
+let getHeadersForPosition = (toc: TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } => {
+	let enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
+	let sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
+	let onThisLine = toc.find(header => header.line === position.line) !== undefined;
+	return {
+		headers: sortedHeaders,
+		headerOnThisLine: onThisLine
+	};
+};
 
 let isBlockElement = (token: Token): boolean => {
 	return !['list_item_close', 'paragraph_close', 'bullet_list_close', 'inline', 'heading_close', 'heading_open'].includes(token.type);
