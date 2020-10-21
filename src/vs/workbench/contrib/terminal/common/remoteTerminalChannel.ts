@@ -67,6 +67,7 @@ export interface ICreateTerminalProcessArguments {
 	resolvedVariables: { [name: string]: string; };
 	envVariableCollections: ITerminalEnvironmentVariableCollections;
 	shellLaunchConfig: IShellLaunchConfigDto;
+	workspaceId: string;
 	workspaceFolders: IWorkspaceFolderData[];
 	activeWorkspaceFolder: IWorkspaceFolderData | null;
 	activeFileResource: UriComponents | undefined;
@@ -118,6 +119,10 @@ export interface ISendCommandResultToTerminalProcessArguments {
 
 export interface IOrphanQuestionReplyArgs {
 	id: number;
+}
+
+export interface IListTerminalsArgs {
+	workspaceId: string;
 }
 
 export interface IRemoteTerminalDescriptionDto {
@@ -249,7 +254,8 @@ export class RemoteTerminalChannelClient {
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(this._remoteAuthority);
 		const resolverEnv = resolverResult.options && resolverResult.options.extensionHostEnv;
 
-		const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
+		const workspace = this._workspaceContextService.getWorkspace();
+		const workspaceFolders = workspace.folders;
 		const activeWorkspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
 
 		const activeFileResource = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor, {
@@ -262,6 +268,7 @@ export class RemoteTerminalChannelClient {
 			resolvedVariables,
 			envVariableCollections,
 			shellLaunchConfig,
+			workspaceId: workspace.id,
 			workspaceFolders,
 			activeWorkspaceFolder,
 			activeFileResource,
@@ -340,6 +347,10 @@ export class RemoteTerminalChannelClient {
 	}
 
 	public listTerminals(): Promise<IRemoteTerminalDescriptionDto[]> {
-		return this._channel.call<IRemoteTerminalDescriptionDto[]>('$listTerminals');
+		const workspace = this._workspaceContextService.getWorkspace();
+		const args: IListTerminalsArgs = {
+			workspaceId: workspace.id
+		};
+		return this._channel.call<IRemoteTerminalDescriptionDto[]>('$listTerminals', args);
 	}
 }
