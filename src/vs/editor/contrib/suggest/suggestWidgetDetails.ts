@@ -40,7 +40,7 @@ export class SuggestDetailsWidget {
 
 	private _renderDisposeable?: IDisposable;
 	private _borderWidth: number = 1;
-	private _size = new dom.Dimension(220, 50);
+	private _size = new dom.Dimension(330, 50);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -48,6 +48,7 @@ export class SuggestDetailsWidget {
 		private readonly _kbToggleDetails: string
 	) {
 		this.domNode = dom.$('.suggest-details');
+		this.domNode.classList.add('no-docs');
 
 		this._body = dom.$('.body');
 
@@ -100,10 +101,16 @@ export class SuggestDetailsWidget {
 	private _lineHeight(): number {
 		return this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
 	}
+
+	hide(): void {
+		this.domNode.classList.add('no-docs');
+	}
+
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
-		this.layout(220, this._lineHeight() * 2);
+		this.domNode.classList.remove('no-docs');
+		this.layout(this.size.width, this._lineHeight() * 2);
 		this._onDidChangeContents.fire(this);
 	}
 
@@ -111,20 +118,8 @@ export class SuggestDetailsWidget {
 		this._renderDisposeable?.dispose();
 		this._renderDisposeable = undefined;
 
-		this.domNode.classList.remove('no-docs');
-
 		let { detail, documentation } = item.completion;
 
-		// --- details
-		if (detail) {
-			this._type.textContent = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
-			dom.show(this._type);
-		} else {
-			dom.clearNode(this._type);
-			dom.hide(this._type);
-		}
-
-		// --- documentation
 		if (explainMode) {
 			let md = '';
 			md += `score: ${item.score[0]}${item.word ? `, compared '${item.completion.filterText && (item.completion.filterText + ' (filterText)') || item.completion.label}' with '${item.word}'` : ' (no prefix)'}\n`;
@@ -141,6 +136,18 @@ export class SuggestDetailsWidget {
 			return;
 		}
 
+		this.domNode.classList.remove('no-docs');
+
+		// --- details
+		if (detail) {
+			this._type.textContent = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
+			dom.show(this._type);
+		} else {
+			dom.clearNode(this._type);
+			dom.hide(this._type);
+		}
+
+		// --- documentation
 		dom.clearNode(this._docs);
 		if (typeof documentation === 'string') {
 			this._docs.classList.remove('markdown-docs');
@@ -168,7 +175,7 @@ export class SuggestDetailsWidget {
 		};
 
 		this._body.scrollTop = 0;
-		this.layout(430, this._lineHeight() * (2 + (documentation ? 5 : 0)));
+		this.layout(this._size.width, this._lineHeight() * (2 + (documentation ? 5 : 0)));
 		this._onDidChangeContents.fire(this);
 	}
 
@@ -276,6 +283,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	hide(): void {
 		if (this._added) {
 			this._editor.removeOverlayWidget(this);
+			this.widget.hide();
 			this._added = false;
 			this._anchorBox = undefined;
 		}
