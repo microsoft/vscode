@@ -21,7 +21,7 @@
 				},
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
-					"description": "Machine specific settings that should be copied into the container."
+					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time."
 				},
 				"remoteEnv": {
 					"type": "object",

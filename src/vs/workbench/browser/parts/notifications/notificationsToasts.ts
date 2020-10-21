@@ -19,7 +19,7 @@ import { NotificationsToastsVisibleContext, INotificationsToastController } from
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IntervalCounter, timeout } from 'vs/base/common/async';
 import { assertIsDefined } from 'vs/base/common/types';

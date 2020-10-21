@@ -67,6 +67,9 @@
 	},
 	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true,
+	"[plaintext]": {
+		"files.insertFinalNewline": false,
+	},
 	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features"
 	},

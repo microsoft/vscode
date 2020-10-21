@@ -208,6 +208,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 		options.renderValidationDecorations = 'editable';
+		options.padding = undefined;
 
 		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {

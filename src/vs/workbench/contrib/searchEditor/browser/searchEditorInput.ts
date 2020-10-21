@@ -28,16 +28,17 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {
 	query: string,
-	includes: string,
-	excludes: string,
+	filesToInclude: string,
+	filesToExclude: string,
 	contextLines: number,
-	wholeWord: boolean,
-	caseSensitive: boolean,
-	regexp: boolean,
-	useIgnores: boolean,
+	matchWholeWord: boolean,
+	isCaseSensitive: boolean,
+	isRegexp: boolean,
+	useExcludeSettingsAndIgnoreFiles: boolean,
 	showIncludesExcludes: boolean,
 };
 
@@ -113,7 +114,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
 			isDirty(): boolean { return input.isDirty(); }
-			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
+			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
 			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
 		};
@@ -265,7 +266,7 @@ export class SearchEditorInput extends EditorInput {
 		return false;
 	}
 
-	private async backup(): Promise<IWorkingCopyBackup> {
+	private async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const content = stringToSnapshot((await this.model).getValue());
 		return { content };
 	}

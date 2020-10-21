@@ -40,6 +40,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
 	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
+	private readonly _onConfigChanged = new Emitter<void>();
+	public get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
+
 	public constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
@@ -71,6 +74,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
 
 		this.config = configValues;
+		this._onConfigChanged.fire();
 	}
 
 	public configFontIsMonospace(): boolean {

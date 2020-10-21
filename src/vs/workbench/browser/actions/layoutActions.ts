@@ -28,6 +28,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { Codicon } from 'vs/base/common/codicons';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 
@@ -807,7 +808,7 @@ export abstract class BaseResizeViewAction extends Action {
 		super(id, label);
 	}
 
-	protected resizePart(sizeChange: number): void {
+	protected resizePart(widthChange: number, heightChange: number): void {
 		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
 		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
 		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
@@ -822,7 +823,7 @@ export abstract class BaseResizeViewAction extends Action {
 		}
 
 		if (part) {
-			this.layoutService.resizePart(part, sizeChange);
+			this.layoutService.resizePart(part, widthChange, heightChange);
 		}
 	}
 }
@@ -841,7 +842,43 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 	}
 
 	async run(): Promise<void> {
-		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, BaseResizeViewAction.RESIZE_INCREMENT);
+	}
+}
+
+export class IncreaseViewWidthAction extends BaseResizeViewAction {
+
+	static readonly ID = 'workbench.action.increaseViewWidth';
+	static readonly LABEL = nls.localize('increaseViewWidth', "Increase Current View Width");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label, layoutService);
+	}
+
+	async run(): Promise<void> {
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, 0);
+	}
+}
+
+export class IncreaseViewHeightAction extends BaseResizeViewAction {
+
+	static readonly ID = 'workbench.action.increaseViewHeight';
+	static readonly LABEL = nls.localize('increaseViewHeight', "Increase Current View Height");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label, layoutService);
+	}
+
+	async run(): Promise<void> {
+		this.resizePart(0, BaseResizeViewAction.RESIZE_INCREMENT);
 	}
 }
 
@@ -860,9 +897,50 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	}
 
 	async run(): Promise<void> {
-		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, -BaseResizeViewAction.RESIZE_INCREMENT);
+	}
+}
+
+export class DecreaseViewWidthAction extends BaseResizeViewAction {
+
+	static readonly ID = 'workbench.action.decreaseViewWidth';
+	static readonly LABEL = nls.localize('decreaseViewWidth', "Decrease Current View Width");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label, layoutService);
+	}
+
+	async run(): Promise<void> {
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, 0);
+	}
+}
+
+
+export class DecreaseViewHeightAction extends BaseResizeViewAction {
+
+	static readonly ID = 'workbench.action.decreaseViewHeight';
+	static readonly LABEL = nls.localize('decreaseViewHeight', "Decrease Current View Height");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label, layoutService);
+	}
+
+	async run(): Promise<void> {
+		this.resizePart(0, -BaseResizeViewAction.RESIZE_INCREMENT);
 	}
 }
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(IncreaseViewSizeAction, undefined), 'View: Increase Current View Size', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(IncreaseViewWidthAction, undefined), 'View: Increase Editor Width', CATEGORIES.View.value, EditorContextKeys.focus);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(IncreaseViewHeightAction, undefined), 'View: Increase Editor Height', CATEGORIES.View.value, EditorContextKeys.focus);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(DecreaseViewSizeAction, undefined), 'View: Decrease Current View Size', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(DecreaseViewWidthAction, undefined), 'View: Decrease Editor Width', CATEGORIES.View.value, EditorContextKeys.focus);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(DecreaseViewHeightAction, undefined), 'View: Decrease Editor Height', CATEGORIES.View.value, EditorContextKeys.focus);

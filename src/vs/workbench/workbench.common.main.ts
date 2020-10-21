@@ -295,4 +295,7 @@ import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
 
+// Workspaces
+import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
+
 //#endregion

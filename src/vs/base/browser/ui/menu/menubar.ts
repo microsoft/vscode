@@ -949,16 +949,18 @@ export class MenuBar extends Disposable {
 
 		customMenu.buttonElement.classList.add('open');
 
+		const buttonBoundingRect = customMenu.buttonElement.getBoundingClientRect();
+
 		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `0px`;
-			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left + this.container.clientWidth}px`;
+			menuHolder.style.top = `${buttonBoundingRect.top}px`;
+			menuHolder.style.left = `${buttonBoundingRect.left + this.container.clientWidth}px`;
 		} else if (this.options.compactMode === Direction.Left) {
-			menuHolder.style.top = `0px`;
+			menuHolder.style.top = `${buttonBoundingRect.top}px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
 			menuHolder.style.top = `${this.container.clientHeight}px`;
-			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+			menuHolder.style.left = `${buttonBoundingRect.left}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);

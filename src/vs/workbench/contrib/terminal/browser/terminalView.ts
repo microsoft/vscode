@@ -41,6 +41,7 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
 	private _splitTerminalAction: IAction | undefined;
+	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 
 	constructor(
@@ -109,14 +110,21 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
-				const hadTerminals = this._terminalService.terminalInstances.length > 0;
-				if (!hadTerminals) {
-					this._terminalService.createTerminal();
+				const hadTerminals = !!this._terminalService.terminalTabs.length;
+				if (this._terminalsInitialized) {
+					if (!hadTerminals) {
+						this._terminalService.createTerminal();
+					}
+				} else {
+					this._terminalsInitialized = true;
+					this._terminalService.initializeTerminals();
 				}
+
 				this._updateTheme();
 				if (hadTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
 				} else {
+					// TODO@Tyriar - this call seems unnecessary
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 			} else {

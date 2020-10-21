@@ -116,6 +116,21 @@ export interface ISendCommandResultToTerminalProcessArguments {
 	payload: any;
 }
 
+export interface IOrphanQuestionReplyArgs {
+	id: number;
+}
+
+export interface IRemoteTerminalDescriptionDto {
+	id: number;
+	pid: number;
+	title: string;
+	cwd: string;
+}
+
+export interface ITriggerTerminalDataReplayArguments {
+	id: number;
+}
+
 export interface IRemoteTerminalProcessReadyEvent {
 	type: 'ready';
 	pid: number;
@@ -126,11 +141,16 @@ export interface IRemoteTerminalProcessTitleChangedEvent {
 	title: string;
 }
 export interface IRemoteTerminalProcessDataEvent {
-	type: 'data'
+	type: 'data';
 	data: string;
 }
+export interface ReplayEntry { cols: number; rows: number; data: string; }
+export interface IRemoteTerminalProcessReplayEvent {
+	type: 'replay';
+	events: ReplayEntry[];
+}
 export interface IRemoteTerminalProcessExitEvent {
-	type: 'exit'
+	type: 'exit';
 	exitCode: number | undefined;
 }
 export interface IRemoteTerminalProcessExecCommandEvent {
@@ -139,12 +159,17 @@ export interface IRemoteTerminalProcessExecCommandEvent {
 	commandId: string;
 	commandArgs: any[];
 }
+export interface IRemoteTerminalProcessOrphanQuestionEvent {
+	type: 'orphan?';
+}
 export type IRemoteTerminalProcessEvent = (
 	IRemoteTerminalProcessReadyEvent
 	| IRemoteTerminalProcessTitleChangedEvent
 	| IRemoteTerminalProcessDataEvent
+	| IRemoteTerminalProcessReplayEvent
 	| IRemoteTerminalProcessExitEvent
 	| IRemoteTerminalProcessExecCommandEvent
+	| IRemoteTerminalProcessOrphanQuestionEvent
 );
 
 export interface IOnTerminalProcessEventArguments {
@@ -166,7 +191,7 @@ export class RemoteTerminalChannelClient {
 	) {
 	}
 
-	private _readSingleTemrinalConfiguration<T>(key: string): ISingleTerminalConfiguration<T> {
+	private _readSingleTerminalConfiguration<T>(key: string): ISingleTerminalConfiguration<T> {
 		const result = this._configurationService.inspect<T>(key);
 		return {
 			userValue: result.userValue,
@@ -178,18 +203,18 @@ export class RemoteTerminalChannelClient {
 	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ICreateTerminalProcessResult> {
 		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		const configuration: ICompleteTerminalConfiguration = {
-			'terminal.integrated.automationShell.windows': this._readSingleTemrinalConfiguration('terminal.integrated.automationShell.windows'),
-			'terminal.integrated.automationShell.osx': this._readSingleTemrinalConfiguration('terminal.integrated.automationShell.osx'),
-			'terminal.integrated.automationShell.linux': this._readSingleTemrinalConfiguration('terminal.integrated.automationShell.linux'),
-			'terminal.integrated.shell.windows': this._readSingleTemrinalConfiguration('terminal.integrated.shell.windows'),
-			'terminal.integrated.shell.osx': this._readSingleTemrinalConfiguration('terminal.integrated.shell.osx'),
-			'terminal.integrated.shell.linux': this._readSingleTemrinalConfiguration('terminal.integrated.shell.linux'),
-			'terminal.integrated.shellArgs.windows': this._readSingleTemrinalConfiguration('terminal.integrated.shellArgs.windows'),
-			'terminal.integrated.shellArgs.osx': this._readSingleTemrinalConfiguration('terminal.integrated.shellArgs.osx'),
-			'terminal.integrated.shellArgs.linux': this._readSingleTemrinalConfiguration('terminal.integrated.shellArgs.linux'),
-			'terminal.integrated.env.windows': this._readSingleTemrinalConfiguration('terminal.integrated.env.windows'),
-			'terminal.integrated.env.osx': this._readSingleTemrinalConfiguration('terminal.integrated.env.osx'),
-			'terminal.integrated.env.linux': this._readSingleTemrinalConfiguration('terminal.integrated.env.linux'),
+			'terminal.integrated.automationShell.windows': this._readSingleTerminalConfiguration('terminal.integrated.automationShell.windows'),
+			'terminal.integrated.automationShell.osx': this._readSingleTerminalConfiguration('terminal.integrated.automationShell.osx'),
+			'terminal.integrated.automationShell.linux': this._readSingleTerminalConfiguration('terminal.integrated.automationShell.linux'),
+			'terminal.integrated.shell.windows': this._readSingleTerminalConfiguration('terminal.integrated.shell.windows'),
+			'terminal.integrated.shell.osx': this._readSingleTerminalConfiguration('terminal.integrated.shell.osx'),
+			'terminal.integrated.shell.linux': this._readSingleTerminalConfiguration('terminal.integrated.shell.linux'),
+			'terminal.integrated.shellArgs.windows': this._readSingleTerminalConfiguration('terminal.integrated.shellArgs.windows'),
+			'terminal.integrated.shellArgs.osx': this._readSingleTerminalConfiguration('terminal.integrated.shellArgs.osx'),
+			'terminal.integrated.shellArgs.linux': this._readSingleTerminalConfiguration('terminal.integrated.shellArgs.linux'),
+			'terminal.integrated.env.windows': this._readSingleTerminalConfiguration('terminal.integrated.env.windows'),
+			'terminal.integrated.env.osx': this._readSingleTerminalConfiguration('terminal.integrated.env.osx'),
+			'terminal.integrated.env.linux': this._readSingleTerminalConfiguration('terminal.integrated.env.linux'),
 			'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
 			'terminal.integrated.cwd': terminalConfig.cwd,
 			'terminal.integrated.detectLocale': terminalConfig.detectLocale,
@@ -305,5 +330,16 @@ export class RemoteTerminalChannelClient {
 			payload
 		};
 		return this._channel.call<void>('$sendCommandResultToTerminalProcess', args);
+	}
+
+	public orphanQuestionReply(id: number): Promise<void> {
+		const args: IOrphanQuestionReplyArgs = {
+			id
+		};
+		return this._channel.call<void>('$orphanQuestionReply', args);
+	}
+
+	public listTerminals(): Promise<IRemoteTerminalDescriptionDto[]> {
+		return this._channel.call<IRemoteTerminalDescriptionDto[]>('$listTerminals');
 	}
 }

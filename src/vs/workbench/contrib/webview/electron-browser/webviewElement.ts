@@ -312,8 +312,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			if (!this.isFocused || !this.element) {
 				return;
 			}
-
-			if (document.activeElement?.tagName === 'INPUT') {
+			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 			try {

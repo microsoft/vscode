@@ -26,6 +26,8 @@ export interface XTermCore {
 		};
 		_onIntersectionChange: any;
 	};
+
+	writeSync(data: string | Uint8Array): void;
 }
 
 export interface IEventEmitter<T> {

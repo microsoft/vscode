@@ -351,6 +351,36 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.typeaheadThreshold': {
+			description: localize('terminal.integrated.typeaheadThreshold', "Experimental: length of time, in milliseconds, where typeahead will activate. If '0', typeahead will always be on, and if '-1' it will be disabled."),
+			type: 'integer',
+			minimum: -1,
+			default: -1,
+		},
+		'terminal.integrated.typeaheadStyle': {
+			description: localize('terminal.integrated.typeaheadStyle', "Experimental: terminal style of typeahead text, either a font style or an RGB color."),
+			default: 2,
+			oneOf: [
+				{
+					type: 'integer',
+					default: 2,
+					enum: [0, 1, 2, 3, 4, 7],
+					enumDescriptions: [
+						localize('terminal.integrated.typeaheadStyle.0', 'Normal'),
+						localize('terminal.integrated.typeaheadStyle.1', 'Bold'),
+						localize('terminal.integrated.typeaheadStyle.2', 'Dim'),
+						localize('terminal.integrated.typeaheadStyle.3', 'Italic'),
+						localize('terminal.integrated.typeaheadStyle.4', 'Underlined'),
+						localize('terminal.integrated.typeaheadStyle.7', 'Inverted'),
+					]
+				},
+				{
+					type: 'string',
+					format: 'color-hex',
+					default: '#ff0000',
+				}
+			]
 		}
 	}
 };

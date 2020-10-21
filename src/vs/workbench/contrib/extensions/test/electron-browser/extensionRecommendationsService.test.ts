@@ -37,7 +37,7 @@ import { TestExtensionEnablementService } from 'vs/workbench/services/extensionM
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
@@ -448,9 +448,9 @@ suite('ExtensionRecommendationsService Test', () => {
 		await testObject.activationPromise;
 
 		const recommendations = testObject.getAllRecommendationsWithReason();
-		assert.ok(recommendations['ms-python.python']);
-		assert.ok(!recommendations['mockpublisher2.mockextension2']);
-		assert.ok(!recommendations['ms-dotnettools.csharp']);
+		assert.ok(recommendations['ms-python.python'], 'ms-python.python extension shall exist');
+		assert.ok(!recommendations['mockpublisher2.mockextension2'], 'mockpublisher2.mockextension2 extension shall not exist');
+		assert.ok(!recommendations['ms-dotnettools.csharp'], 'ms-dotnettools.csharp extension shall not exist');
 	});
 
 	test('ExtensionRecommendationsService: Able to dynamically ignore/unignore global recommendations', async () => {
