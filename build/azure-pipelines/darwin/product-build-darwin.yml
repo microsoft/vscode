@@ -289,7 +289,6 @@ steps:
     APP_NAME="`ls $APP_ROOT | head -n 1`"
     "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
   displayName: Verify start after signing (export configuration)
-  condition: and(succeeded())
 
 - script: |
     set -e
