@@ -14,16 +14,17 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		private readonly engine: MarkdownEngine
 	) { }
 
-	public provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[]> {
-		return Promise.all(positions.map((position) => {
+	public async provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[] | undefined> {
+		let promises = await Promise.all(positions.map((position) => {
 			return this.provideSelectionRange(document, position, _token);
 		}));
+		return promises.filter(item => item !== undefined) as vscode.SelectionRange[];
 	}
 
-	private async provideSelectionRange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange> {
+	private async provideSelectionRange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange | undefined> {
 		const headerRange = await this.getHeaderSelectionRange(document, position);
 		const blockRange = await this.getBlockSelectionRange(document, position, headerRange);
-		return blockRange ? blockRange : headerRange ? headerRange : new vscode.SelectionRange(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)));
+		return blockRange ? blockRange : headerRange ? headerRange : undefined;
 	}
 
 	private async getBlockSelectionRange(document: vscode.TextDocument, position: vscode.Position, headerRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
@@ -32,12 +33,12 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		let blockTokens = getTokensForPosition(tokens, position);
 
-		let parentRange = headerRange ? headerRange : createBlockRange(blockTokens.shift(), document);
-		let currentRange: vscode.SelectionRange | undefined;
-
 		if (blockTokens.length === 0) {
 			return undefined;
 		}
+
+		let parentRange = headerRange ? headerRange : createBlockRange(blockTokens.shift(), document);
+		let currentRange: vscode.SelectionRange | undefined;
 
 		for (const token of blockTokens) {
 			currentRange = createBlockRange(token, document, parentRange);
