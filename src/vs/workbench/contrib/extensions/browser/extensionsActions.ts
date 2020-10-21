@@ -62,9 +62,14 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { EXTENSIONS_CONFIG } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error, instantiationService: IInstantiationService): Promise<any> => {
 	return instantiationService.invokeFunction(accessor => {
+		if (isPromiseCanceledError(error)) {
+			return Promise.resolve();
+		}
+
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
 		const notificationService = accessor.get(INotificationService);
@@ -1003,18 +1008,21 @@ export class DisableGloballyAction extends ExtensionAction {
 	}
 }
 
-export abstract class ExtensionEditorDropDownAction extends ExtensionDropDownAction {
+export abstract class ActionWithDropDownAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} extension-editor-dropdown-action`;
-	private static readonly EnabledDropDownClass = `${ExtensionEditorDropDownAction.EnabledClass} dropdown enable`;
-	private static readonly DisabledClass = `${ExtensionEditorDropDownAction.EnabledClass} disabled`;
+	static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} action-dropdown`;
+	private static readonly EmptyDropdownClass = `${ActionWithDropDownAction.Class} empty-dropdown`;
+
+	private action: IAction | undefined;
+
+	private _menuActions: IAction[] = [];
+	get menuActions(): IAction[] { return [...this._menuActions]; }
 
 	constructor(
-		id: string, private readonly initialLabel: string,
-		readonly actions: ExtensionAction[],
-		@IInstantiationService instantiationService: IInstantiationService
+		id: string, label: string,
+		private readonly actions: ExtensionAction[],
 	) {
-		super(id, initialLabel, ExtensionEditorDropDownAction.DisabledClass, false, false, instantiationService);
+		super(id, label);
 		this.update();
 	}
 
@@ -1022,32 +1030,19 @@ export abstract class ExtensionEditorDropDownAction extends ExtensionDropDownAct
 		this.actions.forEach(a => a.extension = this.extension);
 		this.actions.forEach(a => a.update());
 		const enabledActions = this.actions.filter(a => a.enabled);
-		this.enabled = enabledActions.length > 0;
-		if (this.enabled) {
-			if (enabledActions.length === 1) {
-				this.label = enabledActions[0].label;
-				this.class = ExtensionEditorDropDownAction.EnabledClass;
-			} else {
-				this.label = this.initialLabel;
-				this.class = ExtensionEditorDropDownAction.EnabledDropDownClass;
-			}
-		} else {
-			this.class = ExtensionEditorDropDownAction.DisabledClass;
-		}
+		this.action = enabledActions[0];
+		this._menuActions = enabledActions.slice(1);
+		this.enabled = !!this.action;
+		this.class = this._menuActions.length ? ActionWithDropDownAction.Class : ActionWithDropDownAction.EmptyDropdownClass;
 	}
 
-	public run(): Promise<any> {
+	run(): Promise<void> {
 		const enabledActions = this.actions.filter(a => a.enabled);
-		if (enabledActions.length === 1) {
-			enabledActions[0].run();
-		} else {
-			return super.run({ actionGroups: [this.actions], disposeActionsOnHide: false });
-		}
-		return Promise.resolve();
+		return enabledActions[0].run();
 	}
 }
 
-export class EnableDropDownAction extends ExtensionEditorDropDownAction {
+export class EnableDropDownAction extends ActionWithDropDownAction {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService
@@ -1055,11 +1050,11 @@ export class EnableDropDownAction extends ExtensionEditorDropDownAction {
 		super('extensions.enable', localize('enableAction', "Enable"), [
 			instantiationService.createInstance(EnableGloballyAction),
 			instantiationService.createInstance(EnableForWorkspaceAction)
-		], instantiationService);
+		]);
 	}
 }
 
-export class DisableDropDownAction extends ExtensionEditorDropDownAction {
+export class DisableDropDownAction extends ActionWithDropDownAction {
 
 	constructor(
 		runningExtensions: IExtensionDescription[],
@@ -1068,8 +1063,9 @@ export class DisableDropDownAction extends ExtensionEditorDropDownAction {
 		super('extensions.disable', localize('disableAction', "Disable"), [
 			instantiationService.createInstance(DisableGloballyAction, runningExtensions),
 			instantiationService.createInstance(DisableForWorkspaceAction, runningExtensions)
-		], instantiationService);
+		]);
 	}
+
 }
 
 export class CheckForUpdatesAction extends Action {
