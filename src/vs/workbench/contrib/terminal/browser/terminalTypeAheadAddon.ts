@@ -774,7 +774,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				}, statsSendTelemetryEvery);
 			}
 
-				this.reevaluatePredictorState(stats, timeline);
+			this.reevaluatePredictorState(stats, timeline);
 		}));
 	}
 
