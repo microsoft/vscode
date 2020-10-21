@@ -393,7 +393,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.list.reveal(index);
 
 			this.currentSuggestionDetails = createCancelablePromise(async token => {
-				const loading = disposableTimeout(() => this.showDetails(true), 250);
+				const loading = disposableTimeout(() => {
+					if (this._isDetailsVisible()) {
+						this.showDetails(true);
+					}
+				}, 250);
 				token.onCancellationRequested(() => loading.dispose());
 				const result = await item.resolve(token);
 				loading.dispose();
@@ -866,7 +870,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private _positionDetails(): void {
-		this._details.placeAtAnchor(this.element.domNode);
+		if (this._isDetailsVisible()) {
+			this._details.placeAtAnchor(this.element.domNode);
+		}
 	}
 
 	private _getLayoutInfo() {
