@@ -7,16 +7,9 @@ import * as crypto from 'crypto';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INotificationService, NeverShowAgainScope, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { joinPath } from 'vs/base/common/resources';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
@@ -133,15 +126,12 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
 	async getTags(): Promise<Tags> {
 		if (!this._tags) {
-			this._tags = await this.resolveWorkspaceTags(rootFiles => this.handleWorkspaceFiles(rootFiles));
+			this._tags = await this.resolveWorkspaceTags();
 		}
 
 		return this._tags;
@@ -301,7 +291,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(participant?: (rootFiles: string[]) => void): Promise<Tags> {
+	private resolveWorkspaceTags(): Promise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -318,17 +308,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		tags['workspace.empty'] = isEmpty;
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders();
-		if (!folders || !folders.length || !this.fileService) {
+		if (!folders || !folders.length) {
 			return Promise.resolve(tags);
 		}
 
 		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
-
-			if (participant) {
-				participant(names);
-			}
 
 			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
 			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
@@ -483,49 +469,6 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			});
 			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
 		});
-	}
-
-	private handleWorkspaceFiles(rootFiles: string[]): void {
-		const state = this.contextService.getWorkbenchState();
-		const workspace = this.contextService.getWorkspace();
-
-		// Handle top-level workspace files for local single folder workspace
-		if (state === WorkbenchState.FOLDER) {
-			const workspaceFiles = rootFiles.filter(hasWorkspaceFileExtension);
-			if (workspaceFiles.length > 0) {
-				this.doHandleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
-			}
-		}
-	}
-
-	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
-		const neverShowAgain: INeverShowAgainOptions = { id: 'workspaces.dontPromptToOpen', scope: NeverShowAgainScope.WORKSPACE, isSecondary: true };
-
-		// Prompt to open one workspace
-		if (workspaces.length === 1) {
-			const workspaceFile = workspaces[0];
-
-			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
-				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
-			}], { neverShowAgain });
-		}
-
-		// Prompt to select a workspace from many
-		else if (workspaces.length > 1) {
-			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one? [Learn more]({0}) about workspace files.", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
-				label: localize('selectWorkspace', "Select Workspace"),
-				run: () => {
-					this.quickInputService.pick(
-						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
-						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
-							if (pick) {
-								this.hostService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
-							}
-						});
-				}
-			}], { neverShowAgain });
-		}
 	}
 
 	private findFolders(): URI[] | undefined {
