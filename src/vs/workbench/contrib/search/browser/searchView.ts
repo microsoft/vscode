@@ -97,7 +97,7 @@ export interface IMatchContext {
 	/** uri of the file were this match happened */
 	uri: URI;
 	/** location of where the matched text is inside the file */
-	range: Range;
+	matchRange: Range;
 }
 
 export interface IFileMatchContext {
@@ -129,7 +129,7 @@ function toMatchContext(match: Match): IMatchContext {
 		uri: URI.parse(match.parent().id()),
 		matchedText: match.fullMatchText(),
 		replacementText: match.replaceString,
-		range: match.range()
+		matchRange: match.range()
 	} as IMatchContext;
 }
 
