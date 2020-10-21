@@ -790,8 +790,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private _layout(size: dom.Dimension | undefined): void {
-
 		if (!this.editor.hasModel()) {
+			return;
+		}
+		if (!this.editor.getDomNode()) {
+			// happens when running tests
 			return;
 		}
 
