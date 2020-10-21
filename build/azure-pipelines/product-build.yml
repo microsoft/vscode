@@ -137,6 +137,13 @@ stages:
     steps:
     - template: darwin/product-build-darwin.yml
 
+- stage: macOSARM64
+  dependsOn:
+  - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  pool:
+    name: Apple Silicon DTK
+  jobs:
   - job: macOSARM64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
     variables:
