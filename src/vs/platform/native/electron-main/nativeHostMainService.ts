@@ -645,6 +645,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (password) {
 			try {
 				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+				if (!content || !hasNextChunk) {
+					return password;
+				}
+
 				let index = 1;
 				while (hasNextChunk) {
 					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
