@@ -450,7 +450,7 @@ export class DebugService implements IDebugService {
 
 					actionList.push(new Action(
 						'installAdditionalDebuggers',
-						nls.localize('installAdditionalDebuggers', "Install {0} Extension", resolvedConfig.type),
+						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
 						undefined,
 						true,
 						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers')
