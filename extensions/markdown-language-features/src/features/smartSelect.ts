@@ -138,15 +138,7 @@ let createHeaderRange = (header: TocEntry | undefined, parent?: vscode.Selection
 let createBlockRange = (block: Token | undefined, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined => {
 	if (block) {
 		if (block.type === 'fence') {
-			let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(block.map[0], 0), new vscode.Position(block.map[1], getEndCharacter(document, block.map[0], block.map[1]))));
-			let childRange = new vscode.Range(new vscode.Position(block.map[0] + 1, 0), new vscode.Position(block.map[1] - 1, getEndCharacter(document, block.map[0] + 1, block.map[1] - 1)));
-			if (blockRange.range.contains(childRange)) {
-				if (parent && parent.range.contains(blockRange.range)) {
-					return new vscode.SelectionRange(childRange, new vscode.SelectionRange(blockRange.range, parent));
-				} else {
-					return new vscode.SelectionRange(childRange, blockRange);
-				}
-			}
+			return createFenceRange(block, document, parent);
 		} else {
 			let startLine = document.lineAt(block.map[0]).isEmptyOrWhitespace ? block.map[0] + 1 : block.map[0];
 			let endLine = document.lineAt(block.map[1]).isEmptyOrWhitespace ? block.map[1] - 1 : block.map[1];
@@ -161,6 +153,16 @@ let createBlockRange = (block: Token | undefined, document: vscode.TextDocument,
 		}
 	} else {
 		return undefined;
+	}
+};
+
+let createFenceRange = (token: Token, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange => {
+	let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(token.map[0], 0), new vscode.Position(token.map[1], getEndCharacter(document, token.map[0], token.map[1]))));
+	let childRange = new vscode.Range(new vscode.Position(token.map[0] + 1, 0), new vscode.Position(token.map[1] - 1, getEndCharacter(document, token.map[0] + 1, token.map[1] - 1)));
+	if (parent && parent.range.contains(blockRange.range)) {
+		return new vscode.SelectionRange(childRange, new vscode.SelectionRange(blockRange.range, parent));
+	} else {
+		return new vscode.SelectionRange(childRange, blockRange);
 	}
 };
 
