@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from 'vs/base/common/color';
+import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
+import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
 
 const ESC = '\x1b';
 const CSI = `${ESC}[`;
@@ -21,7 +22,7 @@ const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
 const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*:/i;
 const NOT_WORD_RE = /\W/;
 
-const statsBufferSize = 25;
+const statsBufferSize = 24;
 const statsSendTelemetryEvery = 1000 * 60 * 5; // how often to collect stats
 const statsMinSamplesToTurnOn = 5;
 const statsMinAccuracyToTurnOn = 0.3;
@@ -91,7 +92,7 @@ const enum MatchResult {
 	Buffer,
 }
 
-interface IPrediction {
+export interface IPrediction {
 	/**
 	 * Returns a sequence to apply the prediction.
 	 * @param buffer to write to
@@ -265,7 +266,7 @@ class CharacterPrediction implements IPrediction {
 			: { ...cursor, oldAttributes: '', oldChar: '' };
 
 		cursor.x++;
-		return this.style + this.char + `${CSI}0m`;
+		return this.style + this.char + this.appliedAt.oldAttributes;
 	}
 
 	public rollback(buffer: IBuffer) {
@@ -312,16 +313,25 @@ class BackspacePrediction extends CharacterPrediction {
 		return setCursorCoordinate(buffer, cursor) + DELETE_CHAR;
 	}
 
+	public rollForwards() {
+		return '';
+	}
+
 	public matches(input: StringReader) {
-		// if at end of line, allow backspace + clear line. Zsh does this.
-		if (this.appliedAt?.oldChar === '') {
-			const r = input.eatGradually(`\b${CSI}K`);
-			if (r !== MatchResult.Failure) {
-				return r;
+		const isEOL = this.appliedAt?.oldChar === '';
+		if (isEOL) {
+			const r1 = input.eatGradually(`\b${CSI}K`);
+			if (r1 !== MatchResult.Failure) {
+				return r1;
+			}
+
+			const r2 = input.eatGradually(`\b \b`);
+			if (r2 !== MatchResult.Failure) {
+				return r2;
 			}
 		}
 
-		return input.eatGradually('\b');
+		return MatchResult.Failure;
 	}
 }
 
@@ -433,11 +443,10 @@ class CursorMovePrediction implements IPrediction {
 	}
 }
 
-class PredictionStats implements IDisposable {
+export class PredictionStats extends Disposable {
 	private readonly stats: [latency: number, correct: boolean][] = [];
 	private index = 0;
 	private readonly addedAtTime = new WeakMap<IPrediction, number>();
-	private readonly disposables: IDisposable[] = [];
 	private readonly changeEmitter = new Emitter<void>();
 	public readonly onChange = this.changeEmitter.event;
 
@@ -452,7 +461,7 @@ class PredictionStats implements IDisposable {
 			}
 		}
 
-		return correctCount / this.stats.length;
+		return correctCount / (this.stats.length || 1);
 	}
 
 	/**
@@ -477,15 +486,10 @@ class PredictionStats implements IDisposable {
 	}
 
 	constructor(timeline: PredictionTimeline) {
-		this.disposables = [
-			timeline.onPredictionAdded(p => this.addedAtTime.set(p, Date.now())),
-			timeline.onPredictionSucceeded(this.pushStat.bind(this, true)),
-			timeline.onPredictionFailed(this.pushStat.bind(this, false)),
-		];
-	}
-
-	public dispose() {
-		this.disposables.forEach(d => d.dispose());
+		super();
+		this._register(timeline.onPredictionAdded(p => this.addedAtTime.set(p, Date.now())));
+		this._register(timeline.onPredictionSucceeded(this.pushStat.bind(this, true)));
+		this._register(timeline.onPredictionFailed(this.pushStat.bind(this, false)));
 	}
 
 	private pushStat(correct: boolean, prediction: IPrediction) {
@@ -496,7 +500,7 @@ class PredictionStats implements IDisposable {
 	}
 }
 
-class PredictionTimeline {
+export class PredictionTimeline {
 	/**
 	 * Expected queue of events. Only predictions for the lowest are
 	 * written into the terminal.
@@ -649,16 +653,15 @@ class PredictionTimeline {
 			return input;
 		}
 
-		if (output.length === 0) {
-			return '';
+		if (output.length === 0 || output === input) {
+			return output;
 		}
 
 		if (this.cursor) {
 			output += setCursorCoordinate(buffer, this.cursor);
 		}
 
-		// prevent cursor flickering while typing, since output will *always*
-		// contains cursor moves if we did anything with predictions:
+		// prevent cursor flickering while typing
 		output = HIDE_CURSOR + output + SHOW_CURSOR;
 
 		return output;
@@ -739,6 +742,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private typeaheadThreshold = this.config.config.typeaheadThreshold;
 	private lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
+	public stats?: PredictionStats;
 
 	constructor(
 		private readonly processManager: ITerminalProcessManager,
@@ -750,7 +754,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 	public activate(terminal: Terminal): void {
 		const timeline = this.timeline = new PredictionTimeline(terminal);
-		const stats = this._register(new PredictionStats(this.timeline));
+		const stats = this.stats = this._register(new PredictionStats(this.timeline));
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
 		this._register(terminal.onData(e => this.onUserData(e)));
@@ -762,7 +766,6 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 
 		let nextStatsSend: any;
-		let reevaluateTimer: any;
 		this._register(stats.onChange(() => {
 			if (!nextStatsSend) {
 				nextStatsSend = setTimeout(() => {
@@ -771,20 +774,18 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				}, statsSendTelemetryEvery);
 			}
 
-			// We want to toggle the state only when the user has a pause in their
-			// typing. Otherwise, we could turn this on when the PTY sent data but
-			// the terminal cursor is not updated, causes issues.
-			if (reevaluateTimer) {
-				clearTimeout(reevaluateTimer);
-			}
-
-			reevaluateTimer = setTimeout(() => {
-				this.reevaluatePredictorState(stats, timeline);
-				reevaluateTimer = undefined;
-			}, 100);
+			this.reevaluatePredictorState(stats, timeline);
 		}));
 	}
 
+	/**
+	 * Note on debounce:
+	 *
+	 * We want to toggle the state only when the user has a pause in their
+	 * typing. Otherwise, we could turn this on when the PTY sent data but the
+	 * terminal cursor is not updated, causes issues.
+	 */
+	@debounce(100)
 	private reevaluatePredictorState(stats: PredictionStats, timeline: PredictionTimeline) {
 		if (this.typeaheadThreshold < 0) {
 			timeline.setShowPredictions(false);

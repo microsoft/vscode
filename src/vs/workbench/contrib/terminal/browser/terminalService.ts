@@ -108,6 +108,7 @@ export class TerminalService implements ITerminalService {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IViewsService private _viewsService: IViewsService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService
 	) {
@@ -341,7 +342,8 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async initializeTerminals(): Promise<void> {
-		if (!!this._environmentService.remoteAuthority) {
+		const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue<boolean | undefined>('terminal.integrated.serverSpawn');
+		if (!!this._environmentService.remoteAuthority && enableRemoteAgentTerminals !== false) {
 			const emptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
 			this._terminalTabs.push(emptyTab);
 			this._onInstanceTitleChanged.fire(undefined);
@@ -352,15 +354,13 @@ export class TerminalService implements ITerminalService {
 				for (let term of remoteTerms.slice(1)) {
 					this.createTerminal({ remoteAttach: term });
 				}
-			} else {
+			} else if (this.terminalInstances.length === 0) {
 				// Remote, no terminals to attach to
 				this.createTerminal(undefined, emptyTab);
 			}
-		} else {
-			if (this.terminalInstances.length === 0) {
-				// Local, just create a terminal
-				this.createTerminal();
-			}
+		} else if (this.terminalInstances.length === 0) {
+			// Local, just create a terminal
+			this.createTerminal();
 		}
 	}
 
