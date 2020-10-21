@@ -20,10 +20,15 @@ export function canExpandCompletionItem(item: CompletionItem | undefined): boole
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
-export class SuggestDetailsWidget extends ResizableHTMLElement {
+export class SuggestDetailsWidget {
+
+	readonly domNode: HTMLDivElement;
 
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
+
+	private readonly _onDidChangeContents = new Emitter<this>();
+	readonly onDidChangeContents: Event<this> = this._onDidChangeContents.event;
 
 	private readonly _close: HTMLElement;
 	private readonly _scrollbar: DomScrollableElement;
@@ -35,14 +40,14 @@ export class SuggestDetailsWidget extends ResizableHTMLElement {
 
 	private _renderDisposeable?: IDisposable;
 	private _borderWidth: number = 1;
+	private _size = new dom.Dimension(0, 0);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _markdownRenderer: MarkdownRenderer,
 		private readonly _kbToggleDetails: string
 	) {
-		super();
-		this.domNode.classList.add('suggest-details');
+		this.domNode = dom.$('.suggest-details');
 
 		this._body = dom.$('.body');
 
@@ -99,7 +104,8 @@ export class SuggestDetailsWidget extends ResizableHTMLElement {
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
-		this.layout(this._lineHeight(), 220);
+		this.layout(220, this._lineHeight() * 2);
+		this._onDidChangeContents.fire(this);
 	}
 
 	renderItem(item: CompletionItem, explainMode: boolean): void {
@@ -158,12 +164,21 @@ export class SuggestDetailsWidget extends ResizableHTMLElement {
 		};
 
 		this._body.scrollTop = 0;
-		this.layout(this._lineHeight() * 7, 430);
+		this.layout(430, this._lineHeight() * 7);
+		this._onDidChangeContents.fire(this);
 	}
 
-	layout(height: number = this.size.height, width: number = this.size.width): void {
-		super.layout(height, width);
-		this._scrollbar.scanDomNode();
+	get size() {
+		return this._size;
+	}
+
+	layout(width: number, height: number): void {
+		const newSize = new dom.Dimension(width, height);
+		if (!dom.Dimension.equals(newSize, this._size)) {
+			this._size = newSize;
+			dom.size(this.domNode, width, height);
+			this._scrollbar.scanDomNode();
+		}
 	}
 
 	scrollDown(much = 8): void {
@@ -199,22 +214,38 @@ export class SuggestDetailsWidget extends ResizableHTMLElement {
 	}
 }
 
-export const enum SuggestDetailsPosition {
-	East,
-	South,
-	West
-}
-
 export class SuggestDetailsOverlay implements IOverlayWidget {
 
-	private _added = false;
+	private readonly _disposables = new DisposableStore();
+	private readonly _resizable: ResizableHTMLElement;
+	private _added: boolean = false;
+	private _anchorBox?: dom.IDomNodePagePosition;
 
 	constructor(
 		readonly widget: SuggestDetailsWidget,
 		private readonly _editor: ICodeEditor
-	) { }
+	) {
+
+		this._resizable = new ResizableHTMLElement();
+		this._resizable.domNode.classList.add('suggest-details-container');
+		this._resizable.domNode.appendChild(widget.domNode);
+		this._resizable.enableSashes(false, true, true, false);
+
+		this._disposables.add(this._resizable.onDidResize(e => {
+			if (this._anchorBox) {
+				this._placeAtAnchor(this._anchorBox, e.dimension);
+			}
+		}));
+
+		this._disposables.add(this.widget.onDidChangeContents(() => {
+			if (this._anchorBox) {
+				this._placeAtAnchor(this._anchorBox, this.widget.size);
+			}
+		}));
+	}
 
 	dispose(): void {
+		this._disposables.dispose();
 		this.hide();
 	}
 
@@ -223,7 +254,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	getDomNode(): HTMLElement {
-		return this.widget.domNode;
+		return this._resizable.domNode;
 	}
 
 	getPosition(): null {
@@ -242,56 +273,82 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		if (this._added) {
 			this._editor.removeOverlayWidget(this);
 			this._added = false;
+			this._anchorBox = undefined;
 		}
 	}
 
 	placeAtAnchor(anchor: HTMLElement) {
-		const bodyBox = dom.getClientArea(document.body);
 		const anchorBox = dom.getDomNodePagePosition(anchor);
+		this._anchorBox = anchorBox;
+		this._placeAtAnchor(this._anchorBox, this.widget.size);
+	}
 
-		let size = this.widget.size;
-		let maxSize: dom.Dimension;
+	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
+		const bodyBox = dom.getClientArea(document.body);
+		const borderHeight = 2 * this.widget.borderWidth;
+
+		let maxSizeTop: dom.Dimension;
+		let maxSizeBottom: dom.Dimension;
 		let minSize = new dom.Dimension(220, this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight);
-
-		// position: east, west, south
-		let pos = SuggestDetailsPosition.East;
-		let width = bodyBox.width - (anchorBox.left + anchorBox.width); // east width
-
-		if (anchorBox.left > width) {
-			pos = SuggestDetailsPosition.West;
-			width = anchorBox.left;
-		}
-
-		if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
-			pos = SuggestDetailsPosition.South;
-			width = anchorBox.width;
-		}
 
 		let left = 0;
 		let top = anchorBox.top;
+		let bottom = anchorBox.top + anchorBox.height - borderHeight;
 
-		if (pos === SuggestDetailsPosition.East) {
-			left = -this.widget.borderWidth + anchorBox.left + anchorBox.width;
-			maxSize = new dom.Dimension(bodyBox.width - (anchorBox.left + anchorBox.width), bodyBox.height - anchorBox.top);
+		// position: EAST, west, south
+		let width = bodyBox.width - (anchorBox.left + anchorBox.width);
+		left = -this.widget.borderWidth + anchorBox.left + anchorBox.width;
+		maxSizeTop = new dom.Dimension(bodyBox.width - (anchorBox.left + anchorBox.width), bodyBox.height - anchorBox.top);
+		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height);
 
-		} else if (pos === SuggestDetailsPosition.West) {
+		// position: east, WEST, south
+		if (anchorBox.left > width) {
+			// pos = SuggestDetailsPosition.West;
+			width = anchorBox.left;
 			left = Math.max(0, anchorBox.left - (size.width + this.widget.borderWidth));
-			maxSize = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
-
-		} else {
-			left = anchorBox.left;
-			top = -this.widget.borderWidth + anchorBox.top + anchorBox.height;
-			maxSize = new dom.Dimension(anchorBox.width - (this.widget.borderWidth * 2), bodyBox.height - (anchorBox.top + anchorBox.height));
-			minSize = minSize.with(maxSize.width);
+			maxSizeTop = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
+			maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
 		}
 
-		this.widget.minSize = minSize;
-		this.widget.maxSize = maxSize;
-		this.widget.layout();
-		this.widget.enableSashes(false, true, true);
+		// position: east, west, SOUTH
+		if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
+			width = anchorBox.width;
+			left = anchorBox.left;
+			top = -this.widget.borderWidth + anchorBox.top + anchorBox.height;
+			maxSizeTop = new dom.Dimension(anchorBox.width - borderHeight, bodyBox.height - (anchorBox.top + anchorBox.height));
+			maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top);
+			minSize = minSize.with(maxSizeTop.width);
+		}
+
+		// top/bottom placement
+		let alignAtTop: boolean;
+		let height = size.height;
+		let maxHeight = Math.max(maxSizeTop.height, maxSizeBottom.height);
+		if (height > maxHeight) {
+			height = maxHeight;
+		}
+		let maxSize: dom.Dimension;
+		if (height < maxSizeTop.height) {
+			alignAtTop = true;
+			maxSize = maxSizeTop;
+		} else {
+			alignAtTop = false;
+			maxSize = maxSizeBottom;
+		}
 
 		this.getDomNode().style.position = 'fixed';
-		this.getDomNode().style.left = left + 'px';
-		this.getDomNode().style.top = top + 'px';
+		this.getDomNode().style.left = `${left}px`;
+		if (alignAtTop) {
+			this.getDomNode().style.top = `${top}px`;
+			this._resizable.enableSashes(false, true, true, false);
+		} else {
+			this.getDomNode().style.top = `${bottom - height}px`;
+			this._resizable.enableSashes(true, true, false, false);
+		}
+
+		this._resizable.minSize = minSize;
+		this._resizable.maxSize = maxSize;
+		this._resizable.layout(height, Math.min(maxSize.width, size.width));
+		this.widget.layout(this._resizable.size.width, this._resizable.size.height);
 	}
 }

@@ -310,11 +310,14 @@
 
 /** Styles for the docs of the completion item in focus **/
 
+.monaco-editor .suggest-details-container {
+	z-index: 41;
+}
+
 .monaco-editor .suggest-details {
 	display: flex;
 	flex-direction: column;
 	cursor: default;
-	z-index: 41;
 }
 
 .monaco-editor .suggest-details.no-docs {

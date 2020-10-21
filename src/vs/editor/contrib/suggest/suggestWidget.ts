@@ -780,7 +780,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			// showing a message only
 			height = itemHeight + borderHeight;
 			width = 230;
-			this.element.enableSashes(false, false, false);
+			this.element.enableSashes(false, false, false, false);
 			this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
 			this._widgetPosition = ContentWidgetPositionPreference.BELOW;
 
@@ -819,12 +819,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 			if (height > maxHeightBelow) {
 				this._widgetPosition = ContentWidgetPositionPreference.ABOVE;
-				this.element.enableSashes(true, true, false);
+				this.element.enableSashes(true, true, false, false);
 				maxHeight = maxHeightAbove;
 
 			} else {
 				this._widgetPosition = ContentWidgetPositionPreference.BELOW;
-				this.element.enableSashes(false, true, true);
+				this.element.enableSashes(false, true, true, false);
 				maxHeight = maxHeightBelow;
 			}
 
