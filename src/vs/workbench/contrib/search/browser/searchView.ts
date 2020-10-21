@@ -1197,8 +1197,8 @@ export class SearchView extends ViewPane {
 		if (typeof args.preserveCase === 'boolean') {
 			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
 		}
-		if (typeof args.excludeSettingAndIgnoreFiles === 'boolean') {
-			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.excludeSettingAndIgnoreFiles);
+		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
+			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
 		}
 	}
 
