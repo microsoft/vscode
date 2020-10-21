@@ -382,11 +382,13 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
-		const [matches, descriptionMatches] = splitMatches(uri, node.filterData);
 		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
 		template.actionBar.clear();
 		template.actionBar.context = resourceOrFolder;
+
+		let matches: IMatch[] | undefined;
+		let descriptionMatches: IMatch[] | undefined;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
@@ -401,6 +403,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 				template.element.classList.remove('faded');
 			}
 		} else {
+			[matches, descriptionMatches] = splitMatches(uri, node.filterData);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
 			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
@@ -451,12 +454,9 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const label = compressed.elements.map(e => e.name).join('/');
 		const fileKind = FileKind.FOLDER;
 
-		const [matches, descriptionMatches] = splitMatches(folder.uri, node.filterData);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
-			fileKind,
-			matches,
-			descriptionMatches
+			fileKind
 		});
 
 		template.actionBar.clear();
@@ -596,7 +596,10 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
 
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+	constructor(
+		private viewModelProvider: () => ViewModel,
+		@ILabelService private readonly labelService: ILabelService,
+	) { }
 
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | undefined {
 		if (ResourceTree.isResourceNode(element)) {
@@ -608,12 +611,18 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			// Since a match in the file name takes precedence over a match
-			// in the folder name we are returning the label as file/folder.
-			const fileName = basename(element.sourceUri);
-			const filePath = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true });
-
-			return filePath.length !== 0 ? `${fileName} ${filePath}` : fileName;
+			const viewModel = this.viewModelProvider();
+			if (viewModel.mode === ViewModelMode.List) {
+				// In List mode match using the file name and the path.
+				// Since a match in the file name takes precedence over a match
+				// in the folder name we are returning the label as file folder.
+				const fileName = basename(element.sourceUri);
+				const filePath = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true });
+				return filePath.length !== 0 ? `${fileName} ${filePath}` : fileName;
+			} else {
+				// In Tree mode only match using the file name
+				return basename(element.sourceUri);
+			}
 		}
 	}
 
@@ -1640,7 +1649,7 @@ export class SCMViewPane extends ViewPane {
 
 		const filter = new SCMTreeFilter();
 		const sorter = new SCMTreeSorter(() => this.viewModel);
-		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider);
+		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewModel);
 		const identityProvider = new SCMResourceIdentityProvider();
 
 		this.tree = this.instantiationService.createInstance(
