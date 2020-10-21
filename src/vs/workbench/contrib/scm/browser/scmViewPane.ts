@@ -1467,10 +1467,7 @@ class SCMInputWidget extends Disposable {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const dimension: Dimension = {
-			width: this.element.clientWidth - 2,
-			height: editorHeight,
-		};
+		const dimension = new Dimension(this.element.clientWidth - 2, editorHeight);
 
 		this.inputEditor.layout(dimension);
 		this.renderValidation();

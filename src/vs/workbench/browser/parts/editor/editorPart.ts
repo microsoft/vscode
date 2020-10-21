@@ -1075,7 +1075,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
 		// Layout editor container
-		this.doLayout(contentAreaSize);
+		this.doLayout(Dimension.lift(contentAreaSize));
 	}
 
 	private doLayout(dimension: Dimension): void {
