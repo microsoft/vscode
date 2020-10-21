@@ -5,7 +5,7 @@
 
 import { ILogService, LogLevel, AbstractLogService, ILoggerService, ILogger } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { dirname, joinPath, basename } from 'vs/base/common/resources';
@@ -87,8 +87,12 @@ export class FileLogService extends AbstractLogService implements ILogService {
 	}
 
 	private async initialize(): Promise<void> {
-		if (!await this.fileService.exists(this.resource)) {
+		try {
 			await this.fileService.createFile(this.resource);
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_MODIFIED_SINCE) {
+				throw error;
+			}
 		}
 	}
 

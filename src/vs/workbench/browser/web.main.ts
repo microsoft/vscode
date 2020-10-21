@@ -44,7 +44,7 @@ import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/wi
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { WebResourceIdentityService, IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
@@ -52,6 +52,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class BrowserMain extends Disposable {
 
@@ -97,11 +98,13 @@ class BrowserMain extends Disposable {
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);
+			const lifecycleService = accessor.get(ILifecycleService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
-				}
+				},
+				shutdown: () => lifecycleService.shutdown()
 			};
 		});
 	}
@@ -127,7 +130,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				console.warn('Unload prevented: pending storage update');
+				console.warn('Unload veto: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
 			}
 		}));

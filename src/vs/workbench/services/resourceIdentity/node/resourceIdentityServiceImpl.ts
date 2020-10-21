@@ -8,7 +8,7 @@ import { stat } from 'vs/base/node/pfs';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 

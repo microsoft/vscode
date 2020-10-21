@@ -18,7 +18,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
-import { removeClasses, addClasses, createStyleSheet } from 'vs/base/browser/dom';
+import { createStyleSheet } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -456,11 +456,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {
-			removeClasses(this.container, this.currentColorTheme.id);
+			this.container.classList.remove(...this.currentColorTheme.classNames);
 		} else {
-			removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
+			this.container.classList.remove(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 		}
-		addClasses(this.container, newTheme.id);
+		this.container.classList.add(...newTheme.classNames);
 
 		this.currentColorTheme.clearCaches();
 		this.currentColorTheme = newTheme;
@@ -575,9 +575,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules(iconThemeData.styleSheetContent!, fileIconThemeRulesClassName);
 
 		if (iconThemeData.id) {
-			addClasses(this.container, fileIconsEnabledClass);
+			this.container.classList.add(fileIconsEnabledClass);
 		} else {
-			removeClasses(this.container, fileIconsEnabledClass);
+			this.container.classList.remove(fileIconsEnabledClass);
 		}
 
 		this.fileIconThemeWatcher.update(iconThemeData);

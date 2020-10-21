@@ -35,31 +35,15 @@ export function isInDOM(node: Node | null): boolean {
 
 interface IDomClassList {
 	addClass(node: HTMLElement | SVGElement, className: string): void;
-	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
-	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
 	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
 const _classList: IDomClassList = new class implements IDomClassList {
 
-	addClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
-	}
-
 	addClass(node: HTMLElement, className: string): void {
 		if (className && node.classList) {
 			node.classList.add(className);
 		}
-	}
-
-	removeClass(node: HTMLElement, className: string): void {
-		if (className && node.classList) {
-			node.classList.remove(className);
-		}
-	}
-
-	removeClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
 	}
 
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
@@ -71,10 +55,6 @@ const _classList: IDomClassList = new class implements IDomClassList {
 
 /** @deprecated ES6 - use classList*/
 export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
-/** @deprecated ES6 - use classList*/
-export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
 export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
 
