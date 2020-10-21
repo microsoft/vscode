@@ -22,14 +22,15 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 	private async provideSelectionRange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange> {
 		const headerRange = await this.getHeaderSelectionRange(document, position);
-		const blockRange = await this.getBlockSelectionRange(document, position);
-		return this.consolidateRanges(headerRange, blockRange);
+		const blockRange = await this.getBlockSelectionRange(document, position, headerRange);
+		return blockRange ? blockRange : headerRange ? headerRange : new vscode.SelectionRange(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)));
+		// return this.consolidateRanges(headerRange, blockRange);
 	}
 
 	private consolidateRanges(headerRange: vscode.SelectionRange | undefined, blockRange: vscode.SelectionRange | undefined): vscode.SelectionRange {
 		if (headerRange && blockRange) {
 			const blockParent = blockRange.parent;
-
+			// let ranges = getRanges(blockRange, headerRange);
 			if (blockParent) {
 				if (headerRange.range.contains(blockParent.range)) {
 					if (blockParent.parent && headerRange.range.contains(blockParent.parent.range)) {
@@ -64,7 +65,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		}
 	}
 
-	private async getBlockSelectionRange(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
+	private async getBlockSelectionRange(document: vscode.TextDocument, position: vscode.Position, headerRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
 
 		const tokens = await this.engine.parse(document);
 
@@ -89,7 +90,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 					return 0;
 				}
 			});
-		let parentRange = createBlockRange(sortedTokens.shift(), document);
+		let parentRange = headerRange ? headerRange : createBlockRange(sortedTokens.shift(), document);
 		let currentRange: vscode.SelectionRange | undefined;
 		for (const token of sortedTokens) {
 			currentRange = createBlockRange(token, document, parentRange);
