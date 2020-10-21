@@ -80,37 +80,39 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
-function splitMatches(uri: URI, filterData: FuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
-	let matches: IMatch[] | undefined;
+function processFilterData(uri: URI, filterData: { value: string, score: FuzzyScore } | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+	let labelMatches: IMatch[] | undefined;
 	let descriptionMatches: IMatch[] | undefined;
 
-	if (filterData) {
-		matches = [];
+	if (filterData && filterData.value && filterData.score) {
+		labelMatches = [];
 		descriptionMatches = [];
 
 		const fileName = basename(uri);
-		const allMatches = createMatches(filterData);
+		const matches = createMatches(filterData.score);
 
-		for (const match of allMatches) {
-			if (match.start < fileName.length) {
-				matches!.push(
-					{
+		if (fileName === filterData.value) {
+			// FileName match
+			labelMatches.push(...matches);
+		} else {
+			// FilePath match
+			for (const match of matches) {
+				if (match.start < filterData.value.length - fileName.length) {
+					descriptionMatches.push({
 						start: match.start,
-						end: Math.min(match.end, fileName.length)
-					}
-				);
-			} else {
-				descriptionMatches!.push(
-					{
-						start: match.start - (fileName.length + 1),
-						end: match.end - (fileName.length + 1)
-					}
-				);
+						end: Math.min(match.end, filterData.value.length - fileName.length)
+					});
+				} else {
+					labelMatches.push({
+						start: match.start - (filterData.value.length - fileName.length),
+						end: match.end - (filterData.value.length - fileName.length)
+					});
+				}
 			}
 		}
 	}
 
-	return [matches, descriptionMatches];
+	return [labelMatches, descriptionMatches];
 }
 
 interface ISCMLayout {
@@ -373,7 +375,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		return { element, name, fileLabel, decorationIcon, actionBar, elementDisposables: Disposable.None, disposables };
 	}
 
-	renderElement(node: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore>, index: number, template: ResourceTemplate): void {
+	renderElement(node: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | { value: string; score: FuzzyScore }>, index: number, template: ResourceTemplate): void {
 		template.elementDisposables.dispose();
 
 		const elementDisposables = new DisposableStore();
@@ -403,7 +405,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 				template.element.classList.remove('faded');
 			}
 		} else {
-			[matches, descriptionMatches] = splitMatches(uri, node.filterData);
+			[matches, descriptionMatches] = processFilterData(uri, node.filterData as { value: string, score: FuzzyScore } | undefined);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
 			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
@@ -601,7 +603,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | undefined {
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | { toString(): string; }[] | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element)) {
@@ -617,8 +619,9 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 				// Since a match in the file name takes precedence over a match
 				// in the folder name we are returning the label as file folder.
 				const fileName = basename(element.sourceUri);
-				const filePath = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true });
-				return filePath.length !== 0 ? `${fileName} ${filePath}` : fileName;
+				const filePath = this.labelService.getUriLabel(element.sourceUri, { relative: true });
+
+				return [fileName, filePath];
 			} else {
 				// In Tree mode only match using the file name
 				return basename(element.sourceUri);
