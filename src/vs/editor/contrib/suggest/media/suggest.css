@@ -6,10 +6,15 @@
 /* Suggest widget*/
 
 .monaco-editor .suggest-widget {
-	width: 430px; /** Initial widths **/
+	width: 430px;
 	z-index: 40;
 	display: flex;
 	flex-direction: column;
+}
+
+.monaco-editor .suggest-widget.message {
+	flex-direction: row;
+	align-items: center;
 }
 
 .monaco-editor .suggest-widget,
