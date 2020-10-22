@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./dropdown';
-import { IAction, IActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
+import { Action, IAction, IActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { append, $ } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
@@ -134,4 +134,33 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			this.dropdownMenu.show();
 		}
 	}
+}
+
+export interface IActionWithDropdownActionViewItemOptions extends IActionViewItemOptions {
+	readonly menuActionsOrProvider: readonly IAction[] | IActionProvider;
+	readonly menuActionClassNames?: string[];
+}
+
+export class ActionWithDropdownActionViewItem extends ActionViewItem {
+
+	protected dropdownMenuActionViewItem: DropdownMenuActionViewItem | undefined;
+
+	constructor(
+		context: unknown,
+		action: IAction,
+		options: IActionWithDropdownActionViewItemOptions,
+		private readonly contextMenuProvider: IContextMenuProvider
+	) {
+		super(context, action, options);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		if (this.element) {
+			this.element.classList.add('action-dropdown-item');
+			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(new Action('dropdownAction', undefined), (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider, this.contextMenuProvider, { classNames: ['dropdown', 'codicon-chevron-down', ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
+			this.dropdownMenuActionViewItem.render(this.element);
+		}
+	}
+
 }
