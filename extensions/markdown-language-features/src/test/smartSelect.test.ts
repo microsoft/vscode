@@ -17,12 +17,7 @@ const testFileName = vscode.Uri.file('test.md');
 suite.only('markdown.SmartSelect', () => {
 	test('Smart select single word', async () => {
 		const ranges = await getSelectionRangesForDocument(`Hel${CURSOR}lo`);
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 0);
-			assert.strictEqual(ranges[0].range.end.line, 1);
-		} else {
-			throw new Error('ranges are undefined');
-		}
+		assertNestedRangesEqual(ranges![0], [0, 1]);
 	});
 	test('Smart select multi-line paragraph', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -31,21 +26,12 @@ suite.only('markdown.SmartSelect', () => {
 				`For example, the[node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter]`,
 				`(https://github.com/microsoft/vscode-mono-debug) have their own repositories. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).`
 			));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 0);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-		} else {
-			throw new Error('ranges are undefined');
-		}
+		assertNestedRangesEqual(ranges![0], [0, 3]);
 	});
 	test('Smart select paragraph', async () => {
 		const ranges = await getSelectionRangesForDocument(`Many of the core components and extensions to ${CURSOR}VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) have their own repositories. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).`);
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 0);
-			assert.strictEqual(ranges[0].range.end.line, 1);
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [0, 1]);
 	});
 	test('Smart select html block', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -53,33 +39,17 @@ suite.only('markdown.SmartSelect', () => {
 				`<p align="center">`,
 				`${CURSOR}<img alt="VS Code in action" src="https://user-images.githubusercontent.com/1487073/58344409-70473b80-7e0a-11e9-8570-b2efc6f8fa44.png">`,
 				`</p>`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 0);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [0, 3]);
 	});
 	test('Smart select header on header line', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# Header${CURSOR}`,
 				`Hello`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 1);
-			assert.strictEqual(ranges[0].range.end.line, 1);
-			assert.strictEqual(ranges[0].range.start.character, 0);
-			assert.strictEqual(ranges[0].range.end.character, 5);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].range.start.line, 1);
-				assert.strictEqual(ranges[0].range.end.line, 1);
-				assert.strictEqual(ranges[0].range.start.character, 0);
-				assert.strictEqual(ranges[0].range.end.character, 5);
-			}
-		}
-		else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [1, 1], [0, 1]);
+
 	});
 	test('Smart select single word w grandparent header on text line', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -88,16 +58,8 @@ suite.only('markdown.SmartSelect', () => {
 				`# Header`,
 				`${CURSOR}Hello`
 			));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 2);
-			assert.strictEqual(ranges[0].range.end.line, 2);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 1);
-				assert.strictEqual(ranges[0].parent.range.end.line, 2);
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [2, 2], [1, 2]);
 	});
 	test('Smart select html block w parent header', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -106,20 +68,8 @@ suite.only('markdown.SmartSelect', () => {
 				`${CURSOR}<p align="center">`,
 				`<img alt="VS Code in action" src="https://user-images.githubusercontent.com/1487073/58344409-70473b80-7e0a-11e9-8570-b2efc6f8fa44.png">`,
 				`</p>`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 1);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 1);
-				assert.strictEqual(ranges[0].parent.range.end.line, 3);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 3);
-				}
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [1, 3], [1, 3], [0, 3]);
 	});
 	test('Smart select fenced code block', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -127,16 +77,8 @@ suite.only('markdown.SmartSelect', () => {
 				`~~~`,
 				`a${CURSOR}`,
 				`~~~`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 1);
-			assert.strictEqual(ranges[0].range.end.line, 2);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 0);
-				assert.strictEqual(ranges[0].parent.range.end.line, 3);
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [1, 2], [0, 3]);
 	});
 	test('Smart select list', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -145,16 +87,8 @@ suite.only('markdown.SmartSelect', () => {
 				`- ${CURSOR}item 2`,
 				`- item 3`,
 				`- item 4`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 1);
-			assert.strictEqual(ranges[0].range.end.line, 2);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 0);
-				assert.strictEqual(ranges[0].parent.range.end.line, 4);
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [1, 2], [0, 4]);
 	});
 	test('Smart select list with fenced code block', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -165,20 +99,8 @@ suite.only('markdown.SmartSelect', () => {
 				`  ~~~`,
 				`- item 3`,
 				`- item 4`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 2);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 1);
-				assert.strictEqual(ranges[0].parent.range.end.line, 4);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 6);
-				}
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [2, 3], [1, 4], [0, 6]);
 	});
 	test('Smart select multi cursor', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -189,22 +111,9 @@ suite.only('markdown.SmartSelect', () => {
 				`  ~~~`,
 				`- ${CURSOR}item 3`,
 				`- item 4`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 0);
-			assert.strictEqual(ranges[0].range.end.line, 1);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 0);
-				assert.strictEqual(ranges[0].parent.range.end.line, 6);
-			}
-			assert.strictEqual(ranges[1].range.start.line, 4);
-			assert.strictEqual(ranges[1].range.end.line, 5);
-			if (ranges[1].parent) {
-				assert.strictEqual(ranges[1].parent.range.start.line, 0);
-				assert.strictEqual(ranges[1].parent.range.end.line, 6);
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [0, 1], [0, 6]);
+		assertNestedRangesEqual(ranges![1], [4, 5], [0, 6]);
 	});
 	test('Smart select nested block quotes', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -222,24 +131,8 @@ suite.only('markdown.SmartSelect', () => {
 				`>> item 2`,
 				`>>> ${CURSOR}item 3`,
 				`>>>> item 4`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 2);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 2);
-				assert.strictEqual(ranges[0].parent.range.end.line, 4);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 1);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 4);
-					if (ranges[0].parent.parent.parent) {
-						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 0);
-						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 4);
-					}
-				}
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [2, 3], [2, 4], [1, 4], [0, 4]);
 	});
 	test('Smart select subheader content', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -249,43 +142,19 @@ suite.only('markdown.SmartSelect', () => {
 				`## sub header 1`,
 				`${CURSOR}content 2`,
 				`# main header 2`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 3);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 2);
-				assert.strictEqual(ranges[0].parent.range.end.line, 3);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 1);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 3);
-					if (ranges[0].parent.parent.parent) {
-						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 0);
-						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 3);
-					}
-				}
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [3, 3], [2, 3], [1, 3], [0, 3]);
 	});
 	test('Smart select subheader line', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# main header 1`,
 				`content 1`,
-				`${CURSOR}## sub header 1`,
+				`## sub header 1${CURSOR}`,
 				`content 2`,
 				`# main header 2`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 1);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 0);
-				assert.strictEqual(ranges[0].parent.range.end.line, 3);
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [2, 3], [1, 3], [0, 3]);
 	});
 	test('Smart select blank line', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -295,16 +164,8 @@ suite.only('markdown.SmartSelect', () => {
 				`${CURSOR}             `,
 				`content 2`,
 				`# main header 2`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 1);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 0);
-				assert.strictEqual(ranges[0].parent.range.end.line, 3);
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [1, 3], [0, 3]);
 	});
 	test('Smart select line between paragraphs', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -312,16 +173,12 @@ suite.only('markdown.SmartSelect', () => {
 				`paragraph 1`,
 				`${CURSOR}`,
 				`paragraph 2`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 0);
-			assert.strictEqual(ranges[0].range.end.line, 3);
-		} else {
-			throw new Error('ranges are undefined');
-		}
+
+		assertNestedRangesEqual(ranges![0], [0, 3]);
 	});
 	test('Smart select empty document', async () => {
 		const ranges = await getSelectionRangesForDocument(``, [new vscode.Position(0, 0)]);
-		assert.strictEqual(ranges?.length, 0);
+		assert.strictEqual(ranges!.length, 0);
 	});
 	test('Smart select fenced code block then list then subheader content then subheader then header content then header', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -338,43 +195,14 @@ suite.only('markdown.SmartSelect', () => {
 				``,
 				`more content`,
 				`# main header 2`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 5);
-			assert.strictEqual(ranges[0].range.end.line, 6);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 4);
-				assert.strictEqual(ranges[0].parent.range.end.line, 7);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 3);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 10);
-					if (ranges[0].parent.parent.parent) {
-						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 3);
-						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 10);
-						if (ranges[0].parent.parent.parent.parent) {
-							assert.strictEqual(ranges[0].parent.parent.parent.parent.range.start.line, 2);
-							assert.strictEqual(ranges[0].parent.parent.parent.parent.range.end.line, 10);
-							if (ranges[0].parent.parent.parent.parent.parent) {
-								assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.range.start.line, 1);
-								assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.range.end.line, 10);
-								if (ranges[0].parent.parent.parent.parent.parent.parent) {
-									assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.range.start.line, 0);
-									assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.range.end.line, 10);
 
-								}
-							}
-						}
-					}
-				}
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+		assertNestedRangesEqual(ranges![0], [5, 6], [4, 7], [3, 10], [3, 10], [2, 10], [1, 10], [0, 10]);
 	});
 });
 
 function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {
 	const lineage = getLineage(range);
-	assert.strictEqual(lineage.length, expectedRanges.length);
+	assert.strictEqual(lineage.length, expectedRanges.length, `expected depth: ${expectedRanges.length}, but was ${lineage.length}`);
 	for (let i = 0; i < lineage.length; i++) {
 		assertRangesEqual(lineage[i], expectedRanges[i][0], expectedRanges[i][1], `parent at a depth of ${i}`);
 	}
