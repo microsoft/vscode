@@ -29,6 +29,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { mergeSort } from 'vs/base/common/arrays';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
@@ -55,7 +56,20 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async _updateConfigValues(): Promise<void> {
-		const extensions = await this._extensionService.getExtensions();
+		let extensions = await this._extensionService.getExtensions();
+
+		extensions = mergeSort(extensions, (a, b) => {
+			let boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+			let boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+
+			if (boostA && !boostB) {
+				return -1;
+			} else if (!boostA && boostB) {
+				return 1;
+			} else {
+				return a.name.localeCompare(b.name);
+			}
+		});
 
 		DefaultFormatter.extensionIds.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;

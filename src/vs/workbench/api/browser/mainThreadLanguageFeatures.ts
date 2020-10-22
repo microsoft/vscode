@@ -445,22 +445,21 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		const provider: modes.CompletionItemProvider = {
 			triggerCharacters,
 			_debugDisplayName: extensionId.value,
-			provideCompletionItems: (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
-				return this._proxy.$provideCompletionItems(handle, model.uri, position, context, token).then(result => {
-					if (!result) {
-						return result;
-					}
-
-					return {
-						suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
-						incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
-						dispose: () => {
-							if (typeof result.x === 'number') {
-								this._proxy.$releaseCompletionItems(handle, result.x);
-							}
+			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
+				const result = await this._proxy.$provideCompletionItems(handle, model.uri, position, context, token);
+				if (!result) {
+					return result;
+				}
+				return {
+					suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
+					incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
+					duration: result[ISuggestResultDtoField.duration],
+					dispose: () => {
+						if (typeof result.x === 'number') {
+							this._proxy.$releaseCompletionItems(handle, result.x);
 						}
-					};
-				});
+					}
+				};
 			}
 		};
 		if (supportsResolveDetails) {

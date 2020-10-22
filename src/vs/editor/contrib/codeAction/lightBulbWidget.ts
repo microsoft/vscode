@@ -16,7 +16,7 @@ import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorLightBulbForeground, editorLightBulbAutoFixForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Gesture } from 'vs/base/browser/touch';
 import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { Codicon } from 'vs/base/common/codicons';
@@ -233,12 +233,15 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
+	const editorBackgroundColor = theme.getColor(editorBackground)?.transparent(0.7);
+
 	// Lightbulb Icon
 	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
 	if (editorLightBulbForegroundColor) {
 		collector.addRule(`
 		.monaco-editor .contentWidgets ${Codicon.lightBulb.cssSelector} {
 			color: ${editorLightBulbForegroundColor};
+			background-color: ${editorBackgroundColor};
 		}`);
 	}
 
@@ -248,6 +251,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`
 		.monaco-editor .contentWidgets ${Codicon.lightbulbAutofix.cssSelector} {
 			color: ${editorLightBulbAutoFixForegroundColor};
+			background-color: ${editorBackgroundColor};
 		}`);
 	}
 

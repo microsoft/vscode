@@ -1284,7 +1284,7 @@ export class TabsTitleControl extends TitleControl {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			const tabsScrollbar = assertIsDefined(this.tabsScrollbar);
 
-			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.breadcrumbsControl.layout(new Dimension(dimension.width, BreadcrumbsControl.HEIGHT));
 			tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 	}

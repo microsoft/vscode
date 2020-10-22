@@ -571,12 +571,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					properties: {
 						query: { 'type': 'string' },
 						replace: { 'type': 'string' },
+						preserveCase: { 'type': 'boolean' },
 						triggerSearch: { 'type': 'boolean' },
 						filesToInclude: { 'type': 'string' },
 						filesToExclude: { 'type': 'string' },
 						isRegex: { 'type': 'boolean' },
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
+						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 					}
 				}
 			},
