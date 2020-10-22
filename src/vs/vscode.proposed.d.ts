@@ -1529,7 +1529,7 @@ declare module 'vscode' {
 		 *
 		 * Messages are only delivered if the editor is live.
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -1731,7 +1731,7 @@ declare module 'vscode' {
 		 *
 		 * Messages are only delivered if the editor is live.
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
