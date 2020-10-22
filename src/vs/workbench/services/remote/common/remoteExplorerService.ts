@@ -83,8 +83,8 @@ export function mapHasTunnelLocalhostOrAllInterfaces(map: Map<string, Tunnel>, h
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<string, Tunnel>;
 	readonly detected: Map<string, Tunnel>;
-	private _onForwardPort: Emitter<Tunnel> = new Emitter();
-	public onForwardPort: Event<Tunnel> = this._onForwardPort.event;
+	private _onForwardPort: Emitter<Tunnel | void> = new Emitter();
+	public onForwardPort: Event<Tunnel | void> = this._onForwardPort.event;
 	private _onClosePort: Emitter<{ host: string, port: number }> = new Emitter();
 	public onClosePort: Event<{ host: string, port: number }> = this._onClosePort.event;
 	private _onPortName: Emitter<{ host: string, port: number }> = new Emitter();
@@ -214,6 +214,7 @@ export class TunnelModel extends Disposable {
 				closeable: false
 			});
 		});
+		this._onForwardPort.fire();
 	}
 
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void {
