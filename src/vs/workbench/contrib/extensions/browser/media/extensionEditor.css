@@ -170,7 +170,7 @@
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.dropdown.label {
-	padding: 1px 3px;
+	padding: 1px 0px;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {

@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -53,7 +53,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { prefersExecuteOnUI, prefersExecuteOnWorkspace, canExecuteOnUI, canExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { prefersExecuteOnUI, prefersExecuteOnWorkspace, canExecuteOnUI, canExecuteOnWorkspace, prefersExecuteOnWeb } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -63,6 +63,9 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { EXTENSIONS_CONFIG } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
 const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error, instantiationService: IInstantiationService): Promise<any> => {
 	return instantiationService.invokeFunction(accessor => {
@@ -146,75 +149,86 @@ export abstract class ExtensionAction extends Action implements IExtensionContai
 	abstract update(): void;
 }
 
-export class InstallAction extends ExtensionAction {
+export abstract class ActionWithDropDownAction extends ExtensionAction {
 
-	private static readonly INSTALL_LABEL = localize('install', "Install");
-	private static readonly INSTALLING_LABEL = localize('installing', "Installing");
+	private action: IAction | undefined;
 
-	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
-	private static readonly InstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} install installing`;
+	private _menuActions: IAction[] = [];
+	get menuActions(): IAction[] { return [...this._menuActions]; }
 
-	private _manifest: IExtensionManifest | null = null;
+	set extension(extension: IExtension | null) {
+		this.actions.forEach(a => a.extension = extension);
+		super.extension = extension;
+	}
+
+	constructor(
+		id: string, label: string,
+		protected readonly actions: ExtensionAction[],
+	) {
+		super(id, label);
+		this.update();
+		this._register(Event.any(...actions.map(a => a.onDidChange))(() => this.update(true)));
+	}
+
+	update(donotUpdateActions?: boolean): void {
+		if (!donotUpdateActions) {
+			this.actions.forEach(a => a.update());
+		}
+
+		const enabledActions = this.actions.filter(a => a.enabled);
+		this.action = enabledActions[0];
+		this._menuActions = enabledActions.slice(1);
+
+		this.enabled = !!this.action;
+		if (this.action) {
+			this.label = this.action.label;
+			this.tooltip = this.action.tooltip;
+		}
+
+		let clazz = (this.action || this.actions[0])?.class || '';
+		clazz = clazz ? `${clazz} action-dropdown` : 'action-dropdown';
+		if (this._menuActions.length === 0) {
+			clazz += ' action-dropdown';
+		}
+		this.class = clazz;
+	}
+
+	run(): Promise<void> {
+		const enabledActions = this.actions.filter(a => a.enabled);
+		return enabledActions[0].run();
+	}
+}
+
+export abstract class AbstractInstallAction extends ExtensionAction {
+
+	static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
+
+	protected _manifest: IExtensionManifest | null = null;
 	set manifest(manifest: IExtensionManifest) {
 		this._manifest = manifest;
 		this.updateLabel();
 	}
 
 	constructor(
+		id: string, label: string, cssClass: string,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
-		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
+		super(id, label, cssClass, false);
 		this.update();
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 	}
 
 	update(): void {
 		this.enabled = false;
-		this.class = InstallAction.Class;
-		this.label = InstallAction.INSTALL_LABEL;
 		if (this.extension && !this.extension.isBuiltin) {
 			if (this.extension.state === ExtensionState.Uninstalled && this.extensionsWorkbenchService.canInstall(this.extension)) {
 				this.enabled = true;
 				this.updateLabel();
-				return;
-			}
-			if (this.extension.state === ExtensionState.Installing) {
-				this.enabled = false;
-				this.updateLabel();
-				this.class = this.extension.state === ExtensionState.Installing ? InstallAction.InstallingClass : InstallAction.Class;
-				return;
-			}
-		}
-	}
-
-	private updateLabel(): void {
-		if (!this.extension) {
-			return;
-		}
-		if (this.extension.state === ExtensionState.Installing) {
-			this.label = InstallAction.INSTALLING_LABEL;
-			this.tooltip = InstallAction.INSTALLING_LABEL;
-		} else {
-			if (this._manifest && this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-				if (prefersExecuteOnUI(this._manifest, this.productService, this.configurationService)) {
-					this.label = `${InstallAction.INSTALL_LABEL} ${localize('locally', "Locally")}`;
-					this.tooltip = `${InstallAction.INSTALL_LABEL} ${localize('locally', "Locally")}`;
-				} else {
-					const host = this.extensionManagementServerService.remoteExtensionManagementServer.label;
-					this.label = `${InstallAction.INSTALL_LABEL} on ${host}`;
-					this.tooltip = `${InstallAction.INSTALL_LABEL} on ${host}`;
-				}
-			} else {
-				this.label = InstallAction.INSTALL_LABEL;
-				this.tooltip = InstallAction.INSTALL_LABEL;
 			}
 		}
 	}
@@ -250,7 +264,7 @@ export class InstallAction extends ExtensionAction {
 	}
 
 	private install(extension: IExtension): Promise<IExtension | void> {
-		return this.extensionsWorkbenchService.install(extension)
+		return this.extensionsWorkbenchService.install(extension, this.getInstallOptions())
 			.then(null, err => {
 				if (!extension.gallery) {
 					return this.notificationService.error(err);
@@ -279,6 +293,135 @@ export class InstallAction extends ExtensionAction {
 			});
 		}
 		return null;
+	}
+
+	protected abstract updateLabel(): void;
+	protected abstract getInstallOptions(): InstallOptions;
+}
+
+export class InstallAction extends AbstractInstallAction {
+
+	constructor(
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@INotificationService notificationService: INotificationService,
+		@IExtensionService runtimeExtensionService: IExtensionService,
+		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
+		@ILabelService labelService: ILabelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IUserDataAutoSyncEnablementService protected readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncResourceEnablementService protected readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+	) {
+		super(`extensions.installAndSync`, localize('install', "Install"), InstallAction.Class,
+			extensionsWorkbenchService, instantiationService, notificationService, runtimeExtensionService, workbenchThemeService, labelService);
+		this.updateLabel();
+		this._register(labelService.onDidChangeFormatters(() => this.updateLabel(), this));
+		this._register(Event.any(userDataAutoSyncEnablementService.onDidChangeEnablement,
+			Event.filter(userDataSyncResourceEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
+	}
+
+	protected updateLabel(): void {
+		if (!this.extension) {
+			return;
+		}
+
+		const isMachineScoped = this.getInstallOptions().isMachineScoped;
+		this.label = isMachineScoped ? localize('install and do no sync', "Install (Do not sync)") : localize('install', "Install");
+
+		// When remote connection exists
+		if (this._manifest && this.extensionManagementServerService.remoteExtensionManagementServer) {
+
+			// On Desktop and UI Extension
+			if (this.extensionManagementServerService.localExtensionManagementServer && prefersExecuteOnUI(this._manifest, this.productService, this.configurationService)) {
+				this.label = isMachineScoped ? localize('install locally and do not sync', "Install Locally (Do not sync)") : localize('install locally', "Install Locally");
+				return;
+			}
+
+			// On Web and Web Extension
+			if (this.extensionManagementServerService.webExtensionManagementServer && prefersExecuteOnWeb(this._manifest, this.productService, this.configurationService)) {
+				this.label = isMachineScoped ? localize('install locally and do not sync', "Install Locally (Do not sync)") : localize('install locally', "Install Locally");
+				return;
+			}
+
+			const host = this.extensionManagementServerService.remoteExtensionManagementServer.label;
+			this.label = isMachineScoped ? localize('install on remote and do not sync', "Install on {0} (Do not sync)", host) : localize('install on remote', "Install on {0}", host);
+			return;
+		}
+	}
+
+	protected getInstallOptions(): InstallOptions {
+		return { isMachineScoped: this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions) };
+	}
+
+}
+
+export class InstallAndSyncAction extends AbstractInstallAction {
+
+	constructor(
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@INotificationService notificationService: INotificationService,
+		@IExtensionService runtimeExtensionService: IExtensionService,
+		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
+		@ILabelService labelService: ILabelService,
+		@IProductService productService: IProductService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+	) {
+		super(`extensions.installAndSync`, localize('install', "Install"), InstallAndSyncAction.Class,
+			extensionsWorkbenchService, instantiationService, notificationService, runtimeExtensionService, workbenchThemeService, labelService);
+		this.tooltip = localize('install everywhere tooltip', "Install this extension in all your synced {0} instances", productService.nameLong);
+		this._register(Event.any(userDataAutoSyncEnablementService.onDidChangeEnablement,
+			Event.filter(userDataSyncResourceEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
+	}
+
+
+	update(): void {
+		super.update();
+		if (this.enabled) {
+			this.enabled = this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions);
+		}
+	}
+
+	protected updateLabel(): void { }
+
+	protected getInstallOptions(): InstallOptions {
+		return { isMachineScoped: false };
+	}
+}
+
+export class InstallDropdownAction extends ActionWithDropDownAction {
+
+	set manifest(manifest: IExtensionManifest) {
+		this.actions.forEach(a => (<AbstractInstallAction>a).manifest = manifest);
+		this.actions.forEach(a => a.update());
+		this.update();
+	}
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(`extensions.installActions`, '', [
+			instantiationService.createInstance(InstallAndSyncAction),
+			instantiationService.createInstance(InstallAction),
+		]);
+	}
+
+}
+
+export class InstallingLabelAction extends ExtensionAction {
+
+	private static readonly LABEL = localize('installing', "Installing");
+	private static readonly CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} install installing`;
+
+	constructor() {
+		super('extension.installing', InstallingLabelAction.LABEL, InstallingLabelAction.CLASS, false);
+	}
+
+	update(): void {
+		this.class = `${InstallingLabelAction.CLASS}${this.extension && this.extension.state === ExtensionState.Installing ? '' : ' hide'}`;
 	}
 }
 
@@ -481,73 +624,6 @@ export class UninstallAction extends ExtensionAction {
 	}
 }
 
-export class CombinedInstallAction extends ExtensionAction {
-
-	private static readonly NoExtensionClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install no-extension`;
-	private installAction: InstallAction;
-	private uninstallAction: UninstallAction;
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super('extensions.combinedInstall', '', '', false);
-
-		this.installAction = this._register(instantiationService.createInstance(InstallAction));
-		this.uninstallAction = this._register(instantiationService.createInstance(UninstallAction));
-
-		this.update();
-	}
-
-	set manifest(manifiest: IExtensionManifest) { this.installAction.manifest = manifiest; this.update(); }
-
-	update(): void {
-		this.installAction.extension = this.extension;
-		this.uninstallAction.extension = this.extension;
-		this.installAction.update();
-		this.uninstallAction.update();
-
-		if (!this.extension || this.extension.type === ExtensionType.System) {
-			this.enabled = false;
-			this.class = CombinedInstallAction.NoExtensionClass;
-		} else if (this.extension.state === ExtensionState.Installing) {
-			this.enabled = false;
-			this.label = this.installAction.label;
-			this.class = this.installAction.class;
-			this.tooltip = this.installAction.tooltip;
-		} else if (this.extension.state === ExtensionState.Uninstalling) {
-			this.enabled = false;
-			this.label = this.uninstallAction.label;
-			this.class = this.uninstallAction.class;
-			this.tooltip = this.uninstallAction.tooltip;
-		} else if (this.installAction.enabled) {
-			this.enabled = true;
-			this.label = this.installAction.label;
-			this.class = this.installAction.class;
-			this.tooltip = this.installAction.tooltip;
-		} else if (this.uninstallAction.enabled) {
-			this.enabled = true;
-			this.label = this.uninstallAction.label;
-			this.class = this.uninstallAction.class;
-			this.tooltip = this.uninstallAction.tooltip;
-		} else {
-			this.enabled = false;
-			this.label = this.installAction.label;
-			this.class = this.installAction.class;
-			this.tooltip = this.installAction.tooltip;
-		}
-	}
-
-	run(): Promise<any> {
-		if (this.installAction.enabled) {
-			return this.installAction.run();
-		} else if (this.uninstallAction.enabled) {
-			return this.uninstallAction.run();
-		}
-
-		return Promise.resolve();
-	}
-}
-
 export class UpdateAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent update`;
@@ -612,7 +688,7 @@ export class UpdateAction extends ExtensionAction {
 	}
 }
 
-interface IExtensionActionViewItemOptions extends IActionViewItemOptions {
+export interface IExtensionActionViewItemOptions extends IActionViewItemOptions {
 	tabOnlyOnFocus?: boolean;
 }
 
@@ -644,6 +720,53 @@ export class ExtensionActionViewItem extends ActionViewItem {
 			}
 		}
 	}
+}
+
+export class ExtensionActionWithDropdownActionViewItem extends ActionWithDropdownActionViewItem {
+
+	constructor(
+		action: ActionWithDropDownAction,
+		options: IExtensionActionViewItemOptions & IActionWithDropdownActionViewItemOptions,
+		contextMenuProvider: IContextMenuProvider
+	) {
+		super(null, action, options, contextMenuProvider);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		this.updateClass();
+	}
+
+	updateClass(): void {
+		super.updateClass();
+		if (this.dropdownMenuActionViewItem && this.dropdownMenuActionViewItem.element) {
+			this.dropdownMenuActionViewItem.element.classList.toggle('hide', (<ActionWithDropDownAction>this._action).menuActions.length === 0);
+		}
+	}
+
+	updateEnabled(): void {
+		super.updateEnabled();
+
+		if (this.label && (<IExtensionActionViewItemOptions>this.options).tabOnlyOnFocus && this.getAction().enabled && !this._hasFocus) {
+			DOM.removeTabIndexAndUpdateFocus(this.label);
+		}
+	}
+
+	private _hasFocus: boolean = false;
+	setFocus(value: boolean): void {
+		if (!(<IExtensionActionViewItemOptions>this.options).tabOnlyOnFocus || this._hasFocus === value) {
+			return;
+		}
+		this._hasFocus = value;
+		if (this.label && this.getAction().enabled) {
+			if (this._hasFocus) {
+				this.label.tabIndex = 0;
+			} else {
+				DOM.removeTabIndexAndUpdateFocus(this.label);
+			}
+		}
+	}
+
 }
 
 export abstract class ExtensionDropDownAction extends ExtensionAction {
@@ -896,7 +1019,7 @@ export class EnableForWorkspaceAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
-		super(EnableForWorkspaceAction.ID, EnableForWorkspaceAction.LABEL);
+		super(EnableForWorkspaceAction.ID, EnableForWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.update();
 	}
 
@@ -926,7 +1049,7 @@ export class EnableGloballyAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
-		super(EnableGloballyAction.ID, EnableGloballyAction.LABEL);
+		super(EnableGloballyAction.ID, EnableGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.update();
 	}
 
@@ -957,7 +1080,7 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
-		super(DisableForWorkspaceAction.ID, DisableForWorkspaceAction.LABEL);
+		super(DisableForWorkspaceAction.ID, DisableForWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.update();
 	}
 
@@ -987,7 +1110,7 @@ export class DisableGloballyAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
-		super(DisableGloballyAction.ID, DisableGloballyAction.LABEL);
+		super(DisableGloballyAction.ID, DisableGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.update();
 	}
 
@@ -1005,40 +1128,6 @@ export class DisableGloballyAction extends ExtensionAction {
 			return;
 		}
 		return this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.DisabledGlobally);
-	}
-}
-
-export abstract class ActionWithDropDownAction extends ExtensionAction {
-
-	static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} action-dropdown`;
-	private static readonly EmptyDropdownClass = `${ActionWithDropDownAction.Class} empty-dropdown`;
-
-	private action: IAction | undefined;
-
-	private _menuActions: IAction[] = [];
-	get menuActions(): IAction[] { return [...this._menuActions]; }
-
-	constructor(
-		id: string, label: string,
-		private readonly actions: ExtensionAction[],
-	) {
-		super(id, label);
-		this.update();
-	}
-
-	update(): void {
-		this.actions.forEach(a => a.extension = this.extension);
-		this.actions.forEach(a => a.update());
-		const enabledActions = this.actions.filter(a => a.enabled);
-		this.action = enabledActions[0];
-		this._menuActions = enabledActions.slice(1);
-		this.enabled = !!this.action;
-		this.class = this._menuActions.length ? ActionWithDropDownAction.Class : ActionWithDropDownAction.EmptyDropdownClass;
-	}
-
-	run(): Promise<void> {
-		const enabledActions = this.actions.filter(a => a.enabled);
-		return enabledActions[0].run();
 	}
 }
 
