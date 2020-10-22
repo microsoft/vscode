@@ -5,11 +5,6 @@ steps:
     echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
-- script: |
-    sudo xcode-select --switch /Applications/Xcode-beta.app
-  displayName: Switch to Xcode12
-  condition: eq(variables['VSCODE_ARCH'], 'arm64')
-
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: 'build/.cachesalt, .build/commit, .build/quality'
@@ -77,8 +72,7 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch=x64
-    export npm_config_target_arch=$(VSCODE_ARCH)
+    export npm_config_arch=$(VSCODE_ARCH)
     export npm_config_node_gyp=$(which node-gyp)
     CHILD_CONCURRENCY=1 yarn --frozen-lockfile --verbose
   displayName: Install dependencies
@@ -93,8 +87,7 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch=x64
-    export npm_config_target_arch=$(VSCODE_ARCH)
+    export npm_config_arch=$(VSCODE_ARCH)
     export npm_config_node_gyp=$(which node-gyp)
     yarn postinstall
   displayName: Run postinstall scripts
@@ -104,14 +97,6 @@ steps:
     set -e
     node build/azure-pipelines/mixin
   displayName: Mix in quality
-
-- script: |
-    set -e
-    export SDKROOT=/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
-    ls /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
-    yarn electron-rebuild
-  displayName: Rebuild native modules for ARM64
-  condition: eq(variables['VSCODE_ARCH'], 'arm64')
 
 - script: |
     set -e
