@@ -15,6 +15,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -38,16 +39,19 @@ export class SuggestDetailsWidget {
 	private readonly _docs: HTMLElement;
 	private readonly _disposables = new DisposableStore();
 
+	private readonly _markdownRenderer: MarkdownRenderer;
 	private _renderDisposeable?: IDisposable;
 	private _borderWidth: number = 1;
 	private _size = new dom.Dimension(330, 50);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _markdownRenderer: MarkdownRenderer,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
+
+		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, { editor: _editor });
 
 		this._body = dom.$('.body');
 

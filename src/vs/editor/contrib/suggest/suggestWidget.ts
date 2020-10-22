@@ -24,9 +24,6 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -140,21 +137,17 @@ export class SuggestWidget implements IDisposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IModeService modeService: IModeService,
-		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IThemeService _themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const markdownRenderer = this._disposables.add(new MarkdownRenderer({ editor }, modeService, openerService));
-
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
 
 		this._contentWidget = new SuggestContentWidget(this.element.domNode, editor);
-		this._persistedSize = new PersistedWidgetSize(storageService, editor);
+		this._persistedSize = new PersistedWidgetSize(_storageService, editor);
 
 		let persistedSize: dom.Dimension | undefined;
 		let persistHeight = false;
@@ -192,7 +185,7 @@ export class SuggestWidget implements IDisposable {
 		this.messageElement = dom.append(this.element.domNode, dom.$('.message'));
 		this.listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
-		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor, markdownRenderer);
+		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor);
 		details.onDidClose(this.toggleDetails, this, this._disposables);
 		this._details = new SuggestDetailsOverlay(details, this.editor);
 
@@ -234,12 +227,12 @@ export class SuggestWidget implements IDisposable {
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
 		applyStatusBarStyle();
 
-		this._disposables.add(attachListStyler(this.list, themeService, {
+		this._disposables.add(attachListStyler(this.list, _themeService, {
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 			listInactiveFocusOutline: activeContrastBorder
 		}));
-		this._disposables.add(themeService.onDidColorThemeChange(t => this.onThemeChange(t)));
-		this.onThemeChange(themeService.getColorTheme());
+		this._disposables.add(_themeService.onDidColorThemeChange(t => this.onThemeChange(t)));
+		this.onThemeChange(_themeService.getColorTheme());
 
 		this._disposables.add(this.list.onMouseDown(e => this.onListMouseDownOrTap(e)));
 		this._disposables.add(this.list.onTap(e => this.onListMouseDownOrTap(e)));
@@ -253,9 +246,9 @@ export class SuggestWidget implements IDisposable {
 			}
 		}));
 
-		this.ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
-		this.ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(contextKeyService);
-		this.ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
+		this.ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(_contextKeyService);
+		this.ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
+		this.ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
 
 
 		this._disposables.add(dom.addStandardDisposableListener(this._details.widget.domNode, 'keydown', e => {
@@ -424,17 +417,16 @@ export class SuggestWidget implements IDisposable {
 		}
 		this.state = state;
 
-		if (state !== State.Hidden) {
-			this._contentWidget.show();
-		}
-
 		this.element.domNode.classList.toggle('frozen', state === State.Frozen);
 
 		switch (state) {
 			case State.Hidden:
 				dom.hide(this.messageElement, this.listElement, this.status.element);
 				this._details.hide();
-				this.hide();
+				this._contentWidget.hide();
+				this.ctxSuggestWidgetVisible.reset();
+				this.ctxSuggestWidgetMultipleSuggestions.reset();
+				this.element.domNode.classList.remove('visible');
 				this.list.splice(0, this.list.length);
 				this.focusedItem = undefined;
 				break;
@@ -443,7 +435,7 @@ export class SuggestWidget implements IDisposable {
 				dom.hide(this.listElement, this.status.element);
 				dom.show(this.messageElement);
 				this._details.hide();
-				this.show();
+				this._show();
 				this.focusedItem = undefined;
 				break;
 			case State.Empty:
@@ -451,26 +443,37 @@ export class SuggestWidget implements IDisposable {
 				dom.hide(this.listElement, this.status.element);
 				dom.show(this.messageElement);
 				this._details.hide();
-				this.show();
+				this._show();
 				this.focusedItem = undefined;
 				break;
 			case State.Open:
 				dom.hide(this.messageElement);
 				dom.show(this.listElement, this.status.element);
-				this.show();
+				this._show();
 				break;
 			case State.Frozen:
 				dom.hide(this.messageElement);
 				dom.show(this.listElement, this.status.element);
-				this.show();
+				this._show();
 				break;
 			case State.Details:
 				dom.hide(this.messageElement);
 				dom.show(this.listElement, this.status.element);
 				this._details.show();
-				this.show();
+				this._show();
 				break;
 		}
+	}
+
+	private _show(): void {
+		this._contentWidget.show();
+		this._layout(this._persistedSize.restore());
+		this.ctxSuggestWidgetVisible.set(true);
+
+		this.showTimeout.cancelAndSet(() => {
+			this.element.domNode.classList.add('visible');
+			this.onDidShowEmitter.fire(this);
+		}, 100);
 	}
 
 	showTriggered(auto: boolean, delay: number) {
@@ -523,7 +526,7 @@ export class SuggestWidget implements IDisposable {
 					]
 				}
 			*/
-			this.telemetryService.publicLog('suggestWidget', { ...stats });
+			this._telemetryService.publicLog('suggestWidget', { ...stats });
 		}
 
 		this.focusedItem = undefined;
@@ -650,7 +653,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.widget.domNode.style.borderColor = this.detailsFocusBorderColor;
 			}
 		}
-		this.telemetryService.publicLog2('suggestWidget:toggleDetailsFocus');
+		this._telemetryService.publicLog2('suggestWidget:toggleDetailsFocus');
 	}
 
 	toggleDetails(): void {
@@ -660,14 +663,14 @@ export class SuggestWidget implements IDisposable {
 			this._setDetailsVisible(false);
 			this._details.hide();
 			this.element.domNode.classList.remove('shows-details');
-			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
+			this._telemetryService.publicLog2('suggestWidget:collapseDetails');
 
 		} else if (canExpandCompletionItem(this.list.getFocusedElements()[0]) && (this.state === State.Open || this.state === State.Details || this.state === State.Frozen)) {
 			// show details widget (iff possible)
 			this.ctxSuggestWidgetDetailsVisible.set(true);
 			this._setDetailsVisible(true);
 			this.showDetails(false);
-			this.telemetryService.publicLog2('suggestWidget:expandDetails');
+			this._telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
 
@@ -688,23 +691,6 @@ export class SuggestWidget implements IDisposable {
 			this.explainMode = !this.explainMode;
 			this.showDetails(false);
 		}
-	}
-
-	private show(): void {
-		this._layout(this._persistedSize.restore());
-		this.ctxSuggestWidgetVisible.set(true);
-
-		this.showTimeout.cancelAndSet(() => {
-			this.element.domNode.classList.add('visible');
-			this.onDidShowEmitter.fire(this);
-		}, 100);
-	}
-
-	private hide(): void {
-		this._contentWidget.hide();
-		this.ctxSuggestWidgetVisible.reset();
-		this.ctxSuggestWidgetMultipleSuggestions.reset();
-		this.element.domNode.classList.remove('visible');
 	}
 
 	hideWidget(): void {
@@ -843,11 +829,11 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _isDetailsVisible(): boolean {
-		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
+		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
 	}
 
 	private _setDetailsVisible(value: boolean) {
-		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
+		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 }
 
