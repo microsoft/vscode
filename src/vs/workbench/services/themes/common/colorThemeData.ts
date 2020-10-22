@@ -45,9 +45,9 @@ export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDe
 
 export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope; };
 
-const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
-
 export class ColorThemeData implements IWorkbenchColorTheme {
+
+	static readonly STORAGE_KEY = 'colorThemeData';
 
 	id: string;
 	label: string;
@@ -515,14 +515,16 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			themeTokenColors: this.themeTokenColors,
+			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't pesist names
 			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			themeSemanticHighlighting: this.themeSemanticHighlighting,
 			colorMap: colorMapData,
 			watch: this.watch
 		});
-		storageService.store(PERSISTED_THEME_STORAGE_KEY, value, StorageScope.GLOBAL);
+
+		console.log(`${value.length} + ${value}`);
+		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL);
 	}
 
 	get baseTheme(): string {
@@ -569,7 +571,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ColorThemeData | undefined {
-		const input = storageService.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ColorThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
