@@ -71,6 +71,7 @@ export interface ICreateTerminalProcessArguments {
 	workspaceFolders: IWorkspaceFolderData[];
 	activeWorkspaceFolder: IWorkspaceFolderData | null;
 	activeFileResource: UriComponents | undefined;
+	shouldPersistTerminal: boolean;
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
@@ -205,7 +206,7 @@ export class RemoteTerminalChannelClient {
 		};
 	}
 
-	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ICreateTerminalProcessResult> {
+	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ICreateTerminalProcessResult> {
 		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		const configuration: ICompleteTerminalConfiguration = {
 			'terminal.integrated.automationShell.windows': this._readSingleTerminalConfiguration('terminal.integrated.automationShell.windows'),
@@ -272,6 +273,7 @@ export class RemoteTerminalChannelClient {
 			workspaceFolders,
 			activeWorkspaceFolder,
 			activeFileResource,
+			shouldPersistTerminal,
 			cols,
 			rows,
 			isWorkspaceShellAllowed,

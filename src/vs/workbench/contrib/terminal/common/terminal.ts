@@ -246,6 +246,12 @@ export interface IShellLaunchConfig {
 	 * as normal.
 	 */
 	hideFromUser?: boolean;
+
+	/**
+	 * Whether this terminal is not a terminal that the user directly created and uses, but rather
+	 * a terminal used to drive some VS Code feature.
+	 */
+	isFeatureTerminal?: boolean;
 }
 
 /**
