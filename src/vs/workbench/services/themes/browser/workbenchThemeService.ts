@@ -38,6 +38,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 // implementation
 
@@ -108,7 +109,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
+		// roam persisted color theme colors. Don't enable for icons as they contain references to fonts and images.
+		storageKeysSyncRegistryService.registerStorageKey({ key: ColorThemeData.STORAGE_KEY, version: 1 });
+
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
 
