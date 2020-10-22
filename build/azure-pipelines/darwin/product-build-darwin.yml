@@ -5,6 +5,11 @@ steps:
     echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
+- script: |
+    sudo xcode-select --switch /Applications/Xcode-beta.app
+  displayName: Switch to Xcode12
+  condition: eq(variables['VSCODE_ARCH'], 'arm64')
+
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: 'build/.cachesalt, .build/commit, .build/quality'
@@ -99,6 +104,14 @@ steps:
     set -e
     node build/azure-pipelines/mixin
   displayName: Mix in quality
+
+- script: |
+    set -e
+    export SDKROOT=/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+    ls /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
+    yarn electron-rebuild
+  displayName: Rebuild native modules for ARM64
+  condition: eq(variables['VSCODE_ARCH'], 'arm64')
 
 - script: |
     set -e

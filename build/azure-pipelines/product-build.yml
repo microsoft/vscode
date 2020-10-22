@@ -138,6 +138,9 @@ stages:
     - template: darwin/product-build-darwin.yml
 
 - stage: macOSARM64
+  dependsOn:
+  - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
   pool:
     name: Apple Silicon DTK
   jobs:
@@ -146,7 +149,7 @@ stages:
     variables:
       VSCODE_ARCH: arm64
     steps:
-    - template: darwin/product-build-darwin-arm64.yml
+    - template: darwin/product-build-darwin.yml
 
 - stage: Mooncake
   dependsOn:
