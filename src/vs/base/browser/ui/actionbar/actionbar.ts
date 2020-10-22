@@ -49,7 +49,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _actionRunner: IActionRunner;
 	private _context: unknown;
 	private readonly _orientation: ActionsOrientation;
-	private readonly _triggerKeys: ActionTrigger;
+	private readonly _triggerKeys: {
+		keys: KeyCode[];
+		keyDown: boolean;
+	};
 	private _actionIds: string[];
 
 	// View Items
