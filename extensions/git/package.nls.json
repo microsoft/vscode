@@ -3,6 +3,7 @@
 	"description": "Git SCM Integration",
 	"command.setLogLevel": "Set Log Level...",
 	"command.clone": "Clone",
+	"command.cloneRecursively": "Clone Recursively",
 	"command.init": "Initialize Repository",
 	"command.openRepository": "Open Repository",
 	"command.close": "Close Repository",

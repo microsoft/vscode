@@ -39,6 +39,11 @@
         "category": "Git"
       },
       {
+        "command": "git.cloneRecursively",
+        "title": "%command.cloneRecursively%",
+        "category": "Git"
+      },
+      {
         "command": "git.init",
         "title": "%command.init%",
         "category": "Git",
@@ -496,6 +501,10 @@
           "when": "config.git.enabled && !git.missing"
         },
         {
+          "command": "git.cloneRecursively",
+          "when": "config.git.enabled && !git.missing"
+        },
+        {
           "command": "git.init",
           "when": "config.git.enabled && !git.missing"
         },
@@ -883,6 +892,11 @@
         },
         {
           "command": "git.showOutput",
+          "group": "3_footer",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.cloneRecursively",
           "group": "3_footer",
           "when": "scmProvider == git"
         }
