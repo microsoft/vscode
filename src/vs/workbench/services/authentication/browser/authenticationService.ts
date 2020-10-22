@@ -123,7 +123,7 @@ const authenticationDefinitionSchema: IJSONSchema = {
 const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<AuthenticationProviderInformation[]>({
 	extensionPoint: 'authentication',
 	jsonSchema: {
-		description: nls.localize('authenticationExtensionPoint', 'Contributes authentication'),
+		description: nls.localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
 		type: 'array',
 		items: authenticationDefinitionSchema
 	}
