@@ -523,7 +523,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			watch: this.watch
 		});
 
-		console.log(`${value.length} + ${value}`);
 		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL);
 	}
 
