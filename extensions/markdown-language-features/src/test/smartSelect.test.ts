@@ -90,7 +90,11 @@ suite.only('markdown.SmartSelect', () => {
 			));
 		if (ranges) {
 			assert.strictEqual(ranges[0].range.start.line, 2);
-			assert.strictEqual(ranges[0].range.end.line, 3);
+			assert.strictEqual(ranges[0].range.end.line, 2);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 1);
+				assert.strictEqual(ranges[0].parent.range.end.line, 2);
+			}
 		} else {
 			throw new Error('ranges are undefined');
 		}
@@ -202,12 +206,143 @@ suite.only('markdown.SmartSelect', () => {
 			throw new Error('ranges are undefined');
 		}
 	});
+	test('Smart select nested block quotes', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`> item 1`,
+				`> item 2`,
+				`>> ${CURSOR}item 3`,
+				`>> item 4`));
+		if (ranges) {
+			assert.strictEqual(ranges[0].range.start.line, 2);
+			assert.strictEqual(ranges[0].range.end.line, 4);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 2);
+				assert.strictEqual(ranges[0].parent.range.end.line, 4);
+				if (ranges[0].parent.parent) {
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 4);
+				}
+			}
+		} else {
+			throw new Error('ranges are undefined');
+		}
+	});
+	test('Smart select multi nested block quotes', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`> item 1`,
+				`>> item 2`,
+				`>>> ${CURSOR}item 3`,
+				`>>>> item 4`));
+		if (ranges) {
+			assert.strictEqual(ranges[0].range.start.line, 2);
+			assert.strictEqual(ranges[0].range.end.line, 3);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 2);
+				assert.strictEqual(ranges[0].parent.range.end.line, 4);
+				if (ranges[0].parent.parent) {
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 1);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 4);
+					if (ranges[0].parent.parent.parent) {
+						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 0);
+						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 4);
+					}
+				}
+			}
+		} else {
+			throw new Error('ranges are undefined');
+		}
+	});
+	test('Smart select subheader content', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				`content 1`,
+				`## sub header 1`,
+				`${CURSOR}content 2`,
+				`# main header 2`));
+		if (ranges) {
+			assert.strictEqual(ranges[0].range.start.line, 3);
+			assert.strictEqual(ranges[0].range.end.line, 3);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 2);
+				assert.strictEqual(ranges[0].parent.range.end.line, 3);
+				if (ranges[0].parent.parent) {
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 1);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 3);
+					if (ranges[0].parent.parent.parent) {
+						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 0);
+						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 3);
+					}
+				}
+			}
+		} else {
+			throw new Error('ranges are undefined');
+		}
+	});
+	test('Smart select subheader line', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				`content 1`,
+				`${CURSOR}## sub header 1`,
+				`content 2`,
+				`# main header 2`));
+		if (ranges) {
+			assert.strictEqual(ranges[0].range.start.line, 1);
+			assert.strictEqual(ranges[0].range.end.line, 3);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 0);
+				assert.strictEqual(ranges[0].parent.range.end.line, 3);
+			}
+		} else {
+			throw new Error('ranges are undefined');
+		}
+	});
+	test('Smart select blank line', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				`content 1`,
+				`${CURSOR}             `,
+				`content 2`,
+				`# main header 2`));
+		if (ranges) {
+			assert.strictEqual(ranges[0].range.start.line, 1);
+			assert.strictEqual(ranges[0].range.end.line, 3);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 0);
+				assert.strictEqual(ranges[0].parent.range.end.line, 3);
+			}
+		} else {
+			throw new Error('ranges are undefined');
+		}
+	});
+	test('Smart select line between paragraphs', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`paragraph 1`,
+				`${CURSOR}`,
+				`paragraph 2`));
+		if (ranges) {
+			assert.strictEqual(ranges[0].range.start.line, 0);
+			assert.strictEqual(ranges[0].range.end.line, 3);
+		} else {
+			throw new Error('ranges are undefined');
+		}
+	});
+	test('Smart select empty document', async () => {
+		const ranges = await getSelectionRangesForDocument(``, [new vscode.Position(0, 0)]);
+		assert.strictEqual(ranges?.length, 0);
+	});
 });
 
-async function getSelectionRangesForDocument(contents: string) {
+async function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]) {
 	const doc = new InMemoryDocument(testFileName, contents);
 	const provider = new MarkdownSmartSelect(createNewMarkdownEngine());
-	return await provider.provideSelectionRanges(doc, getCursorPositions(contents, doc), new vscode.CancellationTokenSource().token);
+	const positions = pos ? pos : getCursorPositions(contents, doc);
+	return await provider.provideSelectionRanges(doc, positions, new vscode.CancellationTokenSource().token);
 }
 
 let getCursorPositions = (contents: string, doc: InMemoryDocument): vscode.Position[] => {
