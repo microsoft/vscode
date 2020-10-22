@@ -219,7 +219,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 	}
 
 	private reportProxyStats() {
-		this.requestService.resolveProxy('https://www.example.com/')
+		this.requestService.resolveProxy('https://www.microsoft.com/')
 			.then(proxy => {
 				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
 				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {
