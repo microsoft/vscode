@@ -80,41 +80,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
-function processFilterData(uri: URI, filterData: { value: string, score: FuzzyScore } | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
-	let labelMatches: IMatch[] | undefined;
-	let descriptionMatches: IMatch[] | undefined;
-
-	if (filterData && filterData.value && filterData.score) {
-		labelMatches = [];
-		descriptionMatches = [];
-
-		const fileName = basename(uri);
-		const matches = createMatches(filterData.score);
-
-		if (fileName === filterData.value) {
-			// FileName match
-			labelMatches.push(...matches);
-		} else {
-			// FilePath match
-			for (const match of matches) {
-				if (match.start < filterData.value.length - fileName.length) {
-					descriptionMatches.push({
-						start: match.start,
-						end: Math.min(match.end, filterData.value.length - fileName.length)
-					});
-				} else {
-					labelMatches.push({
-						start: match.start - (filterData.value.length - fileName.length),
-						end: match.end - (filterData.value.length - fileName.length)
-					});
-				}
-			}
-		}
-	}
-
-	return [labelMatches, descriptionMatches];
-}
-
 interface ISCMLayout {
 	height: number | undefined;
 	width: number | undefined;
@@ -391,6 +356,49 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
+
+		const processFilterData = (uri: URI, filterData: { value: string, score: FuzzyScore } | undefined): [IMatch[] | undefined, IMatch[] | undefined] => {
+			if (!filterData || !filterData.value || !filterData.score) {
+				return [undefined, undefined];
+			}
+
+			const fileName = basename(uri);
+			const matches = createMatches(filterData.score);
+
+			// FileName match
+			if (fileName === filterData.value) {
+				return [matches, undefined];
+			}
+
+			// FilePath match
+			let labelMatches: IMatch[] = [];
+			let descriptionMatches: IMatch[] = [];
+
+			for (const match of matches) {
+				if (match.start > filterData.value.length - fileName.length) {
+					// Label match
+					labelMatches.push({
+						start: match.start - (filterData.value.length - fileName.length),
+						end: match.end - (filterData.value.length - fileName.length)
+					});
+				} else if (match.end < filterData.value.length - fileName.length) {
+					// Description match
+					descriptionMatches.push(match);
+				} else {
+					// Spanning match
+					labelMatches.push({
+						start: 0,
+						end: match.end - (filterData.value.length - fileName.length)
+					});
+					descriptionMatches.push({
+						start: match.start,
+						end: filterData.value.length - fileName.length
+					});
+				}
+			}
+
+			return [labelMatches, descriptionMatches];
+		};
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
