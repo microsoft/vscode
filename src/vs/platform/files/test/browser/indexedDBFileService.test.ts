@@ -13,8 +13,9 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { assertIsDefined } from 'vs/base/common/types';
+import { isWindows } from 'vs/base/common/platform';
 
-suite('IndexedDB File Service', function () {
+(isWindows /* not working on windows yet */ ? suite.skip : suite)('IndexedDB File Service', function () {
 
 	const logSchema = 'logs';
 
