@@ -418,6 +418,7 @@ export class SuggestWidget implements IDisposable {
 		this.state = state;
 
 		this.element.domNode.classList.toggle('frozen', state === State.Frozen);
+		this.element.domNode.classList.remove('message');
 
 		switch (state) {
 			case State.Hidden:
@@ -431,6 +432,7 @@ export class SuggestWidget implements IDisposable {
 				this.focusedItem = undefined;
 				break;
 			case State.Loading:
+				this.element.domNode.classList.add('message');
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				dom.hide(this.listElement, this.status.element);
 				dom.show(this.messageElement);
@@ -439,6 +441,7 @@ export class SuggestWidget implements IDisposable {
 				this.focusedItem = undefined;
 				break;
 			case State.Empty:
+				this.element.domNode.classList.add('message');
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				dom.hide(this.listElement, this.status.element);
 				dom.show(this.messageElement);
