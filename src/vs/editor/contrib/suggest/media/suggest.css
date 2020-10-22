@@ -35,13 +35,22 @@
 	justify-content: space-between;
 	width: 100%;
 	font-size: 80%;
-	padding: 0 8px 0 4px;
+	padding: 0 4px 0 4px;
 	border-top: 1px solid transparent;
 	overflow: hidden;
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
 	display: flex;
+}
+
+.monaco-editor .suggest-widget .suggest-status-bar .left {
+	align-self: flex-start;
+	padding-right: 8px;
+}
+
+.monaco-editor .suggest-widget .suggest-status-bar .right {
+	align-self: flex-end;
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {

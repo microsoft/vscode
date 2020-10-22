@@ -649,19 +649,19 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize({ key: 'accept.accept', comment: ['{0} will be a keybinding, e.g "Enter to insert"'] }, "{0} to insert") },
+	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
 	group: 'left',
 	order: 1,
 	when: SuggestContext.HasInsertAndReplaceRange.toNegated()
 });
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize({ key: 'accept.insert', comment: ['{0} will be a keybinding, e.g "Enter to insert"'] }, "{0} to insert") },
+	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
 	group: 'left',
 	order: 1,
 	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'insert'))
 });
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize({ key: 'accept.replace', comment: ['{0} will be a keybinding, e.g "Enter to replace"'] }, "{0} to replace") },
+	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.replace', "Replace") },
 	group: 'left',
 	order: 1,
 	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'replace'))
@@ -684,13 +684,13 @@ registerEditorCommand(new SuggestCommand({
 		group: 'left',
 		order: 2,
 		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'insert')),
-		title: nls.localize({ key: 'accept.replace', comment: ['{0} will be a keybinding, e.g "Enter to replace"'] }, "{0} to replace")
+		title: nls.localize('accept.replace', "Replace")
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
 		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'replace')),
-		title: nls.localize({ key: 'accept.insert', comment: ['{0} will be a keybinding, e.g "Enter to insert"'] }, "{0} to insert")
+		title: nls.localize('accept.insert', "Insert")
 	}]
 }));
 
