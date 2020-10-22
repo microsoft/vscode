@@ -507,8 +507,9 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 }
 
-class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | { value: string; score: FuzzyScore }>, IDisposable {
+export type LabelFuzzyScore = { label: string; score: FuzzyScore };
 
+class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDisposable {
 	private _totalCount = 0;
 	get totalCount(): number { return this._totalCount; }
 	private _matchCount = 0;
@@ -531,7 +532,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | { value: string; scor
 		tree.onWillRefilter(this.reset, this, this.disposables);
 	}
 
-	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore | { value: string, score: FuzzyScore }> {
+	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore | LabelFuzzyScore> {
 		if (this._filter) {
 			const result = this._filter.filter(element, parentVisibility);
 
@@ -575,7 +576,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | { value: string; scor
 				this._matchCount++;
 				return labels.length === 1 ?
 					{ data: score, visibility: true } :
-					{ data: { value: labelStr, score: score }, visibility: true };
+					{ data: { label: labelStr, score: score }, visibility: true };
 			}
 		}
 
