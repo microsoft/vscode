@@ -45,16 +45,10 @@
 }
 
 .monaco-editor .suggest-widget .suggest-status-bar .left {
-	align-self: flex-start;
 	padding-right: 8px;
 }
 
-.monaco-editor .suggest-widget .suggest-status-bar .right {
-	align-self: flex-end;
-}
-
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {
-	min-height: 18px;
 	opacity: 0.5;
 	color: inherit;
 }

@@ -14,7 +14,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IListEvent, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
@@ -151,7 +150,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IModeService modeService: IModeService,
@@ -207,7 +205,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
-
 
 		const renderer = instantiationService.createInstance(ItemRenderer, this.editor);
 		this._disposables.add(renderer);
@@ -288,12 +285,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-		// Clicking inside details
 		if (this._details.widget.domNode.contains(mouseEvent.target.element)) {
+			// Clicking inside details
 			this._details.widget.domNode.focus();
-		}
-		// Clicking outside details and inside suggest
-		else {
+		} else {
+			// Clicking outside details and inside suggest
 			if (this.element.domNode.contains(mouseEvent.target.element)) {
 				this.editor.focus();
 			}
@@ -802,6 +798,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		const bodyBox = dom.getClientArea(document.body);
 		const { itemHeight, statusBarHeight, borderHeight, typicalHalfwidthCharacterWidth } = this._getLayoutInfo();
+
+		// status bar
+		this.status.element.style.lineHeight = `${itemHeight}px`;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			// showing a message only
