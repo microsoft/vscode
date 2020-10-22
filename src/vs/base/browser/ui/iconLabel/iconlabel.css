@@ -75,6 +75,7 @@
 	font-weight: 600;
 	padding: 0 16px 0 5px;
 	text-align: center;
+	display: inline-table; /* #95883, force integer width (snap to pixels) */
 }
 
 /* make sure selection color wins when a label is being selected */
