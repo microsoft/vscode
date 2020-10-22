@@ -458,7 +458,7 @@ export class CommandCenter {
 		}
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, shouldRecurse?: boolean): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -514,7 +514,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, parentPath!, progress, token, shouldRecurse)
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
 
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
@@ -573,12 +573,12 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
-		this.cloneRepository(url, parentPath, false);
+		this.cloneRepository(url, parentPath);
 	}
 
-	@command('git.cloneRecursively')
-	async cloneRecursively(url?: string, parentPath?: string): Promise<void> {
-		this.cloneRepository(url, parentPath, true);
+	@command('git.cloneRecursive')
+	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
+		this.cloneRepository(url, parentPath, { recursive: true });
 	}
 
 	@command('git.init')

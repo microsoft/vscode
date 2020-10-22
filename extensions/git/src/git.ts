@@ -351,6 +351,12 @@ function sanitizePath(path: string): string {
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
 
+export interface ICloneOptions {
+	readonly parentPath: string;
+	readonly progress: Progress<{ increment: number }>;
+	readonly recursive?: boolean;
+}
+
 export class Git {
 
 	readonly path: string;
@@ -373,18 +379,18 @@ export class Git {
 		return;
 	}
 
-	async clone(url: string, parentPath: string, progress: Progress<{ increment: number }>, cancellationToken?: CancellationToken, shouldRecurse?: boolean): Promise<string> {
+	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
 		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
-		let folderPath = path.join(parentPath, folderName);
+		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
 
 		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
 			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(parentPath, folderName);
+			folderPath = path.join(options.parentPath, folderName);
 		}
 
-		await mkdirp(parentPath);
+		await mkdirp(options.parentPath);
 
 		const onSpawn = (child: cp.ChildProcess) => {
 			const decoder = new StringDecoder('utf8');
@@ -408,7 +414,7 @@ export class Git {
 				}
 
 				if (totalProgress !== previousProgress) {
-					progress.report({ increment: totalProgress - previousProgress });
+					options.progress.report({ increment: totalProgress - previousProgress });
 					previousProgress = totalProgress;
 				}
 			});
@@ -416,10 +422,10 @@ export class Git {
 
 		try {
 			let command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
-			if (shouldRecurse) {
+			if (options.recursive) {
 				command.push('--recursive');
 			}
-			await this.exec(parentPath, command, { cancellationToken, onSpawn });
+			await this.exec(options.parentPath, command, { cancellationToken, onSpawn });
 		} catch (err) {
 			if (err.stderr) {
 				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
