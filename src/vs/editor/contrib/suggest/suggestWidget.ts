@@ -146,7 +146,7 @@ export class SuggestWidget implements IDisposable {
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
 
-		this._contentWidget = new SuggestContentWidget(this.element.domNode, editor);
+		this._contentWidget = new SuggestContentWidget(this, editor);
 		this._persistedSize = new PersistedWidgetSize(_storageService, editor);
 
 		let persistedSize: dom.Dimension | undefined;
@@ -197,7 +197,7 @@ export class SuggestWidget implements IDisposable {
 		this._disposables.add(renderer.onDidToggleDetails(() => this.toggleDetails()));
 
 		this.list = new List('SuggestWidget', this.listElement, {
-			getHeight: (_element: CompletionItem): number => this._getLayoutInfo().itemHeight,
+			getHeight: (_element: CompletionItem): number => this.getLayoutInfo().itemHeight,
 			getTemplateId: (_element: CompletionItem): string => 'suggestion'
 		}, [renderer], {
 			useShadows: false,
@@ -703,13 +703,7 @@ export class SuggestWidget implements IDisposable {
 		return this.state === State.Frozen;
 	}
 
-	beforeRender() {
-		const { height, width } = this.element.size;
-		const { borderWidth } = this._getLayoutInfo();
-		return new dom.Dimension(width + 2 * borderWidth, height + 2 * borderWidth);
-	}
-
-	afterRender(position: ContentWidgetPositionPreference | null) {
+	_afterRender(position: ContentWidgetPositionPreference | null) {
 		if (position === null) {
 			if (this._isDetailsVisible()) {
 				this._details.hide(); //todo@jrieken soft-hide
@@ -725,7 +719,6 @@ export class SuggestWidget implements IDisposable {
 		}
 		this._positionDetails();
 	}
-
 	private _layout(size: dom.Dimension | undefined): void {
 		if (!this.editor.hasModel()) {
 			return;
@@ -739,7 +732,7 @@ export class SuggestWidget implements IDisposable {
 		let width = size?.width;
 
 		const bodyBox = dom.getClientArea(document.body);
-		const { itemHeight, statusBarHeight, borderHeight, typicalHalfwidthCharacterWidth } = this._getLayoutInfo();
+		const { itemHeight, statusBarHeight, borderHeight, typicalHalfwidthCharacterWidth } = this.getLayoutInfo();
 
 		// status bar
 		this.status.element.style.lineHeight = `${itemHeight}px`;
@@ -819,7 +812,7 @@ export class SuggestWidget implements IDisposable {
 		}
 	}
 
-	private _getLayoutInfo() {
+	getLayoutInfo() {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		const itemHeight = this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).statusBar.visible || this.state === State.Empty || this.state === State.Loading ? 0 : itemHeight;
@@ -850,7 +843,7 @@ export class SuggestContentWidget implements IContentWidget {
 	private _hidden: boolean = false;
 
 	constructor(
-		private readonly _domNode: HTMLElement,
+		private readonly _widget: SuggestWidget,
 		private readonly _editor: ICodeEditor
 	) { }
 
@@ -866,7 +859,7 @@ export class SuggestContentWidget implements IContentWidget {
 	}
 
 	getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._widget.element.domNode;
 	}
 
 	show(): void {
@@ -896,6 +889,16 @@ export class SuggestContentWidget implements IContentWidget {
 			position: this._position,
 			preference: [this._preference]
 		};
+	}
+
+	beforeRender() {
+		const { height, width } = this._widget.element.size;
+		const { borderWidth } = this._widget.getLayoutInfo();
+		return new dom.Dimension(width + 2 * borderWidth, height + 2 * borderWidth);
+	}
+
+	afterRender(position: ContentWidgetPositionPreference | null) {
+		this._widget._afterRender(position);
 	}
 
 	setPreference(preference: ContentWidgetPositionPreference) {

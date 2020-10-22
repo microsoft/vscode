@@ -105,10 +105,6 @@ export class SuggestDetailsWidget {
 		return this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
 	}
 
-	hide(): void {
-		this.domNode.classList.add('no-docs');
-	}
-
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
@@ -286,7 +282,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	hide(): void {
 		if (this._added) {
 			this._editor.removeOverlayWidget(this);
-			this.widget.hide();
 			this._added = false;
 			this._anchorBox = undefined;
 		}
