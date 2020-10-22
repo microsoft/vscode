@@ -424,18 +424,17 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.onDidFocusEmitter.fire({ item, index, model: this.completionModel });
 	}
 
-	private setState(state: State): void {
-		if (!this.element) {
+	private _setState(state: State): void {
+
+		if (this.state === state) {
 			return;
 		}
+		this.state = state;
 
 		if (!this.isAddedAsContentWidget && state !== State.Hidden) {
 			this.isAddedAsContentWidget = true;
 			this.editor.addContentWidget(this);
 		}
-
-		const stateChanged = this.state !== state;
-		this.state = state;
 
 		this.element.domNode.classList.toggle('frozen', state === State.Frozen);
 
@@ -444,10 +443,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				dom.hide(this.messageElement, this.listElement, this.status.element);
 				this._details.hide();
 				this.hide();
-				// this.listHeight = 0;
-				if (stateChanged) {
-					this.list.splice(0, this.list.length);
-				}
+				this.list.splice(0, this.list.length);
 				this.focusedItem = undefined;
 				break;
 			case State.Loading:
@@ -493,7 +489,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.isAuto = !!auto;
 
 		if (!this.isAuto) {
-			this.loadingTimeout = disposableTimeout(() => this.setState(State.Loading), delay);
+			this.loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
 		}
 	}
 
@@ -509,7 +505,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 
 		if (isFrozen && this.state !== State.Empty && this.state !== State.Hidden) {
-			this.setState(State.Frozen);
+			this._setState(State.Frozen);
 			return;
 		}
 
@@ -518,46 +514,34 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.ctxSuggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
 		if (isEmpty) {
-			if (isAuto) {
-				this.setState(State.Hidden);
-			} else {
-				this.setState(State.Empty);
-			}
-
+			this._setState(isAuto ? State.Hidden : State.Empty);
 			this.completionModel = undefined;
+			return;
+		}
 
-		} else {
+		if (this.state !== State.Open) {
+			const { stats } = this.completionModel;
+			stats['wasAutomaticallyTriggered'] = !!isAuto;
+			/* __GDPR__
+				"suggestWidget" : {
+					"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"${include}": [
+						"${ICompletionStats}"
+					]
+				}
+			*/
+			this.telemetryService.publicLog('suggestWidget', { ...stats });
+		}
 
-			if (this.state !== State.Open) {
-				const { stats } = this.completionModel;
-				stats['wasAutomaticallyTriggered'] = !!isAuto;
-				/* __GDPR__
-					"suggestWidget" : {
-						"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"${include}": [
-							"${ICompletionStats}"
-						]
-					}
-				*/
-				this.telemetryService.publicLog('suggestWidget', { ...stats });
-			}
+		this.focusedItem = undefined;
+		this.list.splice(0, this.list.length, this.completionModel.items);
+		this._setState(isFrozen ? State.Frozen : State.Open);
+		this.list.reveal(selectionIndex, 0);
+		this.list.setFocus([selectionIndex]);
 
-			this.focusedItem = undefined;
-			this.list.splice(0, this.list.length, this.completionModel.items);
-
-			if (isFrozen) {
-				this.setState(State.Frozen);
-			} else {
-				this.setState(State.Open);
-			}
-
-			this.list.reveal(selectionIndex, 0);
-			this.list.setFocus([selectionIndex]);
-
-			// Reset focus border
-			if (this.detailsBorderColor) {
-				this._details.widget.domNode.style.borderColor = this.detailsBorderColor;
-			}
+		// Reset focus border
+		if (this.detailsBorderColor) {
+			this._details.widget.domNode.style.borderColor = this.detailsBorderColor;
 		}
 	}
 
@@ -663,12 +647,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 	toggleDetailsFocus(): void {
 		if (this.state === State.Details) {
-			this.setState(State.Open);
+			this._setState(State.Open);
 			if (this.detailsBorderColor) {
 				this._details.widget.domNode.style.borderColor = this.detailsBorderColor;
 			}
 		} else if (this.state === State.Open && this._isDetailsVisible()) {
-			this.setState(State.Details);
+			this._setState(State.Details);
 			if (this.detailsFocusBorderColor) {
 				this._details.widget.domNode.style.borderColor = this.detailsFocusBorderColor;
 			}
@@ -732,7 +716,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 	hideWidget(): void {
 		this.loadingTimeout.dispose();
-		this.setState(State.Hidden);
+		this._setState(State.Hidden);
 		this.onDidHideEmitter.fire(this);
 	}
 
