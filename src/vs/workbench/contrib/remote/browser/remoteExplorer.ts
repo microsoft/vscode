@@ -6,7 +6,6 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewDescriptorService, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IRemoteExplorerService, MakeAddress, mapHasTunnelLocalhostOrAllInterfaces, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +23,6 @@ export const VIEWLET_ID = 'workbench.view.remote';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private contextKeyListener?: IDisposable;
-	private _activityBadge?: IDisposable;
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
@@ -32,7 +30,6 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IActivityService private readonly activityService: IActivityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
@@ -68,34 +65,17 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 	private enableBadgeAndStatusBar() {
 		this._register(this.remoteExplorerService.tunnelModel.onForwardPort(() => {
-			this.updateActivityBadge();
 			this.updateStatusBar();
 		}));
 		this._register(this.remoteExplorerService.tunnelModel.onClosePort(() => {
-			this.updateActivityBadge();
 			this.updateStatusBar();
 		}));
 		const disposable = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
 			if (e.find(view => view.views.find(viewDescriptor => viewDescriptor.id === TUNNEL_VIEW_ID))) {
-				this.updateActivityBadge();
 				this.updateStatusBar();
 				disposable.dispose();
 			}
 		});
-	}
-
-	private updateActivityBadge() {
-		if (this._activityBadge) {
-			this._activityBadge.dispose();
-		}
-		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(TUNNEL_VIEW_ID);
-			if (viewContainer) {
-				this._activityBadge = this.activityService.showViewContainerActivity(viewContainer.id, {
-					badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
-				});
-			}
-		}
 	}
 
 	private updateStatusBar() {
