@@ -145,7 +145,7 @@ let createBlockRange = (block: Token | undefined, document: vscode.TextDocument,
 			let startPos = new vscode.Position(startLine, 0);
 			let endPos = new vscode.Position(endLine, getEndCharacter(document, startLine, endLine));
 			let range = new vscode.Range(startPos, endPos);
-			if (parent && parent.range.contains(range)) {
+			if (parent && parent.range.contains(range) && !parent.range.isEqual(range)) {
 				return new vscode.SelectionRange(range, parent);
 			} else if (parent) {
 				return parent;
@@ -161,8 +161,10 @@ let createBlockRange = (block: Token | undefined, document: vscode.TextDocument,
 let createFencedRange = (token: Token, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange => {
 	let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(token.map[0], 0), new vscode.Position(token.map[1], getEndCharacter(document, token.map[0], token.map[1]))));
 	let childRange = new vscode.Range(new vscode.Position(token.map[0] + 1, 0), new vscode.Position(token.map[1] - 1, getEndCharacter(document, token.map[0] + 1, token.map[1] - 1)));
-	if (parent && parent.range.contains(blockRange.range)) {
+	if (parent && parent.range.contains(blockRange.range) && !parent.range.isEqual(blockRange.range)) {
 		return new vscode.SelectionRange(childRange, new vscode.SelectionRange(blockRange.range, parent));
+	} else if (parent?.range.isEqual(blockRange.range)) {
+		return new vscode.SelectionRange(childRange, parent);
 	} else {
 		return new vscode.SelectionRange(childRange, blockRange);
 	}

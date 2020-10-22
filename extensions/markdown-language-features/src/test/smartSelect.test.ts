@@ -67,12 +67,12 @@ suite.only('markdown.SmartSelect', () => {
 				`Hello`));
 		if (ranges) {
 			assert.strictEqual(ranges[0].range.start.line, 1);
-			assert.strictEqual(ranges[0].range.start.line, 1);
+			assert.strictEqual(ranges[0].range.end.line, 1);
 			assert.strictEqual(ranges[0].range.start.character, 0);
 			assert.strictEqual(ranges[0].range.end.character, 5);
 			if (ranges[0].parent) {
 				assert.strictEqual(ranges[0].range.start.line, 1);
-				assert.strictEqual(ranges[0].range.start.line, 1);
+				assert.strictEqual(ranges[0].range.end.line, 1);
 				assert.strictEqual(ranges[0].range.start.character, 0);
 				assert.strictEqual(ranges[0].range.end.character, 5);
 			}
@@ -149,12 +149,8 @@ suite.only('markdown.SmartSelect', () => {
 			assert.strictEqual(ranges[0].range.start.line, 1);
 			assert.strictEqual(ranges[0].range.end.line, 2);
 			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 1);
-				assert.strictEqual(ranges[0].parent.range.end.line, 2);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 4);
-				}
+				assert.strictEqual(ranges[0].parent.range.start.line, 0);
+				assert.strictEqual(ranges[0].parent.range.end.line, 4);
 			}
 		} else {
 			throw new Error('ranges are undefined');
@@ -176,12 +172,8 @@ suite.only('markdown.SmartSelect', () => {
 				assert.strictEqual(ranges[0].parent.range.start.line, 1);
 				assert.strictEqual(ranges[0].parent.range.end.line, 4);
 				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 1);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 4);
-					if (ranges[0].parent.parent.parent) {
-						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 0);
-						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 6);
-					}
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 6);
 				}
 			}
 		} else {
@@ -202,21 +194,13 @@ suite.only('markdown.SmartSelect', () => {
 			assert.strictEqual(ranges[0].range.end.line, 1);
 			if (ranges[0].parent) {
 				assert.strictEqual(ranges[0].parent.range.start.line, 0);
-				assert.strictEqual(ranges[0].parent.range.end.line, 1);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 6);
-				}
+				assert.strictEqual(ranges[0].parent.range.end.line, 6);
 			}
 			assert.strictEqual(ranges[1].range.start.line, 4);
 			assert.strictEqual(ranges[1].range.end.line, 5);
 			if (ranges[1].parent) {
-				assert.strictEqual(ranges[1].parent.range.start.line, 4);
-				assert.strictEqual(ranges[1].parent.range.end.line, 5);
-				if (ranges[1].parent.parent) {
-					assert.strictEqual(ranges[1].parent.parent.range.start.line, 0);
-					assert.strictEqual(ranges[1].parent.parent.range.end.line, 6);
-				}
+				assert.strictEqual(ranges[1].parent.range.start.line, 0);
+				assert.strictEqual(ranges[1].parent.range.end.line, 6);
 			}
 		} else {
 			throw new Error('ranges are undefined');
@@ -229,20 +213,7 @@ suite.only('markdown.SmartSelect', () => {
 				`> item 2`,
 				`>> ${CURSOR}item 3`,
 				`>> item 4`));
-		if (ranges) {
-			assert.strictEqual(ranges[0].range.start.line, 2);
-			assert.strictEqual(ranges[0].range.end.line, 4);
-			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 2);
-				assert.strictEqual(ranges[0].parent.range.end.line, 4);
-				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 4);
-				}
-			}
-		} else {
-			throw new Error('ranges are undefined');
-		}
+		assertNestedRangesEqual(ranges![0], [2, 4], [0, 4]);
 	});
 	test('Smart select multi nested block quotes', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -374,24 +345,21 @@ suite.only('markdown.SmartSelect', () => {
 				assert.strictEqual(ranges[0].parent.range.start.line, 4);
 				assert.strictEqual(ranges[0].parent.range.end.line, 7);
 				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 4);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 7);
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 3);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 10);
 					if (ranges[0].parent.parent.parent) {
 						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 3);
 						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 10);
 						if (ranges[0].parent.parent.parent.parent) {
-							assert.strictEqual(ranges[0].parent.parent.parent.parent.range.start.line, 3);
+							assert.strictEqual(ranges[0].parent.parent.parent.parent.range.start.line, 2);
 							assert.strictEqual(ranges[0].parent.parent.parent.parent.range.end.line, 10);
 							if (ranges[0].parent.parent.parent.parent.parent) {
-								assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.range.start.line, 2);
+								assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.range.start.line, 1);
 								assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.range.end.line, 10);
 								if (ranges[0].parent.parent.parent.parent.parent.parent) {
-									assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.range.start.line, 1);
+									assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.range.start.line, 0);
 									assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.range.end.line, 10);
-									if (ranges[0].parent.parent.parent.parent.parent.parent.parent) {
-										assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.parent.range.start.line, 0);
-										assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.parent.range.end.line, 10);
-									}
+
 								}
 							}
 						}
@@ -403,6 +371,29 @@ suite.only('markdown.SmartSelect', () => {
 		}
 	});
 });
+
+function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {
+	const lineage = getLineage(range);
+	assert.strictEqual(lineage.length, expectedRanges.length);
+	for (let i = 0; i < lineage.length; i++) {
+		assertRangesEqual(lineage[i], expectedRanges[i][0], expectedRanges[i][1], `parent at a depth of ${i}`);
+	}
+}
+
+function getLineage(range: vscode.SelectionRange): vscode.SelectionRange[] {
+	const result: vscode.SelectionRange[] = [];
+	let currentRange: vscode.SelectionRange | undefined = range;
+	while (currentRange) {
+		result.push(currentRange);
+		currentRange = currentRange.parent;
+	}
+	return result;
+}
+
+function assertRangesEqual(selectionRange: vscode.SelectionRange, startLine: number, endLine: number, message: string) {
+	assert.strictEqual(selectionRange.range.start.line, startLine, `failed on start line ${message}`);
+	assert.strictEqual(selectionRange.range.end.line, endLine, `failed on end line ${message}`);
+}
 
 async function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]) {
 	const doc = new InMemoryDocument(testFileName, contents);
