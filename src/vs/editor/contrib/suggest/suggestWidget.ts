@@ -159,7 +159,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const markdownRenderer = this._disposables.add(new MarkdownRenderer({ editor }, modeService, openerService));
-		const kbToggleDetails = keybindingService.lookupKeybinding('toggleSuggestionDetails')?.getLabel() ?? '';
 
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'suggest-widget');
@@ -202,7 +201,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.messageElement = dom.append(this.element.domNode, dom.$('.message'));
 		this.listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
-		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor, markdownRenderer, kbToggleDetails);
+		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor, markdownRenderer);
 		details.onDidClose(this.toggleDetails, this, this._disposables);
 		this._details = new SuggestDetailsOverlay(details, this.editor);
 
@@ -210,7 +209,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		applyIconStyle();
 
 
-		const renderer = instantiationService.createInstance(ItemRenderer, this.editor, kbToggleDetails);
+		const renderer = instantiationService.createInstance(ItemRenderer, this.editor);
 		this._disposables.add(renderer);
 		this._disposables.add(renderer.onDidToggleDetails(() => this.toggleDetails()));
 

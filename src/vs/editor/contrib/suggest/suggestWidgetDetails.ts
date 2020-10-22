@@ -45,7 +45,6 @@ export class SuggestDetailsWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _markdownRenderer: MarkdownRenderer,
-		private readonly _kbToggleDetails: string
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
@@ -58,7 +57,7 @@ export class SuggestDetailsWidget {
 
 		this._header = dom.append(this._body, dom.$('.header'));
 		this._close = dom.append(this._header, dom.$('span' + Codicon.close.cssSelector));
-		this._close.title = nls.localize('readLess', "Read Less ({0})", this._kbToggleDetails);
+		this._close.title = nls.localize('details.close', "Close");
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
