@@ -37,6 +37,7 @@
 	font-size: 80%;
 	padding: 0 8px 0 4px;
 	border-top: 1px solid transparent;
+	overflow: hidden;
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
