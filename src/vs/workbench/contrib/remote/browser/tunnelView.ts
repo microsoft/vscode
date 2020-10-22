@@ -589,7 +589,8 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return this.viewModel.forwarded.length === 0 && this.viewModel.candidates.length === 0 && !this.isEditing;
+		return (this.viewModel.forwarded.length === 0) && (this.viewModel.candidates.length === 0) &&
+			(this.viewModel.detected.length === 0) && !this.isEditing;
 	}
 
 	focus(): void {

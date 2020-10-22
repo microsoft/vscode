@@ -88,15 +88,22 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 	private get entry(): IStatusbarEntry {
 		let text: string;
-		if (this.remoteExplorerService.tunnelModel.forwarded.size === 0) {
+		let tooltip: string;
+		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
+		if (count === 0) {
 			text = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Available");
-		} else if (this.remoteExplorerService.tunnelModel.forwarded.size === 1) {
-			text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available");
+			tooltip = text;
 		} else {
-			text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", this.remoteExplorerService.tunnelModel.forwarded.size);
+			if (count === 1) {
+				text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available");
+			} else {
+				text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", count);
+			}
+			const allTunnels = Array.from(this.remoteExplorerService.tunnelModel.forwarded.values());
+			allTunnels.push(...Array.from(this.remoteExplorerService.tunnelModel.detected.values()));
+			tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Available Ports: {0}",
+				allTunnels.map(forwarded => forwarded.remotePort).join(', '));
 		}
-		const tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Available Ports: {0}",
-			Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).map(forwarded => forwarded.remotePort).join(', '));
 		return {
 			text: `$(radio-tower) ${text}`,
 			ariaLabel: tooltip,
