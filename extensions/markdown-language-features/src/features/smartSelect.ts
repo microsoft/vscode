@@ -76,7 +76,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		for (const header of headers) {
 			if (parentRange) {
 				if (parentRange.range.contains(header.location.range)) {
-					if (headerInfo.headerOnThisLine) {
+					if (headerInfo.headerOnThisLine && index === headers.length - 1) {
 						currentRange = new vscode.SelectionRange(header.location.range, parentRange);
 					} else {
 						currentRange = createHeaderRange(header, parentRange);
