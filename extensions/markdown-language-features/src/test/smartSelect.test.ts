@@ -109,6 +109,14 @@ suite.only('markdown.SmartSelect', () => {
 		if (ranges) {
 			assert.strictEqual(ranges[0].range.start.line, 1);
 			assert.strictEqual(ranges[0].range.end.line, 3);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 1);
+				assert.strictEqual(ranges[0].parent.range.end.line, 3);
+				if (ranges[0].parent.parent) {
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 3);
+				}
+			}
 		} else {
 			throw new Error('ranges are undefined');
 		}
@@ -122,6 +130,10 @@ suite.only('markdown.SmartSelect', () => {
 		if (ranges) {
 			assert.strictEqual(ranges[0].range.start.line, 1);
 			assert.strictEqual(ranges[0].range.end.line, 2);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 0);
+				assert.strictEqual(ranges[0].parent.range.end.line, 3);
+			}
 		} else {
 			throw new Error('ranges are undefined');
 		}
@@ -153,19 +165,23 @@ suite.only('markdown.SmartSelect', () => {
 			joinLines(
 				`- item 1`,
 				`- ~~~`,
-				`- ${CURSOR}a`,
-				`- ~~~`,
+				`  ${CURSOR}a`,
+				`  ~~~`,
 				`- item 3`,
 				`- item 4`));
 		if (ranges) {
 			assert.strictEqual(ranges[0].range.start.line, 2);
 			assert.strictEqual(ranges[0].range.end.line, 3);
 			if (ranges[0].parent) {
-				assert.strictEqual(ranges[0].parent.range.start.line, 2);
-				assert.strictEqual(ranges[0].parent.range.end.line, 3);
+				assert.strictEqual(ranges[0].parent.range.start.line, 1);
+				assert.strictEqual(ranges[0].parent.range.end.line, 4);
 				if (ranges[0].parent.parent) {
-					assert.strictEqual(ranges[0].parent.parent.range.start.line, 0);
-					assert.strictEqual(ranges[0].parent.parent.range.end.line, 6);
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 1);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 4);
+					if (ranges[0].parent.parent.parent) {
+						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 0);
+						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 6);
+					}
 				}
 			}
 		} else {
@@ -177,8 +193,8 @@ suite.only('markdown.SmartSelect', () => {
 			joinLines(
 				`- ${CURSOR}item 1`,
 				`- ~~~`,
-				`- a`,
-				`- ~~~`,
+				`  a`,
+				`  ~~~`,
 				`- ${CURSOR}item 3`,
 				`- item 4`));
 		if (ranges) {
@@ -335,6 +351,56 @@ suite.only('markdown.SmartSelect', () => {
 	test('Smart select empty document', async () => {
 		const ranges = await getSelectionRangesForDocument(``, [new vscode.Position(0, 0)]);
 		assert.strictEqual(ranges?.length, 0);
+	});
+	test('Smart select fenced code block then list then subheader content then subheader then header content then header', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				`content 1`,
+				`## sub header 1`,
+				`- item 1`,
+				`- ~~~`,
+				`  ${CURSOR}a`,
+				`  ~~~`,
+				`- item 3`,
+				`- item 4`,
+				``,
+				`more content`,
+				`# main header 2`));
+		if (ranges) {
+			assert.strictEqual(ranges[0].range.start.line, 5);
+			assert.strictEqual(ranges[0].range.end.line, 6);
+			if (ranges[0].parent) {
+				assert.strictEqual(ranges[0].parent.range.start.line, 4);
+				assert.strictEqual(ranges[0].parent.range.end.line, 7);
+				if (ranges[0].parent.parent) {
+					assert.strictEqual(ranges[0].parent.parent.range.start.line, 4);
+					assert.strictEqual(ranges[0].parent.parent.range.end.line, 7);
+					if (ranges[0].parent.parent.parent) {
+						assert.strictEqual(ranges[0].parent.parent.parent.range.start.line, 3);
+						assert.strictEqual(ranges[0].parent.parent.parent.range.end.line, 10);
+						if (ranges[0].parent.parent.parent.parent) {
+							assert.strictEqual(ranges[0].parent.parent.parent.parent.range.start.line, 3);
+							assert.strictEqual(ranges[0].parent.parent.parent.parent.range.end.line, 10);
+							if (ranges[0].parent.parent.parent.parent.parent) {
+								assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.range.start.line, 2);
+								assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.range.end.line, 10);
+								if (ranges[0].parent.parent.parent.parent.parent.parent) {
+									assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.range.start.line, 1);
+									assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.range.end.line, 10);
+									if (ranges[0].parent.parent.parent.parent.parent.parent.parent) {
+										assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.parent.range.start.line, 0);
+										assert.strictEqual(ranges[0].parent.parent.parent.parent.parent.parent.parent.range.end.line, 10);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		} else {
+			throw new Error('ranges are undefined');
+		}
 	});
 });
 
