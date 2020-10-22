@@ -198,6 +198,20 @@ suite.only('markdown.SmartSelect', () => {
 
 		assertNestedRangesEqual(ranges![0], [5, 6], [4, 7], [3, 10], [3, 10], [2, 10], [1, 10], [0, 10]);
 	});
+	test('Smart select list with on element without selecting child subheader', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list ${CURSOR}`,
+				``,
+				`## sub header`,
+				``,
+				`content 2`,
+				`# main header 2`));
+
+		assertNestedRangesEqual(ranges![0], [2, 3], [1, 3], [1, 6], [0, 6]);
+	});
 });
 
 function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {

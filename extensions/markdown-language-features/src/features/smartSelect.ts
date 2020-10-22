@@ -96,7 +96,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 }
 
-let getTokensForPosition = (tokens: Token[], position: vscode.Position): Token[] => {
+function getTokensForPosition(tokens: Token[], position: vscode.Position): Token[] {
 	let enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && isBlockElement(token));
 
 	if (enclosingTokens.length === 0) {
@@ -105,9 +105,9 @@ let getTokensForPosition = (tokens: Token[], position: vscode.Position): Token[]
 
 	let sortedTokens = enclosingTokens.sort((token1, token2) => (token2.map[1] - token2.map[0]) - (token1.map[1] - token1.map[0]));
 	return sortedTokens;
-};
+}
 
-let getHeadersForPosition = (toc: TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } => {
+function getHeadersForPosition(toc: TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
 	let enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
 	let sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 	let onThisLine = toc.find(header => header.line === position.line) !== undefined;
@@ -115,13 +115,13 @@ let getHeadersForPosition = (toc: TocEntry[], position: vscode.Position): { head
 		headers: sortedHeaders,
 		headerOnThisLine: onThisLine
 	};
-};
+}
 
-let isBlockElement = (token: Token): boolean => {
+function isBlockElement(token: Token): boolean {
 	return !['list_item_close', 'paragraph_close', 'bullet_list_close', 'inline', 'heading_close', 'heading_open'].includes(token.type);
-};
+}
 
-let createHeaderRange = (header: TocEntry | undefined, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined => {
+function createHeaderRange(header: TocEntry | undefined, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	if (header) {
 		let contentRange = new vscode.Range(header.location.range.start.translate(1), header.location.range.end);
 		let headerPlusContentRange = header.location.range;
@@ -133,9 +133,9 @@ let createHeaderRange = (header: TocEntry | undefined, parent?: vscode.Selection
 	} else {
 		return undefined;
 	}
-};
+}
 
-let createBlockRange = (block: Token | undefined, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined => {
+function createBlockRange(block: Token | undefined, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	if (block) {
 		if (block.type === 'fence') {
 			return createFencedRange(block, document, parent);
@@ -156,9 +156,9 @@ let createBlockRange = (block: Token | undefined, document: vscode.TextDocument,
 	} else {
 		return undefined;
 	}
-};
+}
 
-let createFencedRange = (token: Token, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange => {
+function createFencedRange(token: Token, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
 	let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(token.map[0], 0), new vscode.Position(token.map[1], getEndCharacter(document, token.map[0], token.map[1]))));
 	let childRange = new vscode.Range(new vscode.Position(token.map[0] + 1, 0), new vscode.Position(token.map[1] - 1, getEndCharacter(document, token.map[0] + 1, token.map[1] - 1)));
 	if (parent && parent.range.contains(blockRange.range) && !parent.range.isEqual(blockRange.range)) {
@@ -168,11 +168,11 @@ let createFencedRange = (token: Token, document: vscode.TextDocument, parent?: v
 	} else {
 		return new vscode.SelectionRange(childRange, blockRange);
 	}
-};
+}
 
-let getEndCharacter = (document: vscode.TextDocument, startLine: number, endLine: number): number => {
+function getEndCharacter(document: vscode.TextDocument, startLine: number, endLine: number): number {
 	let startLength = document.lineAt(startLine).text ? document.lineAt(startLine).text.length : 0;
 	let endLength = document.lineAt(startLine).text ? document.lineAt(startLine).text.length : 0;
 	let endChar = Math.max(startLength, endLength);
 	return startLine !== endLine ? 0 : endChar;
-};
+}
