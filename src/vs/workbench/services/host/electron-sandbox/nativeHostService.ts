@@ -106,6 +106,10 @@ export class NativeHostService extends Disposable implements IHostService {
 		return this.nativeHostService.reload();
 	}
 
+	close(): Promise<void> {
+		return this.nativeHostService.closeWindow();
+	}
+
 	//#endregion
 }
 

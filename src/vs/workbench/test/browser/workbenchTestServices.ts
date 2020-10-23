@@ -1046,6 +1046,7 @@ export class TestHostService implements IHostService {
 
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
+	async close(): Promise<void> { }
 
 	async focus(options?: { force: boolean }): Promise<void> { }
 
