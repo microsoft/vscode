@@ -14,7 +14,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { assertIsDefined } from 'vs/base/common/types';
 
-// FileService doesn't work with \'s in paths.
+// FileService doesn't work with \ leading a path. Windows join swaps /'s for \'s,
+// making /-style absolute paths fail isAbsolute checks.
 const join = posix.join;
 
 suite('IndexedDB File Service', function () {
