@@ -48,6 +48,7 @@ import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -92,7 +93,8 @@ export class DebugService implements IDebugService {
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.toDispose = [];
 
@@ -295,7 +297,7 @@ export class DebugService implements IDebugService {
 
 				const sessions = this.model.getSessions();
 				const alreadyRunningMessage = nls.localize('configurationAlreadyRunning', "There is already a debug configuration \"{0}\" running.", configOrName);
-				if (sessions.some(s => s.configuration.name === configOrName && (!launch || !launch.workspace || !s.root || s.root.uri.toString() === launch.workspace.uri.toString()))) {
+				if (sessions.some(s => s.configuration.name === configOrName && (!launch || !launch.workspace || !s.root || this.uriIdentityService.extUri.isEqual(s.root.uri, launch.workspace.uri)))) {
 					throw new Error(alreadyRunningMessage);
 				}
 				if (compound && compound.configurations && sessions.some(p => compound!.configurations.indexOf(p.configuration.name) !== -1)) {

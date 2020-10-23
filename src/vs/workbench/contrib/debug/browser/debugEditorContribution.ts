@@ -38,6 +38,7 @@ import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
@@ -187,7 +188,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
@@ -247,7 +249,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
-		if (stackFrame && model.uri.toString() === stackFrame.source.uri.toString()) {
+		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
 			if (this.altListener) {
 				this.altListener.dispose();
 			}
@@ -307,7 +309,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	async showHover(range: Range, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
-		if (sf && model && sf.source.uri.toString() === model.uri.toString() && !this.altPressed) {
+		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
 			return this.hoverWidget.showAt(range, focus);
 		}
 	}
@@ -316,7 +318,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const model = this.editor.getModel();
 		if (model) {
 			this.applyHoverConfiguration(model, sf);
-			if (sf && sf.source.uri.toString() === model.uri.toString()) {
+			if (sf && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
 				await this.toggleExceptionWidget();
 			} else {
 				this.hideHoverWidget();
@@ -421,7 +423,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
+		const sameUri = this.uriIdentityService.extUri.isEqual(exceptionSf.source.uri, model.uri);
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
