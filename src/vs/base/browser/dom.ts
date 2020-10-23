@@ -1437,17 +1437,17 @@ export namespace WebFileSystemAccess {
 	}
 }
 
-type ModifierKey = 'alt' | 'ctrl' | 'shift';
+type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
 
 export interface IModifierKeyStatus {
 	altKey: boolean;
 	shiftKey: boolean;
 	ctrlKey: boolean;
+	metaKey: boolean;
 	lastKeyPressed?: ModifierKey;
 	lastKeyReleased?: ModifierKey;
 	event?: KeyboardEvent;
 }
-
 
 export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
@@ -1461,7 +1461,8 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		this._keyStatus = {
 			altKey: false,
 			shiftKey: false,
-			ctrlKey: false
+			ctrlKey: false,
+			metaKey: false
 		};
 
 		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
@@ -1471,6 +1472,8 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.lastKeyPressed = 'alt';
 			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
 				this._keyStatus.lastKeyPressed = 'ctrl';
+			} else if (e.metaKey && !this._keyStatus.metaKey) {
+				this._keyStatus.lastKeyPressed = 'meta';
 			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
 				this._keyStatus.lastKeyPressed = 'shift';
 			} else if (event.keyCode !== KeyCode.Alt) {
@@ -1481,6 +1484,7 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 			this._keyStatus.altKey = e.altKey;
 			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.metaKey = e.metaKey;
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyPressed) {
@@ -1494,6 +1498,8 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
 				this._keyStatus.lastKeyReleased = 'ctrl';
+			} else if (!e.metaKey && this._keyStatus.metaKey) {
+				this._keyStatus.lastKeyReleased = 'meta';
 			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
 				this._keyStatus.lastKeyReleased = 'shift';
 			} else {
@@ -1506,6 +1512,7 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 			this._keyStatus.altKey = e.altKey;
 			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.metaKey = e.metaKey;
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyReleased) {
@@ -1529,13 +1536,7 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		}));
 
 		this._subscriptions.add(domEvent(window, 'blur')(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-			this._keyStatus.lastKeyReleased = undefined;
-			this._keyStatus.altKey = false;
-			this._keyStatus.shiftKey = false;
-			this._keyStatus.shiftKey = false;
-
-			this.fire(this._keyStatus);
+			this.resetKeyStatus();
 		}));
 	}
 
@@ -1543,14 +1544,25 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		return this._keyStatus;
 	}
 
-	// This method is a workaround because we do not get keyboard events while a context menu is shown #109062
+	get isModifierPressed(): boolean {
+		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+	}
+
+	/**
+	 * Allows to explicitly reset the key status based on more knowledge (#109062)
+	 */
 	resetKeyStatus(): void {
+		this.doResetKeyStatus();
+		this.fire(this._keyStatus);
+	}
+
+	private doResetKeyStatus(): void {
 		this._keyStatus = {
 			altKey: false,
 			shiftKey: false,
-			ctrlKey: false
+			ctrlKey: false,
+			metaKey: false
 		};
-		this.fire(this._keyStatus);
 	}
 
 	static getInstance() {

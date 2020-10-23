@@ -860,7 +860,7 @@ export class MenuBar extends Disposable {
 	}
 
 	private onModifierKeyToggled(modifierKeyStatus: DOM.IModifierKeyStatus): void {
-		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey && !modifierKeyStatus.metaKey;
 
 		if (this.options.visibility === 'hidden') {
 			return;

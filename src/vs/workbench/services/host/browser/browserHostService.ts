@@ -13,7 +13,7 @@ import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, i
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { addDisposableListener, EventType, trackFocus } from 'vs/base/browser/dom';
+import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -113,12 +113,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		// Veto shutdown depending on `window.confirmBeforeClose` setting
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 
-		// Track certain DOM events to detect keybinding usage
-		this._register(addDisposableListener(this.layoutService.container, EventType.KEY_DOWN, e => this.updateShutdownReasonFromEvent(e)));
-		this._register(addDisposableListener(this.layoutService.container, EventType.KEY_UP, () => this.updateShutdownReasonFromEvent(undefined)));
-		this._register(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, () => this.updateShutdownReasonFromEvent(undefined)));
-		this._register(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, () => this.updateShutdownReasonFromEvent(undefined)));
-		this._register(this.onDidChangeFocus(() => this.updateShutdownReasonFromEvent(undefined)));
+		// Track modifier keys to detect keybinding usage
+		this._register(ModifierKeyEmitter.getInstance().event(e => this.updateShutdownReasonFromEvent(e)));
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
@@ -134,12 +130,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.shutdownReason = HostShutdownReason.Unknown;
 	}
 
-	private updateShutdownReasonFromEvent(e: KeyboardEvent | undefined): void {
+	private updateShutdownReasonFromEvent(e: IModifierKeyStatus): void {
 		if (this.shutdownReason === HostShutdownReason.Api) {
 			return; // do not overwrite any explicitly set shutdown reason
 		}
 
-		this.shutdownReason = e ? HostShutdownReason.Keyboard : HostShutdownReason.Unknown;
+		if (ModifierKeyEmitter.getInstance().isModifierPressed) {
+			this.shutdownReason = HostShutdownReason.Keyboard;
+		} else {
+			this.shutdownReason = HostShutdownReason.Unknown;
+		}
 	}
 
 	//#region Focus
@@ -405,21 +405,23 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async reload(): Promise<void> {
-
-		// We know that `window.location.reload` will trigger a shutdown
-		// so we update `shutdownReason` to reflect that
-		this.shutdownReason = HostShutdownReason.Api;
-
-		window.location.reload();
+		this.withExpectedShutdown(() => {
+			window.location.reload();
+		});
 	}
 
 	async close(): Promise<void> {
+		this.withExpectedShutdown(() => {
+			window.close();
+		});
+	}
 
-		// We know that `window.close` will trigger a shutdown
-		// so we update `shutdownReason` to reflect that
+	private withExpectedShutdown(callback: () => void): void {
+
+		// Update shutdown reason in a way that we do not show a dialog
 		this.shutdownReason = HostShutdownReason.Api;
 
-		window.close();
+		callback();
 	}
 
 	//#endregion
