@@ -80,7 +80,7 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 
 // Explorer
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '4_extensions',
+	group: 'extensions',
 	command: {
 		id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
 		title: localize('installVSIX', "Install VSIX"),
