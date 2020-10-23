@@ -25,6 +25,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Defines space handling after opening and before closing non-empty parenthesis.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Defines space handling after opening and before closing non-empty brackets.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Defines space handling after opening and before closing non-empty braces.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": "Defines space handling after opening and before closing empty braces.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Defines space handling after opening and before closing template string braces.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Defines space handling after opening and before closing JSX expression braces.",
 	"format.insertSpaceAfterTypeAssertion": "Defines space handling after type assertions in TypeScript.",

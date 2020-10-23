@@ -332,6 +332,12 @@
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%",
           "scope": "resource"
         },
+        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces%",
+          "scope": "resource"
+        },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
           "default": false,
@@ -448,6 +454,12 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%",
+          "scope": "resource"
+        },
+        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces%",
           "scope": "resource"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
