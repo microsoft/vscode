@@ -1057,6 +1057,8 @@ class FocusActivityBarAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const activityBarService = accessor.get(IActivityBarService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setActivityBarHidden(false);
 		activityBarService.focusActivityBar();
 	}
 }
