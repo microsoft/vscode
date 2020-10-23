@@ -166,7 +166,7 @@ export function setSnippetSuggestSupport(support: modes.CompletionItemProvider):
 }
 
 export interface CompletionDurationEntry {
-	readonly provider: modes.CompletionItemProvider;
+	readonly providerName: string;
 	readonly elapsedProvider: number;
 	readonly elapsedOverall: number;
 }
@@ -228,7 +228,9 @@ export async function provideSuggestionItems(
 		if (isDisposable(container)) {
 			disposables.add(container);
 		}
-		durations.push({ provider, elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed() });
+		durations.push({
+			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
+		});
 	};
 
 	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
