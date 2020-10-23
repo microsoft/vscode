@@ -137,7 +137,6 @@ export class SuggestWidget implements IDisposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IThemeService _themeService: IThemeService,
@@ -518,20 +517,6 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
-		if (this.state !== State.Open) {
-			const { stats } = this.completionModel;
-			stats['wasAutomaticallyTriggered'] = !!isAuto;
-			/* __GDPR__
-				"suggestWidget" : {
-					"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"${include}": [
-						"${ICompletionStats}"
-					]
-				}
-			*/
-			this._telemetryService.publicLog('suggestWidget', { ...stats });
-		}
-
 		this.focusedItem = undefined;
 		this.list.splice(0, this.list.length, this.completionModel.items);
 		this._setState(isFrozen ? State.Frozen : State.Open);
@@ -657,7 +642,6 @@ export class SuggestWidget implements IDisposable {
 				this._details.widget.domNode.style.borderColor = this.detailsFocusBorderColor;
 			}
 		}
-		this._telemetryService.publicLog2('suggestWidget:toggleDetailsFocus');
 	}
 
 	toggleDetails(): void {
@@ -667,14 +651,12 @@ export class SuggestWidget implements IDisposable {
 			this._setDetailsVisible(false);
 			this._details.hide();
 			this.element.domNode.classList.remove('shows-details');
-			this._telemetryService.publicLog2('suggestWidget:collapseDetails');
 
 		} else if (canExpandCompletionItem(this.list.getFocusedElements()[0]) && (this.state === State.Open || this.state === State.Details || this.state === State.Frozen)) {
 			// show details widget (iff possible)
 			this.ctxSuggestWidgetDetailsVisible.set(true);
 			this._setDetailsVisible(true);
 			this.showDetails(false);
-			this._telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
 	}
 
