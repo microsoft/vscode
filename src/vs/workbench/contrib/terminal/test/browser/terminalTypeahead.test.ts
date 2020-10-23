@@ -75,11 +75,9 @@ suite('Workbench - Terminal Typeahead', () => {
 		let config: ITerminalConfiguration;
 		let addon: TypeAheadAddon;
 
-
 		const predictedHelloo = [
 			`${CSI}?25l`, // hide cursor
 			`${CSI}2;7H`, // move cursor cursor
-			`${CSI}X`, // delete character
 			'o', // new character
 			`${CSI}2;8H`, // place cursor back at end of line
 			`${CSI}?25h`, // show cursor
@@ -145,7 +143,6 @@ suite('Workbench - Terminal Typeahead', () => {
 			expectProcessed(`${CSI}4mo`, [
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
-				`${CSI}X`, // delete character
 				`${CSI}4m`, // PTY's style
 				'o', // new character
 				`${CSI}2;8H`, // place cursor back at end of line
@@ -162,7 +159,6 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor from PTY
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
-				`${CSI}X`, // delete character
 				'o', // new character
 				`${CSI}?25h`, // show cursor from PTY
 				`${CSI}2;8H`, // place cursor back at end of line
@@ -245,6 +241,7 @@ function stubPrediction(): IPrediction {
 		apply: () => '',
 		rollback: () => '',
 		matches: () => 0,
+		rollForwards: () => '',
 	};
 }
 
@@ -275,6 +272,7 @@ function createMockTerminal(...lines: string[]) {
 		terminal: {
 			cols: 80,
 			rows: 5,
+			onResize: new Emitter<void>().event,
 			onData: onData.event,
 			write(line: string) {
 				written.push(line);
