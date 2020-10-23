@@ -102,9 +102,9 @@ class MergeItem implements QuickPickItem {
 class RebaseItem implements QuickPickItem {
 
 	get label(): string { return this.ref.name || ''; }
-	get description(): string { return this.ref.name || ''; }
+	description: string = '';
 
-	constructor(protected ref: Ref) { }
+	constructor(readonly ref: Ref) { }
 
 	async run(repository: Repository): Promise<void> {
 		if (this.ref?.name) {
@@ -1878,15 +1878,26 @@ export class CommandCenter {
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
+			.filter(ref => ref.name !== repository.HEAD?.name)
 			.filter(ref => ref.name || ref.commit);
 
 		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.filter(ref => ref.name || ref.commit);
 
+		const picks = [...heads, ...remoteHeads]
+			.map(ref => new RebaseItem(ref));
+
 		// set upstream branch as first
-		const upstreamName = repository?.HEAD?.upstream?.name;
-		const upstreamRemote = repository?.HEAD?.upstream?.remote;
-		const picks = [...heads, ...remoteHeads].sort(ref => ref.name === `${upstreamRemote}/${upstreamName}` && ref.remote === upstreamRemote ? -1 : 0).map(ref => new RebaseItem(ref as Branch));
+		if (repository.HEAD?.upstream) {
+			const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
+			const index = picks.findIndex(e => e.ref.name === upstreamName);
+
+			if (index > -1) {
+				const [ref] = picks.splice(index, 1);
+				ref.description = '(upstream)';
+				picks.unshift(ref);
+			}
+		}
 
 		const placeHolder = localize('select a branch to rebase onto', 'Select a branch to rebase onto');
 		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
