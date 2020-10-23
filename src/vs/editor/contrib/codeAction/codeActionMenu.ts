@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -15,14 +14,14 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction, CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
-import { codeActionCommandId, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionTrigger, CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeAction) => Promise<any>;
+	onSelectCodeAction: (action: CodeActionItem) => Promise<any>;
 }
 
 interface ResolveCodeActionKeybinding {
@@ -90,6 +89,7 @@ export class CodeActionMenu extends Disposable {
 		const resolver = this._keybindingResolver.getResolver();
 
 		this._contextMenuService.showContextMenu({
+			domForShadowRoot: this._editor.getDomNode()!,
 			getAnchor: () => anchor,
 			getActions: () => menuActions,
 			onHide: () => {
@@ -103,10 +103,10 @@ export class CodeActionMenu extends Disposable {
 
 	private getMenuActions(
 		trigger: CodeActionTrigger,
-		actionsToShow: readonly CodeAction[],
+		actionsToShow: readonly CodeActionItem[],
 		documentation: readonly Command[]
 	): IAction[] {
-		const toCodeActionAction = (action: CodeAction): CodeActionAction => new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action));
+		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item));
 
 		const result: IAction[] = actionsToShow
 			.map(toCodeActionAction);
@@ -117,16 +117,16 @@ export class CodeActionMenu extends Disposable {
 		if (model && result.length) {
 			for (const provider of CodeActionProviderRegistry.all(model)) {
 				if (provider._getAdditionalMenuItems) {
-					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow));
+					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action)));
 				}
 			}
 		}
 
 		if (allDocumentation.length) {
-			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction({
+			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction(new CodeActionItem({
 				title: command.title,
 				command: command,
-			})));
+			}, undefined))));
 		}
 
 		return result;

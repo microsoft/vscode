@@ -24,7 +24,7 @@ import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/comm
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { ITextMateThemingRule, IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
+import type { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
@@ -312,7 +312,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		grammarFactory.setTheme(theme, tokenColorMap);
 		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
 		let cssRules = generateTokensCSSForColorMap(colorMap);
-		this._styleElement.innerHTML = cssRules;
+		this._styleElement.textContent = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
 	}
 

@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, Decoration } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, FileDecoration } from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -15,11 +15,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { asArray } from 'vs/base/common/arrays';
 
 interface ProviderData {
-	provider: vscode.DecorationProvider;
+	provider: vscode.FileDecorationProvider;
 	extensionId: ExtensionIdentifier;
 }
 
-export class ExtHostDecorations implements IExtHostDecorations {
+export class ExtHostDecorations implements ExtHostDecorationsShape {
 
 	private static _handlePool = 0;
 
@@ -34,12 +34,12 @@ export class ExtHostDecorations implements IExtHostDecorations {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerDecorationProvider(provider: vscode.DecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
+	registerDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
 		this._provider.set(handle, { provider, extensionId });
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);
 
-		const listener = provider.onDidChangeDecorations(e => {
+		const listener = provider.onDidChange(e => {
 			this._proxy.$onDidChange(handle, !e || (Array.isArray(e) && e.length > 250)
 				? null
 				: asArray(e));
@@ -52,35 +52,37 @@ export class ExtHostDecorations implements IExtHostDecorations {
 		});
 	}
 
-	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
+	async $provideDecorations(handle: number, requests: DecorationRequest[], token: CancellationToken): Promise<DecorationReply> {
+
+		if (!this._provider.has(handle)) {
+			// might have been unregistered in the meantime
+			return Object.create(null);
+		}
+
 		const result: DecorationReply = Object.create(null);
-		return Promise.all(requests.map(request => {
-			const { handle, uri, id } = request;
-			const entry = this._provider.get(handle);
-			if (!entry) {
-				// might have been unregistered in the meantime
-				return undefined;
-			}
-			const { provider, extensionId } = entry;
-			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {
+		const { provider, extensionId } = this._provider.get(handle)!;
+
+		await Promise.all(requests.map(async request => {
+			try {
+				const { uri, id } = request;
+				const data = await Promise.resolve(provider.provideFileDecoration(URI.revive(uri), token));
 				if (!data) {
 					return;
 				}
 				try {
-					Decoration.validate(data);
-					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color];
+					FileDecoration.validate(data);
+					result[id] = <DecorationData>[data.propagate, data.tooltip, data.badge, data.color];
 				} catch (e) {
 					this._logService.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
 				}
-			}, err => {
+			} catch (err) {
 				this._logService.error(err);
-			});
+			}
+		}));
 
-		})).then(() => {
-			return result;
-		});
+		return result;
 	}
 }
 
 export const IExtHostDecorations = createDecorator<IExtHostDecorations>('IExtHostDecorations');
-export interface IExtHostDecorations extends ExtHostDecorations, ExtHostDecorationsShape { }
+export interface IExtHostDecorations extends ExtHostDecorations { }

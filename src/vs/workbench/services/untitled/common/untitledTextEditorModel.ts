@@ -21,6 +21,7 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -265,7 +266,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this.dispose();
 	}
 
-	async backup(): Promise<IWorkingCopyBackup> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
 
@@ -356,10 +357,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// - cannot be only whitespace (so we trim())
 		// - cannot be only non-alphanumeric characters (so we run word definition regex over it)
 		// - cannot be longer than FIRST_LINE_MAX_TITLE_LENGTH
+		// - normalize multiple whitespaces to a single whitespace
 
 		let modelFirstWordsCandidate: string | undefined = undefined;
 
-		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH + 1 }).trim();
+		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH + 1 }).trim().replace(/\s+/g, ' ');
 		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
 			modelFirstWordsCandidate = firstLineText;
 		}

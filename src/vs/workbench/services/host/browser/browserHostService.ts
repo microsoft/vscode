@@ -13,7 +13,7 @@ import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, i
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { trackFocus } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -23,6 +23,7 @@ import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -57,11 +58,31 @@ export interface IWorkspaceProvider {
 	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void>;
 }
 
+enum HostShutdownReason {
+
+	/**
+	 * An unknown shutdown reason.
+	 */
+	Unknown = 1,
+
+	/**
+	 * A shutdown that was potentially triggered by keyboard use.
+	 */
+	Keyboard = 2,
+
+	/**
+	 * An explicit shutdown via code.
+	 */
+	Api = 3
+}
+
 export class BrowserHostService extends Disposable implements IHostService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private workspaceProvider: IWorkspaceProvider;
+
+	private shutdownReason = HostShutdownReason.Unknown;
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -70,7 +91,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -82,7 +104,45 @@ export class BrowserHostService extends Disposable implements IHostService {
 				async open() { }
 			};
 		}
+
+		this.registerListeners();
 	}
+
+	private registerListeners(): void {
+
+		// Veto shutdown depending on `window.confirmBeforeClose` setting
+		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
+
+		// Track certain DOM events to detect keybinding usage
+		this._register(addDisposableListener(this.layoutService.container, EventType.KEY_DOWN, e => this.updateShutdownReasonFromEvent(e)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.KEY_UP, () => this.updateShutdownReasonFromEvent(undefined)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, () => this.updateShutdownReasonFromEvent(undefined)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, () => this.updateShutdownReasonFromEvent(undefined)));
+		this._register(this.onDidChangeFocus(() => this.updateShutdownReasonFromEvent(undefined)));
+	}
+
+	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+
+		// Veto the shutdown depending on `window.confirmBeforeClose` setting
+		const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+		if (confirmBeforeClose === 'always' || (this.shutdownReason === HostShutdownReason.Keyboard && confirmBeforeClose === 'keyboardOnly')) {
+			console.warn('Unload veto: window.confirmBeforeClose=true');
+			e.veto(true);
+		}
+
+		// Unset for next shutdown
+		this.shutdownReason = HostShutdownReason.Unknown;
+	}
+
+	private updateShutdownReasonFromEvent(e: KeyboardEvent | undefined): void {
+		if (this.shutdownReason === HostShutdownReason.Api) {
+			return; // do not overwrite any explicitly set shutdown reason
+		}
+
+		this.shutdownReason = e ? HostShutdownReason.Keyboard : HostShutdownReason.Unknown;
+	}
+
+	//#region Focus
 
 	@memoize
 	get onDidChangeFocus(): Event<boolean> {
@@ -107,6 +167,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 		window.focus();
 	}
 
+	//#endregion
+
+
+	//#region Window
+
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
@@ -130,13 +195,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				if (options?.addMode) {
 					foldersToAdd.push(({ uri: openable.folderUri }));
 				} else {
-					this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 				}
 			}
 
 			// Workspace
 			else if (isWorkspaceToOpen(openable)) {
-				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+				this.doOpen({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 			}
 
 			// File (handled later in bulk)
@@ -174,10 +239,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 				// New Window: open into empty window
 				else {
 					const environment = new Map<string, string>();
-					environment.set('diffFileDetail', editors[0].resource.toString());
-					environment.set('diffFileMaster', editors[1].resource.toString());
+					environment.set('diffFileSecondary', editors[0].resource.toString());
+					environment.set('diffFilePrimary', editors[1].resource.toString());
 
-					this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
+					this.doOpen(undefined, { payload: Array.from(environment.entries()) });
 				}
 			}
 
@@ -213,7 +278,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 							environment.set('gotoLineMode', 'true');
 						}
 
-						this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
+						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
 					}
 				}
 			}
@@ -224,7 +289,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				(async () => {
 
 					// Wait for the resources to be closed in the editor...
-					await this.editorService.whenClosed(fileOpenables.map(openable => openable.fileUri));
+					await this.editorService.whenClosed(fileOpenables.map(openable => ({ resource: openable.fileUri })), { waitForSaved: true });
 
 					// ...before deleting the wait marker file
 					await this.fileService.del(waitMarkerFileURI);
@@ -283,7 +348,18 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
+		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
+	}
+
+	private doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+
+		// We know that `workspaceProvider.open` will trigger a shutdown
+		// with `options.reuse` so we update `shutdownReason` to reflect that
+		if (options?.reuse) {
+			this.shutdownReason = HostShutdownReason.Api;
+		}
+
+		return this.workspaceProvider.open(workspace, options);
 	}
 
 	async toggleFullScreen(): Promise<void> {
@@ -320,13 +396,24 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	//#endregion
+
+	//#region Lifecycle
+
 	async restart(): Promise<void> {
 		this.reload();
 	}
 
 	async reload(): Promise<void> {
+
+		// We know that `window.location.reload` will trigger a shutdown
+		// so we update `shutdownReason` to reflect that
+		this.shutdownReason = HostShutdownReason.Api;
+
 		window.location.reload();
 	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, true);

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
@@ -35,7 +35,7 @@ export interface IOpenEditorOverrideEntry {
 }
 
 export interface IOpenEditorOverrideHandler {
-	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id?: string): IOpenEditorOverride | undefined;
+	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext): IOpenEditorOverride | undefined;
 	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
 }
 
@@ -74,7 +74,6 @@ export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRe
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
 
 export interface ICustomEditorInfo {
-
 	readonly id: string;
 	readonly displayName: string;
 	readonly providerDisplayName: string;
@@ -82,12 +81,13 @@ export interface ICustomEditorInfo {
 
 export interface ICustomEditorViewTypesHandler {
 	readonly onDidChangeViewTypes: Event<void>;
+
 	getViewTypes(): ICustomEditorInfo[];
 }
 
 export interface IEditorService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted when the currently active editor changes.
@@ -175,9 +175,9 @@ export interface IEditorService {
 	 * identifier.
 	 *
 	 * @param order the order of the editors to use
+	 * @param options wether to exclude sticky editors or not
 	 */
-	getEditors(order: EditorsOrder.MOST_RECENTLY_ACTIVE): ReadonlyArray<IEditorIdentifier>;
-	getEditors(order: EditorsOrder.SEQUENTIAL, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
 
 	/**
 	 * Open an editor in an editor group.
@@ -247,13 +247,10 @@ export interface IEditorService {
 
 	/**
 	 * Register handlers for custom editor view types.
+	 * The handler will provide all available custom editors registered
+	 * and also notify the editor service when a custom editor view type is registered/unregistered.
 	 */
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
-
-	/**
-	 * Invoke a function in the context of the services of the active editor.
-	 */
-	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.
@@ -289,8 +286,11 @@ export interface IEditorService {
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
 
 	/**
-	 * Track the provided list of resources for being opened as editors
-	 * and resolve once all have been closed.
+	 * Track the provided editors until all have been closed.
+	 *
+	 * @param options use `waitForSaved: true` to wait for the resources
+	 * being saved. If auto-save is enabled, it may be possible to close
+	 * an editor while the save continues in the background.
 	 */
-	whenClosed(resources: URI[]): Promise<void>;
+	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean }): Promise<void>;
 }

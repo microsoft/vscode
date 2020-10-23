@@ -36,6 +36,18 @@ function updateDTSFile(outPath: string, tag: string) {
 	fs.writeFileSync(outPath, newContent);
 }
 
+function repeat(str: string, times: number): string {
+	const result = new Array(times);
+	for (let i = 0; i < times; i++) {
+		result[i] = str;
+	}
+	return result.join('');
+}
+
+function convertTabsToSpaces(str: string): string {
+	return str.replace(/\t/gm, value => repeat('    ', value.length));
+}
+
 function getNewFileContent(content: string, tag: string) {
 	const oldheader = [
 		`/*---------------------------------------------------------------------------------------------`,
@@ -44,7 +56,7 @@ function getNewFileContent(content: string, tag: string) {
 		` *--------------------------------------------------------------------------------------------*/`
 	].join('\n');
 
-	return getNewFileHeader(tag) + content.slice(oldheader.length);
+	return convertTabsToSpaces(getNewFileHeader(tag) + content.slice(oldheader.length));
 }
 
 function getNewFileHeader(tag: string) {
@@ -54,13 +66,13 @@ function getNewFileHeader(tag: string) {
 	const header = [
 		`// Type definitions for Visual Studio Code ${shorttag}`,
 		`// Project: https://github.com/microsoft/vscode`,
-		`// Definitions by: Visual Studio Code Team, Microsoft <https://github.com/Microsoft>`,
+		`// Definitions by: Visual Studio Code Team, Microsoft <https://github.com/microsoft>`,
 		`// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped`,
 		``,
 		`/*---------------------------------------------------------------------------------------------`,
 		` *  Copyright (c) Microsoft Corporation. All rights reserved.`,
 		` *  Licensed under the MIT License.`,
-		` *  See https://github.com/Microsoft/vscode/blob/master/LICENSE.txt for license information.`,
+		` *  See https://github.com/microsoft/vscode/blob/master/LICENSE.txt for license information.`,
 		` *--------------------------------------------------------------------------------------------*/`,
 		``,
 		`/**`,

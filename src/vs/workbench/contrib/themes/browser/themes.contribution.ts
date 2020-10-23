@@ -5,11 +5,10 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkbenchThemeService, IWorkbenchTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -17,7 +16,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
-import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -45,9 +44,9 @@ export class SelectColorThemeAction extends Action {
 			const currentTheme = this.themeService.getColorTheme();
 
 			const picks: QuickPickInput<ThemeItem>[] = [
-				...toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
-				...toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes")),
-				...toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
+				...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
+				...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
+				...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
 				...configurationEntries(this.extensionGalleryService, localize('installColorThemes', "Install Additional Color Themes..."))
 			];
 
@@ -73,7 +72,7 @@ export class SelectColorThemeAction extends Action {
 			return new Promise((s, _) => {
 				let isCompleted = false;
 
-				const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 				quickpick.items = picks;
 				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
@@ -147,10 +146,10 @@ abstract class AbstractIconThemeAction extends Action {
 			}, applyTheme ? 0 : 200);
 		};
 
-		return new Promise((s, _) => {
+		return new Promise<void>((s, _) => {
 			let isCompleted = false;
 
-			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 			quickpick.items = picks;
 			quickpick.placeholder = this.placeholderMessage;
@@ -343,10 +342,8 @@ const productIconThemeDescriptor = SyncActionDescriptor.from(SelectProductIconTh
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(productIconThemeDescriptor, 'Preferences: Product Icon Theme', category);
 
 
-const developerCategory = localize('developer', "Developer");
-
 const generateColorThemeDescriptor = SyncActionDescriptor.from(GenerateColorThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', developerCategory);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', CATEGORIES.Developer.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',

@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -171,9 +171,11 @@ steps:
   inputs:
     ESRP: 'ESRP CodeSign'
 
-- powershell: |
-    $ErrorActionPreference = "Stop"
-    .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(esrp-auth-certificate) -AuthCertificateKey $(esrp-auth-certificate-key)
+- task: PowerShell@2
+  inputs:
+    targetType: filePath
+    filePath: .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1
+    arguments: "$(ESRP-SSL-AADAuth)"
   displayName: Import ESRP Auth Certificate
 
 - powershell: |

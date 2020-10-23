@@ -90,6 +90,7 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 }
 
 export class SearchWidget extends Widget {
+	private static readonly INPUT_MAX_HEIGHT = 134;
 
 	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
@@ -206,7 +207,7 @@ export class SearchWidget extends Widget {
 	}
 
 	isReplaceShown(): boolean {
-		return !dom.hasClass(this.replaceContainer, 'disabled');
+		return !this.replaceContainer.classList.contains('disabled');
 	}
 
 	isReplaceActive(): boolean {
@@ -292,7 +293,7 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		dom.addClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
+		this.toggleReplaceButton.element.classList.add(...searchHideReplaceIcon.classNamesArray);
 		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
@@ -301,14 +302,15 @@ export class SearchWidget extends Widget {
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		const inputOptions: IFindInputOptions = {
-			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
+			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
 			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keyBindingService),
 			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService),
 			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService),
 			history: options.searchHistory,
-			flexibleHeight: true
+			flexibleHeight: true,
+			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
@@ -354,8 +356,8 @@ export class SearchWidget extends Widget {
 
 		if (options.showContextToggle) {
 			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
-			dom.addClass(this.contextLinesInput.element, 'context-lines-input');
-			this.contextLinesInput.value = '2';
+			this.contextLinesInput.element.classList.add('context-lines-input');
+			this.contextLinesInput.value = '' + (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines ?? 1);
 			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
 			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
 			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
@@ -363,7 +365,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onContextLinesChanged() {
-		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
+		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 		this._onDidToggleContext.fire();
 
 		if (this.contextLinesInput.value.includes('-')) {
@@ -381,7 +383,7 @@ export class SearchWidget extends Widget {
 			this.showContextCheckbox.checked = true;
 			this.contextLinesInput.value = '' + lines;
 		}
-		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
+		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 	}
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -389,10 +391,12 @@ export class SearchWidget extends Widget {
 		const replaceBox = dom.append(this.replaceContainer, dom.$('.replace-input'));
 
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
-			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
+			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
+			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keyBindingService),
 			history: options.replaceHistory,
-			flexibleHeight: true
+			flexibleHeight: true,
+			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
 		}, this.contextKeyService, true));
 
 		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {
@@ -425,13 +429,13 @@ export class SearchWidget extends Widget {
 	}
 
 	private onToggleReplaceButton(): void {
-		dom.toggleClass(this.replaceContainer, 'disabled');
+		this.replaceContainer.classList.toggle('disabled');
 		if (this.isReplaceShown()) {
-			dom.removeClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
-			dom.addClasses(this.toggleReplaceButton.element, searchShowReplaceIcon.classNames);
+			this.toggleReplaceButton.element.classList.remove(...searchHideReplaceIcon.classNamesArray);
+			this.toggleReplaceButton.element.classList.add(...searchShowReplaceIcon.classNamesArray);
 		} else {
-			dom.removeClasses(this.toggleReplaceButton.element, searchShowReplaceIcon.classNames);
-			dom.addClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
+			this.toggleReplaceButton.element.classList.remove(...searchShowReplaceIcon.classNamesArray);
+			this.toggleReplaceButton.element.classList.add(...searchHideReplaceIcon.classNamesArray);
 		}
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();

@@ -10,8 +10,8 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorOptions, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -35,11 +35,10 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, size } from 'vs/base/browser/dom';
+import { Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { domEvent } from 'vs/base/browser/event';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -55,7 +54,7 @@ interface IWalkThroughEditorViewState {
 	viewState: IViewState;
 }
 
-export class WalkThroughPart extends BaseEditor {
+export class WalkThroughPart extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.walkThroughPart';
 
@@ -262,15 +261,15 @@ export class WalkThroughPart extends BaseEditor {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	setInput(input: WalkThroughInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	setInput(input: WalkThroughInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
 
 		this.contentDisposables = dispose(this.contentDisposables);
-		this.content.innerHTML = '';
+		this.content.innerText = '';
 
-		return super.setInput(input, options, token)
+		return super.setInput(input, options, context, token)
 			.then(() => {
 				return input.resolve();
 			})
@@ -279,9 +278,10 @@ export class WalkThroughPart extends BaseEditor {
 					return;
 				}
 
-				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
-				if (!strings.endsWith(input.resource.path, '.md')) {
-					this.content.innerHTML = content;
+				const content = model.main;
+				if (!input.resource.path.endsWith('.md')) {
+					safeInnerHtml(this.content, content);
+
 					this.updateSizeClasses();
 					this.decorateContent();
 					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
@@ -303,13 +303,13 @@ export class WalkThroughPart extends BaseEditor {
 				const innerContent = document.createElement('div');
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				innerContent.innerHTML = marked(markdown, { renderer });
+				safeInnerHtml(innerContent, marked(markdown, { renderer }));
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
 					const model = snippet.textEditorModel;
 					const id = `snippet-${model.uri.fragment}`;
-					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
+					const div = innerContent.querySelector(`#${id.replace(/[\\.]/g, '\\$&')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
 					const telemetryData = {

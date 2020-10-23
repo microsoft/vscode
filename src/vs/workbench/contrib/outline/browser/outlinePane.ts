@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
+import { Action, IAction, RadioGroup, Separator } from 'vs/base/common/actions';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import { escape } from 'vs/base/common/strings';
-import 'vs/css!./outlinePane';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -42,7 +40,6 @@ import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/e
 import { FuzzyScore } from 'vs/base/common/filters';
 import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
@@ -245,7 +242,6 @@ export class OutlinePane extends ViewPane {
 	private _requestOracle?: RequestOracle;
 	private _domNode!: HTMLElement;
 	private _message!: HTMLDivElement;
-	private _inputContainer!: HTMLDivElement;
 	private _progressBar!: ProgressBar;
 	private _tree!: WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
 	private _treeDataSource!: OutlineDataSource;
@@ -282,21 +278,15 @@ export class OutlinePane extends ViewPane {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
-		dispose(this._requestOracle);
-		dispose(this._editorDisposables);
+		this._disposables.dispose();
+		this._requestOracle?.dispose();
+		this._editorDisposables.dispose();
 		super.dispose();
 	}
 
 	focus(): void {
 		if (this._tree) {
-			// focus on tree and fallback to root
-			// dom node when the tree cannot take focus,
-			// e.g. when hidden
 			this._tree.domFocus();
-			if (!this._tree.isDOMFocused()) {
-				this._domNode.focus();
-			}
 		}
 	}
 
@@ -304,12 +294,10 @@ export class OutlinePane extends ViewPane {
 		super.renderBody(container);
 
 		this._domNode = container;
-		this._domNode.tabIndex = 0;
 		container.classList.add('outline-pane');
 
 		let progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
-		this._inputContainer = dom.$('.outline-input');
 
 		this._progressBar = new ProgressBar(progressContainer);
 		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
@@ -317,7 +305,7 @@ export class OutlinePane extends ViewPane {
 		let treeContainer = dom.$('.outline-tree');
 		dom.append(
 			container,
-			progressContainer, this._message, this._inputContainer, treeContainer
+			progressContainer, this._message, treeContainer
 		);
 
 		this._treeRenderer = this._instantiationService.createInstance(OutlineElementRenderer);
@@ -344,7 +332,8 @@ export class OutlinePane extends ViewPane {
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
-				}
+				},
+				openOnSingleClick: true
 			}
 		);
 
@@ -396,7 +385,7 @@ export class OutlinePane extends ViewPane {
 			if (visible && !this._requestOracle) {
 				this._requestOracle = this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event), DocumentSymbolProviderRegistry);
 			} else if (!visible) {
-				dispose(this._requestOracle);
+				this._requestOracle?.dispose();
 				this._requestOracle = undefined;
 				this._doUpdate(undefined, undefined);
 			}
@@ -410,9 +399,7 @@ export class OutlinePane extends ViewPane {
 
 	getActions(): IAction[] {
 		return [
-			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
-				return new CollapseAction(() => this._tree, true, undefined).run();
-			})
+			new CollapseAction(() => this._tree, true, 'explorer-action codicon-collapse-all')
 		];
 	}
 
@@ -455,7 +442,7 @@ export class OutlinePane extends ViewPane {
 		this._domNode.classList.add('message');
 		this._tree.setInput(undefined!);
 		this._progressBar.stop().hide();
-		this._message.innerText = escape(message);
+		this._message.innerText = message;
 	}
 
 	private static _createOutlineModel(model: ITextModel, disposables: DisposableStore): Promise<OutlineModel | undefined> {
@@ -498,7 +485,7 @@ export class OutlinePane extends ViewPane {
 		this._progressBar.infinite().show(requestDelay);
 
 		const createdModel = await OutlinePane._createOutlineModel(textModel, this._editorDisposables);
-		dispose(loadingMessage);
+		loadingMessage?.dispose();
 		if (!createdModel) {
 			return;
 		}
@@ -550,36 +537,16 @@ export class OutlinePane extends ViewPane {
 			this._tree.setInput(newModel, state);
 		}
 
-		// transfer focus from domNode to the tree
-		if (this._domNode === document.activeElement) {
-			this._tree.domFocus();
-		}
-
 		this._editorDisposables.add(toDisposable(() => this._contextKeyFiltered.reset()));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
 		this._editorDisposables.add(this._tree.onDidOpen(e => {
-
-			let [first] = e.elements;
-			if (!(first instanceof OutlineElement)) {
+			if (!(e.element instanceof OutlineElement)) {
 				return;
 			}
 
-			let focus = false;
-			let aside = false;
-			// todo@Joh
-			if (e.browserEvent) {
-				if (e.browserEvent.type === 'keydown') {
-					focus = true;
-				} else if (e.browserEvent.type === 'click') {
-					const event = new StandardMouseEvent(e.browserEvent as MouseEvent);
-					focus = e.browserEvent.detail === 2;
-					aside = (!this._tree.useAltAsMultipleSelectionModifier && event.altKey)
-						|| (this._tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey));
-				}
-			}
-			this._revealTreeSelection(newModel, first, focus, aside);
+			this._revealTreeSelection(newModel, e.element, !!e.editorOptions.preserveFocus, !!e.editorOptions.pinned, e.sideBySide);
 		}));
 
 		// feature: reveal editor selection in outline
@@ -633,12 +600,13 @@ export class OutlinePane extends ViewPane {
 		}));
 	}
 
-	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
+	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, preserveFocus: boolean, pinned: boolean, aside: boolean): Promise<void> {
 		await this._editorService.openCodeEditor(
 			{
 				resource: model.uri,
 				options: {
-					preserveFocus: !focus,
+					preserveFocus,
+					pinned,
 					selection: Range.collapseToStart(element.symbol.selectionRange),
 					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 				}

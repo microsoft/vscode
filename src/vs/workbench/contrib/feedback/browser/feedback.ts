@@ -88,7 +88,7 @@ export class FeedbackDropdown extends Dropdown {
 			}
 		});
 
-		dom.addClass(this.element, 'send-feedback');
+		this.element.classList.add('send-feedback');
 		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
 	}
 
@@ -106,7 +106,7 @@ export class FeedbackDropdown extends Dropdown {
 	protected renderContents(container: HTMLElement): IDisposable {
 		const disposables = new DisposableStore();
 
-		dom.addClass(container, 'monaco-menu-container');
+		container.classList.add('monaco-menu-container');
 
 		// Form
 		this.feedbackForm = dom.append<HTMLFormElement>(container, dom.$('form.feedback-form'));
@@ -175,7 +175,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		// Sentiment: Smiley
 		this.smileyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
-		dom.addClass(this.smileyInput, 'smile');
+		this.smileyInput.classList.add('smile');
 		this.smileyInput.setAttribute('aria-checked', 'false');
 		this.smileyInput.setAttribute('aria-label', nls.localize('smileCaption', "Happy Feedback Sentiment"));
 		this.smileyInput.setAttribute('role', 'checkbox');
@@ -186,7 +186,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		// Sentiment: Frowny
 		this.frownyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
-		dom.addClass(this.frownyInput, 'frown');
+		this.frownyInput.classList.add('frown');
 		this.frownyInput.setAttribute('aria-checked', 'false');
 		this.frownyInput.setAttribute('aria-label', nls.localize('frownCaption', "Sad Feedback Sentiment"));
 		this.frownyInput.setAttribute('role', 'checkbox');
@@ -196,10 +196,10 @@ export class FeedbackDropdown extends Dropdown {
 		this.invoke(this.frownyInput, disposables, () => this.setSentiment(false));
 
 		if (this.sentiment === 1) {
-			dom.addClass(this.smileyInput, 'checked');
+			this.smileyInput.classList.add('checked');
 			this.smileyInput.setAttribute('aria-checked', 'true');
 		} else {
-			dom.addClass(this.frownyInput, 'checked');
+			this.frownyInput.classList.add('checked');
 			this.frownyInput.setAttribute('aria-checked', 'true');
 		}
 
@@ -278,7 +278,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.sendButton.enabled = false;
 		this.sendButton.label = nls.localize('tweet', "Tweet");
 		dom.prepend(this.sendButton.element, dom.$('span.codicon.codicon-twitter'));
-		dom.addClasses(this.sendButton.element, 'send');
+		this.sendButton.element.classList.add('send');
 		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
 		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
 
@@ -337,20 +337,20 @@ export class FeedbackDropdown extends Dropdown {
 	private setSentiment(smile: boolean): void {
 		if (smile) {
 			if (this.smileyInput) {
-				dom.addClass(this.smileyInput, 'checked');
+				this.smileyInput.classList.add('checked');
 				this.smileyInput.setAttribute('aria-checked', 'true');
 			}
 			if (this.frownyInput) {
-				dom.removeClass(this.frownyInput, 'checked');
+				this.frownyInput.classList.remove('checked');
 				this.frownyInput.setAttribute('aria-checked', 'false');
 			}
 		} else {
 			if (this.frownyInput) {
-				dom.addClass(this.frownyInput, 'checked');
+				this.frownyInput.classList.add('checked');
 				this.frownyInput.setAttribute('aria-checked', 'true');
 			}
 			if (this.smileyInput) {
-				dom.removeClass(this.smileyInput, 'checked');
+				this.smileyInput.classList.remove('checked');
 				this.smileyInput.setAttribute('aria-checked', 'false');
 			}
 		}
@@ -385,6 +385,8 @@ export class FeedbackDropdown extends Dropdown {
 		if (this.options.onFeedbackVisibilityChange) {
 			this.options.onFeedbackVisibilityChange(true);
 		}
+
+		this.updateCharCountText();
 	}
 
 	protected onHide(): void {

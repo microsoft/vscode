@@ -15,6 +15,7 @@ import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -71,6 +72,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			return { suggestions: [] };
 		}
 
+		const sw = new StopWatch(true);
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const snippets = await this._snippets.getSnippets(languageId);
 
@@ -141,7 +143,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			}
 		}
 
-		return { suggestions };
+		return {
+			suggestions,
+			duration: sw.elapsed()
+		};
 	}
 
 	resolveCompletionItem(item: CompletionItem): CompletionItem {

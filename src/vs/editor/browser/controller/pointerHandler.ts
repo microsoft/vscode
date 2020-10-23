@@ -50,7 +50,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 			this._installGestureHandlerTimeout = -1;
 
 			// TODO@Alex: replace the usage of MSGesture here with something that works across all browsers
-			if ((<any>window).MSGesture) {
+			if (window.MSGesture) {
 				const touchGesture = new MSGesture();
 				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
@@ -226,9 +226,9 @@ export class PointerHandler extends Disposable {
 		super();
 		if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
-		} else if ((<any>window).TouchEvent) {
+		} else if (window.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
-		} else if (window.navigator.pointerEnabled || (<any>window).PointerEvent) {
+		} else if (window.navigator.pointerEnabled || window.PointerEvent) {
 			this.handler = this._register(new StandardPointerHandler(context, viewController, viewHelper));
 		} else {
 			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));

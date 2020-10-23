@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -26,7 +26,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				'default': isIPad ? maxSize : minSize,
 				'minimum': minSize,
 				'maximum': maxSize,
-				'description': localize('sashSize', "Controls the size of the sash.")
+				'description': localize('sashSize', "Controls the feedback area size in pixels of the dragging area in between views/editors. Set it to a larger value if you feel it's hard to resize views using the mouse.")
 			},
 		}
 	});

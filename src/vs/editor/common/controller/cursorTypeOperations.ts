@@ -228,7 +228,7 @@ export class TypeOperations {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
 					goodIndent = goodIndent || '\t';
 					let possibleTypeText = config.normalizeIndentation(goodIndent);
-					if (!strings.startsWith(lineText, possibleTypeText)) {
+					if (!lineText.startsWith(possibleTypeText)) {
 						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
 						continue;
 					}
@@ -263,7 +263,7 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
-				// looks like https://github.com/Microsoft/vscode/issues/2773
+				// looks like https://github.com/microsoft/vscode/issues/2773
 				// where a cursor operation occurred before a canceled composition
 				// => ignore composition
 				commands[i] = null;

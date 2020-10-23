@@ -17,7 +17,7 @@ suite('URI Label', () => {
 	let labelService: LabelService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService(TestEnvironmentService));
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService());
 	});
 
 	test('file scheme', function () {

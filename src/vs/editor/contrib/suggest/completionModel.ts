@@ -10,6 +10,7 @@ import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { MovingAverage } from 'vs/base/common/numbers';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
@@ -25,6 +26,7 @@ export interface ICompletionStats {
 	suggestionCount: number;
 	snippetCount: number;
 	textCount: number;
+	avgLabelLen: MovingAverage;
 	[name: string]: any;
 }
 
@@ -41,6 +43,9 @@ const enum Refilter {
 	Incr = 2
 }
 
+/**
+ * Sorted, filtered completion view model
+ * */
 export class CompletionModel {
 
 	private readonly _items: CompletionItem[];
@@ -52,7 +57,7 @@ export class CompletionModel {
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
 	private _filteredItems?: StrictCompletionItem[];
-	private _isIncomplete?: Set<CompletionItemProvider>;
+	private _providerInfo?: Map<CompletionItemProvider, boolean>;
 	private _stats?: ICompletionStats;
 
 	constructor(
@@ -61,7 +66,8 @@ export class CompletionModel {
 		lineContext: LineContext,
 		wordDistance: WordDistance,
 		options: InternalSuggestOptions,
-		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none'
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
+		readonly clipboardText: string | undefined
 	) {
 		this._items = items;
 		this._column = column;
@@ -95,9 +101,20 @@ export class CompletionModel {
 		return this._filteredItems!;
 	}
 
+	get allProvider(): IterableIterator<CompletionItemProvider> {
+		this._ensureCachedState();
+		return this._providerInfo!.keys();
+	}
+
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
-		return this._isIncomplete!;
+		const result = new Set<CompletionItemProvider>();
+		for (let [provider, incomplete] of this._providerInfo!) {
+			if (incomplete) {
+				result.add(provider);
+			}
+		}
+		return result;
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
@@ -131,8 +148,8 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 
-		this._isIncomplete = new Set();
-		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
+		this._providerInfo = new Map();
+		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0, avgLabelLen: new MovingAverage() };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
@@ -155,11 +172,8 @@ export class CompletionModel {
 				continue; // SKIP invalid items
 			}
 
-			// collect those supports that signaled having
-			// an incomplete result
-			if (item.container.incomplete) {
-				this._isIncomplete.add(item.provider);
-			}
+			// collect all support, know if their result is incomplete
+			this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
@@ -170,6 +184,8 @@ export class CompletionModel {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 				wordLow = word.toLowerCase();
 			}
+
+			const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 
 			// remember the word against which this item was
 			// scored
@@ -196,7 +212,6 @@ export class CompletionModel {
 					}
 				}
 
-				const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
@@ -236,6 +251,7 @@ export class CompletionModel {
 			target.push(item as StrictCompletionItem);
 
 			// update stats
+			this._stats.avgLabelLen.update(textLabel.length);
 			this._stats.suggestionCount++;
 			switch (item.completion.kind) {
 				case CompletionItemKind.Snippet: this._stats.snippetCount++; break;

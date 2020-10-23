@@ -12,12 +12,12 @@ import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle
 export const IMenubarMainService = createDecorator<IMenubarMainService>('menubarMainService');
 
 export interface IMenubarMainService extends ICommonMenubarService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 }
 
 export class MenubarMainService implements IMenubarMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private menubar: Promise<Menubar>;
 

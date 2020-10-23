@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorsOrder, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -137,7 +137,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		}
 
 		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			const isDirty = editor.isDirty() && !editor.isSaving();
 			const description = editor.getDescription();
 			const nameAndDescription = description ? `${editor.getName()} ${description}` : editor.getName();

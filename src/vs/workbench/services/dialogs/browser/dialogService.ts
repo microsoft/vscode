@@ -22,9 +22,9 @@ import { fromNow } from 'vs/base/common/date';
 
 export class DialogService implements IDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private allowableCommands = ['copy', 'cut'];
+	private allowableCommands = ['copy', 'cut', 'editor.action.clipboardCopyAction', 'editor.action.clipboardCutAction'];
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

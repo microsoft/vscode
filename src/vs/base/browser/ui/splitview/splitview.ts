@@ -7,12 +7,12 @@ import 'vs/css!./splitview';
 import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
-import * as dom from 'vs/base/browser/dom';
 import { clamp } from 'vs/base/common/numbers';
-import { range, firstIndex, pushToStart, pushToEnd } from 'vs/base/common/arrays';
+import { range, pushToStart, pushToEnd } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { domEvent } from 'vs/base/browser/event';
+import { $, append } from 'vs/base/browser/dom';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface ISplitViewStyles {
@@ -93,7 +93,7 @@ abstract class ViewItem<TLayoutContext> {
 			this.size = 0;
 		}
 
-		dom.toggleClass(this.container, 'visible', visible);
+		this.container.classList.toggle('visible', visible);
 
 		if (this.view.setVisible) {
 			this.view.setVisible(visible);
@@ -122,7 +122,7 @@ abstract class ViewItem<TLayoutContext> {
 		if (typeof size === 'number') {
 			this._size = size;
 			this._cachedVisibleSize = undefined;
-			dom.addClass(container, 'visible');
+			container.classList.add('visible');
 		} else {
 			this._size = 0;
 			this._cachedVisibleSize = size.cachedVisibleSize;
@@ -296,12 +296,12 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.proportionalLayout = types.isUndefined(options.proportionalLayout) ? true : !!options.proportionalLayout;
 
 		this.el = document.createElement('div');
-		dom.addClass(this.el, 'monaco-split-view2');
-		dom.addClass(this.el, this.orientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
+		this.el.classList.add('monaco-split-view2');
+		this.el.classList.add(this.orientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
 		container.appendChild(this.el);
 
-		this.sashContainer = dom.append(this.el, dom.$('.sash-container'));
-		this.viewContainer = dom.append(this.el, dom.$('.split-view-container'));
+		this.sashContainer = append(this.el, $('.sash-container'));
+		this.viewContainer = append(this.el, $('.split-view-container'));
 
 		this.style(options.styles || defaultStyles);
 
@@ -323,10 +323,10 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 	style(styles: ISplitViewStyles): void {
 		if (styles.separatorBorder.isTransparent()) {
-			dom.removeClass(this.el, 'separator-border');
+			this.el.classList.remove('separator-border');
 			this.el.style.removeProperty('--separator-border');
 		} else {
-			dom.addClass(this.el, 'separator-border');
+			this.el.classList.add('separator-border');
 			this.el.style.setProperty('--separator-border', styles.separatorBorder.toString());
 		}
 	}
@@ -460,7 +460,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			item.enabled = false;
 		}
 
-		const index = firstIndex(this.sashItems, item => item.sash === sash);
+		const index = this.sashItems.findIndex(item => item.sash === sash);
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
@@ -657,7 +657,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.state = State.Busy;
 
 		// Add view
-		const container = dom.$('.split-view-view');
+		const container = $('.split-view-view');
 
 		if (index === this.viewItems.length) {
 			this.viewContainer.appendChild(container);
@@ -709,11 +709,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			const onStartDisposable = onStart(this.onSashStart, this);
 			const onChange = Event.map(sash.onDidChange, sashEventMapper);
 			const onChangeDisposable = onChange(this.onSashChange, this);
-			const onEnd = Event.map(sash.onDidEnd, () => firstIndex(this.sashItems, item => item.sash === sash));
+			const onEnd = Event.map(sash.onDidEnd, () => this.sashItems.findIndex(item => item.sash === sash));
 			const onEndDisposable = onEnd(this.onSashEnd, this);
 
 			const onDidResetDisposable = sash.onDidReset(() => {
-				const index = firstIndex(this.sashItems, item => item.sash === sash);
+				const index = this.sashItems.findIndex(item => item.sash === sash);
 				const upIndexes = range(index, -1);
 				const downIndexes = range(index + 1, this.viewItems.length);
 				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);

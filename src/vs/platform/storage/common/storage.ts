@@ -9,6 +9,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
+export const IS_NEW_KEY = '__$__isNewStorageMarker';
+
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
 export enum WillSaveStateReason {
@@ -22,7 +24,7 @@ export interface IWillSaveStateEvent {
 
 export interface IStorageService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -104,6 +106,13 @@ export interface IStorageService {
 	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
 
 	/**
+	 * Whether the storage for the given scope was created during this session or
+	 * existed before.
+	 *
+	 */
+	isNew(scope: StorageScope): boolean;
+
+	/**
 	 * Allows to flush state, e.g. in cases where a shutdown is
 	 * imminent. This will send out the onWillSaveState to ask
 	 * everyone for latest state.
@@ -131,7 +140,7 @@ export interface IWorkspaceStorageChangeEvent {
 
 export class InMemoryStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
@@ -227,6 +236,12 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 	flush(): void {
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
 	}
+
+	isNew(): boolean {
+		return true; // always new when in-memory
+	}
+
+	async close(): Promise<void> { }
 }
 
 export async function logStorage(global: Map<string, string>, workspace: Map<string, string>, globalPath: string, workspacePath: string): Promise<void> {

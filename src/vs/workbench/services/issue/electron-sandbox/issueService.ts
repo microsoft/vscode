@@ -8,9 +8,10 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProces
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class IssueService {
+// @ts-ignore: interface is implemented via proxy
+export class IssueService implements IIssueService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
 		return createChannelSender<IIssueService>(mainProcessService.getChannel('issue'));

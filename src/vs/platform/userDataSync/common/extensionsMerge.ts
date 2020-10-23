@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { values, keys } from 'vs/base/common/map';
 import { ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { startsWith } from 'vs/base/common/strings';
 import { deepClone } from 'vs/base/common/objects';
 
 export interface IMergeResult {
@@ -75,7 +73,7 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 		const baseToRemote = compare(lastSyncExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet);
 
 		// Remotely removed extension.
-		for (const key of values(baseToRemote.removed)) {
+		for (const key of baseToRemote.removed.values()) {
 			const e = localExtensionsMap.get(key);
 			if (e) {
 				removed.push(e.identifier);
@@ -83,7 +81,7 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 		}
 
 		// Remotely added extension
-		for (const key of values(baseToRemote.added)) {
+		for (const key of baseToRemote.added.values()) {
 			// Got added in local
 			if (baseToLocal.added.has(key)) {
 				// Is different from local to remote
@@ -100,13 +98,13 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 		}
 
 		// Remotely updated extensions
-		for (const key of values(baseToRemote.updated)) {
+		for (const key of baseToRemote.updated.values()) {
 			// Update in local always
 			updated.push(massageOutgoingExtension(remoteExtensionsMap.get(key)!, key));
 		}
 
 		// Locally added extensions
-		for (const key of values(baseToLocal.added)) {
+		for (const key of baseToLocal.added.values()) {
 			// Not there in remote
 			if (!baseToRemote.added.has(key)) {
 				newRemoteExtensionsMap.set(key, localExtensionsMap.get(key)!);
@@ -114,7 +112,7 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 		}
 
 		// Locally updated extensions
-		for (const key of values(baseToLocal.updated)) {
+		for (const key of baseToLocal.updated.values()) {
 			// If removed in remote
 			if (baseToRemote.removed.has(key)) {
 				continue;
@@ -132,7 +130,7 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 		}
 
 		// Locally removed extensions
-		for (const key of values(baseToLocal.removed)) {
+		for (const key of baseToLocal.removed.values()) {
 			// If not skipped and not updated in remote
 			if (!skippedExtensionsMap.has(key) && !baseToRemote.updated.has(key)) {
 				// Remove only if it is an installed extension
@@ -153,8 +151,8 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 }
 
 function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>, { checkInstalledProperty }: { checkInstalledProperty: boolean } = { checkInstalledProperty: false }): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = from ? keys(from).filter(key => !ignoredExtensions.has(key)) : [];
-	const toKeys = keys(to).filter(key => !ignoredExtensions.has(key));
+	const fromKeys = from ? [...from.keys()].filter(key => !ignoredExtensions.has(key)) : [];
+	const toKeys = [...to.keys()].filter(key => !ignoredExtensions.has(key));
 	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
@@ -187,7 +185,7 @@ function massageOutgoingExtension(extension: ISyncExtension, key: string): ISync
 	const massagedExtension: ISyncExtension = {
 		identifier: {
 			id: extension.identifier.id,
-			uuid: startsWith(key, 'uuid:') ? key.substring('uuid:'.length) : undefined
+			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
 		},
 	};
 	if (extension.disabled) {

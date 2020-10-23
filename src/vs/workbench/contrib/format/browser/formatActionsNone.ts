@@ -14,7 +14,14 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { showExtensionQuery } from 'vs/workbench/contrib/format/browser/showExtensionQuery';
+import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+
+async function showExtensionQuery(viewletService: IViewletService, query: string) {
+	const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+	if (viewlet) {
+		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
+	}
+}
 
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 

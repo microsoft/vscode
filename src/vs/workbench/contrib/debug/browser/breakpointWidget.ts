@@ -41,7 +41,7 @@ import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOpti
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
 export interface IPrivateBreakpointWidgetService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	close(success: boolean): void;
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
@@ -75,7 +75,7 @@ function createDecorations(theme: IColorTheme, placeHolder: string): IDecoration
 }
 
 export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private selectContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
@@ -98,7 +98,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
 		this.toDispose = [];
 		const model = this.editor.getModel();
@@ -250,7 +250,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						}
 
 						return {
-							suggestions: suggestions.map(s => {
+							suggestions: suggestions.items.map(s => {
 								s.completion.range = Range.fromPositions(position.delta(0, -overwriteBefore), position);
 								return s.completion;
 							})
@@ -325,7 +325,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						condition,
 						hitCondition,
 						logMessage
-					}], `breakpointWidget`);
+					}]);
 				}
 			}
 		}

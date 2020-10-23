@@ -10,7 +10,7 @@ import { isString } from 'vs/base/common/types';
 
 let mainProcessParentEnv: IProcessEnvironment | undefined;
 
-export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironment = process.env as IProcessEnvironment): Promise<IProcessEnvironment> {
 	if (mainProcessParentEnv) {
 		return mainProcessParentEnv;
 	}
@@ -48,7 +48,7 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 	// For macOS we want the "root" environment as shells by default run as login shells. It
 	// doesn't appear to be possible to get the "root" environment as `ps eww -o command` for
 	// PID 1 (the parent of the main process when launched from the dock/finder) returns no
-	// environment, because of this we will fill in the root environment using a whitelist of
+	// environment, because of this we will fill in the root environment using a allowlist of
 	// environment variables that we have.
 	if (isMacintosh) {
 		mainProcessParentEnv = {};
@@ -65,15 +65,15 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 			'TMPDIR'
 		];
 		rootEnvVars.forEach(k => {
-			if (process.env[k]) {
-				mainProcessParentEnv![k] = process.env[k]!;
+			if (baseEnvironment[k]) {
+				mainProcessParentEnv![k] = baseEnvironment[k]!;
 			}
 		});
 	}
 
 	// TODO: Windows should return a fresh environment block, might need native code?
 	if (isWindows) {
-		mainProcessParentEnv = process.env as IProcessEnvironment;
+		mainProcessParentEnv = baseEnvironment;
 	}
 
 	return mainProcessParentEnv!;
