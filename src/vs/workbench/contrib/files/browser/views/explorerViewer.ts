@@ -899,7 +899,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return true; // Root folder can not be moved to a non root file stat.
 				}
 
-				if (source.resource.toString() === target.resource.toString()) {
+				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
 					return true; // Can not move anything onto itself
 				}
 
@@ -908,7 +908,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return false;
 				}
 
-				if (!isCopy && dirname(source.resource).toString() === target.resource.toString()) {
+				if (!isCopy && this.uriIdentityService.extUri.isEqual(dirname(source.resource), target.resource)) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
@@ -1402,7 +1402,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				uri: folders[index].uri,
 				name: folders[index].name
 			};
-			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
+			if (target instanceof ExplorerItem && this.uriIdentityService.extUri.isEqual(folders[index].uri, target.resource)) {
 				targetIndex = index;
 			}
 
