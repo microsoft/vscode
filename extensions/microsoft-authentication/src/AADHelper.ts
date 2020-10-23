@@ -95,6 +95,11 @@ export class AzureActiveDirectoryService {
 	private _uriHandler: UriEventHandler;
 	private _disposables: vscode.Disposable[] = [];
 
+	// Used to keep track of current requests when not using the local server approach.
+	private _pendingStates = new Map<string, string[]>();
+	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
+	private _codeVerfifiers = new Map<string, string>();
+
 	constructor() {
 		this._uriHandler = new UriEventHandler();
 		this._disposables.push(vscode.window.registerUriHandler(this._uriHandler));
@@ -385,10 +390,28 @@ export class AzureActiveDirectoryService {
 			}, 1000 * 60 * 5);
 		});
 
-		return Promise.race([this.handleCodeResponse(state, codeVerifier, scope), timeoutPromise]);
+		const existingStates = this._pendingStates.get(scope) || [];
+		this._pendingStates.set(scope, [...existingStates, state]);
+
+		// Register a single listener for the URI callback, in case the user starts the login process multiple times
+		// before completing it.
+		let existingPromise = this._codeExchangePromises.get(scope);
+		if (!existingPromise) {
+			existingPromise = this.handleCodeResponse(scope);
+			this._codeExchangePromises.set(scope, existingPromise);
+		}
+
+		this._codeVerfifiers.set(state, codeVerifier);
+
+		return Promise.race([existingPromise, timeoutPromise])
+			.finally(() => {
+				this._pendingStates.delete(scope);
+				this._codeExchangePromises.delete(scope);
+				this._codeVerfifiers.delete(state);
+			});
 	}
 
-	private async handleCodeResponse(state: string, codeVerifier: string, scope: string): Promise<vscode.AuthenticationSession> {
+	private async handleCodeResponse(scope: string): Promise<vscode.AuthenticationSession> {
 		let uriEventListener: vscode.Disposable;
 		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
@@ -396,12 +419,18 @@ export class AzureActiveDirectoryService {
 					const query = parseQuery(uri);
 					const code = query.code;
 
+					const acceptedStates = this._pendingStates.get(scope) || [];
 					// Workaround double encoding issues of state in web
-					if (query.state !== state && decodeURIComponent(query.state) !== state) {
+					if (!acceptedStates.includes(query.state) && !acceptedStates.includes(decodeURIComponent(query.state))) {
 						throw new Error('State does not match.');
 					}
 
-					const token = await this.exchangeCodeForToken(code, codeVerifier, scope);
+					const verifier = this._codeVerfifiers.get(query.state) ?? this._codeVerfifiers.get(decodeURIComponent(query.state));
+					if (!verifier) {
+						throw new Error('No available code verifier');
+					}
+
+					const token = await this.exchangeCodeForToken(code, verifier, scope);
 					this.setToken(token, scope);
 
 					const session = await this.convertToSession(token);
