@@ -99,7 +99,7 @@ class MergeItem implements QuickPickItem {
 	}
 }
 
-class RebaseOntoItem implements QuickPickItem {
+class RebaseItem implements QuickPickItem {
 
 	get label(): string { return this.ref.name || ''; }
 	get description(): string { return this.ref.name || ''; }
@@ -1862,23 +1862,23 @@ export class CommandCenter {
 		await choice.run(repository);
 	}
 
-	@command('git.rebaseOnto', { repository: true })
-	async rebaseOnto(repository: Repository): Promise<void> {
+	@command('git.rebase', { repository: true })
+	async rebase(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.filter(ref => ref.name || ref.commit)
-			.map(ref => new RebaseOntoItem(ref as Branch));
+			.map(ref => new RebaseItem(ref as Branch));
 
 		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.filter(ref => ref.name || ref.commit)
-			.map(ref => new RebaseOntoItem(ref as Branch));
+			.map(ref => new RebaseItem(ref as Branch));
 
 		const picks = [...heads, ...remoteHeads];
 		const placeHolder = localize('select a branch to rebase onto', 'Select a branch to rebase onto');
-		const choice = await window.showQuickPick<RebaseOntoItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
 
 		if (!choice) {
 			return;

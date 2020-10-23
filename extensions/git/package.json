@@ -299,8 +299,8 @@
         "category": "Git"
       },
       {
-        "command": "git.rebaseOnto",
-        "title": "%command.rebaseOnto%",
+        "command": "git.rebase",
+        "title": "%command.rebase%",
         "category": "Git"
       },
       {
@@ -709,7 +709,7 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.rebaseOnto",
+          "command": "git.rebase",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1443,7 +1443,7 @@
           "command": "git.merge"
         },
         {
-          "command": "git.rebaseOnto"
+          "command": "git.rebase"
         },
         {
           "command": "git.branch"
