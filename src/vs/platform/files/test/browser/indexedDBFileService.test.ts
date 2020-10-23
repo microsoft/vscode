@@ -6,16 +6,18 @@
 import * as assert from 'assert';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
+import { posix } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { assertIsDefined } from 'vs/base/common/types';
-import { isWindows } from 'vs/base/common/platform';
 
-(isWindows /* not working on windows yet */ ? suite.skip : suite)('IndexedDB File Service', function () {
+// FileService doesn't work with \'s in paths.
+const join = posix.join;
+
+suite('IndexedDB File Service', function () {
 
 	const logSchema = 'logs';
 
@@ -57,7 +59,7 @@ import { isWindows } from 'vs/base/common/platform';
 
 		const parent = await service.resolve(makeUserdataURI(testDir));
 
-		const newFolderResource = makeUserdataURI(join(parent.resource.fsPath, 'newFolder'));
+		const newFolderResource = makeUserdataURI(join(parent.resource.path, 'newFolder'));
 
 		assert.equal((await userdataFileProvider.readdir(parent.resource)).length, 0);
 		const newFolder = await service.createFolder(newFolderResource);
@@ -66,9 +68,9 @@ import { isWindows } from 'vs/base/common/platform';
 		// assert.equal((await userdataFileProvider.readdir(parent.resource)).length, 1);
 
 		assert.ok(event);
-		assert.equal(event!.resource.fsPath, newFolderResource.fsPath);
+		assert.equal(event!.resource.path, newFolderResource.path);
 		assert.equal(event!.operation, FileOperation.CREATE);
-		assert.equal(event!.target!.resource.fsPath, newFolderResource.fsPath);
+		assert.equal(event!.target!.resource.path, newFolderResource.path);
 		assert.equal(event!.target!.isDirectory, true);
 	});
 });
