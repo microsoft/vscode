@@ -353,10 +353,10 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.typeaheadThreshold': {
-			description: localize('terminal.integrated.typeaheadThreshold', "Experimental: length of time, in milliseconds, where typeahead will activate. If '0', typeahead will always be on, and if '-1' it will be disabled."),
+			description: localize('terminal.integrated.typeaheadThreshold', "Experimental: length of typing delay, in milliseconds, where typeahead will activate. If '0', typeahead will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
-			default: -1,
+			default: 15,
 		},
 		'terminal.integrated.typeaheadStyle': {
 			description: localize('terminal.integrated.typeaheadStyle', "Experimental: terminal style of typeahead text, either a font style or an RGB color."),
