@@ -167,7 +167,13 @@ function createFencedRange(token: Token, document: vscode.TextDocument, parent?:
 	} else if (parent?.range.isEqual(blockRange.range)) {
 		return new vscode.SelectionRange(childRange, parent);
 	} else {
-		return new vscode.SelectionRange(childRange, blockRange);
+		if (parent?.parent?.range.contains(blockRange.range)) {
+			// in a list that's end range has been shortened
+			blockRange.parent = parent.parent;
+			return new vscode.SelectionRange(childRange, blockRange);
+		} else {
+			return new vscode.SelectionRange(childRange, blockRange);
+		}
 	}
 }
 
