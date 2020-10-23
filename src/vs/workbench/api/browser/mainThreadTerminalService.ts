@@ -111,7 +111,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			env: launchConfig.env,
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
-			isExtensionTerminal: launchConfig.isExtensionTerminal
+			isExtensionTerminal: launchConfig.isExtensionTerminal,
+			isFeatureTerminal: launchConfig.isFeatureTerminal
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
 		return Promise.resolve({
