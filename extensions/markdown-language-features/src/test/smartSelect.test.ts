@@ -88,7 +88,7 @@ suite.only('markdown.SmartSelect', () => {
 				`- item 3`,
 				`- item 4`));
 
-		assertNestedRangesEqual(ranges![0], [1, 2], [0, 4]);
+		assertNestedRangesEqual(ranges![0], [1, 2], [0, 3]);
 	});
 	test('Smart select list with fenced code block', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -100,7 +100,7 @@ suite.only('markdown.SmartSelect', () => {
 				`- item 3`,
 				`- item 4`));
 
-		assertNestedRangesEqual(ranges![0], [2, 3], [1, 4], [0, 6]);
+		assertNestedRangesEqual(ranges![0], [2, 3], [1, 4], [0, 5]);
 	});
 	test('Smart select multi cursor', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -112,8 +112,8 @@ suite.only('markdown.SmartSelect', () => {
 				`- ${CURSOR}item 3`,
 				`- item 4`));
 
-		assertNestedRangesEqual(ranges![0], [0, 1], [0, 6]);
-		assertNestedRangesEqual(ranges![1], [4, 5], [0, 6]);
+		assertNestedRangesEqual(ranges![0], [0, 1], [0, 5]);
+		assertNestedRangesEqual(ranges![1], [4, 5], [0, 5]);
 	});
 	test('Smart select nested block quotes', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -196,7 +196,7 @@ suite.only('markdown.SmartSelect', () => {
 				`more content`,
 				`# main header 2`));
 
-		assertNestedRangesEqual(ranges![0], [5, 6], [4, 7], [3, 10], [3, 10], [2, 10], [1, 10], [0, 10]);
+		assertNestedRangesEqual(ranges![0], [5, 6], [4, 7], [3, 9], [3, 10], [2, 10], [1, 10], [0, 10]);
 	});
 	test('Smart select list with on element without selecting child subheader', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -210,7 +210,7 @@ suite.only('markdown.SmartSelect', () => {
 				`content 2`,
 				`# main header 2`));
 
-		assertNestedRangesEqual(ranges![0], [2, 3], [1, 3], [1, 6], [0, 6]);
+		assertNestedRangesEqual(ranges![0], [2, 3], [1, 6], [0, 6]);
 	});
 });
 

@@ -141,7 +141,8 @@ function createBlockRange(block: Token | undefined, document: vscode.TextDocumen
 			return createFencedRange(block, document, parent);
 		} else {
 			let startLine = document.lineAt(block.map[0]).isEmptyOrWhitespace ? block.map[0] + 1 : block.map[0];
-			let endLine = document.lineAt(block.map[1]).isEmptyOrWhitespace ? block.map[1] - 1 : block.map[1];
+			let adjustedEndLine = document.lineAt(block.map[1]).isEmptyOrWhitespace ? block.map[1] - 1 : block.map[1];
+			let endLine = startLine !== adjustedEndLine && isList(block.type) ? adjustedEndLine - 1 : adjustedEndLine;
 			let startPos = new vscode.Position(startLine, 0);
 			let endPos = new vscode.Position(endLine, getEndCharacter(document, startLine, endLine));
 			let range = new vscode.Range(startPos, endPos);
@@ -168,6 +169,10 @@ function createFencedRange(token: Token, document: vscode.TextDocument, parent?:
 	} else {
 		return new vscode.SelectionRange(childRange, blockRange);
 	}
+}
+
+function isList(type: string): boolean {
+	return type ? ['ordered_list_open', 'list_item_open', 'bullet_list_open'].includes(type) : false;
 }
 
 function getEndCharacter(document: vscode.TextDocument, startLine: number, endLine: number): number {
