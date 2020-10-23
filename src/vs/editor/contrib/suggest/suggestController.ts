@@ -30,7 +30,6 @@ import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { Event } from 'vs/base/common/event';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
 import { isObject, assertType } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
@@ -43,7 +42,6 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -117,16 +115,14 @@ export class SuggestController implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IEditorWorkerService editorWorker: IEditorWorkerService,
 		@ISuggestMemoryService private readonly _memoryService: ISuggestMemoryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IClipboardService clipboardService: IClipboardService,
 	) {
 		this.editor = editor;
-		this.model = new SuggestModel(this.editor, editorWorker, clipboardService);
+		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 

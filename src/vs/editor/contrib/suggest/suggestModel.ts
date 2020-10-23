@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
-import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport, SnippetSortOrder, CompletionOptions } from './suggest';
+import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport, SnippetSortOrder, CompletionOptions, CompletionDurations } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -22,6 +22,9 @@ import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isLowSurrogate, isHighSurrogate } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -117,8 +120,10 @@ export class SuggestModel implements IDisposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _editorWorkerService: IEditorWorkerService,
-		private readonly _clipboardService: IClipboardService
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -249,10 +254,8 @@ export class SuggestModel implements IDisposable {
 	cancel(retrigger: boolean = false): void {
 		if (this._state !== State.Idle) {
 			this._triggerQuickSuggest.cancel();
-			if (this._requestToken) {
-				this._requestToken.cancel();
-				this._requestToken = undefined;
-			}
+			this._requestToken?.cancel();
+			this._requestToken = undefined;
 			this._state = State.Idle;
 			this._completionModel = undefined;
 			this._context = undefined;
@@ -421,10 +424,10 @@ export class SuggestModel implements IDisposable {
 				break;
 		}
 
-		let itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
-		let wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
+		const itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
+		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
-		let completions = provideSuggestionItems(
+		const completions = provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
 			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom),
@@ -473,7 +476,40 @@ export class SuggestModel implements IDisposable {
 
 			this._onNewContext(ctx);
 
+			// finally report telemetry about durations
+			this._reportDurationsTelemetry(completions.durations);
+
 		}).catch(onUnexpectedError);
+	}
+
+	private _reportDurationsTelemetry(durations: CompletionDurations): void {
+
+		type DurationEntry = {
+			session: string;
+			providerName: string;
+			elapsedProvider: number;
+			elapsedOverall: number;
+		};
+
+		type Durations = {
+			session: string;
+			elapsedAll: number;
+		};
+
+		type PerformanceAndHealth<T> = { [P in keyof T]: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
+		type DurationEntryClassification = PerformanceAndHealth<DurationEntry>;
+		type DurationsClassification = PerformanceAndHealth<Durations>;
+
+		setTimeout(() => {
+
+			this._logService.trace('suggest.durations', durations);
+
+			const session = generateUuid();
+			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.all', { session, elapsedAll: durations.elapsed });
+			for (let item of durations.entries) {
+				this._telemetryService.publicLog2<DurationEntry, DurationEntryClassification>('suggest.durations.entry', { session, ...item });
+			}
+		});
 	}
 
 	private static _createItemKindFilter(editor: ICodeEditor): Set<CompletionItemKind> {
