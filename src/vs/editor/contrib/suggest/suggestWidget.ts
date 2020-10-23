@@ -538,6 +538,7 @@ export class SuggestWidget implements IDisposable {
 		this.list.reveal(selectionIndex, 0);
 		this.list.setFocus([selectionIndex]);
 
+		this._layout(this.element.size);
 		// Reset focus border
 		if (this.detailsBorderColor) {
 			this._details.widget.domNode.style.borderColor = this.detailsBorderColor;
