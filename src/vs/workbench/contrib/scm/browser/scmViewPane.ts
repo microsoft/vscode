@@ -1876,27 +1876,27 @@ export class SCMViewPane extends ViewPane {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryMenu;
 			context = element.provider;
-			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+			[actions, disposable] = collectContextMenuActions(menu);
 		} else if (isSCMInput(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.getResourceGroupMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+			[actions, disposable] = collectContextMenuActions(menu);
 		} else if (ResourceTree.isResourceNode(element)) {
 			if (element.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(element.element.resourceGroup.provider);
 				const menu = menus.getResourceMenu(element.element);
-				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+				[actions, disposable] = collectContextMenuActions(menu);
 			} else {
 				const menus = this.scmViewService.menus.getRepositoryMenus(element.context.provider);
 				const menu = menus.getResourceFolderMenu(element.context);
-				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+				[actions, disposable] = collectContextMenuActions(menu);
 			}
 		} else {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.resourceGroup.provider);
 			const menu = menus.getResourceMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+			[actions, disposable] = collectContextMenuActions(menu);
 		}
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());

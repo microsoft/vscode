@@ -217,7 +217,7 @@ export class VariablesView extends ViewPane {
 				variable: variable.toDebugProtocolObject()
 			};
 			const actions: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions, this.contextMenuService);
+			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions);
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,

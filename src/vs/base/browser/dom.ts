@@ -1543,6 +1543,16 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		return this._keyStatus;
 	}
 
+	// This method is a workaround because we do not get keyboard events while a context menu is shown #109062
+	resetKeyStatus(): void {
+		this._keyStatus = {
+			altKey: false,
+			shiftKey: false,
+			ctrlKey: false
+		};
+		this.fire(this._keyStatus);
+	}
+
 	static getInstance() {
 		if (!ModifierKeyEmitter.instance) {
 			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
