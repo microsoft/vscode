@@ -14,7 +14,7 @@ import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/comm
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { merge, getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
+import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
@@ -23,6 +23,7 @@ import { applyEdits } from 'vs/base/common/jsonEdit';
 import { compare } from 'vs/base/common/strings';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 
 interface IExtensionResourceMergeResult extends IAcceptResult {
 	readonly added: ISyncExtension[];
@@ -94,6 +95,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
+		@IIgnoredExtensionsManagementService private readonly extensionSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -117,7 +119,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const localExtensions = this.getLocalExtensions(installedExtensions);
-		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+		const ignoredExtensions = this.extensionSyncManagementService.getIgnoredExtensions(installedExtensions);
 
 		if (remoteExtensions) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote extensions with local extensions...`);
@@ -201,7 +203,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	private async acceptLocal(resourcePreview: IExtensionResourcePreview): Promise<IExtensionResourceMergeResult> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+		const ignoredExtensions = this.extensionSyncManagementService.getIgnoredExtensions(installedExtensions);
 		const mergeResult = merge(resourcePreview.localExtensions, null, null, resourcePreview.skippedExtensions, ignoredExtensions);
 		const { added, removed, updated, remote } = mergeResult;
 		return {
@@ -217,7 +219,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	private async acceptRemote(resourcePreview: IExtensionResourcePreview): Promise<IExtensionResourceMergeResult> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+		const ignoredExtensions = this.extensionSyncManagementService.getIgnoredExtensions(installedExtensions);
 		const remoteExtensions = resourcePreview.remoteContent ? JSON.parse(resourcePreview.remoteContent) : null;
 		if (remoteExtensions !== null) {
 			const mergeResult = merge(resourcePreview.localExtensions, remoteExtensions, resourcePreview.localExtensions, [], ignoredExtensions);
@@ -277,7 +279,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(uri, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
 			const installedExtensions = await this.extensionManagementService.getInstalled();
-			const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+			const ignoredExtensions = this.extensionSyncManagementService.getIgnoredExtensions(installedExtensions);
 			const localExtensions = this.getLocalExtensions(installedExtensions).filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)));
 			return this.format(localExtensions);
 		}

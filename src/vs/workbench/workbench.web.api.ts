@@ -13,7 +13,7 @@ import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlServi
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
@@ -278,6 +278,11 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
+	 * An URL pointing to the web worker extension host <iframe> src.
+	 */
+	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
@@ -444,7 +449,8 @@ interface IWorkbenchConstructionOptions {
 interface IWorkbench {
 	commands: {
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	}
+	},
+	shutdown: () => void;
 }
 
 /**
@@ -456,7 +462,7 @@ interface IWorkbench {
 let created = false;
 let workbenchPromiseResolve: Function;
 const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
-async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
 	mark('didLoadWorkbenchMain');
@@ -470,10 +476,6 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 		created = true;
 	}
 
-	// Startup workbench and resolve waiters
-	const workbench = await main(domElement, options);
-	workbenchPromiseResolve(workbench);
-
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
 		for (const command of options.commands) {
@@ -484,6 +486,21 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			});
 		}
 	}
+
+	// Startup workbench and resolve waiters
+	let instantiatedWorkbench: IWorkbench | undefined = undefined;
+	main(domElement, options).then(workbench => {
+		instantiatedWorkbench = workbench;
+		workbenchPromiseResolve(workbench);
+	});
+
+	return toDisposable(() => {
+		if (instantiatedWorkbench) {
+			instantiatedWorkbench.shutdown();
+		} else {
+			workbenchPromise.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
+		}
+	});
 }
 
 

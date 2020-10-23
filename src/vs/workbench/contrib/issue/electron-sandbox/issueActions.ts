@@ -27,7 +27,7 @@ export class OpenProcessExplorer extends Action {
 
 export class ReportPerformanceIssueUsingReporterAction extends Action {
 	static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
-	static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
+	static readonly LABEL = nls.localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue");
 
 	constructor(
 		id: string,

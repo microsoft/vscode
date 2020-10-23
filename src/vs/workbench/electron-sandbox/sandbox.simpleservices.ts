@@ -7,7 +7,7 @@
 /* eslint-disable code-import-patterns */
 
 import { ConsoleLogService } from 'vs/platform/log/common/log';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';

@@ -16,6 +16,11 @@ import 'vs/workbench/workbench.common.main';
 
 //#endregion
 
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+
+registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
+
 
 //#region --- workbench services
 

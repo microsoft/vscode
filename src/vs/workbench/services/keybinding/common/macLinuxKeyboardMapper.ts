@@ -956,6 +956,12 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 		}
 
+		// See https://github.com/microsoft/vscode/issues/108880
+		if (this._OS === OperatingSystem.Macintosh && binding.ctrlKey && !binding.metaKey && !binding.altKey && constantKeyCode === KeyCode.US_MINUS) {
+			// ctrl+- and ctrl+shift+- render very similarly in native macOS menus, leading to confusion
+			return null;
+		}
+
 		if (constantKeyCode !== -1) {
 			return this._getElectronLabelForKeyCode(constantKeyCode);
 		}

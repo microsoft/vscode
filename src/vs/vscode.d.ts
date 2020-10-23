@@ -809,10 +809,21 @@ declare module 'vscode' {
 		static readonly Folder: ThemeIcon;
 
 		/**
+		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 */
+		readonly id: string;
+
+		/**
+		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
+		 */
+		readonly themeColor?: ThemeColor;
+
+		/**
 		 * Creates a reference to a theme icon.
 		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param color optional `ThemeColor` for the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
-		constructor(id: string);
+		constructor(id: string, color?: ThemeColor);
 	}
 
 	/**
@@ -5659,7 +5670,7 @@ declare module 'vscode' {
 		 * Get the absolute path of a resource contained in the extension.
 		 *
 		 * *Note* that an absolute uri can be constructed via [`Uri.joinPath`](#Uri.joinPath) and
-		 * [`extensionUri`](#ExtensionContent.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+		 * [`extensionUri`](#ExtensionContext.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
 		 *
 		 * @param relativePath A relative path to a resource contained in the extension.
 		 * @return The absolute path of the resource.
@@ -5688,7 +5699,7 @@ declare module 'vscode' {
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 * @deprecated Use [storageUri](#ExtensionContext.storageUri) instead.
 		 */
 		readonly storagePath: string | undefined;
 
@@ -5711,7 +5722,7 @@ declare module 'vscode' {
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 * @deprecated Use [globalStorageUri](#ExtensionContext.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
 
@@ -7805,7 +7816,8 @@ declare module 'vscode' {
 		 * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
 		 * they only execute when there is an active editor when the command is called. Also, the
 		 * command handler of an editor command has access to the active editor and to an
-		 * [edit](#TextEditorEdit)-builder.
+		 * [edit](#TextEditorEdit)-builder. Note that the edit-builder is only valid while the
+		 * callback executes.
 		 *
 		 * @param command A unique identifier for the command.
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).

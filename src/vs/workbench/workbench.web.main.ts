@@ -40,7 +40,6 @@ import 'vs/workbench/services/configurationResolver/browser/configurationResolve
 import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
-import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
 import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
@@ -59,27 +58,29 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
-import { IExtensionManagementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
+import { IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { ITunnelService, TunnelService } from 'vs/platform/remote/common/tunnel';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { StorageKeysSyncRegistryService, IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { WebUserDataAutoSyncService } from 'vs/workbench/services/userDataSync/browser/userDataAutoSyncService';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { WebUserDataAutoSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataAutoSyncEnablementService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 
-registerSingleton(IExtensionManagementService, ExtensionManagementService);
+registerSingleton(IWorkbenchExtensioManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
@@ -91,8 +92,9 @@ registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService);
 registerSingleton(IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService);
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService);
-registerSingleton(IUserDataSyncService, UserDataSyncService, true);
-registerSingleton(IUserDataAutoSyncService, WebUserDataAutoSyncService, true);
+registerSingleton(IUserDataSyncService, UserDataSyncService);
+registerSingleton(IUserDataAutoSyncEnablementService, WebUserDataAutoSyncEnablementService);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
@@ -123,6 +125,9 @@ import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/browser/taskService';
+
+// Tags
+import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';

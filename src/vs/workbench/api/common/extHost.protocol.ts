@@ -394,11 +394,12 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend, eventHandle: number | undefined): void;
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void;
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
+	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
 	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void;
+	$emitFoldingRangeEvent(eventHandle: number, event?: any): void;
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
@@ -446,6 +447,7 @@ export interface TerminalLaunchConfig {
 	strictEnv?: boolean;
 	hideFromUser?: boolean;
 	isExtensionTerminal?: boolean;
+	isFeatureTerminal?: boolean;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -644,7 +646,7 @@ export interface MainThreadCustomEditorsShape extends IDisposable {
 }
 
 export interface MainThreadWebviewViewsShape extends IDisposable {
-	$registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void;
+	$registerWebviewViewProvider(extension: WebviewExtensionDescription, viewType: string, options?: { retainContextWhenHidden?: boolean }): void;
 	$unregisterWebviewViewProvider(viewType: string): void;
 
 	$setWebviewViewTitle(handle: WebviewHandle, value: string | undefined): void;
@@ -1214,13 +1216,15 @@ export interface ISuggestDataDto {
 export const enum ISuggestResultDtoField {
 	defaultRanges = 'a',
 	completions = 'b',
-	isIncomplete = 'c'
+	isIncomplete = 'c',
+	duration = 'd',
 }
 
 export interface ISuggestResultDto {
 	[ISuggestResultDtoField.defaultRanges]: { insert: IRange, replace: IRange; };
 	[ISuggestResultDtoField.completions]: ISuggestDataDto[];
 	[ISuggestResultDtoField.isIncomplete]: undefined | true;
+	[ISuggestResultDtoField.duration]: number;
 	x?: number;
 }
 

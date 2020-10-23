@@ -10,6 +10,7 @@ import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { MovingAverage } from 'vs/base/common/numbers';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
@@ -25,6 +26,7 @@ export interface ICompletionStats {
 	suggestionCount: number;
 	snippetCount: number;
 	textCount: number;
+	avgLabelLen: MovingAverage;
 	[name: string]: any;
 }
 
@@ -147,7 +149,7 @@ export class CompletionModel {
 	private _createCachedState(): void {
 
 		this._providerInfo = new Map();
-		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
+		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0, avgLabelLen: new MovingAverage() };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
@@ -183,6 +185,8 @@ export class CompletionModel {
 				wordLow = word.toLowerCase();
 			}
 
+			const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
+
 			// remember the word against which this item was
 			// scored
 			item.word = word;
@@ -208,7 +212,6 @@ export class CompletionModel {
 					}
 				}
 
-				const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
@@ -248,6 +251,7 @@ export class CompletionModel {
 			target.push(item as StrictCompletionItem);
 
 			// update stats
+			this._stats.avgLabelLen.update(textLabel.length);
 			this._stats.suggestionCount++;
 			switch (item.completion.kind) {
 				case CompletionItemKind.Snippet: this._stats.snippetCount++; break;

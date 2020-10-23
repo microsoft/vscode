@@ -11,7 +11,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
-import { TestWorkingCopy } from 'vs/workbench/services/workingCopy/test/common/workingCopyService.test';
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('WorkingCopyFileService', () => {

@@ -44,7 +44,7 @@ import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/wi
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { WebResourceIdentityService, IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
@@ -52,6 +52,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class BrowserMain extends Disposable {
 
@@ -84,7 +85,7 @@ class BrowserMain extends Disposable {
 		);
 
 		// Listeners
-		this.registerListeners(workbench, services.storageService, services.logService);
+		this.registerListeners(workbench, services.configurationService, services.storageService, services.logService);
 
 		// Driver
 		if (this.configuration.driver) {
@@ -97,16 +98,18 @@ class BrowserMain extends Disposable {
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);
+			const lifecycleService = accessor.get(ILifecycleService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
-				}
+				},
+				shutdown: () => lifecycleService.shutdown()
 			};
 		});
 	}
 
-	private registerListeners(workbench: Workbench, storageService: BrowserStorageService, logService: ILogService): void {
+	private registerListeners(workbench: Workbench, configurationService: IConfigurationService, storageService: BrowserStorageService, logService: ILogService): void {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
@@ -127,7 +130,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				console.warn('Unload prevented: pending storage update');
+				console.warn('Unload veto: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
 			}
 		}));
@@ -147,7 +150,7 @@ class BrowserMain extends Disposable {
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -236,7 +239,7 @@ class BrowserMain extends Disposable {
 			mark('didInitRequiredUserData');
 		}
 
-		return { serviceCollection, logService, storageService };
+		return { serviceCollection, configurationService, logService, storageService };
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {

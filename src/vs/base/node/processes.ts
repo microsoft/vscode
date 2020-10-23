@@ -86,8 +86,8 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	return Promise.resolve({ success: true });
 }
 
-export function getWindowsShell(): string {
-	return process.env['comspec'] || 'cmd.exe';
+export function getWindowsShell(environment: Platform.IProcessEnvironment = process.env as Platform.IProcessEnvironment): string {
+	return environment['comspec'] || 'cmd.exe';
 }
 
 export abstract class AbstractProcess<TProgressData> {

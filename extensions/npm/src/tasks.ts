@@ -108,15 +108,15 @@ export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 	return value && typeof value !== 'number';
 }
 
-export async function getPackageManager(folder: WorkspaceFolder): Promise<string> {
-	let packageManagerName = workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
+export async function getPackageManager(folder: Uri, silent: boolean = false): Promise<string> {
+	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
-		const { name, multiplePMDetected } = await findPreferredPM(folder.uri.fsPath);
+		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
 		packageManagerName = name;
 
-		if (multiplePMDetected) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Found multiple lockfiles for {0}. Using {1} as the preferred package manager.', folder.uri.fsPath, packageManagerName);
+		if (multiplePMDetected && !silent) {
+			const multiplePMWarning = localize('npm.multiplePMWarning', 'Found multiple lockfiles for {0}. Using {1} as the preferred package manager.', folder.fsPath, packageManagerName);
 			window.showWarningMessage(multiplePMWarning);
 		}
 	}
@@ -291,7 +291,7 @@ export async function createTask(script: NpmTaskDefinition | string, cmd: string
 		kind = script;
 	}
 
-	const packageManager = await getPackageManager(folder);
+	const packageManager = await getPackageManager(folder.uri);
 	async function getCommandLine(cmd: string): Promise<string> {
 		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
 			return `${packageManager} --silent ${cmd}`;
@@ -378,7 +378,7 @@ export async function startDebugging(scriptName: string, cwd: string, folder: Wo
 		request: 'launch',
 		name: `Debug ${scriptName}`,
 		cwd,
-		runtimeExecutable: await getPackageManager(folder),
+		runtimeExecutable: await getPackageManager(folder.uri),
 		runtimeArgs: [
 			'run',
 			scriptName,

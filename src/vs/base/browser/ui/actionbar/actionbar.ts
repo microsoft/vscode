@@ -21,7 +21,7 @@ export const enum ActionsOrientation {
 }
 
 export interface ActionTrigger {
-	keys: KeyCode[];
+	keys?: KeyCode[];
 	keyDown: boolean;
 }
 
@@ -49,7 +49,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _actionRunner: IActionRunner;
 	private _context: unknown;
 	private readonly _orientation: ActionsOrientation;
-	private readonly _triggerKeys: ActionTrigger;
+	private readonly _triggerKeys: {
+		keys: KeyCode[];
+		keyDown: boolean;
+	};
 	private _actionIds: string[];
 
 	// View Items
@@ -80,9 +83,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.options = options;
 		this._context = options.context ?? null;
 		this._orientation = this.options.orientation ?? ActionsOrientation.HORIZONTAL;
-		this._triggerKeys = this.options.triggerKeys ?? {
-			keys: [KeyCode.Enter, KeyCode.Space],
-			keyDown: false
+		this._triggerKeys = {
+			keyDown: this.options.triggerKeys?.keyDown ?? false,
+			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
 		};
 
 		if (this.options.actionRunner) {

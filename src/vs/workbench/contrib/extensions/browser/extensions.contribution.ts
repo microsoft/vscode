@@ -14,7 +14,7 @@ import { IExtensionRecommendationsService } from 'vs/workbench/services/extensio
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
@@ -31,7 +31,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -57,6 +57,10 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
+import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -72,6 +76,16 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
 	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
 	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+});
+
+// Explorer
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: 'extensions',
+	command: {
+		id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
+		title: localize('installVSIX', "Install VSIX"),
+	},
+	when: ResourceContextKey.Extension.isEqualTo('.vsix')
 });
 
 // Editor
@@ -203,6 +217,45 @@ CommandsRegistry.registerCommand({
 			onUnexpectedError(e);
 			throw e;
 		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
+	handler: async (accessor: ServicesAccessor, resources: URI[] | URI) => {
+		const extensionService = accessor.get(IExtensionService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const hostService = accessor.get(IHostService);
+		const notificationService = accessor.get(INotificationService);
+
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+
+		if (!viewlet) {
+			return;
+		}
+
+		const extensions = Array.isArray(resources) ? resources : [resources];
+		await Promise.all(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
+			.then(async (extensions) => {
+				for (const extension of extensions) {
+					const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));
+					const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
+						: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.displayName || extension.name);
+					const actions = requireReload ? [{
+						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+						run: () => hostService.reload()
+					}] : [];
+					notificationService.prompt(
+						Severity.Info,
+						message,
+						actions,
+						{ sticky: true }
+					);
+				}
+				await instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
+			});
 	}
 });
 

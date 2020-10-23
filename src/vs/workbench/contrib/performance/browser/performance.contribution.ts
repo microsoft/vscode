@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';

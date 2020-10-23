@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export class WebUserDataAutoSyncService extends UserDataAutoSyncService implements IUserDataAutoSyncService {
+export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnablementService {
 
 	private get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
 	private enabled: boolean | undefined = undefined;
@@ -22,7 +21,7 @@ export class WebUserDataAutoSyncService extends UserDataAutoSyncService implemen
 		return this.enabled;
 	}
 
-	protected setEnablement(enabled: boolean) {
+	setEnablement(enabled: boolean) {
 		if (this.enabled !== enabled) {
 			this.enabled = enabled;
 			if (this.workbenchEnvironmentService.options?.settingsSyncOptions) {

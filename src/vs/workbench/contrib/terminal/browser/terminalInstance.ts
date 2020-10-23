@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -44,7 +44,7 @@ import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs
 import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { LatencyTelemetryAddon } from 'vs/workbench/contrib/terminal/browser/terminalLatencyTelemetryAddon';
+import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -94,7 +94,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
-	private _dimensionsOverride: ITerminalDimensions | undefined;
+	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _windowsShellHelper: IWindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
@@ -117,12 +117,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get id(): number { return this._id; }
 	public get cols(): number {
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
+			if (this._dimensionsOverride.forceExactSize) {
+				return this._dimensionsOverride.cols;
+			}
 			return Math.min(Math.max(this._dimensionsOverride.cols, 2), this._cols);
 		}
 		return this._cols;
 	}
 	public get rows(): number {
 		if (this._dimensionsOverride && this._dimensionsOverride.rows) {
+			if (this._dimensionsOverride.forceExactSize) {
+				return this._dimensionsOverride.rows;
+			}
 			return Math.min(Math.max(this._dimensionsOverride.rows, 2), this._rows);
 		}
 		return this._rows;
@@ -415,7 +421,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
 
-		this._processManager.onProcessData(data => this._onProcessData(data));
+		this._processManager.onProcessData(e => this._onProcessData(e));
 		this._xterm.onData(data => this._processManager.write(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
@@ -449,8 +455,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 
-		const latencyAddon = this._register(this._instantiationService.createInstance(LatencyTelemetryAddon, this._processManager));
-		this._xterm.loadAddon(latencyAddon);
+		const typeaheadAddon = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
+		this._xterm.loadAddon(typeaheadAddon);
 
 		return xterm;
 	}
@@ -882,11 +888,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.onProcessData(data => {
-			this._initialDataEvents?.push(data);
-			this._onData.fire(data);
+		this._processManager.onProcessData(ev => {
+			this._initialDataEvents?.push(ev.data);
+			this._onData.fire(ev.data);
 		});
-		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
+		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 
@@ -959,9 +965,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _onProcessData(data: string): void {
-		const messageId = ++this._latestXtermWriteData;
-		this._xterm?.write(data, () => this._latestXtermParseData = messageId);
+	private _onProcessData(ev: IProcessDataEvent): void {
+		if (ev.sync) {
+			this._xtermCore?.writeSync(ev.data);
+		} else {
+			const messageId = ++this._latestXtermWriteData;
+			this._xterm?.write(ev.data, () => this._latestXtermParseData = messageId);
+		}
 	}
 
 	/**
@@ -1349,6 +1359,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(50)
 	private async _resize(): Promise<void> {
+		this._resizeNow(false);
+	}
+
+	private async _resizeNow(immediate: boolean): Promise<void> {
 		let cols = this.cols;
 		let rows = this.rows;
 
@@ -1398,8 +1412,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		await this._processManager.ptyProcessReady;
-		this._processManager.setDimensions(cols, rows);
+		if (immediate) {
+			// do not await, call setDimensions synchronously
+			this._processManager.setDimensions(cols, rows);
+		} else {
+			await this._processManager.ptyProcessReady;
+			this._processManager.setDimensions(cols, rows);
+		}
 	}
 
 	public setShellType(shellType: TerminalShellType) {
@@ -1442,9 +1461,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._titleReadyPromise;
 	}
 
-	public setDimensions(dimensions: ITerminalDimensions | undefined): void {
+	public setDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
+		if (this._dimensionsOverride && this._dimensionsOverride.forceExactSize && !dimensions && this._rows === 0 && this._cols === 0) {
+			// this terminal never had a real size => keep the last dimensions override exact size
+			this._cols = this._dimensionsOverride.cols;
+			this._rows = this._dimensionsOverride.rows;
+		}
 		this._dimensionsOverride = dimensions;
-		this._resize();
+		if (immediate) {
+			this._resizeNow(true);
+		} else {
+			this._resize();
+		}
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {

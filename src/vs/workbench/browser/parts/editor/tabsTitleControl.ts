@@ -47,6 +47,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { insert } from 'vs/base/common/arrays';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isSafari } from 'vs/base/browser/browser';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -1283,7 +1284,7 @@ export class TabsTitleControl extends TitleControl {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			const tabsScrollbar = assertIsDefined(this.tabsScrollbar);
 
-			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.breadcrumbsControl.layout(new Dimension(dimension.width, BreadcrumbsControl.HEIGHT));
 			tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 	}
@@ -1631,7 +1632,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 
 	// Fade out styles via linear gradient (when tabs are set to shrink)
-	if (theme.type !== 'hc') {
+	// But not when:
+	// - in high contrast theme
+	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
+	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
+	if (theme.type !== 'hc' && !isSafari && !activeContrastBorderColor) {
 		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 		const editorBackgroundColor = theme.getColor(editorBackground);
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);

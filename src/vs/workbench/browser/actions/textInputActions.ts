@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { EventHelper } from 'vs/base/browser/dom';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 

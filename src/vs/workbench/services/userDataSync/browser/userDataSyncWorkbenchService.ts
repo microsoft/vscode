@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -29,7 +29,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -93,6 +93,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -118,8 +119,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (this.userDataSyncStoreManagementService.userDataSyncStore) {
 			this.syncStatusContext.set(this.userDataSyncService.status);
 			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
-			this.syncEnablementContext.set(userDataAutoSyncService.isEnabled());
-			this._register(userDataAutoSyncService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
+			this.syncEnablementContext.set(userDataAutoSyncEnablementService.isEnabled());
+			this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
 
 			this.waitAndInitialize();
 		}
@@ -247,7 +248,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (!this.authenticationProviders.length) {
 			throw new Error(localize('no authentication providers', "Settings sync cannot be turned on because there are no authentication providers available."));
 		}
-		if (this.userDataAutoSyncService.isEnabled()) {
+		if (this.userDataAutoSyncEnablementService.isEnabled()) {
 			return;
 		}
 		if (this.userDataSyncService.status !== SyncStatus.Idle) {
@@ -552,7 +553,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async switch(sessionId: string, accountName: string, accountId: string): Promise<void> {
 		const currentAccount = this.current;
-		if (this.userDataAutoSyncService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
+		if (this.userDataAutoSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
 			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
@@ -565,7 +566,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.currentSessionId = undefined;
 		await this.update();
 
-		if (this.userDataAutoSyncService.isEnabled()) {
+		if (this.userDataAutoSyncEnablementService.isEnabled()) {
 			this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('successive auth failures', "Settings sync is suspended because of successive authorization failures. Please sign in again to continue synchronizing"),

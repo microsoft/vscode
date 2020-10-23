@@ -72,6 +72,11 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 	});
 
+	test('multibyteAwareBtoa', () => {
+		assert.equal(dom.multibyteAwareBtoa('hello world'), dom.multibyteAwareBtoa('hello world'));
+		assert.ok(dom.multibyteAwareBtoa('平仮名'));
+	});
+
 	suite('$', () => {
 		test('should build simple nodes', () => {
 			const div = $('div');

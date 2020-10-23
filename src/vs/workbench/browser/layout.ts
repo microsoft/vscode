@@ -22,7 +22,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -43,7 +43,7 @@ import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/commo
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { URI } from 'vs/base/common/uri';
-import { IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -178,7 +178,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private titleService!: ITitleService;
 	private viewletService!: IViewletService;
 	private viewDescriptorService!: IViewDescriptorService;
-	private viewsService!: IViewsService;
 	private contextService!: IWorkspaceContextService;
 	private backupFileService!: IBackupFileService;
 	private notificationService!: INotificationService;
@@ -273,7 +272,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelService = accessor.get(IPanelService);
 		this.viewletService = accessor.get(IViewletService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
-		this.viewsService = accessor.get(IViewsService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
 		this.activityBarService = accessor.get(IActivityBarService);
@@ -851,52 +849,60 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.state.views.defaults?.length) {
 				mark('willOpenDefaultViews');
 
-				const defaultViews = [...this.state.views.defaults];
+				let locationsRestored: { id: string; order: number }[] = [];
 
-				let locationsRestored: boolean[] = [];
+				const tryOpenView = (view: { id: string; order: number }): boolean => {
+					const location = this.viewDescriptorService.getViewLocationById(view.id);
+					if (location !== null) {
+						const container = this.viewDescriptorService.getViewContainerByViewId(view.id);
+						if (container) {
+							if (view.order >= (locationsRestored?.[location]?.order ?? 0)) {
+								locationsRestored[location] = { id: container.id, order: view.order };
+							}
 
-				const tryOpenView = async (viewId: string, index: number) => {
-					const location = this.viewDescriptorService.getViewLocationById(viewId);
-					if (location) {
+							const containerModel = this.viewDescriptorService.getViewContainerModel(container);
+							containerModel.setCollapsed(view.id, false);
+							containerModel.setVisible(view.id, true);
 
-						// If the view is in the same location that has already been restored, remove it and continue
-						if (locationsRestored[location]) {
-							defaultViews.splice(index, 1);
-
-							return;
-						}
-
-						const view = await this.viewsService.openView(viewId);
-						if (view) {
-							locationsRestored[location] = true;
-							defaultViews.splice(index, 1);
+							return true;
 						}
 					}
+
+					return false;
 				};
 
-				let i = -1;
-				for (const viewId of defaultViews) {
-					await tryOpenView(viewId, ++i);
+				const defaultViews = [...this.state.views.defaults].reverse().map((v, index) => ({ id: v, order: index }));
+
+				let i = defaultViews.length;
+				while (i) {
+					i--;
+					if (tryOpenView(defaultViews[i])) {
+						defaultViews.splice(i, 1);
+					}
 				}
 
 				// If we still have views left over, wait until all extensions have been registered and try again
 				if (defaultViews.length) {
 					await this.extensionService.whenInstalledExtensionsRegistered();
 
-					let i = -1;
-					for (const viewId of defaultViews) {
-						await tryOpenView(viewId, ++i);
+
+					let i = defaultViews.length;
+					while (i) {
+						i--;
+						if (tryOpenView(defaultViews[i])) {
+							defaultViews.splice(i, 1);
+						}
 					}
 				}
 
 				// If we opened a view in the sidebar, stop any restore there
 				if (locationsRestored[ViewContainerLocation.Sidebar]) {
-					this.state.sideBar.viewletToRestore = undefined;
+					this.state.sideBar.viewletToRestore = locationsRestored[ViewContainerLocation.Sidebar].id;
 				}
 
 				// If we opened a view in the panel, stop any restore there
 				if (locationsRestored[ViewContainerLocation.Panel]) {
-					this.state.panel.panelToRestore = undefined;
+					this.state.panel.panelToRestore = locationsRestored[ViewContainerLocation.Panel].id;
 				}
 
 				mark('didOpenDefaultViews');
@@ -1095,7 +1101,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const availableWidth = this.dimension.width - takenWidth;
 		const availableHeight = this.dimension.height - takenHeight;
 
-		return { width: availableWidth, height: availableHeight };
+		return new Dimension(availableWidth, availableHeight);
 	}
 
 	getWorkbenchContainer(): HTMLElement {
@@ -1397,9 +1403,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onCenteredLayoutChange.fire(this.state.editor.centered);
 	}
 
-	resizePart(part: Parts, sizeChange: number): void {
-		const sizeChangePxWidth = this.workbenchGrid.width * sizeChange / 100;
-		const sizeChangePxHeight = this.workbenchGrid.height * sizeChange / 100;
+	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
+		const sizeChangePxWidth = this.workbenchGrid.width * sizeChangeWidth / 100;
+		const sizeChangePxHeight = this.workbenchGrid.height * sizeChangeHeight / 100;
 
 		let viewSize: IViewSize;
 
