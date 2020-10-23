@@ -414,7 +414,7 @@ class TunnelItem implements ITunnelItem {
 		if (address.length < 15) {
 			return address;
 		}
-		return new URL(address).host;
+		return new URL(address).host ?? address;
 	}
 
 	set description(description: string | undefined) {
