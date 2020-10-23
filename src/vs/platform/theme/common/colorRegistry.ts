@@ -334,6 +334,11 @@ export const editorLightBulbForeground = registerColor('editorLightBulb.foregrou
 export const editorLightBulbAutoFixForeground = registerColor('editorLightBulbAutoFix.foreground', { dark: '#75BEFF', light: '#007ACC', hc: '#75BEFF' }, nls.localize('editorLightBulbAutoFixForeground', "The color used for the lightbulb auto fix actions icon."));
 
 /**
+ * Editor action icon colors
+ */
+export const editorActionsForeground = registerColor('editorActions.foreground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('editorActions.foreground', "The color used for the editor action icons in the toolbar."));
+
+/**
  * Diff Editor Colors
  */
 export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 0.2));

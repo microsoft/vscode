@@ -25,7 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorActionsForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -430,4 +430,14 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			color: ${dragImageForeground};
 		}
 	`);
+
+	const editorActionsColor = theme.getColor(editorActionsForeground);
+	if (editorActionsColor) {
+		collector.addRule(`
+			.monaco-workbench .editor-actions .action-label.codicon {
+				color: ${editorActionsColor};
+			}
+		`);
+	}
+
 });

@@ -50,10 +50,6 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.codicon {
-	color: inherit;
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label.disabled,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.disabled {
 	opacity: 0.4;
