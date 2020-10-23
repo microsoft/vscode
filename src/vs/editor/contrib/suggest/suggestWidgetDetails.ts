@@ -42,7 +42,7 @@ export class SuggestDetailsWidget {
 	private readonly _markdownRenderer: MarkdownRenderer;
 	private _renderDisposeable?: IDisposable;
 	private _borderWidth: number = 1;
-	private _size = new dom.Dimension(330, 50);
+	private _size = new dom.Dimension(330, 0);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -101,15 +101,19 @@ export class SuggestDetailsWidget {
 		this._close.style.width = lineHeightPx;
 	}
 
-	private _lineHeight(): number {
-		return this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
+	getLayoutInfo() {
+		const lineHeight = this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
+		const borderWidth = this._borderWidth;
+		const borderHeight = borderWidth * 2;
+		return { lineHeight, borderWidth, borderHeight };
 	}
+
 
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
 		this.domNode.classList.remove('no-docs');
-		this.layout(this.size.width, this._lineHeight() * 2);
+		this.layout(this.size.width, this.getLayoutInfo().lineHeight * 2);
 		this._onDidChangeContents.fire(this);
 	}
 
@@ -174,7 +178,7 @@ export class SuggestDetailsWidget {
 		};
 
 		this._body.scrollTop = 0;
-		this.layout(this._size.width, this._lineHeight() * (2 + (documentation ? 5 : 0)));
+		this.layout(this._size.width, this.getLayoutInfo().lineHeight * (2 + (documentation ? 5 : 0)));
 		this._onDidChangeContents.fire(this);
 	}
 
@@ -228,8 +232,10 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _resizable: ResizableHTMLElement;
+
 	private _added: boolean = false;
 	private _anchorBox?: dom.IDomNodePagePosition;
+	private _userSize?: dom.Dimension;
 
 	constructor(
 		readonly widget: SuggestDetailsWidget,
@@ -244,12 +250,13 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		this._disposables.add(this._resizable.onDidResize(e => {
 			if (this._anchorBox) {
 				this._placeAtAnchor(this._anchorBox, e.dimension);
+				this._userSize = e.dimension;
 			}
 		}));
 
 		this._disposables.add(this.widget.onDidChangeContents(() => {
 			if (this._anchorBox) {
-				this._placeAtAnchor(this._anchorBox, this.widget.size);
+				this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
 			}
 		}));
 	}
@@ -284,22 +291,24 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			this._editor.removeOverlayWidget(this);
 			this._added = false;
 			this._anchorBox = undefined;
+			this._userSize = undefined;
 		}
 	}
 
 	placeAtAnchor(anchor: HTMLElement) {
 		const anchorBox = dom.getDomNodePagePosition(anchor);
 		this._anchorBox = anchorBox;
-		this._placeAtAnchor(this._anchorBox, this.widget.size);
+		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
 	}
 
 	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
 		const bodyBox = dom.getClientArea(document.body);
-		const borderHeight = 2 * this.widget.borderWidth;
+
+		const { borderWidth, borderHeight, lineHeight } = this.widget.getLayoutInfo();
 
 		let maxSizeTop: dom.Dimension;
 		let maxSizeBottom: dom.Dimension;
-		let minSize = new dom.Dimension(220, this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight);
+		let minSize = new dom.Dimension(220, 2 * lineHeight);
 
 		let left = 0;
 		let top = anchorBox.top;
@@ -307,7 +316,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 		// position: EAST, west, south
 		let width = bodyBox.width - (anchorBox.left + anchorBox.width);
-		left = -this.widget.borderWidth + anchorBox.left + anchorBox.width;
+		left = -borderWidth + anchorBox.left + anchorBox.width;
 		maxSizeTop = new dom.Dimension(bodyBox.width - (anchorBox.left + anchorBox.width), bodyBox.height - anchorBox.top);
 		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height);
 
@@ -315,7 +324,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		if (anchorBox.left > width) {
 			// pos = SuggestDetailsPosition.West;
 			width = anchorBox.left;
-			left = Math.max(0, anchorBox.left - (size.width + this.widget.borderWidth));
+			left = Math.max(0, anchorBox.left - (size.width + borderWidth));
 			maxSizeTop = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
 			maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
 		}
@@ -324,7 +333,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
 			width = anchorBox.width;
 			left = anchorBox.left;
-			top = -this.widget.borderWidth + anchorBox.top + anchorBox.height;
+			top = -borderWidth + anchorBox.top + anchorBox.height;
 			maxSizeTop = new dom.Dimension(anchorBox.width - borderHeight, bodyBox.height - (anchorBox.top + anchorBox.height));
 			maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top);
 			minSize = minSize.with(maxSizeTop.width);
