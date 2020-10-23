@@ -32,11 +32,8 @@ export class SnippetCompletion implements CompletionItem {
 		readonly snippet: Snippet,
 		range: IRange | { insert: IRange, replace: IRange }
 	) {
-		this.label = {
-			name: snippet.prefix,
-			type: localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source)
-		};
-		this.detail = this.label.type!;
+		this.label = { name: snippet.prefix, type: snippet.name };
+		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
