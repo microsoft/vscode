@@ -1618,6 +1618,24 @@ export class Repository {
 		}
 	}
 
+	async rebase(branch: string, options: PullOptions = {}): Promise<void> {
+		const args = ['rebase'];
+
+		args.push(branch);
+
+		try {
+			await this.run(args, options);
+		} catch (err) {
+			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
+			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
+			}
+
+			throw err;
+		}
+	}
+
 	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
 		const args = ['push'];
 
