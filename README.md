@@ -46,7 +46,7 @@ please see the document [How to Contribute](https://github.com/microsoft/vscode/
 * [File an issue](https://github.com/microsoft/vscode/issues)
 * Follow [@code](https://twitter.com/code) and let us know what you think!
 
-See our [wiki](https://github.com/microsoft/vscode#feedback) for a description of each of these channels and information on some other available community-driven channels.
+See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
 
 ## Related Projects
 
