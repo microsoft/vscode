@@ -232,8 +232,10 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _resizable: ResizableHTMLElement;
+
 	private _added: boolean = false;
 	private _anchorBox?: dom.IDomNodePagePosition;
+	private _userSize?: dom.Dimension;
 
 	constructor(
 		readonly widget: SuggestDetailsWidget,
@@ -248,12 +250,13 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		this._disposables.add(this._resizable.onDidResize(e => {
 			if (this._anchorBox) {
 				this._placeAtAnchor(this._anchorBox, e.dimension);
+				this._userSize = e.dimension;
 			}
 		}));
 
 		this._disposables.add(this.widget.onDidChangeContents(() => {
 			if (this._anchorBox) {
-				this._placeAtAnchor(this._anchorBox, this.widget.size);
+				this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
 			}
 		}));
 	}
@@ -288,13 +291,14 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			this._editor.removeOverlayWidget(this);
 			this._added = false;
 			this._anchorBox = undefined;
+			this._userSize = undefined;
 		}
 	}
 
 	placeAtAnchor(anchor: HTMLElement) {
 		const anchorBox = dom.getDomNodePagePosition(anchor);
 		this._anchorBox = anchorBox;
-		this._placeAtAnchor(this._anchorBox, this.widget.size);
+		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size);
 	}
 
 	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
