@@ -14,20 +14,8 @@ import { MovingAverage } from 'vs/base/common/numbers';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
-/* __GDPR__FRAGMENT__
-	"ICompletionStats" : {
-		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-	}
-*/
-// __GDPR__TODO__: This is a dynamically extensible structure which can not be declared statically.
 export interface ICompletionStats {
-	suggestionCount: number;
-	snippetCount: number;
-	textCount: number;
 	avgLabelLen: MovingAverage;
-	[name: string]: any;
 }
 
 export class LineContext {
@@ -149,7 +137,7 @@ export class CompletionModel {
 	private _createCachedState(): void {
 
 		this._providerInfo = new Map();
-		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0, avgLabelLen: new MovingAverage() };
+		this._stats = { avgLabelLen: new MovingAverage() };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
@@ -252,11 +240,6 @@ export class CompletionModel {
 
 			// update stats
 			this._stats.avgLabelLen.update(textLabel.length);
-			this._stats.suggestionCount++;
-			switch (item.completion.kind) {
-				case CompletionItemKind.Snippet: this._stats.snippetCount++; break;
-				case CompletionItemKind.Text: this._stats.textCount++; break;
-			}
 		}
 
 		this._filteredItems = target.sort(this._snippetCompareFn);
