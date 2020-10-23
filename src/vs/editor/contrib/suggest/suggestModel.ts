@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -230,8 +229,10 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items = this._completionModel?.adopt(supports);
-				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
+				const existing = this._completionModel
+					? { items: this._completionModel.adopt(supports), clipboardText: this._completionModel.clipboardText }
+					: undefined;
+				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, existing);
 			}
 		};
 
@@ -376,7 +377,7 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existingItems?: CompletionItem[]): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[], clipboardText: string | undefined }): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -443,17 +444,17 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			let clipboardText: string | undefined;
-			if (completions.needsClipboard || isNonEmptyArray(existingItems)) {
+			let clipboardText = existing?.clipboardText;
+			if (!clipboardText && completions.needsClipboard) {
 				clipboardText = await this._clipboardService.readText();
 			}
 
 			const model = this._editor.getModel();
 			let items = completions.items;
 
-			if (isNonEmptyArray(existingItems)) {
+			if (existing) {
 				const cmpFn = getSuggestionComparator(snippetSortOrder);
-				items = items.concat(existingItems).sort(cmpFn);
+				items = items.concat(existing.items).sort(cmpFn);
 			}
 
 			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
@@ -563,15 +564,15 @@ export class SuggestModel implements IDisposable {
 				inactiveProvider.delete(provider);
 			}
 			const items = this._completionModel.adopt(new Set());
-			this.trigger({ auto: this._context.auto, shy: false }, true, inactiveProvider, items);
+			this.trigger({ auto: this._context.auto, shy: false }, true, inactiveProvider, { items, clipboardText: this._completionModel.clipboardText });
 			return;
 		}
 
 		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
 			const { incomplete } = this._completionModel;
-			const adopted = this._completionModel.adopt(incomplete);
-			this.trigger({ auto: this._state === State.Auto, shy: false, triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions }, true, incomplete, adopted);
+			const items = this._completionModel.adopt(incomplete);
+			this.trigger({ auto: this._state === State.Auto, shy: false, triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions }, true, incomplete, { items, clipboardText: this._completionModel.clipboardText });
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI
