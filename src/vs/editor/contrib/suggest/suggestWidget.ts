@@ -428,6 +428,7 @@ export class SuggestWidget implements IDisposable {
 				this.element.domNode.classList.remove('visible');
 				this.list.splice(0, this.list.length);
 				this.focusedItem = undefined;
+				this.explainMode = false;
 				break;
 			case State.Loading:
 				this.element.domNode.classList.add('message');
