@@ -61,6 +61,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 
 //#region Environment
@@ -711,6 +712,23 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 }
 
 registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
+
+//#endregion
+
+//#region IStorageKeysSyncRegistryService
+
+class SimpleIStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
+
+	declare readonly _serviceBrand: undefined;
+
+	onDidChangeStorageKeys = Event.None;
+
+	storageKeys = [];
+
+	registerStorageKey(): void { }
+}
+
+registerSingleton(IStorageKeysSyncRegistryService, SimpleIStorageKeysSyncRegistryService);
 
 //#endregion
 
