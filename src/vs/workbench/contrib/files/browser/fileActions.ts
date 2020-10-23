@@ -52,6 +52,7 @@ import { trim, rtrim } from 'vs/base/common/strings';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -1222,6 +1223,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const notificationService = accessor.get(INotificationService);
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
+	const uriIdentityService = accessor.get(IUriIdentityService);
 
 	const context = explorerService.getContext(true);
 	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
@@ -1238,7 +1240,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			// Find target
 			let target: ExplorerItem;
-			if (element.resource.toString() === fileToPaste.toString()) {
+			if (uriIdentityService.extUri.isEqual(element.resource, fileToPaste)) {
 				target = element.parent!;
 			} else {
 				target = element.isDirectory ? element : element.parent!;
