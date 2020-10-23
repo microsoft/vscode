@@ -1634,8 +1634,9 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	// Fade out styles via linear gradient (when tabs are set to shrink)
 	// But not when:
 	// - in high contrast theme
+	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
 	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
-	if (theme.type !== 'hc' && !isSafari) {
+	if (theme.type !== 'hc' && !isSafari && !activeContrastBorderColor) {
 		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 		const editorBackgroundColor = theme.getColor(editorBackground);
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
