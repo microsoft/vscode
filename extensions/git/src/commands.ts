@@ -1869,14 +1869,16 @@ export class CommandCenter {
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new RebaseItem(ref as Branch));
+			.filter(ref => ref.name || ref.commit);
 
 		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new RebaseItem(ref as Branch));
+			.filter(ref => ref.name || ref.commit);
 
-		const picks = [...heads, ...remoteHeads];
+		// set upstream branch as first
+		const upstreamName = repository?.HEAD?.upstream?.name;
+		const upstreamRemote = repository?.HEAD?.upstream?.remote;
+		const picks = [...heads, ...remoteHeads].sort(ref => ref.name === `${upstreamRemote}/${upstreamName}` && ref.remote === upstreamRemote ? -1 : 0).map(ref => new RebaseItem(ref as Branch));
+
 		const placeHolder = localize('select a branch to rebase onto', 'Select a branch to rebase onto');
 		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
 
