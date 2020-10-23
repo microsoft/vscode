@@ -48,7 +48,7 @@ suite.only('markdown.SmartSelect', () => {
 				`# Header${CURSOR}`,
 				`Hello`));
 
-		assertNestedRangesEqual(ranges![0], [1, 1], [0, 1]);
+		assertNestedRangesEqual(ranges![0], [0, 1]);
 
 	});
 	test('Smart select single word w grandparent header on text line', async () => {
@@ -198,7 +198,7 @@ suite.only('markdown.SmartSelect', () => {
 
 		assertNestedRangesEqual(ranges![0], [5, 6], [4, 7], [3, 9], [3, 10], [2, 10], [1, 10], [0, 10]);
 	});
-	test('Smart select list with on element without selecting child subheader', async () => {
+	test('Smart select list with one element without selecting child subheader', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# main header 1`,
@@ -210,22 +210,21 @@ suite.only('markdown.SmartSelect', () => {
 				`content 2`,
 				`# main header 2`));
 
-		assertNestedRangesEqual(ranges![0], [2, 3], [1, 6], [0, 6]);
+		assertNestedRangesEqual(ranges![0], [2, 3], [1, 3], [1, 6], [0, 6]);
 	});
-
 	test('Smart select content under header then subheaders and their content', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
-				`# main header 1`,
+				`# main ${CURSOR}header 1`,
 				``,
-				`- list ${CURSOR}`,
+				`- list`,
 				`paragraph`,
 				`## sub header`,
 				``,
 				`content 2`,
 				`# main header 2`));
 
-		assertNestedRangesEqual(ranges![0], [2, 3], [1, 4], [1, 7], [0, 7]);
+		assertNestedRangesEqual(ranges![0], [0, 3], [0, 6]);
 	});
 });
 
