@@ -413,6 +413,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 		window.location.reload();
 	}
 
+	async close(): Promise<void> {
+
+		// We know that `window.close` will trigger a shutdown
+		// so we update `shutdownReason` to reflect that
+		this.shutdownReason = HostShutdownReason.Api;
+
+		window.close();
+	}
+
 	//#endregion
 }
 
