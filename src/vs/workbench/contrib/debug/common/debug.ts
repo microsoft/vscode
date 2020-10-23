@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
@@ -538,6 +538,7 @@ export interface IConfig extends IEnvConfig {
 	linux?: IEnvConfig;
 
 	// internals
+	__configurationTarget?: ConfigurationTarget;
 	__sessionId?: string;
 	__restart?: any;
 	__autoAttach?: boolean;

@@ -699,8 +699,17 @@ abstract class AbstractLaunch {
 		if (!config || !config.configurations) {
 			return undefined;
 		}
-
-		return config.configurations.find(config => config && config.name === name);
+		const configuration = config.configurations.find(config => config && config.name === name);
+		if (configuration) {
+			if (this instanceof UserLaunch) {
+				configuration.__configurationTarget = ConfigurationTarget.USER;
+			} else if (this instanceof WorkspaceLaunch) {
+				configuration.__configurationTarget = ConfigurationTarget.WORKSPACE;
+			} else {
+				configuration.__configurationTarget = ConfigurationTarget.WORKSPACE_FOLDER;
+			}
+		}
+		return configuration;
 	}
 
 	async getInitialConfigurationContent(folderUri?: uri, type?: string, token?: CancellationToken): Promise<string> {
