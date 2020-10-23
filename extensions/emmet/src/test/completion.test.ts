@@ -21,7 +21,7 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 		await testHtmlCompletionProvider('<div style="|"', [{ label: 'padding: ;' }]);
 		await testHtmlCompletionProvider(`<div style='|'`, [{ label: 'padding: ;' }]);
 		await testHtmlCompletionProvider(`<div style='p|'`, [{ label: 'padding: ;' }]);
-		await testHtmlCompletionProvider(`<div style='color: #0|'`, [{ label: '#000000' }]);
+		await testHtmlCompletionProvider(`<div style='color: #0|'`, [{ label: '#000' }]);
 	});
 
 	// https://github.com/microsoft/vscode/issues/79766
@@ -74,10 +74,10 @@ function testHtmlCompletionProvider(contents: string, expectedItems: TestComplet
 			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
 
 			if (match) {
-				assert.equal(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+				assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
 
 				if (eItem.documentation) {
-					assert.equal(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
+					assert.strictEqual(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
 				}
 			}
 		});
@@ -115,10 +115,10 @@ function testCssCompletionProvider(contents: string, expectedItems: TestCompleti
 			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
 
 			if (match) {
-				assert.equal(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+				assert.strictEqual(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
 
 				if (eItem.documentation) {
-					assert.equal(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
+					assert.strictEqual(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
 				}
 			}
 		});

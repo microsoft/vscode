@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument } from './util';
+import { MarkupAbbreviation } from 'emmet';
 
 const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
 const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
@@ -107,7 +108,7 @@ function doWrapping(individualLines: boolean, args: any) {
 		};
 	});
 
-	function revertPreview(): Thenable<any> {
+	function revertPreview(): Thenable<boolean> {
 		return editor.edit(builder => {
 			for (const rangeToReplace of rangesToReplace) {
 				builder.replace(rangeToReplace.previewRange, rangeToReplace.originalContent);
@@ -186,7 +187,7 @@ function doWrapping(individualLines: boolean, args: any) {
 
 		const { abbreviation, filter } = extractedResults;
 		if (definitive) {
-			const revertPromise = inPreview ? revertPreview() : Promise.resolve();
+			const revertPromise = inPreview ? revertPreview() : Promise.resolve(inPreview);
 			return revertPromise.then(() => {
 				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
 					const rangeToReplace = rangesAndContent.originalRange;
@@ -606,22 +607,28 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	return Promise.resolve(false);
 }
 
+// Modified from AbbreviationNode in Emmet
+export interface AbbreviationNodeFrame {
+	name?: string;
+	value?: any[];
+	children: AbbreviationNodeFrame[];
+	selfClosing?: boolean;
+}
+
 /*
 * Walks the tree rooted at root and apply function fn on each node.
 * if fn return false at any node, the further processing of tree is stopped.
 */
-function walk(root: any, fn: ((node: any) => boolean)): boolean {
-	let ctx = root;
-	while (ctx) {
+function walk(root: AbbreviationNodeFrame, fn: ((node: AbbreviationNodeFrame) => boolean)): boolean {
+	return fn(root) && walkChildren(root.children, fn);
+}
 
-		const next = ctx.next;
-		if (fn(ctx) === false || walk(ctx.firstChild, fn) === false) {
+function walkChildren(children: AbbreviationNodeFrame[], fn: ((node: AbbreviationNodeFrame) => boolean)): boolean {
+	for (const child of children) {
+		if (!walk(child, fn)) {
 			return false;
 		}
-
-		ctx = next;
 	}
-
 	return true;
 }
 
@@ -631,9 +638,12 @@ function walk(root: any, fn: ((node: any) => boolean)): boolean {
 function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
+	if (expandOptions.options) {
+		expandOptions.options['inlineElements'] = inlineElements;
+	}
 
 	if (input.textToWrap) {
-		if (input.filter && input.filter.indexOf('t') > -1) {
+		if (input.filter && input.filter.includes('t')) {
 			input.textToWrap = input.textToWrap.map(line => {
 				return line.replace(trimRegex, '').trim();
 			});
@@ -643,50 +653,60 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		// Below fixes https://github.com/microsoft/vscode/issues/29898
 		// With this, Emmet formats inline elements as block elements
 		// ensuring the wrapped multi line text does not get merged to a single line
-		if (!input.rangeToReplace.isSingleLine) {
-			expandOptions.profile['inlineBreak'] = 1;
+		if (!input.rangeToReplace.isSingleLine && expandOptions.options) {
+			expandOptions.options['output.inlineBreak'] = 1;
 		}
 	}
 
 	let expandedText;
+	const doCustomExpand = false;
 	try {
 		// Expand the abbreviation
-
-		if (input.textToWrap) {
-			const parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
-			if (input.rangeToReplace.isSingleLine && input.textToWrap.length === 1) {
-
+		if (doCustomExpand && input.textToWrap && expandOptions.type !== 'stylesheet') {
+			const parsedAbbr = <MarkupAbbreviation>helper.parseAbbreviation(input.abbreviation, expandOptions);
+			if (input.rangeToReplace.isSingleLine && input.textToWrap.length === 1 && parsedAbbr.children.length) {
 				// Fetch rightmost element in the parsed abbreviation (i.e the element that will contain the wrapped text).
-				let wrappingNode = parsedAbbr;
-				while (wrappingNode && wrappingNode.children && wrappingNode.children.length > 0) {
+				let wrappingNode = parsedAbbr.children[parsedAbbr.children.length - 1];
+				while (wrappingNode && wrappingNode.children && wrappingNode.children.length) {
 					wrappingNode = wrappingNode.children[wrappingNode.children.length - 1];
 				}
 
 				// If wrapping with a block element, insert newline in the text to wrap.
-				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1 && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
-					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
+				if (wrappingNode && wrappingNode.name && !inlineElements.includes(wrappingNode.name)) {
+					let format = expandOptions.options ? expandOptions.options['output.format'] : true;
+					format = format ?? true;
+					if (format && wrappingNode.value && wrappingNode.value.length === 1) {
+						// wrappingNode.value[0] = '\n' + wrappingNode.value[0] + '\n';
+					}
 				}
 			}
 
-			// Below fixes https://github.com/microsoft/vscode/issues/78219
-			// walk the tree and remove tags for empty values
-			walk(parsedAbbr, node => {
-				if (node.name !== null && node.value === '' && !node.isSelfClosing && node.children.length === 0) {
+			const removeTagIfEmptyValue = (node: AbbreviationNodeFrame) => {
+				if (node.name !== null && node.value?.length && node.value.every(value => value.toString() === '') && !node.selfClosing && !node.children.length) {
 					node.name = '';
-					node.value = '\n';
+					for (let index in node.value) {
+						node.value[index] = index ? '' : '\n';
+					}
 				}
-
 				return true;
-			});
+			};
 
+			// Below fixes https://github.com/microsoft/vscode/issues/78219
+			// walk the tree and remove tags with empty values
+			walkChildren(parsedAbbr.children, removeTagIfEmptyValue);
 			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
 			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
 		} else {
-			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
+			// break process into two steps for now to help debug
+			// TODO: remove doCustomExpand after debugging
+			const parsed = helper.parseAbbreviation(input.abbreviation, expandOptions);
+			expandedText = helper.expandAbbreviation(parsed, expandOptions);
+			if (!doCustomExpand) {
+				expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
+			}
 		}
-
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}

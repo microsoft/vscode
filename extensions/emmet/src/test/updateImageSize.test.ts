@@ -55,7 +55,7 @@
 	// 		];
 
 	// 		return updateImageSize()!.then(() => {
-	// 			assert.equal(doc.getText(), expectedContents);
+	// 			assert.strictEqual(doc.getText(), expectedContents);
 	// 			return Promise.resolve();
 	// 		});
 	// 	});
@@ -112,7 +112,7 @@
 	// 		];
 
 	// 		return updateImageSize()!.then(() => {
-	// 			assert.equal(doc.getText(), expectedContents);
+	// 			assert.strictEqual(doc.getText(), expectedContents);
 	// 			return Promise.resolve();
 	// 		});
 	// 	});
@@ -141,7 +141,7 @@
 	// 		];
 
 	// 		return updateImageSize()!.then(() => {
-	// 			assert.equal(doc.getText(), expectedContents);
+	// 			assert.strictEqual(doc.getText(), expectedContents);
 	// 			return Promise.resolve();
 	// 		});
 	// 	});

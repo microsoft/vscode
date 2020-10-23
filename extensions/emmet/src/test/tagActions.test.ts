@@ -60,7 +60,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return updateTag('section')!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -85,7 +85,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return updateTag('section')!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -109,7 +109,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return updateTag('section')!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -136,7 +136,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return removeTag()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -161,7 +161,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return removeTag()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -185,7 +185,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return removeTag()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -211,7 +211,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return splitJoinTag()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -235,7 +235,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return splitJoinTag()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -259,7 +259,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return splitJoinTag()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -285,7 +285,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				];
 
 				return splitJoinTag()!.then(() => {
-					assert.equal(doc.getText(), expectedContents);
+					assert.strictEqual(doc.getText(), expectedContents);
 					return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 				});
 			});
@@ -308,10 +308,10 @@ suite('Tests for Emmet actions on html tags', () => {
 			matchTag();
 
 			editor.selections.forEach(selection => {
-				assert.equal(selection.active.line, 8);
-				assert.equal(selection.active.character, 3);
-				assert.equal(selection.anchor.line, 8);
-				assert.equal(selection.anchor.character, 3);
+				assert.strictEqual(selection.active.line, 8);
+				assert.strictEqual(selection.active.character, 3);
+				assert.strictEqual(selection.anchor.line, 8);
+				assert.strictEqual(selection.anchor.character, 3);
 			});
 
 			return Promise.resolve();
@@ -334,10 +334,10 @@ suite('Tests for Emmet actions on html tags', () => {
 			matchTag();
 
 			editor.selections.forEach(selection => {
-				assert.equal(selection.active.line, 4);
-				assert.equal(selection.active.character, 4);
-				assert.equal(selection.anchor.line, 4);
-				assert.equal(selection.anchor.character, 4);
+				assert.strictEqual(selection.active.line, 4);
+				assert.strictEqual(selection.active.character, 4);
+				assert.strictEqual(selection.anchor.line, 4);
+				assert.strictEqual(selection.anchor.character, 4);
 			});
 
 			return Promise.resolve();
@@ -360,7 +360,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return mergeLines()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -379,7 +379,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return mergeLines()!.then(() => {
-				assert.equal(doc.getText(), expectedContents);
+				assert.strictEqual(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
 		});
@@ -394,7 +394,7 @@ suite('Tests for Emmet actions on html tags', () => {
 			];
 
 			return mergeLines()!.then(() => {
-				assert.equal(doc.getText(), contents);
+				assert.strictEqual(doc.getText(), contents);
 				return Promise.resolve();
 			});
 		});
