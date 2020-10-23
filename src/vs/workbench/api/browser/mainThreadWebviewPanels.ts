@@ -128,9 +128,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	dispose() {
 		super.dispose();
 
-		for (const disposable of this._editorProviders.values()) {
-			disposable.dispose();
-		}
+		dispose(this._editorProviders.values());
 		this._editorProviders.clear();
 	}
 

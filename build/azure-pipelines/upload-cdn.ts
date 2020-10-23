@@ -27,7 +27,10 @@ function main() {
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: process.env.VSCODE_QUALITY,
-			prefix: commit + '/'
+			prefix: commit + '/',
+			contentSettings: {
+				cacheControl: 'max-age=31536000, public'
+			}
 		}));
 }
 

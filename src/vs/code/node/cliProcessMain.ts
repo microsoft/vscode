@@ -69,6 +69,7 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 	return [adoptToGalleryExtensionId(id), undefined];
 }
 
+type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions };
 
 export class Main {
 
@@ -84,8 +85,8 @@ export class Main {
 			await this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
-		} else if (argv['install-extension']) {
-			await this.installExtensions(argv['install-extension'], !!argv['force'], { isMachineScoped: !!argv['do-not-sync'], isBuiltin: !!argv['builtin'] });
+		} else if (argv['install-extension'] || argv['install-builtin-extension']) {
+			await this.installExtensions(argv['install-extension'] || [], argv['install-builtin-extension'] || [], !!argv['do-not-sync'], !!argv['force']);
 		} else if (argv['uninstall-extension']) {
 			await this.uninstallExtension(argv['uninstall-extension'], !!argv['force']);
 		} else if (argv['locate-extension']) {
@@ -124,69 +125,119 @@ export class Main {
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private async installExtensions(extensions: string[], force: boolean, options: InstallOptions): Promise<void> {
+	private async installExtensions(extensions: string[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
 			console.log(localize('installingExtensions', "Installing extensions..."));
 		}
 
+		const vsixs: string[] = [];
+		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
-			try {
-				const manifest = await this.installExtension(extension, force, options);
-				if (manifest) {
-					installedExtensionsManifests.push(manifest);
-				}
-			} catch (err) {
-				console.error(err.message || err.stack || err);
-				failed.push(extension);
+			if (/\.vsix$/i.test(extension)) {
+				vsixs.push(extension);
+			} else {
+				const [id, version] = getIdAndVersion(extension);
+				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
 			}
 		}
+		for (const extension of builtinExtensionIds) {
+			const [id, version] = getIdAndVersion(extension);
+			installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+		}
+
+		if (vsixs.length) {
+			await Promise.all(vsixs.map(async vsix => {
+				try {
+					const manifest = await this.installVSIX(vsix, force);
+					if (manifest) {
+						installedExtensionsManifests.push(manifest);
+					}
+				} catch (err) {
+					console.error(err.message || err.stack || err);
+					failed.push(vsix);
+				}
+			}));
+		}
+
+		const [galleryExtensions, installed] = await Promise.all([
+			this.getGalleryExtensions(installExtensionInfos),
+			this.extensionManagementService.getInstalled(ExtensionType.User)
+		]);
+
+		await Promise.all(installExtensionInfos.map(async extensionInfo => {
+			const gallery = galleryExtensions.get(extensionInfo.id.toLowerCase());
+			if (gallery) {
+				try {
+					const manifest = await this.installFromGallery(extensionInfo, gallery, installed, force);
+					if (manifest) {
+						installedExtensionsManifests.push(manifest);
+					}
+				} catch (err) {
+					console.error(err.message || err.stack || err);
+					failed.push(extensionInfo.id);
+				}
+			} else {
+				console.error(`${notFound(extensionInfo.version ? `${extensionInfo.id}@${extensionInfo.version}` : extensionInfo.id)}\n${useId}`);
+				failed.push(extensionInfo.id);
+			}
+		}));
+
 		if (installedExtensionsManifests.some(manifest => isLanguagePackExtension(manifest))) {
 			await this.updateLocalizationsCache();
 		}
-		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
+
+		if (failed.length) {
+			throw new Error(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', ')));
+		}
 	}
 
-	private async installExtension(extension: string, force: boolean, options: InstallOptions): Promise<IExtensionManifest | null> {
-		if (/\.vsix$/i.test(extension)) {
-			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
-
-			const manifest = await getManifest(extension);
-			const valid = await this.validate(manifest, force);
-
-			if (valid) {
-				try {
-					await this.extensionManagementService.install(URI.file(extension), options);
-					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(extension)));
-					return manifest;
-				} catch (error) {
-					if (isPromiseCanceledError(error)) {
-						console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(extension)));
-						return null;
-					} else {
-						throw error;
-					}
+	private async installVSIX(vsix: string, force: boolean): Promise<IExtensionManifest | null> {
+		vsix = path.isAbsolute(vsix) ? vsix : path.join(process.cwd(), vsix);
+		const manifest = await getManifest(vsix);
+		const valid = await this.validate(manifest, force);
+		if (valid) {
+			try {
+				await this.extensionManagementService.install(URI.file(vsix));
+				console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
+				return manifest;
+			} catch (error) {
+				if (isPromiseCanceledError(error)) {
+					console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(vsix)));
+					return null;
+				} else {
+					throw error;
 				}
 			}
-			return null;
 		}
+		return null;
+	}
 
-		const [id, version] = getIdAndVersion(extension);
-		let galleryExtension: IGalleryExtension | null = null;
-		try {
-			galleryExtension = await this.extensionGalleryService.getCompatibleExtension({ id }, version);
-		} catch (err) {
-			const response = JSON.parse(err.responseText);
-			throw new Error(response.message);
-		}
-		if (!galleryExtension) {
-			throw new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`);
-		}
+	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
+		const extensionIds = extensions.filter(({ version }) => version === undefined).map(({ id }) => id);
+		const extensionsWithIdAndVersion = extensions.filter(({ version }) => version !== undefined);
 
+		const galleryExtensions = new Map<string, IGalleryExtension>();
+		await Promise.all([
+			(async () => {
+				const result = await this.extensionGalleryService.getExtensions(extensionIds, CancellationToken.None);
+				result.forEach(extension => galleryExtensions.set(extension.identifier.id.toLowerCase(), extension));
+			})(),
+			Promise.all(extensionsWithIdAndVersion.map(async ({ id, version }) => {
+				const extension = await this.extensionGalleryService.getCompatibleExtension({ id }, version);
+				if (extension) {
+					galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
+				}
+			}))
+		]);
+
+		return galleryExtensions;
+	}
+
+	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[], force: boolean): Promise<IExtensionManifest | null> {
 		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
-		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+		const installedExtension = installed.find(e => areSameExtensions(e.identifier, galleryExtension.identifier));
 		if (installedExtension) {
 			if (galleryExtension.version === installedExtension.manifest.version) {
 				console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
@@ -198,8 +249,24 @@ export class Main {
 			}
 			console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, galleryExtension.version));
 		}
-		await this.installFromGallery(id, galleryExtension, options);
-		return manifest;
+
+		try {
+			if (installOptions.isBuiltin) {
+				console.log(localize('installing builtin ', "Installing builtin extension '{0}' v{1}...", id, galleryExtension.version));
+			} else {
+				console.log(localize('installing', "Installing extension '{0}' v{1}...", id, galleryExtension.version));
+			}
+			await this.extensionManagementService.installFromGallery(galleryExtension, installOptions);
+			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
+			return manifest;
+		} catch (error) {
+			if (isPromiseCanceledError(error)) {
+				console.log(localize('cancelInstall', "Cancelled installing extension '{0}'.", id));
+				return null;
+			} else {
+				throw error;
+			}
+		}
 	}
 
 	private async validate(manifest: IExtensionManifest, force: boolean): Promise<boolean> {
@@ -219,21 +286,6 @@ export class Main {
 		}
 
 		return true;
-	}
-
-	private async installFromGallery(id: string, extension: IGalleryExtension, options: InstallOptions): Promise<void> {
-		console.log(localize('installing', "Installing extension '{0}' v{1}...", id, extension.version));
-
-		try {
-			await this.extensionManagementService.installFromGallery(extension, options);
-			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, extension.version));
-		} catch (error) {
-			if (isPromiseCanceledError(error)) {
-				console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", id));
-			} else {
-				throw error;
-			}
-		}
 	}
 
 	private async uninstallExtension(extensions: string[], force: boolean): Promise<void> {

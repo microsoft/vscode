@@ -553,6 +553,11 @@ export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
 	dispose?(): void;
+
+	/**
+	 * @internal
+	 */
+	duration?: number;
 }
 
 /**
@@ -1293,6 +1298,12 @@ export interface FoldingContext {
  * A provider of folding ranges for editor models.
  */
 export interface FoldingRangeProvider {
+
+	/**
+	 * An optional event to signal that the folding ranges from this provider have changed.
+	 */
+	onDidChange?: Event<this>;
+
 	/**
 	 * Provides the folding ranges for a specific model.
 	 */

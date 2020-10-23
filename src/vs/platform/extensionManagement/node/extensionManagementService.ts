@@ -44,7 +44,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
-import { ExtensionsScanner, IMetadata } from 'vs/platform/extensionManagement/node/extensionsScanner';
+import { ExtensionsScanner, ILocalExtensionManifest, IMetadata } from 'vs/platform/extensionManagement/node/extensionsScanner';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
@@ -201,7 +201,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			} catch (e) { /* Ignore */ }
 
 			try {
-				const local = await this.installFromZipPath(identifierWithVersion, zipPath, { ...(metadata || {}), ...options }, operation, token);
+				const local = await this.installFromZipPath(identifierWithVersion, zipPath, { ...(metadata || {}), ...options }, options, operation, token);
 				this.logService.info('Successfully installed the extension:', identifier.id);
 				return local;
 			} catch (e) {
@@ -224,11 +224,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return downloadedLocation;
 	}
 
-	private async installFromZipPath(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IMetadata | undefined, operation: InstallOperation, token: CancellationToken): Promise<ILocalExtension> {
+	private async installFromZipPath(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IMetadata | undefined, options: InstallOptions, operation: InstallOperation, token: CancellationToken): Promise<ILocalExtension> {
 		try {
 			const local = await this.installExtension({ zipPath, identifierWithVersion, metadata }, token);
 			try {
-				await this.installDependenciesAndPackExtensions(local, undefined);
+				await this.installDependenciesAndPackExtensions(local, undefined, options);
 			} catch (error) {
 				if (isNonEmptyArray(local.manifest.extensionDependencies)) {
 					this.logService.warn(`Cannot install dependencies of extension:`, local.identifier.id, error.message);
@@ -298,7 +298,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			try { await this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)); } catch (error) { /* Ignore */ }
 
 			try {
-				await this.installDependenciesAndPackExtensions(local, existingExtension);
+				await this.installDependenciesAndPackExtensions(local, existingExtension, options);
 			} catch (error) {
 				try { await this.uninstall(local); } catch (error) { /* Ignore */ }
 				throw error;
@@ -434,7 +434,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return local;
 	}
 
-	private async installDependenciesAndPackExtensions(installed: ILocalExtension, existing: ILocalExtension | undefined): Promise<void> {
+	private async installDependenciesAndPackExtensions(installed: ILocalExtension, existing: ILocalExtension | undefined, options: InstallOptions): Promise<void> {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
@@ -457,7 +457,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				const galleryResult = await this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length }, CancellationToken.None);
 				const extensionsToInstall = galleryResult.firstPage;
 				try {
-					await Promise.all(extensionsToInstall.map(e => this.installFromGallery(e)));
+					await Promise.all(extensionsToInstall.map(e => this.installFromGallery(e, options)));
 				} catch (error) {
 					try { await this.rollback(extensionsToInstall); } catch (e) { /* ignore */ }
 					throw error;
@@ -489,7 +489,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...metadata, isMachineScoped: local.isMachineScoped });
+		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...metadata });
+		this.manifestCache.invalidate();
+		return local;
+	}
+
+	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
+		this.logService.trace('ExtensionManagementService#updateExtensionScope', local.identifier.id);
+		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), isMachineScoped });
 		this.manifestCache.invalidate();
 		return local;
 	}

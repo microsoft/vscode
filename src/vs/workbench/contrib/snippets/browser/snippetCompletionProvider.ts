@@ -15,6 +15,7 @@ import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -31,11 +32,8 @@ export class SnippetCompletion implements CompletionItem {
 		readonly snippet: Snippet,
 		range: IRange | { insert: IRange, replace: IRange }
 	) {
-		this.label = {
-			name: snippet.prefix,
-			type: localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source)
-		};
-		this.detail = this.label.type!;
+		this.label = { name: snippet.prefix, type: snippet.name };
+		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
@@ -71,6 +69,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			return { suggestions: [] };
 		}
 
+		const sw = new StopWatch(true);
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const snippets = await this._snippets.getSnippets(languageId);
 
@@ -141,7 +140,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			}
 		}
 
-		return { suggestions };
+		return {
+			suggestions,
+			duration: sw.elapsed()
+		};
 	}
 
 	resolveCompletionItem(item: CompletionItem): CompletionItem {

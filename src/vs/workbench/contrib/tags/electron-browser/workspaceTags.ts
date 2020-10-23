@@ -18,6 +18,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { getRemotes, AllowedSecondLevelDomains, getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): string[] {
 	return getRemotes(text, stripEndingDotGit).map(r => {
@@ -35,6 +36,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
+		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		if (this.telemetryService.isOptedIn) {
@@ -219,7 +221,11 @@ export class WorkspaceTags implements IWorkbenchContribution {
 	}
 
 	private reportProxyStats() {
-		this.requestService.resolveProxy('https://www.example.com/')
+		const downloadUrl = this.productService.downloadUrl;
+		if (!downloadUrl) {
+			return;
+		}
+		this.requestService.resolveProxy(downloadUrl)
 			.then(proxy => {
 				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
 				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {

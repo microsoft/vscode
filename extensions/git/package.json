@@ -39,6 +39,11 @@
         "category": "Git"
       },
       {
+        "command": "git.cloneRecursive",
+        "title": "%command.cloneRecursive%",
+        "category": "Git"
+      },
+      {
         "command": "git.init",
         "title": "%command.init%",
         "category": "Git",
@@ -501,6 +506,10 @@
           "when": "config.git.enabled && !git.missing"
         },
         {
+          "command": "git.cloneRecursive",
+          "when": "config.git.enabled && !git.missing"
+        },
+        {
           "command": "git.init",
           "when": "config.git.enabled && !git.missing"
         },
@@ -627,6 +636,10 @@
         {
           "command": "git.commitAllAmend",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.rebaseAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitRebaseInProgress"
         },
         {
           "command": "git.commitNoVerify",

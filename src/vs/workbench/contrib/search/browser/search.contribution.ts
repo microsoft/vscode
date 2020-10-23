@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
@@ -571,12 +571,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					properties: {
 						query: { 'type': 'string' },
 						replace: { 'type': 'string' },
+						preserveCase: { 'type': 'boolean' },
 						triggerSearch: { 'type': 'boolean' },
 						filesToInclude: { 'type': 'string' },
 						filesToExclude: { 'type': 'string' },
 						isRegex: { 'type': 'boolean' },
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
+						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 					}
 				}
 			},

@@ -11,7 +11,7 @@ import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -450,7 +450,7 @@ export class DebugService implements IDebugService {
 
 					actionList.push(new Action(
 						'installAdditionalDebuggers',
-						nls.localize('installAdditionalDebuggers', "Install {0} Extension", resolvedConfig.type),
+						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
 						undefined,
 						true,
 						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers')
@@ -798,7 +798,8 @@ export class DebugService implements IDebugService {
 					const lineNumber = stackFrame.range.startLineNumber;
 					if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
 						const lineContent = control.getModel().getLineContent(lineNumber);
-						aria.alert(nls.localize('debuggingPaused', "{1}:{2}, debugging paused {0}, {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+						aria.alert(nls.localize({ key: 'debuggingPaused', comment: ['First placeholder is the stack frame name, second is the line number, third placeholder is the reason why debugging is stopped, for example "breakpoint" and the last one is the file line content.'] },
+							"{0}:{1}, debugging paused {2}, {3}", stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', lineContent));
 					}
 				}
 			}

@@ -31,7 +31,7 @@ const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 
 export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean }>;
-type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
+export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
 type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
 
 export class ExtensionsScanner extends Disposable {
@@ -365,7 +365,6 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				const manifest = JSON.parse(raw);
 				const metadata = manifest.__metadata || null;
-				delete manifest.__metadata;
 				c({ manifest, metadata });
 			} catch (err) {
 				e(new Error(localize('invalidManifest', "Extension invalid: package.json is not a JSON file.")));

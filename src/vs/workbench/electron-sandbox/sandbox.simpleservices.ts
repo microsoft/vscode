@@ -7,7 +7,7 @@
 /* eslint-disable code-import-patterns */
 
 import { ConsoleLogService } from 'vs/platform/log/common/log';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
@@ -61,6 +61,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 
 //#region Environment
@@ -711,6 +712,23 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 }
 
 registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
+
+//#endregion
+
+//#region IStorageKeysSyncRegistryService
+
+class SimpleIStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
+
+	declare readonly _serviceBrand: undefined;
+
+	onDidChangeStorageKeys = Event.None;
+
+	storageKeys = [];
+
+	registerStorageKey(): void { }
+}
+
+registerSingleton(IStorageKeysSyncRegistryService, SimpleIStorageKeysSyncRegistryService);
 
 //#endregion
 

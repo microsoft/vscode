@@ -507,8 +507,9 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 }
 
-class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
+export type LabelFuzzyScore = { label: string; score: FuzzyScore };
 
+class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDisposable {
 	private _totalCount = 0;
 	get totalCount(): number { return this._totalCount; }
 	private _matchCount = 0;
@@ -531,7 +532,7 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 		tree.onWillRefilter(this.reset, this, this.disposables);
 	}
 
-	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
+	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore | LabelFuzzyScore> {
 		if (this._filter) {
 			const result = this._filter.filter(element, parentVisibility);
 
@@ -562,27 +563,28 @@ class TypeFilter<T> implements ITreeFilter<T, FuzzyScore>, IDisposable {
 		}
 
 		const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(element);
-		const labelStr = label && label.toString();
+		const labels = Array.isArray(label) ? label : [label];
 
-		if (typeof labelStr === 'undefined') {
-			return { data: FuzzyScore.Default, visibility: true };
-		}
-
-		const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, true);
-
-		if (!score) {
-			if (this.tree.options.filterOnType) {
-				return TreeVisibility.Recurse;
-			} else {
+		for (const l of labels) {
+			const labelStr = l && l.toString();
+			if (typeof labelStr === 'undefined') {
 				return { data: FuzzyScore.Default, visibility: true };
 			}
 
-			// DEMO: smarter filter ?
-			// return parentVisibility === TreeVisibility.Visible ? true : TreeVisibility.Recurse;
+			const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, true);
+			if (score) {
+				this._matchCount++;
+				return labels.length === 1 ?
+					{ data: score, visibility: true } :
+					{ data: { label: labelStr, score: score }, visibility: true };
+			}
 		}
 
-		this._matchCount++;
-		return { data: score, visibility: true };
+		if (this.tree.options.filterOnType) {
+			return TreeVisibility.Recurse;
+		} else {
+			return { data: FuzzyScore.Default, visibility: true };
+		}
 	}
 
 	private reset(): void {

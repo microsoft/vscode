@@ -31,7 +31,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -80,7 +80,7 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 
 // Explorer
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '4_extensions',
+	group: 'extensions',
 	command: {
 		id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
 		title: localize('installVSIX', "Install VSIX"),

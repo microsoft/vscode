@@ -95,6 +95,10 @@
       {
         "command": "npm.runScriptFromFolder",
         "title": "%command.runScriptFromFolder%"
+      },
+      {
+        "command": "npm.packageManager",
+        "title": "%command.packageManager"
       }
     ],
     "menus": {
@@ -125,6 +129,10 @@
         },
         {
           "command": "npm.runScriptFromFolder",
+          "when": "false"
+        },
+        {
+          "command": "npm.packageManager",
           "when": "false"
         }
       ],

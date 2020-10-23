@@ -14,6 +14,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { distinct } from 'vs/base/common/arrays';
 
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
@@ -128,7 +129,8 @@ export class CallStackEditorContribution implements IEditorContribution {
 			});
 		});
 
-		return decorations;
+		// Deduplicate same decorations so colors do not stack #109045
+		return distinct(decorations, d => `${d.options.className} ${d.options.glyphMarginClassName} ${d.range.startLineNumber} ${d.range.startColumn}`);
 	}
 
 	dispose(): void {
@@ -140,7 +142,6 @@ export class CallStackEditorContribution implements IEditorContribution {
 registerThemingParticipant((theme, collector) => {
 	const topStackFrame = theme.getColor(topStackFrameColor);
 	if (topStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
 		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
 	}
 

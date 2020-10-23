@@ -3,32 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { TERMINAL_VIEW_ID, IShellLaunchConfig, ITerminalConfigHelper, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, ITerminalProcessExtHostProxy, IShellDefinition, LinuxDistro, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, ITerminalLaunchError, ITerminalNativeWindowsDelegate } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter } from 'vs/base/common/event';
+import { timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/path';
+import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import * as nls from 'vs/nls';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
+import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
+import { IAvailableShellsRequest, IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalLaunchError, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { isWindows, isMacintosh, OperatingSystem, isWeb } from 'vs/base/common/platform';
-import { basename } from 'vs/base/common/path';
-import { timeout } from 'vs/base/common/async';
-import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -85,8 +86,8 @@ export class TerminalService implements ITerminalService {
 	public get onInstanceMaximumDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceMaximumDimensionsChanged.event; }
 	private readonly _onInstancesChanged = new Emitter<void>();
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
-	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
-	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
+	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance | undefined>();
+	public get onInstanceTitleChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceTitleChanged.event; }
 	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
@@ -108,7 +109,10 @@ export class TerminalService implements ITerminalService {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IViewsService private _viewsService: IViewsService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -221,7 +225,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+		return this._terminalTabs.map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
 	}
 
 	public getFindState(): FindReplaceState {
@@ -336,6 +340,39 @@ export class TerminalService implements ITerminalService {
 		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
 		if (didTabChange) {
 			this._onActiveTabChanged.fire();
+		}
+	}
+
+	public async initializeTerminals(): Promise<void> {
+		const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue<boolean | undefined>('terminal.integrated.serverSpawn');
+		if (!!this._environmentService.remoteAuthority && enableRemoteAgentTerminals !== false) {
+			const emptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
+			this._terminalTabs.push(emptyTab);
+			this._onInstanceTitleChanged.fire(undefined);
+			const remoteTerms = await this._remoteTerminalService.listTerminals();
+
+			/* __GDPR__
+				"terminalReconnect" : {
+					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				}
+			 */
+			const data = {
+				count: remoteTerms.length
+			};
+			this._telemetryService.publicLog('terminalReconnection', data);
+			if (remoteTerms.length > 0) {
+				// Reattach to all remote terms
+				this.createTerminal({ remoteAttach: remoteTerms[0] }, emptyTab);
+				for (let term of remoteTerms.slice(1)) {
+					this.createTerminal({ remoteAttach: term });
+				}
+			} else if (this.terminalInstances.length === 0) {
+				// Remote, no terminals to attach to
+				this.createTerminal(undefined, emptyTab);
+			}
+		} else if (this.terminalInstances.length === 0) {
+			// Local, just create a terminal
+			this.createTerminal();
 		}
 	}
 
@@ -610,7 +647,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
+	public createTerminal(shell: IShellLaunchConfig = {}, terminalTab?: TerminalTab): ITerminalInstance {
 		if (!this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
@@ -620,8 +657,14 @@ export class TerminalService implements ITerminalService {
 			this._initInstanceListeners(instance);
 			return instance;
 		}
-		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
-		this._terminalTabs.push(terminalTab);
+
+		if (terminalTab) {
+			terminalTab.addInstance(shell);
+		} else {
+			terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
+			this._terminalTabs.push(terminalTab);
+		}
+
 		const instance = terminalTab.terminalInstances[0];
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
