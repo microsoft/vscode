@@ -343,6 +343,10 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	private isAttachedToTerminalWithPid(pid: number): boolean {
+		return this.terminalInstances.some(term => term.processId === pid);
+	}
+
 	public async initializeTerminals(): Promise<void> {
 		const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue<boolean | undefined>('terminal.integrated.serverSpawn');
 		if (!!this._environmentService.remoteAuthority && enableRemoteAgentTerminals !== false) {
@@ -350,6 +354,7 @@ export class TerminalService implements ITerminalService {
 			this._terminalTabs.push(emptyTab);
 			this._onInstanceTitleChanged.fire(undefined);
 			const remoteTerms = await this._remoteTerminalService.listTerminals();
+			const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
 
 			/* __GDPR__
 				"terminalReconnect" : {
@@ -357,13 +362,13 @@ export class TerminalService implements ITerminalService {
 				}
 			 */
 			const data = {
-				count: remoteTerms.length
+				count: unattachedRemoteTerms.length
 			};
 			this._telemetryService.publicLog('terminalReconnection', data);
-			if (remoteTerms.length > 0) {
-				// Reattach to all remote terms
-				this.createTerminal({ remoteAttach: remoteTerms[0] }, emptyTab);
-				for (let term of remoteTerms.slice(1)) {
+			if (unattachedRemoteTerms.length > 0) {
+				// Reattach to all remote terminals
+				this.createTerminal({ remoteAttach: unattachedRemoteTerms[0] }, emptyTab);
+				for (let term of unattachedRemoteTerms.slice(1)) {
 					this.createTerminal({ remoteAttach: term });
 				}
 			} else if (this.terminalInstances.length === 0) {
