@@ -828,7 +828,7 @@ export class PredictionTimeline {
 		return this.cursor;
 	}
 
-	private clearCursor() {
+	public clearCursor() {
 		this.cursor = undefined;
 	}
 
