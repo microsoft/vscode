@@ -29,6 +29,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -62,6 +63,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
 		this._isTerminating = false;
@@ -179,7 +181,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			resolveBarrier(data);
 		}));
 
-		document.body.appendChild(iframe);
+		this._layoutService.container.appendChild(iframe);
 		this._register(toDisposable(() => iframe.remove()));
 
 		// await MessagePort and use it to directly communicate
