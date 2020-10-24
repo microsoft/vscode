@@ -6,10 +6,12 @@
 import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionMemento implements vscode.Memento {
 
 	private readonly _id: string;
+	private readonly _version: string;
 	private readonly _shared: boolean;
 	private readonly _storage: ExtHostStorage;
 
@@ -17,8 +19,16 @@ export class ExtensionMemento implements vscode.Memento {
 	private _value?: { [n: string]: any; };
 	private readonly _storageListener: IDisposable;
 
-	constructor(id: string, global: boolean, storage: ExtHostStorage) {
-		this._id = id;
+	private _syncKeys: string[] = [];
+	get syncKeys(): ReadonlyArray<string> { return Object.freeze(this._syncKeys); }
+	set syncKeys(syncKeys: ReadonlyArray<string>) {
+		this._syncKeys = [...syncKeys];
+		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._version }, this._syncKeys);
+	}
+
+	constructor(extensionDescription: IExtensionDescription, global: boolean, storage: ExtHostStorage) {
+		this._id = extensionDescription.identifier.value;
+		this._version = extensionDescription.version;
 		this._shared = global;
 		this._storage = storage;
 
