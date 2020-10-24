@@ -874,6 +874,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const editorService = accessor.get(IEditorService);
 	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
+	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 
 	await viewsService.openView(VIEW_ID, true);
 
@@ -895,7 +896,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 	const onSuccess = async (value: string): Promise<void> => {
 		try {
-			const created = isFolder ? await fileService.createFolder(resources.joinPath(folder.resource, value)) : await textFileService.create(resources.joinPath(folder.resource, value));
+			const created = isFolder ? await workingCopyFileService.createFolder(resources.joinPath(folder.resource, value)) : await textFileService.create(resources.joinPath(folder.resource, value));
 			await refreshIfSeparator(value, explorerService);
 
 			isFolder ?
