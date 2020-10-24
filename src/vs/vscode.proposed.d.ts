@@ -992,7 +992,7 @@ declare module 'vscode' {
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
-		exclusive?: boolean;
+		readonly exclusive?: boolean;
 	}
 
 	//#endregion
