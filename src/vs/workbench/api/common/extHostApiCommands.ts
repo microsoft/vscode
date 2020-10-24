@@ -347,7 +347,8 @@ export class ExtHostApiCommands {
 				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
 				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
 				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: (v: any) => v === undefined || typeof v === 'string' },
-				{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
+				{ name: 'optionsOrDescription', description: '(optional) Either human readable description for the diff editor or editor options, see vscode.TextDocumentShowOptions', constraint: (v: any) => v === undefined || typeof v === 'string' || typeof v === 'object' },
+				{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions', constraint: (v: any) => v === undefined || typeof v === 'object' }
 			]
 		});
 
@@ -355,7 +356,8 @@ export class ExtHostApiCommands {
 			description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
 			args: [
 				{ name: 'resource', description: 'Resource to open', constraint: URI },
-				{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: (v: any) => v === undefined || typeof v === 'number' || typeof v === 'object' }
+				{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: (v: any) => v === undefined || typeof v === 'number' || typeof v === 'object' },
+				{ name: 'title', description: '(optional) Human readable title for the editor', constraint: (v: any) => v === undefined || typeof v === 'string' }
 			]
 		});
 

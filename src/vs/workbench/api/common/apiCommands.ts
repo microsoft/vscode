@@ -98,11 +98,23 @@ CommandsRegistry.registerCommand({
 
 export class DiffAPICommand {
 	public static readonly ID = 'vscode.diff';
-	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any>;
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, description: string, options?: typeConverters.TextEditorOpenOptions): Promise<any>;
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, arg5?: typeConverters.TextEditorOpenOptions | string, arg6?: typeConverters.TextEditorOpenOptions): Promise<any> {
+		let description: string | undefined = undefined;
+		let options: typeConverters.TextEditorOpenOptions | undefined = undefined;
+
+		if (typeof arg5 === 'string') {
+			description = arg5;
+			options = arg6;
+		} else {
+			options = arg6 || arg5;
+		}
+
 		return executor.executeCommand('_workbench.diff', [
 			left, right,
 			label,
-			undefined,
+			description,
 			typeConverters.TextEditorOpenOptions.from(options),
 			options ? typeConverters.ViewColumn.from(options.viewColumn) : undefined
 		]);
