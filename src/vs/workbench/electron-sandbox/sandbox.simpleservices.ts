@@ -726,6 +726,14 @@ class SimpleIStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryS
 	storageKeys = [];
 
 	registerStorageKey(): void { }
+
+	onDidChangeExtensionStorageKeys = Event.None;
+
+	extensionsStorageKeys = [];
+
+	getExtensioStorageKeys(): [] { return []; }
+
+	registerExtensionStorageKeys(): void { }
 }
 
 registerSingleton(IStorageKeysSyncRegistryService, SimpleIStorageKeysSyncRegistryService);

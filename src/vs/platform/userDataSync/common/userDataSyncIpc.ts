@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IServerChannel, IChannel, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService, IManualSyncTask, IUserDataManifest, IUserDataSyncStoreManagementService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IStorageKeysSyncRegistryService, IStorageKey, IExtensionIdWithVersion, AbstractStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -175,6 +175,8 @@ export class UserDataSyncUtilServiceClient implements IUserDataSyncUtilService {
 
 }
 
+type StorageKeysSyncRegistryServiceInitData = { storageKeys: ReadonlyArray<IStorageKey>, extensionsStorageKeys: ReadonlyArray<[IExtensionIdWithVersion, ReadonlyArray<string>]> };
+
 export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 	constructor(private readonly service: IStorageKeysSyncRegistryService) { }
@@ -188,37 +190,47 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case '_getInitialData': return Promise.resolve(this.service.storageKeys);
+			case '_getInitialData': return Promise.resolve<StorageKeysSyncRegistryServiceInitData>({ storageKeys: this.service.storageKeys, extensionsStorageKeys: this.service.extensionsStorageKeys });
 			case 'registerStorageKey': return Promise.resolve(this.service.registerStorageKey(args[0]));
 		}
 		throw new Error('Invalid call');
 	}
 }
 
-export class StorageKeysSyncRegistryChannelClient extends Disposable implements IStorageKeysSyncRegistryService {
+export class StorageKeysSyncRegistryChannelClient extends AbstractStorageKeysSyncRegistryService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _storageKeys: ReadonlyArray<IStorageKey> = [];
-	get storageKeys(): ReadonlyArray<IStorageKey> { return this._storageKeys; }
-	private readonly _onDidChangeStorageKeys: Emitter<ReadonlyArray<IStorageKey>> = this._register(new Emitter<ReadonlyArray<IStorageKey>>());
-	readonly onDidChangeStorageKeys = this._onDidChangeStorageKeys.event;
-
 	constructor(private readonly channel: IChannel) {
 		super();
-		this.channel.call<IStorageKey[]>('_getInitialData').then(storageKeys => {
+		this.channel.call<StorageKeysSyncRegistryServiceInitData>('_getInitialData').then(({ storageKeys, extensionsStorageKeys }) => {
 			this.updateStorageKeys(storageKeys);
+			this.updateExtensionsStorageKeys(extensionsStorageKeys);
 			this._register(this.channel.listen<ReadonlyArray<IStorageKey>>('onDidChangeStorageKeys')(storageKeys => this.updateStorageKeys(storageKeys)));
+			this._register(this.channel.listen<[IExtensionIdentifierWithVersion, string[]]>('onDidChangeExtensionStorageKeys')(e => this.updateExtensionStorageKeys(e[0], e[1])));
 		});
 	}
 
 	private async updateStorageKeys(storageKeys: ReadonlyArray<IStorageKey>): Promise<void> {
-		this._storageKeys = storageKeys;
+		this._storageKeys.clear();
+		for (const storageKey of storageKeys) {
+			this._storageKeys.set(storageKey.key, storageKey);
+		}
 		this._onDidChangeStorageKeys.fire(this.storageKeys);
+	}
+
+	private async updateExtensionsStorageKeys(extensionStorageKeys: ReadonlyArray<[IExtensionIdentifierWithVersion, ReadonlyArray<string>]>): Promise<void> {
+		for (const [extension, keys] of extensionStorageKeys) {
+			this.updateExtensionStorageKeys(extension, [...keys]);
+		}
 	}
 
 	registerStorageKey(storageKey: IStorageKey): void {
 		this.channel.call('registerStorageKey', [storageKey]);
+	}
+
+	registerExtensionStorageKeys(extension: IExtensionIdentifierWithVersion, keys: string[]): void {
+		this.channel.call('registerExtensionStorageKeys', [extension, keys]);
 	}
 
 }
