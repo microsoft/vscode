@@ -900,6 +900,11 @@
           "when": "scmProvider == git"
         },
         {
+          "submenu": "git.tags",
+          "group": "2_main@7",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.showOutput",
           "group": "3_footer",
           "when": "scmProvider == git"
@@ -1501,6 +1506,14 @@
         {
           "command": "git.stashDrop"
         }
+      ],
+      "git.tags": [
+        {
+          "command": "git.createTag"
+        },
+        {
+          "command": "git.deleteTag"
+        }
       ]
     },
     "submenus": [
@@ -1527,6 +1540,10 @@
       {
         "id": "git.stash",
         "label": "%submenu.stash%"
+      },
+      {
+        "id": "git.tags",
+        "label": "%submenu.tags%"
       }
     ],
     "configuration": {
