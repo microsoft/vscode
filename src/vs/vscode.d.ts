@@ -1943,18 +1943,18 @@ declare module 'vscode' {
 		/**
 		 * A language id, like `typescript`.
 		 */
-		language?: string;
+		readonly language?: string;
 
 		/**
 		 * A Uri [scheme](#Uri.scheme), like `file` or `untitled`.
 		 */
-		scheme?: string;
+		readonly scheme?: string;
 
 		/**
 		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document. Use a [relative pattern](#RelativePattern)
 		 * to filter documents to a [workspace folder](#WorkspaceFolder).
 		 */
-		pattern?: GlobPattern;
+		readonly pattern?: GlobPattern;
 	}
 
 	/**
@@ -1969,7 +1969,7 @@ declare module 'vscode' {
 	 * @example
 	 * let sel:DocumentSelector = { scheme: 'file', language: 'typescript' };
 	 */
-	export type DocumentSelector = DocumentFilter | string | Array<DocumentFilter | string>;
+	export type DocumentSelector = DocumentFilter | string | ReadonlyArray<DocumentFilter | string>;
 
 	/**
 	 * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
