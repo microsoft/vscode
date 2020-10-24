@@ -1509,10 +1509,12 @@
       ],
       "git.tags": [
         {
-          "command": "git.createTag"
+          "command": "git.createTag",
+          "group": "1_tags@1"
         },
         {
-          "command": "git.deleteTag"
+          "command": "git.deleteTag",
+          "group": "1_tags@2"
         }
       ]
     },
