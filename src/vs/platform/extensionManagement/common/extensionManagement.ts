@@ -57,6 +57,12 @@ export interface IExtensionIdentifier {
 	uuid?: string;
 }
 
+export interface IExtensionIdentifierWithVersion extends IExtensionIdentifier {
+	id: string;
+	uuid?: string;
+	version: string;
+}
+
 export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
 	uuid: string;
 }
