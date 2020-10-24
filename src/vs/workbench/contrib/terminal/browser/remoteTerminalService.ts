@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -21,6 +22,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	public _serviceBrand: undefined;
 
 	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
+	private _hasConnectedToRemote = false;
 
 	constructor(
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
@@ -43,7 +45,15 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
 
-		return new RemoteTerminalProcess(terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+		let isPreconnectionTerminal = false;
+		if (!this._hasConnectedToRemote) {
+			isPreconnectionTerminal = true;
+			this._remoteAgentService.getEnvironment().then(() => {
+				this._hasConnectedToRemote = true;
+			});
+		}
+
+		return new RemoteTerminalProcess(terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
 	}
 
 	public async listTerminals(): Promise<IRemoteTerminalAttachTarget[]> {
@@ -86,6 +96,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		private readonly _cols: number,
 		private readonly _rows: number,
 		private readonly _configHelper: ITerminalConfigHelper,
+		private readonly _isPreconnectionTerminal: boolean,
 		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
 		private readonly _remoteAgentService: IRemoteAgentService,
 		private readonly _logService: ILogService,
@@ -94,10 +105,15 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		super();
 		this._startBarrier = new Barrier();
 		this._remoteTerminalId = 0;
+
+		if (this._isPreconnectionTerminal) {
+			// Add a loading title only if this terminal is
+			// instantiated before a connection is up and running
+			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting2...")), 0);
+		}
 	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
-
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {

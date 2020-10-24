@@ -350,9 +350,13 @@ export class TerminalService implements ITerminalService {
 	public async initializeTerminals(): Promise<void> {
 		const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue<boolean | undefined>('terminal.integrated.serverSpawn');
 		if (!!this._environmentService.remoteAuthority && enableRemoteAgentTerminals !== false) {
-			const emptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
-			this._terminalTabs.push(emptyTab);
-			this._onInstanceTitleChanged.fire(undefined);
+			let emptyTab: TerminalTab | undefined;
+			if (!this.terminalTabs.length) {
+				emptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
+				this._terminalTabs.push(emptyTab);
+				this._onInstanceTitleChanged.fire(undefined);
+			}
+
 			const remoteTerms = await this._remoteTerminalService.listTerminals();
 			const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
 
@@ -371,11 +375,14 @@ export class TerminalService implements ITerminalService {
 				for (let term of unattachedRemoteTerms.slice(1)) {
 					this.createTerminal({ remoteAttach: term });
 				}
-			} else if (this.terminalInstances.length === 0) {
-				// Remote, no terminals to attach to
+			} else if (this.terminalTabs.length === 1 && this.terminalTabs[0] === emptyTab) {
+				// No terminals to reconnect to, and the only terminal tab is our placeholder
 				this.createTerminal(undefined, emptyTab);
+			} else if (emptyTab) {
+				// There is another tab, need to remove the empty tab
+				this._removeTab(emptyTab);
 			}
-		} else if (this.terminalInstances.length === 0) {
+		} else if (this.terminalTabs.length === 0) {
 			// Local, just create a terminal
 			this.createTerminal();
 		}
