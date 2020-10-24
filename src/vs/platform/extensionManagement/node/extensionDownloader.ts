@@ -67,7 +67,7 @@ export class ExtensionsDownloader extends Disposable {
 						all.push([extension, stat]);
 					}
 				}
-				const byExtension = groupByExtension(all, ([extension]) => extension.identifier);
+				const byExtension = groupByExtension(all, ([extension]) => extension);
 				const distinct: IFileStatWithMetadata[] = [];
 				for (const p of byExtension) {
 					p.sort((a, b) => semver.rcompare(a[0].version, b[0].version));
