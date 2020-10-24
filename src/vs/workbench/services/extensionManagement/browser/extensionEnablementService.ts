@@ -23,8 +23,7 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -50,7 +49,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -62,8 +61,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
 					label: localize('Reload', "Reload"),
-					// Using ReloadWindowAction because depending on IHostService causes cyclic dependency - #108522
-					run: () => instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL).run()
+					run: () => hostService.reload()
 				}]);
 			});
 		}
