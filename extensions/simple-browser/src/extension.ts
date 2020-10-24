@@ -22,11 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 		}
 
-		if (!url) {
-			return;
-		}
-
-		manager.show(url);
+		manager.show(url || 'https://example.com');
 	}));
 }
 

@@ -85,10 +85,29 @@ button:focus {
 .content {
 	width: 100%;
 	height: 100%;
+	display: flex;
+	justify-content: center;
 }
 
 iframe {
 	width: 100%;
 	height: 100%;
 	border: none;
+}
+
+.iframe-focused-alert {
+	display: none;
+	position: absolute;
+	bottom: 1em;
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	padding: 0.2em 0.2em;
+	border-radius: 4px;
+
+	font-size: 8px;
+	font-family: monospace;
+}
+
+.iframe-focused .iframe-focused-alert {
+	display: block;
 }

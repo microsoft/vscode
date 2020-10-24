@@ -140,17 +140,29 @@ function getSettings() {
     }
     throw new Error(`Could not load settings`);
 }
-window.addEventListener('message', () => {
+const settings = getSettings();
+const iframe = document.querySelector('iframe');
+const header = document.querySelector('.header');
+const input = header.querySelector('.url-input');
+const forwardButton = header.querySelector('.forward-button');
+const backButton = header.querySelector('.back-button');
+const reloadButton = header.querySelector('.reload-button');
+const openExternalButton = header.querySelector('.open-external-button');
+window.addEventListener('message', e => {
+    switch (e.data.type) {
+        case 'focus':
+            {
+                iframe.focus();
+                break;
+            }
+    }
 });
 events_1.onceDocumentLoaded(() => {
-    const settings = getSettings();
-    const iframe = document.querySelector('iframe');
-    const header = document.querySelector('.header');
-    const input = header.querySelector('.url-input');
-    const forwardButton = header.querySelector('.forward-button');
-    const backButton = header.querySelector('.back-button');
-    const reloadButton = header.querySelector('.reload-button');
-    const openExternalButton = header.querySelector('.open-external-button');
+    setInterval(() => {
+        var _a;
+        const iframeFocused = ((_a = document.activeElement) === null || _a === void 0 ? void 0 : _a.tagName) === 'IFRAME';
+        document.body.classList.toggle('iframe-focused', iframeFocused);
+    }, 50);
     iframe.addEventListener('load', () => {
         // Noop
     });

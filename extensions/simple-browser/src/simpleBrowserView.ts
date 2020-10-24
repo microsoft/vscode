@@ -112,6 +112,7 @@ export class SimpleBrowserView {
 					</nav>
 				</header>
 				<div class="content">
+					<div class="iframe-focused-alert">${localize('view.iframe-focused', "Focus Lock")}</div>
 					<iframe sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
 				</div>
 
