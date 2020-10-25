@@ -217,32 +217,29 @@ function mergeExtensionState(localExtension: ISyncExtensionWithVersion, remoteEx
 
 	/* Remote and local are on same version */
 
-	// If there is no local state, use remote state
+	// If local state is not yet set, use remote state
 	if (!localState) {
 		return remoteState;
 	}
-	// If there is no remote state, use local state
+	// If remote state is not yet set, use local state
 	if (!remoteState) {
 		return localState;
 	}
 
 	const mergedState: IStringDictionary<any> = deepClone(localState);
-	if (remoteState) {
-		const baseToRemote = baseState ? compareExtensionState(baseState, remoteState) : { added: Object.keys(remoteState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-		const baseToLocal = baseState ? compareExtensionState(baseState, localState) : { added: Object.keys(localState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-		// Added/Updated in remote
-		for (const key of [...baseToRemote.added.values(), ...baseToRemote.updated.values()]) {
-			mergedState[key] = remoteState[key];
-		}
-		// Removed in remote
-		for (const key of baseToRemote.removed.values()) {
-			// Not updated in local
-			if (!baseToLocal.updated.has(key)) {
-				delete mergedState[key];
-			}
+	const baseToRemote = baseState ? compareExtensionState(baseState, remoteState) : { added: Object.keys(remoteState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+	const baseToLocal = baseState ? compareExtensionState(baseState, localState) : { added: Object.keys(localState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+	// Added/Updated in remote
+	for (const key of [...baseToRemote.added.values(), ...baseToRemote.updated.values()]) {
+		mergedState[key] = remoteState[key];
+	}
+	// Removed in remote
+	for (const key of baseToRemote.removed.values()) {
+		// Not updated in local
+		if (!baseToLocal.updated.has(key)) {
+			delete mergedState[key];
 		}
 	}
-
 	return mergedState;
 }
 
