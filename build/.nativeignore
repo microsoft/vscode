@@ -46,6 +46,7 @@ spdlog/build/**
 spdlog/deps/**
 spdlog/src/**
 spdlog/test/**
+spdlog/*.yml
 !spdlog/build/Release/*.node
 
 jschardet/dist/**
@@ -72,6 +73,7 @@ node-pty/build/**
 node-pty/src/**
 node-pty/tools/**
 node-pty/deps/**
+node-pty/scripts/**
 !node-pty/build/Release/*.exe
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
