@@ -193,6 +193,7 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 		switch (command) {
 			case '_getInitialData': return Promise.resolve<StorageKeysSyncRegistryServiceInitData>({ storageKeys: this.service.storageKeys, extensionsStorageKeys: this.service.extensionsStorageKeys });
 			case 'registerStorageKey': return Promise.resolve(this.service.registerStorageKey(args[0]));
+			case 'registerExtensionStorageKeys': return Promise.resolve(this.service.registerExtensionStorageKeys(args[0], args[1]));
 		}
 		throw new Error('Invalid call');
 	}
