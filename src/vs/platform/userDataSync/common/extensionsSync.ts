@@ -113,7 +113,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				Event.any<any>(
 					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
-					this.extensionEnablementService.onDidChangeEnablement),
+					this.extensionEnablementService.onDidChangeEnablement,
+					this.storageKeysSyncRegistryService.onDidChangeExtensionStorageKeys,
+					Event.filter(this.storageService.onDidChangeStorage, e => e.scope === StorageScope.GLOBAL
+						&& this.storageKeysSyncRegistryService.extensionsStorageKeys.some(([extensionIdentifier]) => areSameExtensions(extensionIdentifier, { id: e.key })))),
 				() => undefined, 500)(() => this.triggerLocalChange()));
 	}
 
