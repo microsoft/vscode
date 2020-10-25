@@ -292,6 +292,10 @@ export interface ISyncExtension {
 	state?: IStringDictionary<any>;
 }
 
+export interface ISyncExtensionWithVersion extends ISyncExtension {
+	version: string;
+}
+
 export interface IStorageValue {
 	version: number;
 	value: string;

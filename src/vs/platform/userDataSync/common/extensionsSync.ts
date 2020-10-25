@@ -5,7 +5,7 @@
 
 import {
 	IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncResourceEnablementService,
-	IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData, Change
+	IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData, Change, ISyncExtensionWithVersion
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -36,7 +36,7 @@ interface IExtensionResourceMergeResult extends IAcceptResult {
 }
 
 interface IExtensionResourcePreview extends IResourcePreview {
-	readonly localExtensions: ISyncExtension[];
+	readonly localExtensions: ISyncExtensionWithVersion[];
 	readonly skippedExtensions: ISyncExtension[];
 	readonly previewResult: IExtensionResourceMergeResult;
 }
@@ -441,11 +441,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return JSON.parse(syncData.content);
 	}
 
-	private getLocalExtensions(installedExtensions: ILocalExtension[]): ISyncExtension[] {
+	private getLocalExtensions(installedExtensions: ILocalExtension[]): ISyncExtensionWithVersion[] {
 		const disabledExtensions = this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
 			.map(({ identifier, isBuiltin, manifest }) => {
-				const syncExntesion: ISyncExtension = { identifier, version: manifest.version };
+				const syncExntesion: ISyncExtensionWithVersion = { identifier, version: manifest.version };
 				if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
 					syncExntesion.disabled = true;
 				}
