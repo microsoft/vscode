@@ -387,6 +387,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const that = this;
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
+				get syncedGlobalState() { checkProposedApiEnabled(extensionDescription); return globalState; },
 				workspaceState,
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },

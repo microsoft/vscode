@@ -7,9 +7,11 @@ import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
-export class ExtensionMemento implements vscode.Memento {
+export class ExtensionMemento implements vscode.SyncedMemento {
 
+	private readonly _extension: IExtensionDescription;
 	private readonly _id: string;
 	private readonly _version: string;
 	private readonly _shared: boolean;
@@ -19,14 +21,19 @@ export class ExtensionMemento implements vscode.Memento {
 	private _value?: { [n: string]: any; };
 	private readonly _storageListener: IDisposable;
 
-	private _syncKeys: string[] = [];
-	get syncKeys(): ReadonlyArray<string> { return Object.freeze(this._syncKeys); }
-	set syncKeys(syncKeys: ReadonlyArray<string>) {
-		this._syncKeys = [...syncKeys];
-		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._version }, this._syncKeys);
+	private _syncedKeys: string[] = [];
+	get syncedKeys(): ReadonlyArray<string> { return Object.freeze(this._syncedKeys); }
+	set syncedKeys(syncKeys: ReadonlyArray<string>) {
+		checkProposedApiEnabled(this._extension);
+		if (!this._shared) {
+			throw new Error('Only global state is synchronized');
+		}
+		this._syncedKeys = [...syncKeys];
+		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._version }, this._syncedKeys);
 	}
 
 	constructor(extensionDescription: IExtensionDescription, global: boolean, storage: ExtHostStorage) {
+		this._extension = extensionDescription;
 		this._id = extensionDescription.identifier.value;
 		this._version = extensionDescription.version;
 		this._shared = global;
