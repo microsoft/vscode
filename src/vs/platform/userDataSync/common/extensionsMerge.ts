@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as semver from 'semver-umd';
 import { ISyncExtension, ISyncExtensionWithVersion } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { deepClone, equals } from 'vs/base/common/objects';
@@ -83,13 +84,13 @@ export function merge(localExtensions: ISyncExtensionWithVersion[], remoteExtens
 			const localExtension = localExtensionsMap.get(key);
 			if (localExtension) {
 				const remoteExtension = remoteExtensionsMap.get(key)!;
-				const mergedExtension: ISyncExtensionWithVersion = { ...remoteExtension, version: localExtension.version };
-				// merge extension state only when version matches and local extension has state
-				if (remoteExtension.version === localExtension.version && localExtension.state) {
-					mergedExtension.state = mergeExtensionState(localExtension.state, remoteExtension.state, lastSyncExtensionsMap?.get(key)?.state);
-				}
+				const mergedExtension: ISyncExtensionWithVersion = {
+					...remoteExtension,
+					version: localExtension.version,
+					state: mergeExtensionState(localExtension, remoteExtension, lastSyncExtensionsMap?.get(key))
+				};
 				updated.push(massageOutgoingExtension(mergedExtension, key));
-				newRemoteExtensionsMap.set(key, remoteExtension);
+				newRemoteExtensionsMap.set(key, mergedExtension);
 			}
 		};
 
@@ -196,25 +197,53 @@ function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISync
 	return { added, removed, updated };
 }
 
-function mergeExtensionState(local: IStringDictionary<any>, remote: IStringDictionary<any> | undefined, base: IStringDictionary<any> | undefined): IStringDictionary<any> | undefined {
-	const merged: IStringDictionary<any> = deepClone(local);
-	if (remote) {
-		const baseToRemote = base ? compareExtensionState(base, remote) : { added: Object.keys(remote).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-		const baseToLocal = base ? compareExtensionState(base, local) : { added: Object.keys(local).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+function mergeExtensionState(localExtension: ISyncExtensionWithVersion, remoteExtension: ISyncExtension, lastSyncExtension: ISyncExtension | undefined): IStringDictionary<any> | undefined {
+	const localState = localExtension.state;
+	const remoteState = remoteExtension.state;
+	const baseState = lastSyncExtension?.state;
+
+	// If remote extension has no version, use local state
+	if (!remoteExtension.version) {
+		return localState;
+	}
+	// If local is latest, use local state
+	if (semver.gt(localExtension.version, remoteExtension.version)) {
+		return localState;
+	}
+	// If remote is latest, use remote state
+	if (semver.gt(remoteExtension.version, localExtension.version)) {
+		return remoteState;
+	}
+
+	/* Remote and local are on same version */
+
+	// If there is no local state, use remote state
+	if (!localState) {
+		return remoteState;
+	}
+	// If there is no remote state, use local state
+	if (!remoteState) {
+		return localState;
+	}
+
+	const mergedState: IStringDictionary<any> = deepClone(localState);
+	if (remoteState) {
+		const baseToRemote = baseState ? compareExtensionState(baseState, remoteState) : { added: Object.keys(remoteState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+		const baseToLocal = baseState ? compareExtensionState(baseState, localState) : { added: Object.keys(localState).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 		// Added/Updated in remote
 		for (const key of [...baseToRemote.added.values(), ...baseToRemote.updated.values()]) {
-			merged[key] = remote[key];
+			mergedState[key] = remoteState[key];
 		}
 		// Removed in remote
 		for (const key of baseToRemote.removed.values()) {
 			// Not updated in local
 			if (!baseToLocal.updated.has(key)) {
-				delete merged[key];
+				delete mergedState[key];
 			}
 		}
 	}
 
-	return merged;
+	return mergedState;
 }
 
 function compareExtensionState(from: IStringDictionary<any>, to: IStringDictionary<any>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
