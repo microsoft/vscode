@@ -184,6 +184,7 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChangeStorageKeys': return this.service.onDidChangeStorageKeys;
+			case 'onDidChangeExtensionStorageKeys': return this.service.onDidChangeExtensionStorageKeys;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
