@@ -282,14 +282,17 @@ function massageOutgoingExtension<T extends ISyncExtension>(extension: T, key: s
 			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
 		},
 	};
+	if (extension.version) {
+		massagedExtension.version = extension.version;
+	}
 	if (extension.disabled) {
 		massagedExtension.disabled = true;
 	}
 	if (extension.installed) {
 		massagedExtension.installed = true;
 	}
-	if (extension.version) {
-		massagedExtension.version = extension.version;
+	if (extension.state) {
+		massagedExtension.state = extension.state;
 	}
 	return massagedExtension as T;
 }
