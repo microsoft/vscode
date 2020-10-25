@@ -450,13 +450,13 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					syncExntesion.installed = true;
 				}
 				const keys = this.storageKeysSyncRegistryService.getExtensioStorageKeys({ id: identifier.id, version: manifest.version });
-				try {
-					const extensionStorageValue = this.storageService.get(identifier.id, StorageScope.GLOBAL);
-					syncExntesion.state = keys.length && extensionStorageValue
-						? JSON.parse(extensionStorageValue, (key, value) => !key || keys.includes(key) ? value : undefined)
-						: undefined;
-				} catch (error) {
-					this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
+				if (keys) {
+					const extensionStorageValue = this.storageService.get(identifier.id, StorageScope.GLOBAL) || '{}';
+					try {
+						syncExntesion.state = JSON.parse(extensionStorageValue, (key, value) => !key || keys.includes(key) ? value : undefined);
+					} catch (error) {
+						this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
+					}
 				}
 				return syncExntesion;
 			});

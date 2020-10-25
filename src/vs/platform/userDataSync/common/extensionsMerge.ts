@@ -74,10 +74,14 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 		const baseToRemote = compare(lastSyncExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet);
 
 		const mergeAndUpdate = (key: string): void => {
-			const extension = remoteExtensionsMap.get(key)!;
-			extension.state = mergeExtensionState(localExtensionsMap.get(key)?.state, extension.state, lastSyncExtensionsMap?.get(key)?.state);
-			updated.push(massageOutgoingExtension(extension, key));
-			newRemoteExtensionsMap.set(key, extension);
+			const localExtension = localExtensionsMap.get(key)!;
+			const remoteExtension = remoteExtensionsMap.get(key)!;
+			// merge extension state only when version matches and local extension has state
+			if (remoteExtension.version === localExtension.version && localExtension.state) {
+				remoteExtension.state = mergeExtensionState(localExtension.state, remoteExtension.state, lastSyncExtensionsMap?.get(key)?.state);
+			}
+			updated.push(massageOutgoingExtension(remoteExtension, key));
+			newRemoteExtensionsMap.set(key, remoteExtension);
 		};
 
 		// Remotely removed extension.
@@ -183,18 +187,7 @@ function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISync
 	return { added, removed, updated };
 }
 
-function mergeExtensionState(local: IStringDictionary<any> | undefined, remote: IStringDictionary<any> | undefined, base: IStringDictionary<any> | undefined): IStringDictionary<any> | undefined {
-	if (!local && !remote && !base) {
-		return undefined;
-	}
-	if (local && !remote && !base) {
-		return local;
-	}
-	if (remote && !local && !base) {
-		return remote;
-	}
-
-	local = local || {};
+function mergeExtensionState(local: IStringDictionary<any>, remote: IStringDictionary<any> | undefined, base: IStringDictionary<any> | undefined): IStringDictionary<any> | undefined {
 	const merged: IStringDictionary<any> = deepClone(local);
 	if (remote) {
 		const baseToRemote = base ? compareExtensionState(base, remote) : { added: Object.keys(remote).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };

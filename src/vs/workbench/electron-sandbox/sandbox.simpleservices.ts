@@ -731,7 +731,7 @@ class SimpleIStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryS
 
 	extensionsStorageKeys = [];
 
-	getExtensioStorageKeys(): [] { return []; }
+	getExtensioStorageKeys() { return undefined; }
 
 	registerExtensionStorageKeys(): void { }
 }

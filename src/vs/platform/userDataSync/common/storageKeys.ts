@@ -76,7 +76,7 @@ export interface IStorageKeysSyncRegistryService {
 	/**
 	 * Returns storage keys of the given extension that has to be synchronized.
 	 */
-	getExtensioStorageKeys(extension: IExtensionIdWithVersion): ReadonlyArray<string>;
+	getExtensioStorageKeys(extension: IExtensionIdWithVersion): ReadonlyArray<string> | undefined;
 }
 
 export abstract class AbstractStorageKeysSyncRegistryService extends Disposable implements IStorageKeysSyncRegistryService {
@@ -103,8 +103,8 @@ export abstract class AbstractStorageKeysSyncRegistryService extends Disposable 
 		this._register(toDisposable(() => this._storageKeys.clear()));
 	}
 
-	getExtensioStorageKeys(extension: IExtensionIdWithVersion): ReadonlyArray<string> {
-		return this._extensionsStorageKeys.get(ExtensionIdWithVersion.toKey(extension)) || [];
+	getExtensioStorageKeys(extension: IExtensionIdWithVersion): ReadonlyArray<string> | undefined {
+		return this._extensionsStorageKeys.get(ExtensionIdWithVersion.toKey(extension));
 	}
 
 	protected updateExtensionStorageKeys(extension: IExtensionIdWithVersion, keys: string[]): void {
