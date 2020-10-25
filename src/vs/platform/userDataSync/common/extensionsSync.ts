@@ -357,11 +357,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		if (added.length || updated.length) {
 			await Promise.all([...added, ...updated].map(async e => {
-				const installedExtension = installedExtensions.filter(installed => areSameExtensions(installed.identifier, e.identifier))[0];
+				const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
 
 				// Builtin Extension: Sync enablement and state
 				if (installedExtension && installedExtension.isBuiltin) {
-					if (e.state) {
+					if (e.state && installedExtension.manifest.version === e.version) {
 						const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
 						forEach(e.state, ({ key, value }) => extensionState[key] = value);
 						this.storageService.store(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
