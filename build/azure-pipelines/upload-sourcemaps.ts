@@ -10,6 +10,7 @@ import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
+import * as deps from '../dependencies';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
@@ -24,7 +25,7 @@ function src(base: string, maps = `${base}/**/*.map`) {
 			f.path = `${f.base}/core/${f.relative}`;
 			return f;
 		}));
-};
+}
 
 function main() {
 	const sources = [];
@@ -33,6 +34,12 @@ function main() {
 	if (!base) {
 		const vs = src('out-vscode-min'); // client source-maps only
 		sources.push(vs);
+
+		const productionDependencies = deps.getProductionDependencies(root);
+		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
+		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
+			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')));
+		sources.push(nodeModules);
 
 		const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
 		sources.push(extensionsOut);
