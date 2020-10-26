@@ -2656,7 +2656,7 @@ export class CommandCenter {
 		if (!GitTimelineItem.is(item)) {
 			if (isRevisionUri(item.resourceUri)) {
 				const revision = fromRevisionUri(item.resourceUri);
-				env.clipboard.writeText(revision.ref);
+				env.clipboard.writeText(revision.id);
 			}
 
 			return;
@@ -2732,6 +2732,22 @@ export class CommandCenter {
 		} else {
 			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
 		}
+	}
+
+	@command('git.setUnpublishedViewToCommits', { repository: true })
+	async setUnpublishedViewToCommits(repository: Repository) {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		config.update('unpublishedChanges', 'commits');
+
+		setTimeout(() => void this.refresh(repository), 50);
+	}
+
+	@command('git.setUnpublishedViewToFiles', { repository: true })
+	async setUnpublishedViewToFiles(repository: Repository) {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		config.update('unpublishedChanges', 'files');
+
+		setTimeout(() => void this.refresh(repository), 50);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

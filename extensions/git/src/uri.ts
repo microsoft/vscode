@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri } from 'vscode';
+import { SourceControlRevisionState, ThemeIcon, Uri } from 'vscode';
 import { Commit } from './git';
 
 export interface GitUriParams {
@@ -53,31 +53,24 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 	});
 }
 
-export interface RevisionUriParams {
-	path: string;
-	ref: string;
-	message: string;
-	date: number;
-}
-
 export function isRevisionUri(uri: Uri): boolean {
 	return /^revision$/.test(uri.scheme);
 }
 
-export function fromRevisionUri(uri: Uri): RevisionUriParams {
+export function fromRevisionUri(uri: Uri): SourceControlRevisionState {
 	return JSON.parse(uri.query);
 }
 
-export function toRevisionUri(path: string, commit: Commit): Uri {
-	const index = commit.message.indexOf('\n');
-	const message = index !== -1 ? `${commit.message.substring(0, index)} \u2026` : commit.message;
-	const shortSha = commit.hash.substr(0, 8);
-
-	let info: RevisionUriParams = {
-		path: path,
-		ref: commit.hash,
-		message: message,
-		date: commit.commitDate?.getTime() ?? commit.authorDate?.getTime() ?? Date.now()
+export function toRevisionUri(commit: Commit): Uri {
+	const shortId = commit.hash.substr(0, 8);
+	const revision: SourceControlRevisionState = {
+		id: commit.hash,
+		shortId: shortId,
+		message: commit.message,
+		author: commit.authorName,
+		timestamp: commit.commitDate?.getTime() ?? commit.authorDate?.getTime(),
+		status: 'unpublished',
+		iconPath: new (ThemeIcon as any)('git-commit')
 	};
-	return Uri.parse(`revision://${shortSha}/?${JSON.stringify(info)}`);
+	return Uri.parse(`revision://${shortId}/?${JSON.stringify(revision)}`);
 }

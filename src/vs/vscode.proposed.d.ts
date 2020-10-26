@@ -2873,4 +2873,26 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	export interface SourceControlRevisionState {
+		readonly id: string;
+		readonly shortId?: string;
+		readonly timestamp?: number;
+		readonly message: string;
+		readonly author?: string;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri; } | ThemeIcon;
+		readonly status?: string;
+
+		/**
+		 * The [command](#Command) which should be run when the resource
+		 * state is open in the Source Control viewlet.
+		 */
+		readonly command?: Command;
+
+		/**
+		 * The [decorations](#SourceControlResourceDecorations) for this source control
+		 * resource state.
+		 */
+		readonly decorations?: SourceControlResourceDecorations;
+	}
 }

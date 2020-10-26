@@ -85,9 +85,7 @@ export const enum Status {
 	DELETED_BY_THEM,
 	BOTH_ADDED,
 	BOTH_DELETED,
-	BOTH_MODIFIED,
-
-	UNPUBLISHED
+	BOTH_MODIFIED
 }
 
 export interface Change {

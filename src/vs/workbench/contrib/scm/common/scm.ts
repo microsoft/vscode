@@ -32,9 +32,20 @@ export interface ISCMResourceDecorations {
 	faded?: boolean;
 }
 
+export interface ISCMRevisionState {
+	readonly id: string;
+	readonly shortId?: string;
+	readonly timestamp?: number;
+	readonly message: string;
+	readonly author?: string;
+	readonly iconPath?: URI | { light: URI; dark: URI; } | ThemeIcon;
+	readonly status?: string;
+}
+
 export interface ISCMRevision {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
+	readonly revision?: ISCMRevisionState;
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue?: string;
 	open(preserveFocus: boolean): Promise<void>;
@@ -156,7 +167,7 @@ export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
 	readonly repositoryMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
-	getResourceMenu(resource: ISCMResource): IMenu;
+	getResourceMenu(resource: ISCMResource | ISCMRevision): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
 }
 
