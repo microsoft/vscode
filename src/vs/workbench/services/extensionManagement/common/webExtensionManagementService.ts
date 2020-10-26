@@ -90,14 +90,15 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 	}
 
 	private async toLocalExtension(scannedExtension: ITranslatedScannedExtension): Promise<ILocalExtension> {
-		return <ILocalExtension>{
+		return {
 			type: scannedExtension.type,
 			identifier: scannedExtension.identifier,
 			manifest: scannedExtension.packageJSON,
 			location: scannedExtension.location,
 			isMachineScoped: false,
 			publisherId: null,
-			publisherDisplayName: null
+			publisherDisplayName: null,
+			isBuiltin: scannedExtension.type === ExtensionType.System
 		};
 	}
 
