@@ -201,6 +201,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 	getDirty(resource: URI): IWorkingCopy[] { return []; }
 
 	create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean | undefined; } | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+	createFolder(resource: URI): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
 
 	move(files: { source: URI; target: URI; }[], options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 
