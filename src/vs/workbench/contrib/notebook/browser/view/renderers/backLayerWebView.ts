@@ -27,6 +27,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -565,6 +566,7 @@ var requirejs = (function() {
 		const webview = webviewService.createWebviewElement(this.id, {
 			purpose: WebviewContentPurpose.NotebookRenderer,
 			enableFindWidget: false,
+			transformCssVariables: transformWebviewThemeVars,
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,

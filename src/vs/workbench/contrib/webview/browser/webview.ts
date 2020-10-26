@@ -59,6 +59,8 @@ export const enum WebviewContentPurpose {
 	CustomEditor = 'customEditor',
 }
 
+export type WebviewStyles = { [key: string]: string | number; };
+
 export interface WebviewOptions {
 	// The purpose of the webview; this is (currently) only used for filtering in js-debug
 	readonly purpose?: WebviewContentPurpose;
@@ -66,6 +68,7 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
 }
 
 export interface WebviewContentOptions {
