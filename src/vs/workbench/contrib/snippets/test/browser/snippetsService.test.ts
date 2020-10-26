@@ -476,7 +476,7 @@ suite('SnippetsService', function () {
 	});
 
 	test('Snippet replace-range incorrect #108894', async function () {
-		this.skip();
+
 		snippetService = new SimpleSnippetService([new Snippet(
 			['fooLang'],
 			'eng',
