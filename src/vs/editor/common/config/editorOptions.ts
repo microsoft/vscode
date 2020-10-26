@@ -4230,9 +4230,9 @@ export const EditorOptions = {
 		['auto', 'off', 'prompt'] as const,
 		{
 			enumDescriptions: [
+				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
 				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),
 				nls.localize('unusualLineTerminators.prompt', "Unusual line terminators prompt to be removed."),
-				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
 			],
 			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}
