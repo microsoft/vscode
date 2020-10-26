@@ -12,7 +12,7 @@ import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
-import { toGitUri } from './uri';
+import { toGitUri, toRevisionUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
@@ -38,7 +38,8 @@ export const enum ResourceGroupType {
 	Merge,
 	Index,
 	WorkingTree,
-	Untracked
+	Untracked,
+	Unpublished
 }
 
 export class Resource implements SourceControlResourceState {
@@ -62,6 +63,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
 			case Status.BOTH_ADDED: return localize('both added', "Both Added");
 			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
+			case Status.UNPUBLISHED: return localize('unpublished', "Unpublished");
 			default: return '';
 		}
 	}
@@ -197,6 +199,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return 'C';
+			case Status.UNPUBLISHED:
+				return '↑';
 			default:
 				throw new Error('Unknown git status: ' + this.type);
 		}
@@ -229,6 +233,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return new ThemeColor('gitDecoration.conflictingResourceForeground');
+			case Status.UNPUBLISHED:
+				return new ThemeColor('gitDecoration.unpublishedResourceForeground');
 			default:
 				throw new Error('Unknown git status: ' + this.type);
 		}
@@ -266,7 +272,8 @@ export class Resource implements SourceControlResourceState {
 		private _resourceUri: Uri,
 		private _type: Status,
 		private _useIcons: boolean,
-		private _renameResourceUri?: Uri
+		private _renameResourceUri?: Uri,
+		public readonly unpublishedUpstream?: string
 	) { }
 }
 
@@ -592,6 +599,13 @@ export class Repository implements Disposable {
 	private _untrackedGroup: SourceControlResourceGroup;
 	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
 
+	private _unpublishedGroup: SourceControlResourceGroup;
+	get unpublishedGroup(): GitResourceGroup { return this._unpublishedGroup as GitResourceGroup; }
+
+	private _unpublishedCommitsGroup: SourceControlResourceGroup;
+	get unpublishedCommitsGroup(): SourceControlResourceGroup { return this._unpublishedCommitsGroup; }
+
+
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
 		return this._HEAD;
@@ -666,6 +680,8 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
 		this.untrackedGroup.resourceStates = [];
+		this.unpublishedGroup.resourceStates = [];
+		this.unpublishedCommitsGroup.resourceStates = [];
 		this._sourceControl.count = 0;
 	}
 
@@ -736,6 +752,8 @@ export class Repository implements Disposable {
 		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
 		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "Untracked Changes"));
+		this._unpublishedGroup = this._sourceControl.createResourceGroup('unpublished', localize('unpublished changes', "Unpublished Changes"));
+		this._unpublishedCommitsGroup = this._sourceControl.createResourceGroup('unpublishedCommits', localize('unpublished commits', "Unpublished Commits"));
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -763,11 +781,15 @@ export class Repository implements Disposable {
 
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
+		this.unpublishedGroup.hideWhenEmpty = true;
+		this.unpublishedCommitsGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
 		this.disposables.push(this.untrackedGroup);
+		this.disposables.push(this.unpublishedGroup);
+		this.disposables.push(this.unpublishedCommitsGroup);
 
 		this.disposables.push(new AutoFetcher(this, globalState));
 
@@ -1586,6 +1608,8 @@ export class Repository implements Disposable {
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
 		const untracked: Resource[] = [];
+		const unpublished: Resource[] = [];
+		const unpublishedCommits: SourceControlResourceState[] = [];
 
 		status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
@@ -1630,11 +1654,39 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
+
+		if (HEAD?.ahead ?? 0 > 0) {
+			const upstream = `${HEAD!.upstream?.remote}/${HEAD!.upstream?.name}`;
+
+			let first = true;
+			const commits = await this.repository.log({ ref: `${upstream}..${HEAD!.name}` });
+			for (const commit of commits) {
+				unpublishedCommits.push({
+					resourceUri: toRevisionUri(this.repository.root, commit),
+					contextValue: first ? 'commit+tip' : 'commit',
+					decorations: {
+						iconPath: 'git-commit', // new (ThemeIcon as any)('git-commit'),
+						// tooltip: commit.message
+					}
+				});
+
+				first = false;
+			}
+
+			const changes = await this.repository.diffBetween(`${upstream}`, HEAD!.name!);
+			for (const change of changes) {
+				unpublished.push(new Resource(ResourceGroupType.Unpublished, Uri.file(change.uri.fsPath), Status.UNPUBLISHED, useIcons, change.renameUri ? Uri.file(change.renameUri.fsPath) : undefined, upstream));
+				// unpublished.push(new Resource(ResourceGroupType.Unpublished, toGitUri(change.uri, upstream), change.status, useIcons, change.renameUri ? toGitUri(change.renameUri, upstream) : undefined));
+			}
+		}
+
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;
 		this.indexGroup.resourceStates = index;
 		this.workingTreeGroup.resourceStates = workingTree;
 		this.untrackedGroup.resourceStates = untracked;
+		this.unpublishedGroup.resourceStates = unpublished;
+		this.unpublishedCommitsGroup.resourceStates = unpublishedCommits;
 
 		// set count badge
 		this.setCountBadge();

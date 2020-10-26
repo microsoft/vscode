@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri } from 'vscode';
+import { Commit } from './git';
 
 export interface GitUriParams {
 	path: string;
@@ -50,4 +51,33 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 		path,
 		query: JSON.stringify(params)
 	});
+}
+
+export interface RevisionUriParams {
+	path: string;
+	ref: string;
+	message: string;
+	date: number;
+}
+
+export function isRevisionUri(uri: Uri): boolean {
+	return /^revision$/.test(uri.scheme);
+}
+
+export function fromRevisionUri(uri: Uri): RevisionUriParams {
+	return JSON.parse(uri.query);
+}
+
+export function toRevisionUri(path: string, commit: Commit): Uri {
+	const index = commit.message.indexOf('\n');
+	const message = index !== -1 ? `${commit.message.substring(0, index)} \u2026` : commit.message;
+	const shortSha = commit.hash.substr(0, 8);
+
+	let info: RevisionUriParams = {
+		path: path,
+		ref: commit.hash,
+		message: message,
+		date: commit.commitDate?.getTime() ?? commit.authorDate?.getTime() ?? Date.now()
+	};
+	return Uri.parse(`revision://${shortSha}/?${JSON.stringify(info)}`);
 }

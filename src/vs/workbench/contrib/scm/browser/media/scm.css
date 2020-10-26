@@ -133,6 +133,11 @@
 	overflow: hidden;
 }
 
+.scm-view .monaco-list-row .revision-icon {
+	padding-right: 6px;
+	padding-top: 3px;
+}
+
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
 	padding-right: 3px;
 }
