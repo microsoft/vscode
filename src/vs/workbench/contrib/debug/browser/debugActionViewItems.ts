@@ -11,7 +11,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, IDebugConfigurationProvider } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -34,7 +34,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private options: { label: string, handler: (() => Promise<boolean>) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
-	private providers: { label: string, provider: IDebugConfigurationProvider | undefined, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
+	private providers: { label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
 
 	constructor(
 		private context: unknown,
@@ -196,7 +196,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		}
 
 		this.providers.forEach(p => {
-			if (p.provider && p.provider.type === manager.selectedConfiguration.type) {
+			if (p.type === manager.selectedConfiguration.type) {
 				this.selected = this.options.length;
 			}
 
@@ -204,7 +204,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 				label: `${p.label}...`, handler: async () => {
 					const picked = await p.pick();
 					if (picked) {
-						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, p.provider?.type);
+						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, p.type);
 						return true;
 					}
 					return false;
