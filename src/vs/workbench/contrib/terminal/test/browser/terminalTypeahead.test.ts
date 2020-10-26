@@ -77,7 +77,8 @@ suite('Workbench - Terminal Typeahead', () => {
 
 		const predictedHelloo = [
 			`${CSI}?25l`, // hide cursor
-			`${CSI}2;7H`, // move cursor cursor
+			`${CSI}2;7H`, // move cursor
+			`${CSI}0m`, // reset cursor style
 			'o', // new character
 			`${CSI}2;8H`, // place cursor back at end of line
 			`${CSI}?25h`, // show cursor
@@ -107,14 +108,14 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('predicts a single character', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('o');
 			t.expectWritten(`${CSI}3mo`);
 		});
 
 		test('validates character prediction', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed('o', predictedHelloo);
@@ -122,7 +123,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('rolls back character prediction', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('o');
 
@@ -130,6 +131,26 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
 				`${CSI}X`, // delete character
+				`${CSI}0m`, // reset cursor style
+				'q', // new character
+				`${CSI}?25h`, // show cursor
+			].join(''));
+			assert.strictEqual(addon.stats?.accuracy, 0);
+		});
+
+		test('restores cursor graphics mode', () => {
+			const t = createMockTerminal({
+				lines: ['hello|'],
+				cursorAttrs: { isBold: true, isFgPalette: true, getFgColor: 1 },
+			});
+			addon.activate(t.terminal);
+			t.onData('o');
+
+			expectProcessed('q', [
+				`${CSI}?25l`, // hide cursor
+				`${CSI}2;7H`, // move cursor cursor
+				`${CSI}X`, // delete character
+				`${CSI}0m`, // reset cursor style
 				'q', // new character
 				`${CSI}?25h`, // show cursor
 			].join(''));
@@ -137,13 +158,14 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('validates against and applies graphics mode on predicted', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed(`${CSI}4mo`, [
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
-				`${CSI}4m`, // PTY's style
+				`${CSI}0m`, // reset cursor style
+				`${CSI}4m`, // new PTY's style
 				'o', // new character
 				`${CSI}2;8H`, // place cursor back at end of line
 				`${CSI}?25h`, // show cursor
@@ -152,13 +174,14 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('ignores cursor hides or shows', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed(`${CSI}?25lo${CSI}?25h`, [
 				`${CSI}?25l`, // hide cursor from PTY
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
+				`${CSI}0m`, // reset cursor style
 				'o', // new character
 				`${CSI}?25h`, // show cursor from PTY
 				`${CSI}2;8H`, // place cursor back at end of line
@@ -168,7 +191,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('matches backspace at EOL (bash style)', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('\x7F');
 			expectProcessed(`\b${CSI}K`, `\b${CSI}K`);
@@ -176,7 +199,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('matches backspace at EOL (zsh style)', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('\x7F');
 			expectProcessed('\b \b', '\b \b');
@@ -184,7 +207,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('gradually matches backspace', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('\x7F');
 			expectProcessed('\b', '');
@@ -193,7 +216,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('waits for validation before deleting to left of cursor', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 
 			// initially should not backspace (until the server confirms it)
@@ -214,7 +237,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('avoids predicting password input', () => {
-			const t = createMockTerminal('hello|');
+			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			expectProcessed('Your password: ', 'Your password: ');
 
@@ -245,7 +268,10 @@ function stubPrediction(): IPrediction {
 	};
 }
 
-function createMockTerminal(...lines: string[]) {
+function createMockTerminal({ lines, cursorAttrs }: {
+	lines: string[],
+	cursorAttrs?: any,
+}) {
 	const written: string[] = [];
 	const cursor = { y: 1, x: 1 };
 	const onData = new Emitter<string>();
@@ -277,6 +303,11 @@ function createMockTerminal(...lines: string[]) {
 			write(line: string) {
 				written.push(line);
 			},
+			_core: {
+				_inputHandler: {
+					_curAttrData: mockCell('', cursorAttrs)
+				}
+			},
 			buffer: {
 				active: {
 					type: 'normal',
@@ -296,9 +327,13 @@ function createMockTerminal(...lines: string[]) {
 	};
 }
 
-function mockCell(char: string) {
+function mockCell(char: string, attrs: { [key: string]: unknown } = {}) {
 	return new Proxy({}, {
 		get(_, prop) {
+			if (typeof prop === 'string' && attrs.hasOwnProperty(prop)) {
+				return () => attrs[prop];
+			}
+
 			switch (prop) {
 				case 'getWidth':
 					return () => 1;
@@ -306,6 +341,8 @@ function mockCell(char: string) {
 					return () => char;
 				case 'getCode':
 					return () => char.charCodeAt(0) || 0;
+				case 'isAttributeDefault':
+					return () => true;
 				default:
 					return String(prop).startsWith('is') ? (() => false) : (() => 0);
 			}

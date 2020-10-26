@@ -9,6 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
 
@@ -36,6 +37,8 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  *  - mode set/reset
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
+
+const core = (t: Terminal): XTermCore => (t as any)._core;
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -157,6 +160,13 @@ const enum MatchResult {
 
 export interface IPrediction {
 	/**
+	 * Whether applying this prediction can modify the style attributes of the
+	 * terminal. If so it means we need to reset the cursor style if it's
+	 * rolled back.
+	 */
+	readonly affectsStyle?: boolean;
+
+	/**
 	 * Returns a sequence to apply the prediction.
 	 * @param buffer to write to
 	 * @param cursor position to write the data. Should advance the cursor.
@@ -175,7 +185,7 @@ export interface IPrediction {
 	/**
 	 * If available, this will be called when the prediction is correct.
 	 */
-	rollForwards(cursor: Cursor, withInput: string): string;
+	rollForwards(cursor: Cursor, withInput: string, cursorAttributes: string): string;
 
 	/**
 	 * Returns whether the given input is one expected by this prediction.
@@ -329,6 +339,8 @@ class TentativeBoundary implements IPrediction {
  * Prediction for a single alphanumeric character.
  */
 class CharacterPrediction implements IPrediction {
+	public readonly affectsStyle = true;
+
 	protected appliedAt?: {
 		pos: ICoordinate,
 		oldAttributes: string;
@@ -337,14 +349,18 @@ class CharacterPrediction implements IPrediction {
 
 	constructor(private readonly style: string, private readonly char: string) { }
 
-	public apply(buffer: IBuffer, cursor: Cursor) {
+	public apply(_: IBuffer, cursor: Cursor) {
 		const cell = cursor.getCell();
 		this.appliedAt = cell
 			? { pos: cursor.coordinate, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
 			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
 
 		cursor.shift(1);
-		return this.style + this.char + this.appliedAt.oldAttributes;
+
+		// no need to change the style after applying -- we know that the next
+		// character will be a prediction (which sets its own style) or we'll roll
+		// back or forwards and set the style there.
+		return this.style + this.char;
 	}
 
 	public rollback(cursor: Cursor) {
@@ -357,12 +373,12 @@ class CharacterPrediction implements IPrediction {
 		return r;
 	}
 
-	public rollForwards(cursor: Cursor, input: string) {
+	public rollForwards(cursor: Cursor, input: string, cursorAttributes: string) {
 		if (!this.appliedAt) {
 			return ''; // not applied
 		}
 
-		return cursor.clone().moveTo(this.appliedAt.pos) + this.appliedAt.oldAttributes + input;
+		return cursor.clone().moveTo(this.appliedAt.pos) + cursorAttributes + input;
 	}
 
 	public matches(input: StringReader) {
@@ -620,6 +636,11 @@ export class PredictionTimeline {
 	private expected: ({ gen: number; p: IPrediction })[] = [];
 
 	/**
+	 * Cursor graphics attributes prior to applying the predictions.
+	 */
+	private cursorAttrs = '';
+
+	/**
 	 * Current prediction generation.
 	 */
 	private currentGen = 0;
@@ -716,7 +737,7 @@ export class PredictionTimeline {
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
 					const eaten = input.slice(beforeTestReaderIndex, reader.index);
-					output += prediction.rollForwards?.(cursor, eaten);
+					output += prediction.rollForwards?.(cursor, eaten, this.cursorAttrs);
 					this.succeededEmitter.fire(prediction);
 					this.expected.shift();
 					break;
@@ -729,10 +750,11 @@ export class PredictionTimeline {
 				case MatchResult.Failure:
 					// on a failure, roll back all remaining items in this generation
 					// and clear predictions, since they are no longer valid
-					output += this.expected.filter(p => p.gen === startingGen)
-						.reverse()
-						.map(({ p }) => p.rollback(this.getCursor(buffer)))
-						.join('');
+					const rollback = this.expected.filter(p => p.gen === startingGen).reverse();
+					output += rollback.map(({ p }) => p.rollback(this.getCursor(buffer))).join('');
+					if (rollback.some(r => r.p.affectsStyle)) {
+						output += this.cursorAttrs;
+					}
 					this.expected = [];
 					this.cursor = undefined;
 					this.failedEmitter.fire(prediction);
@@ -787,8 +809,17 @@ export class PredictionTimeline {
 		this.addedEmitter.fire(prediction);
 
 		if (this.currentGen === this.expected[0].gen) {
+			// todo@connor4312 / todo@tyriar: this has a race condition where a
+			// previous prediction may still be writing to the terminal, causing
+			// us to read the style of the predictions instead of the right style.
+			// To fix this we should parse the input and maintain the correct style
+			// internally.
+			if (this.expected.length === 1) {
+				this.cursorAttrs = getBufferCellAttributes(core(this.terminal)._inputHandler._curAttrData);
+			}
+
 			const text = prediction.apply(buffer, this.getCursor(buffer));
-			if (this.showPredictions) {
+			if (this.showPredictions && text) {
 				// console.log('predict:', JSON.stringify(text));
 				this.terminal.write(text);
 			}
@@ -829,7 +860,7 @@ export class PredictionTimeline {
 /**
  * Gets the escape sequence to restore state/appearence in the cell.
  */
-const getBufferCellAttributes = (cell: IBufferCell) => cell.isAttributeDefault()
+const getBufferCellAttributes = (cell: XTermAttributes) => cell.isAttributeDefault()
 	? `${CSI}0m`
 	: [
 		cell.isBold() && `${CSI}1m`,
