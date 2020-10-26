@@ -5492,7 +5492,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of terminal links for the given line.
 		 */
-		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Handle an activated terminal link.
