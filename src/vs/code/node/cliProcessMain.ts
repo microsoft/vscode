@@ -5,6 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { raceTimeout } from 'vs/base/common/async';
+import * as semver from 'vs/base/common/semver/semver';
 import product from 'vs/platform/product/common/product';
 import * as path from 'vs/base/common/path';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -273,8 +274,6 @@ export class Main {
 		if (!manifest) {
 			throw new Error('Invalid vsix');
 		}
-
-		const semver = await import('semver-umd');
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);

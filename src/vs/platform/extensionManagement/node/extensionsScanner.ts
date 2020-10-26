@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
