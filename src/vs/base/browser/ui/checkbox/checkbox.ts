@@ -230,6 +230,14 @@ export class SimpleCheckbox extends Widget {
 		this.applyStyles();
 	}
 
+	focus(): void {
+		this.domNode.focus();
+	}
+
+	hasFocus(): boolean {
+		return this.domNode === document.activeElement;
+	}
+
 	style(styles: ISimpleCheckboxStyles): void {
 		this.styles = styles;
 
