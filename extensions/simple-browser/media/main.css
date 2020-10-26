@@ -106,6 +106,8 @@ iframe {
 
 	font-size: 8px;
 	font-family: monospace;
+	user-select: none;
+	pointer-events: none;
 }
 
 .iframe-focused .iframe-focused-alert {
