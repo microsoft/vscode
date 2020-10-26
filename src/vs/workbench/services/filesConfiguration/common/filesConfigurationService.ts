@@ -8,7 +8,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
@@ -182,34 +182,17 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		};
 	}
 
-	private deriveConfigurationTarget(configurationValue: IConfigurationValue<unknown>): ConfigurationTarget {
-		if (configurationValue.workspaceFolderValue !== undefined) {
-			return ConfigurationTarget.WORKSPACE_FOLDER;
-		}
-		if (configurationValue.workspaceValue !== undefined) {
-			return ConfigurationTarget.WORKSPACE;
-		}
-		if (configurationValue.userRemoteValue !== undefined) {
-			return ConfigurationTarget.USER_REMOTE;
-		}
-		return ConfigurationTarget.USER_LOCAL;
-	}
-
 	async toggleAutoSave(): Promise<void> {
 		const setting = this.configurationService.inspect('files.autoSave');
-		let configurationTarget = this.deriveConfigurationTarget(setting);
-		let currentAutoSaveConfig = (configurationTarget === ConfigurationTarget.USER_LOCAL)
-			? (setting.userLocalValue ?? setting.defaultValue)
-			: setting.value;
 
 		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === currentAutoSaveConfig)) {
+		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === setting.value)) {
 			newAutoSaveValue = AutoSaveConfiguration.OFF;
 		} else {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue, configurationTarget);
+		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
 	}
 
 	get isHotExitEnabled(): boolean {
