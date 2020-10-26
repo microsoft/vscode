@@ -183,10 +183,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	async toggleAutoSave(): Promise<void> {
-		const setting = this.configurationService.inspect('files.autoSave');
+		const currentSetting = this.configurationService.getValue('files.autoSave');
 
 		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === setting.value)) {
+		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(setting => setting === currentSetting)) {
 			newAutoSaveValue = AutoSaveConfiguration.OFF;
 		} else {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
