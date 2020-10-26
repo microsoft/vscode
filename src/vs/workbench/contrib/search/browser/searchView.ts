@@ -890,18 +890,24 @@ export class SearchView extends ViewPane {
 	}
 
 	updateTextFromFindWidgetOrSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
-		return this.updateTextFromFindWidget({ allowSearchOnType }) || this.updateTextFromSelection({ allowUnselectedWord, allowSearchOnType });
+		const activeEditor = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(activeEditor)) {
+			const controller = CommonFindController.get(activeEditor as ICodeEditor);
+			if (controller.isFindInputFocused()) {
+				return this.updateTextFromFindWidget(controller, { allowSearchOnType });
+			}
+		}
+
+		return this.updateTextFromSelection({ allowUnselectedWord, allowSearchOnType });
 	}
 
-	private updateTextFromFindWidget({ allowSearchOnType = true }): boolean {
-		const activeEditor = this.editorService.activeTextEditorControl;
-		if (!isCodeEditor(activeEditor)) {
+	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
+		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
 			return false;
 		}
 
-		const controller = CommonFindController.get(activeEditor as ICodeEditor);
 		const searchString = controller.getState().searchString;
-		if (searchString === '' || !controller.isFindInputFocused()) {
+		if (searchString === '') {
 			return false;
 		}
 
