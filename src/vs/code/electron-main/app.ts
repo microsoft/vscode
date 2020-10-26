@@ -34,6 +34,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
+import { ProxyAuthHandler2 } from 'vs/code/electron-main/auth2';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
@@ -110,56 +111,6 @@ export class CodeApplication extends Disposable {
 
 		// Dispose on shutdown
 		this.lifecycleMainService.onWillShutdown(() => this.dispose());
-
-		// Login handler for proxy support
-		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') === true) {
-			let handledProxyLogins = 0;
-			app.on('login', (event, webContents, req, authInfo, cb) => {
-				if (!authInfo.isProxy) {
-					return; // only for proxy
-				}
-
-				this.logService.trace('app#login (proxy) - enter');
-
-				if (!this.windowsMainService) {
-					this.logService.trace('app#login (proxy) - exit - too early to handle');
-					return; // too early to handle
-				}
-
-				// Find suitable window to show dialog
-				const window = this.windowsMainService.getWindowByWebContents(webContents) || this.windowsMainService.getLastActiveWindow();
-				if (!window) {
-					this.logService.trace('app#login (proxy) - exit - no opened window found');
-					return; // unexpected
-				}
-
-				// Limit logins to 1 per session to avoid duplicate login prompts
-				handledProxyLogins++;
-				if (handledProxyLogins > 1) {
-					return; // only once
-				}
-
-				// Signal we handle this on our own
-				event.preventDefault();
-
-				// Open proxy dialog
-				this.logService.trace(`app#login (proxy) - asking window ${window.id} to handle proxy login`);
-				const payload = { authInfo, replyChannel: `vscode:proxyAuthResponse:${generateUuid()}` };
-				window.sendWhenReady('vscode:openProxyAuthDialog', payload);
-
-				// Handle reply
-				const proxyAuthResponseHandler = (event: Event, channel: string, credentials: { username: string, password: string }) => {
-					if (channel === payload.replyChannel) {
-						this.logService.trace(`app#login (proxy) - exit - received credentials from window ${window.id}`);
-						webContents.off('ipc-message', proxyAuthResponseHandler);
-
-						cb(credentials.username, credentials.password);
-					}
-				};
-
-				webContents.on('ipc-message', proxyAuthResponseHandler);
-			});
-		}
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();
@@ -440,6 +391,8 @@ export class CodeApplication extends Disposable {
 		// Setup Auth Handler
 		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') !== true) {
 			this._register(new ProxyAuthHandler());
+		} else {
+			this._register(appInstantiationService.createInstance(ProxyAuthHandler2));
 		}
 
 		// Open Windows

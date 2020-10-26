@@ -43,7 +43,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
 import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
@@ -67,6 +67,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 export class NativeWindow extends Disposable {
+
+	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -110,7 +112,8 @@ export class NativeWindow extends Disposable {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -203,24 +206,40 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Proxy Login Dialog
-		ipcRenderer.on('vscode:openProxyAuthDialog', async (event: unknown, payload: { authInfo: AuthInfo, replyChannel: string }) => {
+		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
+			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
 			const result = await this.dialogService.input('question', nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
 					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
 					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
 				],
 				[
-					{ placeholder: nls.localize('username', "Username") },
-					{ placeholder: nls.localize('password', "Password"), type: 'password' }
+					{ placeholder: nls.localize('username', "Username"), value: payload.username },
+					{ placeholder: nls.localize('password', "Password"), type: 'password', value: payload.password }
 				],
 				{
 					cancelId: 1,
-					detail: nls.localize('proxyDetail', "The proxy {0} requires a userame and password.", `${payload.authInfo.host}:${payload.authInfo.port}`)
+					detail: nls.localize('proxyDetail', "The proxy {0} requires a userame and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					checkbox: {
+						label: nls.localize('rememberCredentials', "Remember my credentials"),
+						checked: rememberCredentials
+					}
 				});
 
-			if (result.choice !== 1 && result.values) {
-				ipcRenderer.send(payload.replyChannel, { username: result.values[0], password: result.values[1] });
+			if (result.choice !== 0 || !result.values) {
+				return; // dialog canceled
 			}
+
+			// Update state based on checkbox
+			if (result.checkboxChecked) {
+				this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL);
+			} else {
+				this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+			}
+
+			// Reply back to main side with credentials
+			const [username, password] = result.values;
+			ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
 		});
 
 		// Accessibility support changed event
