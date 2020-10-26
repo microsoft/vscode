@@ -59,6 +59,7 @@ export interface ITerminalTab {
 	onDisposed: Event<ITerminalTab>;
 	onInstancesChanged: Event<void>;
 
+	setWillFocus(focus: boolean): void;
 	focusPreviousPane(): void;
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
