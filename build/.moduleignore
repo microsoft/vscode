@@ -1,0 +1,38 @@
+
+# additional cleanup rules for node modules, .gitignore style
+
+**/docs/**
+**/example/**
+**/examples/**
+**/test/**
+**/tests/**
+
+**/History.md
+**/CHANGELOG.md
+**/README.md
+**/readme.md
+**/readme.markdown
+
+**/*.ts
+!typescript/**/*.d.ts
+
+jschardet/dist/**
+
+es6-promise/lib/**
+
+vscode-textmate/webpack.config.js
+
+zone.js/dist/**
+!zone.js/dist/zone-node.js
+
+# https://github.com/xtermjs/xterm.js/issues/3137
+xterm/src/**
+xterm/tsconfig.all.json
+
+# https://github.com/xtermjs/xterm.js/issues/3138
+xterm-addon-*/src/**
+xterm-addon-*/fixtures/**
+xterm-addon-*/out/**
+xterm-addon-*/out-test/**
+
+

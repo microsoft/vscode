@@ -25,36 +25,7 @@ export const uriHandler = new UriEventHandler;
 
 const onDidManuallyProvideToken = new vscode.EventEmitter<string>();
 
-const exchangeCodeForToken: (state: string) => PromiseAdapter<vscode.Uri, string> =
-	(state) => async (uri, resolve, reject) => {
-		Logger.info('Exchanging code for token...');
-		const query = parseQuery(uri);
-		const code = query.code;
 
-		if (query.state !== state) {
-			reject('Received mismatched state');
-			return;
-		}
-
-		try {
-			const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${state}`, {
-				method: 'POST',
-				headers: {
-					Accept: 'application/json'
-				}
-			});
-
-			if (result.ok) {
-				const json = await result.json();
-				Logger.info('Token exchange success!');
-				resolve(json.access_token);
-			} else {
-				reject(result.statusText);
-			}
-		} catch (ex) {
-			reject(ex);
-		}
-	};
 
 function parseQuery(uri: vscode.Uri) {
 	return uri.query.split('&').reduce((prev: any, current) => {
@@ -66,6 +37,9 @@ function parseQuery(uri: vscode.Uri) {
 
 export class GitHubServer {
 	private _statusBarItem: vscode.StatusBarItem | undefined;
+
+	private _pendingStates = new Map<string, string[]>();
+	private _codeExchangePromises = new Map<string, Promise<string>>();
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
 		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
@@ -81,20 +55,72 @@ export class GitHubServer {
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
+
+			const tokenScopes = await this.getScopes(token);
+			const scopesList = scopes.split(' ');
+			if (!scopesList.every(scope => tokenScopes.includes(scope))) {
+				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+			}
+
 			this.updateStatusBarItem(false);
 			return token;
 		} else {
+			const existingStates = this._pendingStates.get(scopes) || [];
+			this._pendingStates.set(scopes, [...existingStates, state]);
+
 			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
 			await vscode.env.openExternal(uri);
 		}
 
+		// Register a single listener for the URI callback, in case the user starts the login process multiple times
+		// before completing it.
+		let existingPromise = this._codeExchangePromises.get(scopes);
+		if (!existingPromise) {
+			existingPromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
+			this._codeExchangePromises.set(scopes, existingPromise);
+		}
+
 		return Promise.race([
-			promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)),
+			existingPromise,
 			promiseFromEvent<string, string>(onDidManuallyProvideToken.event)
 		]).finally(() => {
+			this._pendingStates.delete(scopes);
+			this._codeExchangePromises.delete(scopes);
 			this.updateStatusBarItem(false);
 		});
 	}
+
+	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
+		(scopes) => async (uri, resolve, reject) => {
+			Logger.info('Exchanging code for token...');
+			const query = parseQuery(uri);
+			const code = query.code;
+
+			const acceptedStates = this._pendingStates.get(scopes) || [];
+			if (!acceptedStates.includes(query.state)) {
+				reject('Received mismatched state');
+				return;
+			}
+
+			try {
+				const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
+					method: 'POST',
+					headers: {
+						Accept: 'application/json'
+					}
+				});
+
+				if (result.ok) {
+					const json = await result.json();
+					Logger.info('Token exchange success!');
+					resolve(json.access_token);
+				} else {
+					reject(result.statusText);
+				}
+			} catch (ex) {
+				reject(ex);
+			}
+		};
 
 	private updateStatusBarItem(isStart?: boolean) {
 		if (isStart && !this._statusBarItem) {
@@ -121,6 +147,29 @@ export class GitHubServer {
 			// If it doesn't look like a URI, treat it as a token.
 			Logger.info('Treating input as token');
 			onDidManuallyProvideToken.fire(uriOrToken);
+		}
+	}
+
+	private async getScopes(token: string): Promise<string[]> {
+		try {
+			Logger.info('Getting token scopes...');
+			const result = await fetch('https://api.github.com', {
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (result.ok) {
+				const scopes = result.headers.get('X-OAuth-Scopes');
+				return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
+			} else {
+				Logger.error(`Getting scopes failed: ${result.statusText}`);
+				throw new Error(result.statusText);
+			}
+		} catch (ex) {
+			Logger.error(ex.message);
+			throw new Error(NETWORK_ERROR);
 		}
 	}
 

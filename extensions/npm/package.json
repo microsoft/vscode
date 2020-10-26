@@ -18,10 +18,13 @@
     "watch": "gulp watch-extension:npm"
   },
   "dependencies": {
+    "find-up": "^4.1.0",
+    "find-yarn-workspace-root2": "^1.2.22",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
     "request-light": "^0.4.0",
-    "vscode-nls": "^4.1.1"
+    "vscode-nls": "^4.1.1",
+    "which-pm": "^2.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
@@ -92,6 +95,10 @@
       {
         "command": "npm.runScriptFromFolder",
         "title": "%command.runScriptFromFolder%"
+      },
+      {
+        "command": "npm.packageManager",
+        "title": "%command.packageManager"
       }
     ],
     "menus": {
@@ -122,6 +129,10 @@
         },
         {
           "command": "npm.runScriptFromFolder",
+          "when": "false"
+        },
+        {
+          "command": "npm.packageManager",
           "when": "false"
         }
       ],
@@ -209,11 +220,12 @@
           "scope": "resource",
           "type": "string",
           "enum": [
+            "auto",
             "npm",
             "yarn",
             "pnpm"
           ],
-          "default": "npm",
+          "default": "auto",
           "description": "%config.npm.packageManager%"
         },
         "npm.exclude": {

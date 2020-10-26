@@ -16,7 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 	const loginService = new GitHubAuthenticationProvider();
 
-	await loginService.initialize();
+	await loginService.initialize(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('github.provide-token', () => {
 		return loginService.manuallyProvideToken();

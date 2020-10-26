@@ -40,6 +40,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { flatten } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -78,6 +79,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IHistoryService private readonly historyService: IHistoryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
@@ -491,7 +493,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return undefined;
 		}
 
-		return this.launches.find(l => l.workspace && l.workspace.uri.toString() === workspaceUri.toString());
+		return this.launches.find(l => l.workspace && this.uriIdentityService.extUri.isEqual(l.workspace.uri, workspaceUri));
 	}
 
 	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, config: IConfig | undefined, type: string | undefined } {
@@ -699,8 +701,17 @@ abstract class AbstractLaunch {
 		if (!config || !config.configurations) {
 			return undefined;
 		}
-
-		return config.configurations.find(config => config && config.name === name);
+		const configuration = config.configurations.find(config => config && config.name === name);
+		if (configuration) {
+			if (this instanceof UserLaunch) {
+				configuration.__configurationTarget = ConfigurationTarget.USER;
+			} else if (this instanceof WorkspaceLaunch) {
+				configuration.__configurationTarget = ConfigurationTarget.WORKSPACE;
+			} else {
+				configuration.__configurationTarget = ConfigurationTarget.WORKSPACE_FOLDER;
+			}
+		}
+		return configuration;
 	}
 
 	async getInitialConfigurationContent(folderUri?: uri, type?: string, token?: CancellationToken): Promise<string> {

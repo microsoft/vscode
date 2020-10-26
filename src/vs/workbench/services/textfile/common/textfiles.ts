@@ -266,6 +266,13 @@ export interface ITextFileEditorModelLoadOrCreateOptions {
 	encoding?: string;
 
 	/**
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
+	 */
+	contents?: ITextBufferFactory;
+
+	/**
 	 * If the model was already loaded before, allows to trigger
 	 * a reload of it to fetch the latest contents:
 	 * - async: resolve() will return immediately and trigger
@@ -395,6 +402,13 @@ export interface ITextFileSaveAsOptions extends ITextFileSaveOptions {
 }
 
 export interface ITextFileLoadOptions {
+
+	/**
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
+	 */
+	contents?: ITextBufferFactory;
 
 	/**
 	 * Go to disk bypassing any cache of the model if any.

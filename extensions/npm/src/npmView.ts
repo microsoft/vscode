@@ -181,7 +181,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, undefined, []);
+		let task = await createTask('install', 'install', selection.folder.workspaceFolder, uri, undefined, []);
 		tasks.executeTask(task);
 	}
 

@@ -99,6 +99,20 @@ class MergeItem implements QuickPickItem {
 	}
 }
 
+class RebaseItem implements QuickPickItem {
+
+	get label(): string { return this.ref.name || ''; }
+	description: string = '';
+
+	constructor(readonly ref: Ref) { }
+
+	async run(repository: Repository): Promise<void> {
+		if (this.ref?.name) {
+			await repository.rebase(this.ref.name);
+		}
+	}
+}
+
 class CreateBranchItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
@@ -458,8 +472,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -515,7 +528,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, parentPath!, progress, token)
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
 
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
@@ -570,6 +583,16 @@ export class CommandCenter {
 
 			throw err;
 		}
+	}
+
+	@command('git.clone')
+	async clone(url?: string, parentPath?: string): Promise<void> {
+		this.cloneRepository(url, parentPath);
+	}
+
+	@command('git.cloneRecursive')
+	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
+		this.cloneRepository(url, parentPath, { recursive: true });
 	}
 
 	@command('git.init')
@@ -1198,7 +1221,7 @@ export class CommandCenter {
 
 		if (scmResources.length === 1) {
 			if (untrackedCount > 0) {
-				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(scmResources[0].resourceUri.fsPath));
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
 				if (scmResources[0].type === Status.DELETED) {
@@ -1303,7 +1326,7 @@ export class CommandCenter {
 	private async _cleanTrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
 		const message = resources.length === 1
 			? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
-			: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
+			: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.", resources.length);
 		const yes = resources.length === 1
 			? localize('discardAll multiple', "Discard 1 File")
 			: localize('discardAll', "Discard All {0} Files", resources.length);
@@ -1317,7 +1340,7 @@ export class CommandCenter {
 	}
 
 	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
-		const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST.", path.basename(resource.resourceUri.fsPath));
+		const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.", path.basename(resource.resourceUri.fsPath));
 		const yes = localize('delete file', "Delete file");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -1329,7 +1352,7 @@ export class CommandCenter {
 	}
 
 	private async _cleanUntrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
-		const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
+		const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.", resources.length);
 		const yes = localize('delete files', "Delete Files");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -1840,6 +1863,44 @@ export class CommandCenter {
 		const picks = [...heads, ...remoteHeads];
 		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
 		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await choice.run(repository);
+	}
+
+	@command('git.rebase', { repository: true })
+	async rebase(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType') || 'all';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
+			.filter(ref => ref.name !== repository.HEAD?.name)
+			.filter(ref => ref.name || ref.commit);
+
+		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.filter(ref => ref.name || ref.commit);
+
+		const picks = [...heads, ...remoteHeads]
+			.map(ref => new RebaseItem(ref));
+
+		// set upstream branch as first
+		if (repository.HEAD?.upstream) {
+			const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
+			const index = picks.findIndex(e => e.ref.name === upstreamName);
+
+			if (index > -1) {
+				const [ref] = picks.splice(index, 1);
+				ref.description = '(upstream)';
+				picks.unshift(ref);
+			}
+		}
+
+		const placeHolder = localize('select a branch to rebase onto', 'Select a branch to rebase onto');
+		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
 
 		if (!choice) {
 			return;
@@ -2498,7 +2559,11 @@ export class CommandCenter {
 
 	@command('git.rebaseAbort', { repository: true })
 	async rebaseAbort(repository: Repository): Promise<void> {
-		await repository.rebaseAbort();
+		if (repository.rebaseCommit) {
+			await repository.rebaseAbort();
+		} else {
+			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
+		}
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {

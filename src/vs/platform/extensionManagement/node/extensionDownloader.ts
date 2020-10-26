@@ -12,7 +12,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 
 const ExtensionIdVersionRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/;
 
@@ -67,7 +67,7 @@ export class ExtensionsDownloader extends Disposable {
 						all.push([extension, stat]);
 					}
 				}
-				const byExtension = groupByExtension(all, ([extension]) => extension.identifier);
+				const byExtension = groupByExtension(all, ([extension]) => extension);
 				const distinct: IFileStatWithMetadata[] = [];
 				for (const p of byExtension) {
 					p.sort((a, b) => semver.rcompare(a[0].version, b[0].version));

@@ -15,7 +15,6 @@ import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/brow
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
@@ -40,6 +39,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
 	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
+
+	private readonly _onConfigChanged = new Emitter<void>();
+	public get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
 	public constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -72,6 +74,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
 
 		this.config = configValues;
+		this._onConfigChanged.fire();
 	}
 
 	public configFontIsMonospace(): boolean {
@@ -341,7 +344,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	}
 
 	private async isExtensionInstalled(id: string): Promise<boolean> {
-		const extensions = await this._extensionManagementService.getInstalled(ExtensionType.User);
+		const extensions = await this._extensionManagementService.getInstalled();
 		return extensions.some(e => e.identifier.id === id);
 	}
 

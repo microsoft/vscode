@@ -20,12 +20,12 @@ export class BrowserPathService extends AbstractPathService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
-		super(URI.from({ scheme: defaultUriScheme(environmentService, contextService), authority: environmentService.configuration.remoteAuthority, path: '/' }), remoteAgentService);
+		super(URI.from({ scheme: defaultUriScheme(environmentService, contextService), authority: environmentService.remoteAuthority, path: '/' }), remoteAgentService);
 	}
 }
 
 function defaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
-	if (environmentService.configuration.remoteAuthority) {
+	if (environmentService.remoteAuthority) {
 		return Schemas.vscodeRemote;
 	}
 

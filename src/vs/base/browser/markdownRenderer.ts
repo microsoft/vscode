@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import * as marked from 'vs/base/common/marked/marked';
-import { insane } from 'vs/base/common/insane/insane';
+import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
@@ -19,19 +19,30 @@ import { markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
 import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderCodicons } from 'vs/base/browser/codicons';
+import { Event } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
-	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
 	codeBlockRenderCallback?: () => void;
 	baseUrl?: URI;
 }
 
+const _ttpInsane = window.trustedTypes?.createPolicy('insane', {
+	createHTML(value, options: InsaneOptions): string {
+		return insane(value, options);
+	}
+});
+
 /**
- * Create html nodes for the given content element.
+ * Low-level way create a html element from a markdown string.
+ *
+ * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/browser/core/markdownRenderer.ts)
+ * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
 export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): HTMLElement {
 	const element = createElement(options);
@@ -158,12 +169,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
 			const promise = Promise.all([value, withInnerHTML]).then(values => {
-				const strValue = values[0];
-				const span = element.querySelector(`div[data-code="${id}"]`);
+				const span = <HTMLDivElement>element.querySelector(`div[data-code="${id}"]`);
 				if (span) {
-					span.innerHTML = strValue;
+					DOM.reset(span, values[0]);
 				}
-			}).catch(err => {
+			}).catch(_err => {
 				// ignore
 			});
 
@@ -175,34 +185,31 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		};
 	}
 
-	const actionHandler = options.actionHandler;
-	if (actionHandler) {
-		[DOM.EventType.CLICK, DOM.EventType.AUXCLICK].forEach(event => {
-			actionHandler.disposeables.add(DOM.addDisposableListener(element, event, (e: MouseEvent) => {
-				const mouseEvent = new StandardMouseEvent(e);
-				if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
+	if (options.actionHandler) {
+		options.actionHandler.disposeables.add(Event.any<MouseEvent>(domEvent(element, 'click'), domEvent(element, 'auxclick'))(e => {
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
+				return;
+			}
+
+			let target: HTMLElement | null = mouseEvent.target;
+			if (target.tagName !== 'A') {
+				target = target.parentElement;
+				if (!target || target.tagName !== 'A') {
 					return;
 				}
-
-				let target: HTMLElement | null = mouseEvent.target;
-				if (target.tagName !== 'A') {
-					target = target.parentElement;
-					if (!target || target.tagName !== 'A') {
-						return;
-					}
+			}
+			try {
+				const href = target.dataset['href'];
+				if (href) {
+					options.actionHandler!.callback(href, mouseEvent);
 				}
-				try {
-					const href = target.dataset['href'];
-					if (href) {
-						actionHandler.callback(href, mouseEvent);
-					}
-				} catch (err) {
-					onUnexpectedError(err);
-				} finally {
-					mouseEvent.preventDefault();
-				}
-			}));
-		});
+			} catch (err) {
+				onUnexpectedError(err);
+			} finally {
+				mouseEvent.preventDefault();
+			}
+		}));
 	}
 
 	// Use our own sanitizer so that we can let through only spans.
@@ -215,35 +222,55 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	markedOptions.sanitize = true;
 	markedOptions.renderer = renderer;
 
-	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeRemoteResource];
-	if (markdown.isTrusted) {
-		allowedSchemes.push(Schemas.command);
-	}
-
 	// values that are too long will freeze the UI
 	let value = markdown.value ?? '';
 	if (value.length > 100_000) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
-	const renderedMarkdown = marked.parse(
-		markdown.supportThemeIcons ? markdownEscapeEscapedCodicons(value) : value,
-		markedOptions
-	);
-
-	function filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
-		if (token.tag === 'span' && markdown.isTrusted && (Object.keys(token.attrs).length === 1)) {
-			if (token.attrs['style']) {
-				return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
-			} else if (token.attrs['class']) {
-				// The class should match codicon rendering in src\vs\base\common\codicons.ts
-				return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
-			}
-			return false;
-		}
-		return true;
+	// escape theme icons
+	if (markdown.supportThemeIcons) {
+		value = markdownEscapeEscapedCodicons(value);
 	}
 
-	element.innerHTML = insane(renderedMarkdown, {
+	const renderedMarkdown = marked.parse(value, markedOptions);
+
+	// sanitize with insane
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown);
+
+	// signal that async code blocks can be now be inserted
+	signalInnerHTML!();
+
+	return element;
+}
+
+function sanitizeRenderedMarkdown(
+	options: { isTrusted?: boolean },
+	renderedMarkdown: string,
+): string {
+	const insaneOptions = getInsaneOptions(options);
+	if (_ttpInsane) {
+		return _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
+	} else {
+		return insane(renderedMarkdown, insaneOptions);
+	}
+}
+
+function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOptions {
+	const allowedSchemes = [
+		Schemas.http,
+		Schemas.https,
+		Schemas.mailto,
+		Schemas.data,
+		Schemas.file,
+		Schemas.vscodeRemote,
+		Schemas.vscodeRemoteResource,
+	];
+
+	if (options.isTrusted) {
+		allowedSchemes.push(Schemas.command);
+	}
+
+	return {
 		allowedSchemes,
 		// allowedTags should included everything that markdown renders to.
 		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
@@ -259,10 +286,18 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			'th': ['align'],
 			'td': ['align']
 		},
-		filter
-	});
-
-	signalInnerHTML!();
-
-	return element;
+		filter(token: { tag: string; attrs: { readonly [key: string]: string; }; }): boolean {
+			if (token.tag === 'span' && options.isTrusted && (Object.keys(token.attrs).length === 1)) {
+				if (token.attrs['style']) {
+					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
+				} else if (token.attrs['class']) {
+					// The class should match codicon rendering in src\vs\base\common\codicons.ts
+					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
+				}
+				return false;
+			}
+			return true;
+		}
+	};
 }
+

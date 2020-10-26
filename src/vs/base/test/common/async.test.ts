@@ -708,12 +708,12 @@ suite('Async', () => {
 	});
 
 	test('IntervalCounter', async () => {
-		const counter = new async.IntervalCounter(0);
+		const counter = new async.IntervalCounter(10);
 		assert.equal(counter.increment(), 1);
 		assert.equal(counter.increment(), 2);
 		assert.equal(counter.increment(), 3);
 
-		await async.timeout(1);
+		await async.timeout(20);
 
 		assert.equal(counter.increment(), 1);
 		assert.equal(counter.increment(), 2);

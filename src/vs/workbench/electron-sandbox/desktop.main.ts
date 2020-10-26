@@ -29,7 +29,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
@@ -52,27 +52,27 @@ class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		importEntries(this.environmentService.configuration.perfEntries);
+		importEntries(this.configuration.perfEntries);
 
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 		setZoomLevel(zoomLevel, true /* isTrusted */);
-		setFullscreen(!!this.environmentService.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen);
 	}
 
 	private reviveUris() {
-		if (this.environmentService.configuration.folderUri) {
-			this.environmentService.configuration.folderUri = URI.revive(this.environmentService.configuration.folderUri);
+		if (this.configuration.folderUri) {
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
 
-		if (this.environmentService.configuration.workspace) {
-			this.environmentService.configuration.workspace = reviveWorkspaceIdentifier(this.environmentService.configuration.workspace);
+		if (this.configuration.workspace) {
+			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
-		const filesToWait = this.environmentService.configuration.filesToWait;
+		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
-		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
+		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
@@ -106,7 +106,7 @@ class DesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
+		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
 	private registerListeners(workbench: Workbench, storageService: SimpleStorageService): void {

@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -112,14 +112,12 @@ namespace snippetExt {
 	});
 }
 
-function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
+function watch(service: IFileService, resource: URI, callback: () => any): IDisposable {
 	return combinedDisposable(
 		service.watch(resource),
 		service.onDidFilesChange(e => {
-			for (const change of e.changes) {
-				if (resources.isEqualOrParent(change.resource, resource)) {
-					callback(change.type, change.resource);
-				}
+			if (e.affects(resource)) {
+				callback();
 			}
 		})
 	);
@@ -295,19 +293,19 @@ class SnippetsService implements ISnippetsService {
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {
 		const disposables = new DisposableStore();
-		const addFolderSnippets = (type?: FileChangeType) => {
+		const addFolderSnippets = async () => {
 			disposables.clear();
-
-			if (type === FileChangeType.DELETED) {
-				return Promise.resolve();
+			if (!await this._fileService.exists(folder)) {
+				return;
 			}
-			return this._fileService.resolve(folder).then(stat => {
+			try {
+				const stat = await this._fileService.resolve(folder);
 				for (const entry of stat.children || []) {
 					disposables.add(this._addSnippetFile(entry.resource, source));
 				}
-			}, err => {
+			} catch (err) {
 				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
-			});
+			}
 		};
 
 		bucket.add(watch(this._fileService, folder, addFolderSnippets));

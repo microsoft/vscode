@@ -2729,7 +2729,7 @@ export enum DebugConfigurationProviderTriggerKind {
 @es5ClassCompat
 export class QuickInputButtons {
 
-	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
 }
@@ -2743,7 +2743,7 @@ export class FileDecoration {
 
 	static validate(d: FileDecoration): void {
 		if (d.badge && d.badge.length !== 1) {
-			throw new Error(`The 'letter'-property must be undefined or a single character`);
+			throw new Error(`The 'badge'-property must be undefined or a single character`);
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);

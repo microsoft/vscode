@@ -216,7 +216,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
-		console.log(cellChanges);
 
 		const cellDiffViewModels: CellDiffViewModel[] = [];
 		const originalModel = this._model.original.notebook;

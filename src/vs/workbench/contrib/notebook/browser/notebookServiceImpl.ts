@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import * as UUID from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import * as nls from 'vs/nls';
@@ -349,12 +350,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._register(UndoCommand.addImplementation(PRIORITY, () => {
 			const { editor } = getContext();
 			if (editor?.viewModel) {
-				editor?.viewModel.undo().then(cellResources => {
+				return editor.viewModel.undo().then(cellResources => {
 					if (cellResources?.length) {
 						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
 					}
 				});
-				return true;
 			}
 
 			return false;
@@ -363,12 +363,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._register(RedoCommand.addImplementation(PRIORITY, () => {
 			const { editor } = getContext();
 			if (editor?.viewModel) {
-				editor?.viewModel.redo().then(cellResources => {
+				return editor.viewModel.redo().then(cellResources => {
 					if (cellResources?.length) {
 						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
 					}
 				});
-				return true;
 			}
 
 			return false;
@@ -437,7 +436,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							source: cell.getValue(),
 							language: cell.language,
 							cellKind: cell.cellKind,
-							outputs: cell.outputs,
+							outputs: cell.outputs.map(output => {
+								if (output.outputKind === CellOutputKind.Rich) {
+									return {
+										...output,
+										outputId: UUID.generateUuid()
+									};
+								}
+
+								return output;
+							}),
 							metadata: {
 								editable: cell.metadata?.editable,
 								runnable: cell.metadata?.runnable,
@@ -467,7 +475,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							source: cell.getValue(),
 							language: cell.language,
 							cellKind: cell.cellKind,
-							outputs: cell.outputs,
+							outputs: cell.outputs.map(output => {
+								if (output.outputKind === CellOutputKind.Rich) {
+									return {
+										...output,
+										outputId: UUID.generateUuid()
+									};
+								}
+
+								return output;
+							}),
 							metadata: {
 								editable: cell.metadata?.editable,
 								runnable: cell.metadata?.runnable,
@@ -555,11 +572,15 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	async canResolve(viewType: string): Promise<boolean> {
 		if (!this._notebookProviders.has(viewType)) {
 			await this._extensionService.whenInstalledExtensionsRegistered();
-			// notebook providers/kernels/renderers might use `*` as activation event.
-			// TODO, only activate by `*` if this._notebookProviders.get(viewType).dynamicContribution === true
-			await this._extensionService.activateByEvent(`*`);
 			// this awaits full activation of all matching extensions
 			await this._extensionService.activateByEvent(`onNotebook:${viewType}`);
+			if (this._notebookProviders.has(viewType)) {
+				return true;
+			} else {
+				// notebook providers/kernels/renderers might use `*` as activation event.
+				// TODO, only activate by `*` if this._notebookProviders.get(viewType).dynamicContribution === true
+				await this._extensionService.activateByEvent(`*`);
+			}
 		}
 		return this._notebookProviders.has(viewType);
 	}

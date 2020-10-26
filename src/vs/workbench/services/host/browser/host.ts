@@ -83,5 +83,10 @@ export interface IHostService {
 	 */
 	reload(): Promise<void>;
 
+	/**
+	 * Attempt to close the active window.
+	 */
+	close(): Promise<void>;
+
 	//#endregion
 }

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data:; script-src 'unsafe-eval' 'sha256-O98pkmgtvUCQGVoddaGy891K52PVRnySDRxRszVLPNQ=' http: https:; connect-src http: https:" />
+	</head>
+	<body>
+	<script>
+(function() {
+	const idMatch = document.location.search.match(/\bvscodeWebWorkerExtHostId=([0-9a-f\-]+)/i);
+	const vscodeWebWorkerExtHostId = idMatch ? idMatch[1] : '';
+
+	function sendError(error) {
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			error: {
+				name: error ? error.name : '',
+				message: error ? error.message : '',
+				stack: error ? error.stack : []
+			}
+		}, '*');
+	}
+
+	try {
+		const worker = new Worker('extensionHostWorkerMain.js', { name: 'WorkerExtensionHost' });
+
+		worker.onmessage = (event) => {
+			const { data } = event;
+			if (!(data instanceof MessagePort)) {
+				console.warn('Unknown data received', event);
+				sendError({ name: 'Error', message: 'Unknown data received', stack: [] });
+				return;
+			}
+			window.parent.postMessage({
+				vscodeWebWorkerExtHostId,
+				data: data
+			}, '*', [data]);
+		};
+
+		worker.onerror = (event) => {
+			console.error(event.message, event.error);
+			sendError(event.error);
+		};
+	} catch(err) {
+		console.error(err);
+		sendError(err);
+	}
+})();
+	</script>
+	</body>
+</html>

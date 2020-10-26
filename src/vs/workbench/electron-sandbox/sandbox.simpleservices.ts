@@ -7,7 +7,7 @@
 /* eslint-disable code-import-patterns */
 
 import { ConsoleLogService } from 'vs/platform/log/common/log';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
@@ -59,8 +59,9 @@ import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/in
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 
 //#region Environment
@@ -86,8 +87,14 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
+
+	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
+	updateBackupPath(newPath: string | undefined): void { }
+
+	sessionId = this.configuration.sessionId;
+	machineId = this.configuration.machineId;
+	remoteAuthority = this.configuration.remoteAuthority;
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -99,6 +106,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	keyboardLayoutResource: URI = undefined!;
 	sync: 'on' | 'off' | undefined;
 	debugExtensionHost: IExtensionHostDebugParams = undefined!;
+	debugRenderer = false;
 	isExtensionDevelopment: boolean = false;
 	disableExtensions: boolean | string[] = [];
 	extensionDevelopmentLocationURI?: URI[] | undefined;
@@ -113,15 +121,12 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	appSettingsHome: URI = undefined!;
 	userDataPath: string = undefined!;
 	machineSettingsResource: URI = undefined!;
-	backupHome: string = undefined!;
-	backupWorkspacesPath: string = undefined!;
 
 	log?: string | undefined;
 	extHostLogsPath: URI = undefined!;
 
 	installSourcePath: string = undefined!;
 
-	mainIPCHandle: string = undefined!;
 	sharedIPCHandle: string = undefined!;
 
 	extensionsPath?: string | undefined;
@@ -129,17 +134,16 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	builtinExtensionsPath: string = undefined!;
 
 	driverHandle?: string | undefined;
-	driverVerbose = false;
 
 	crashReporterDirectory?: string | undefined;
 	crashReporterId?: string | undefined;
 
 	nodeCachedDataDir?: string | undefined;
 
-	disableUpdates = false;
-	sandbox = true;
 	verbose = false;
 	isBuilt = false;
+
+	get telemetryLogResource(): URI { return joinPath(this.userRoamingDataHome, 'telemetry.log'); }
 	disableTelemetry = false;
 	v8CacheOptions: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' = 'none';
 }
@@ -709,6 +713,31 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 }
 
 registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
+
+//#endregion
+
+//#region IStorageKeysSyncRegistryService
+
+class SimpleIStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
+
+	declare readonly _serviceBrand: undefined;
+
+	onDidChangeStorageKeys = Event.None;
+
+	storageKeys = [];
+
+	registerStorageKey(): void { }
+
+	onDidChangeExtensionStorageKeys = Event.None;
+
+	extensionsStorageKeys = [];
+
+	getExtensioStorageKeys() { return undefined; }
+
+	registerExtensionStorageKeys(): void { }
+}
+
+registerSingleton(IStorageKeysSyncRegistryService, SimpleIStorageKeysSyncRegistryService);
 
 //#endregion
 

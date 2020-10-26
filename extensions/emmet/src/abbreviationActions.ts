@@ -66,7 +66,7 @@ function doWrapping(individualLines: boolean, args: any) {
 	const helper = getEmmetHelper();
 
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
-	let rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
+	const rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
 			const previousLine = rangeToReplace.end.line - 1;
@@ -88,7 +88,7 @@ function doWrapping(individualLines: boolean, args: any) {
 		rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + extraWhitespaceSelected, rangeToReplace.end.line, rangeToReplace.end.character);
 
 		let textToWrapInPreview: string[];
-		let textToReplace = editor.document.getText(rangeToReplace);
+		const textToReplace = editor.document.getText(rangeToReplace);
 		if (individualLines) {
 			textToWrapInPreview = textToReplace.split('\n').map(x => x.trim());
 		} else {
@@ -144,7 +144,7 @@ function doWrapping(individualLines: boolean, args: any) {
 				const oldPreviewLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
 				const newLinesInserted = expandedTextLines.length - oldPreviewLines;
 
-				let newPreviewLineStart = oldPreviewRange.start.line + totalLinesInserted;
+				const newPreviewLineStart = oldPreviewRange.start.line + totalLinesInserted;
 				let newPreviewStart = oldPreviewRange.start.character;
 				const newPreviewLineEnd = oldPreviewRange.end.line + totalLinesInserted + newLinesInserted;
 				let newPreviewEnd = expandedTextLines[expandedTextLines.length - 1].length;
@@ -177,19 +177,19 @@ function doWrapping(individualLines: boolean, args: any) {
 			return inPreview ? revertPreview().then(() => { return false; }) : Promise.resolve(inPreview);
 		}
 
-		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
+		const extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
 			return Promise.resolve(inPreview);
 		} else if (extractedResults.abbreviation !== inputAbbreviation) {
 			// Not clear what should we do in this case. Warn the user? How?
 		}
 
-		let { abbreviation, filter } = extractedResults;
+		const { abbreviation, filter } = extractedResults;
 		if (definitive) {
 			const revertPromise = inPreview ? revertPreview() : Promise.resolve();
 			return revertPromise.then(() => {
 				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
-					let rangeToReplace = rangesAndContent.originalRange;
+					const rangeToReplace = rangesAndContent.originalRange;
 					let textToWrap: string[];
 					if (individualLines) {
 						textToWrap = rangesAndContent.textToWrapInPreview;
@@ -270,17 +270,17 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		return fallbackTab();
 	}
 
-	let abbreviationList: ExpandAbbreviationInput[] = [];
+	const abbreviationList: ExpandAbbreviationInput[] = [];
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 	const helper = getEmmetHelper();
 
-	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string] => {
+	const getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string] => {
 		position = document.validatePosition(position);
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
-			let extractedResults = helper.extractAbbreviationFromText(abbr);
+			const extractedResults = helper.extractAbbreviationFromText(abbr);
 			if (extractedResults) {
 				return [rangeToReplace, extractedResults.abbreviation, extractedResults.filter];
 			}
@@ -293,23 +293,23 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		// Expand cases like <div to <div></div> explicitly
 		// else we will end up with <<div></div>
 		if (syntax === 'html') {
-			let matches = textTillPosition.match(/<(\w+)$/);
+			const matches = textTillPosition.match(/<(\w+)$/);
 			if (matches) {
 				abbr = matches[1];
 				rangeToReplace = new vscode.Range(position.translate(0, -(abbr.length + 1)), position);
 				return [rangeToReplace, abbr, ''];
 			}
 		}
-		let extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, false);
+		const extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, { lookAhead: false });
 		if (!extractedResults) {
 			return [null, '', ''];
 		}
 
-		let { abbreviationRange, abbreviation, filter } = extractedResults;
+		const { abbreviationRange, abbreviation, filter } = extractedResults;
 		return [new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character), abbreviation, filter];
 	};
 
-	let selectionsInReverseOrder = editor.selections.slice(0);
+	const selectionsInReverseOrder = editor.selections.slice(0);
 	selectionsInReverseOrder.sort((a, b) => {
 		const posA = a.isReversed ? a.anchor : a.active;
 		const posB = b.isReversed ? b.anchor : b.active;
@@ -322,7 +322,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 			return rootNode;
 		}
 
-		let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
+		const usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
 		if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && usePartialParsing && editor.document.lineCount > 1000) {
 			rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
 		} else {
@@ -333,8 +333,8 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	}
 
 	selectionsInReverseOrder.forEach(selection => {
-		let position = selection.isReversed ? selection.anchor : selection.active;
-		let [rangeToReplace, abbreviation, filter] = getAbbreviation(editor.document, selection, position, syntax);
+		const position = selection.isReversed ? selection.anchor : selection.active;
+		const [rangeToReplace, abbreviation, filter] = getAbbreviation(editor.document, selection, position, syntax);
 		if (!rangeToReplace) {
 			return;
 		}
@@ -578,7 +578,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// Snippet to replace at multiple cursors are not the same
 	// `editor.insertSnippet` will have to be called for each instance separately
 	// We will not be able to maintain multiple cursors after snippet insertion
-	let insertPromises: Thenable<boolean>[] = [];
+	const insertPromises: Thenable<boolean>[] = [];
 	if (!insertSameSnippet) {
 		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); }).forEach((expandAbbrInput: ExpandAbbreviationInput) => {
 			let expandedText = expandAbbr(expandAbbrInput);
@@ -596,8 +596,8 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// We can pass all ranges to `editor.insertSnippet` in a single call so that
 	// all cursors are maintained after snippet insertion
 	const anyExpandAbbrInput = expandAbbrList[0];
-	let expandedText = expandAbbr(anyExpandAbbrInput);
-	let allRanges = expandAbbrList.map(value => {
+	const expandedText = expandAbbr(anyExpandAbbrInput);
+	const allRanges = expandAbbrList.map(value => {
 		return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
 	});
 	if (expandedText) {
@@ -614,7 +614,7 @@ function walk(root: any, fn: ((node: any) => boolean)): boolean {
 	let ctx = root;
 	while (ctx) {
 
-		let next = ctx.next;
+		const next = ctx.next;
 		if (fn(ctx) === false || walk(ctx.firstChild, fn) === false) {
 			return false;
 		}
@@ -653,7 +653,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		// Expand the abbreviation
 
 		if (input.textToWrap) {
-			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
+			const parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
 			if (input.rangeToReplace.isSingleLine && input.textToWrap.length === 1) {
 
 				// Fetch rightmost element in the parsed abbreviation (i.e the element that will contain the wrapped text).

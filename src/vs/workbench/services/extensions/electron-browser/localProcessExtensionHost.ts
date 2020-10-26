@@ -20,10 +20,10 @@ import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteCo
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -283,7 +283,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: any;
-				if (!this._environmentService.isBuilt && !this._environmentService.configuration.remoteAuthority || this._isExtensionDevHost) {
+				if (!this._environmentService.isBuilt && !this._environmentService.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
 						const msg = this._isExtensionDevDebugBrk
 							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
@@ -315,7 +315,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	 */
 	private _tryListenOnPipe(): Promise<string> {
 		return new Promise<string>((resolve, reject) => {
-			const pipeName = generateRandomPipeName();
+			const pipeName = createRandomIPCHandle();
 
 			this._namedPipeServer = createServer();
 			this._namedPipeServer.on('error', reject);
@@ -471,7 +471,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
 			},
 			remote: {
-				authority: this._environmentService.configuration.remoteAuthority,
+				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
 				isRemote: false
 			},

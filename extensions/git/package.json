@@ -22,6 +22,7 @@
   "scripts": {
     "compile": "gulp compile-extension:git",
     "watch": "gulp watch-extension:git",
+    "update-emoji": "node ./build/update-emoji.js",
     "update-grammar": "node ./build/update-grammars.js",
     "test": "mocha"
   },
@@ -35,6 +36,11 @@
       {
         "command": "git.clone",
         "title": "%command.clone%",
+        "category": "Git"
+      },
+      {
+        "command": "git.cloneRecursive",
+        "title": "%command.cloneRecursive%",
         "category": "Git"
       },
       {
@@ -298,6 +304,11 @@
         "category": "Git"
       },
       {
+        "command": "git.rebase",
+        "title": "%command.rebase%",
+        "category": "Git"
+      },
+      {
         "command": "git.createTag",
         "title": "%command.createTag%",
         "category": "Git"
@@ -495,6 +506,10 @@
           "when": "config.git.enabled && !git.missing"
         },
         {
+          "command": "git.cloneRecursive",
+          "when": "config.git.enabled && !git.missing"
+        },
+        {
           "command": "git.init",
           "when": "config.git.enabled && !git.missing"
         },
@@ -623,6 +638,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.rebaseAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitRebaseInProgress"
+        },
+        {
           "command": "git.commitNoVerify",
           "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
         },
@@ -700,6 +719,10 @@
         },
         {
           "command": "git.merge",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.rebase",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -874,6 +897,11 @@
         {
           "submenu": "git.stash",
           "group": "2_main@6",
+          "when": "scmProvider == git"
+        },
+        {
+          "submenu": "git.tags",
+          "group": "2_main@7",
           "when": "scmProvider == git"
         },
         {
@@ -1433,6 +1461,9 @@
           "command": "git.merge"
         },
         {
+          "command": "git.rebase"
+        },
+        {
           "command": "git.branch"
         },
         {
@@ -1475,6 +1506,16 @@
         {
           "command": "git.stashDrop"
         }
+      ],
+      "git.tags": [
+        {
+          "command": "git.createTag",
+          "group": "1_tags@1"
+        },
+        {
+          "command": "git.deleteTag",
+          "group": "1_tags@2"
+        }
       ]
     },
     "submenus": [
@@ -1501,6 +1542,10 @@
       {
         "id": "git.stash",
         "label": "%submenu.stash%"
+      },
+      {
+        "id": "git.tags",
+        "label": "%submenu.tags%"
       }
     ],
     "configuration": {
@@ -1636,6 +1681,7 @@
             "null"
           ],
           "default": null,
+          "scope": "machine",
           "description": "%config.defaultCloneDirectory%"
         },
         "git.enableSmartCommit": {
@@ -1900,6 +1946,25 @@
         },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+        },
+        "git.timeline.date": {
+          "enum": [
+            "committed",
+            "authored"
+          ],
+          "enumDescriptions": [
+            "%config.timeline.date.committed%",
+            "%config.timeline.date.authored%"
+          ],
+          "default": "committed",
+          "description": "%config.timeline.date%",
+          "scope": "window"
+        },
+        "git.timeline.showAuthor": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.timeline.showAuthor%",
+          "scope": "window"
         }
       }
     },

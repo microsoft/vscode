@@ -16,7 +16,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
@@ -105,14 +105,19 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 //#endregion
 
 //#region Input Factory
-type SerializedSearchEditor = { modelUri: string, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
+type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
+
 class SearchEditorInputFactory implements IEditorInputFactory {
 
 	canSerialize(input: SearchEditorInput) {
-		return !input.isDisposed();
+		return !!input.config;
 	}
 
 	serialize(input: SearchEditorInput) {
+		if (input.isDisposed()) {
+			return JSON.stringify({ modelUri: undefined, dirty: false, config: input.config, name: input.getName(), matchRanges: [], backingUri: input.backingUri?.toString() } as SerializedSearchEditor);
+		}
+
 		let modelUri = undefined;
 		if (input.modelUri.path || input.modelUri.fragment) {
 			modelUri = input.modelUri.toString();
@@ -124,16 +129,27 @@ class SearchEditorInputFactory implements IEditorInputFactory {
 		const matchRanges = input.getMatchRanges();
 		const backingUri = input.backingUri;
 
-		return JSON.stringify({ modelUri: modelUri.toString(), dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } as SerializedSearchEditor);
+		return JSON.stringify({ modelUri, dirty, config, name: input.getName(), matchRanges, backingUri: backingUri?.toString() } as SerializedSearchEditor);
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
 		const { modelUri, dirty, config, matchRanges, backingUri } = JSON.parse(serializedEditorInput) as SerializedSearchEditor;
-		if (config && (config.query !== undefined) && (modelUri !== undefined)) {
-			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config, modelUri: URI.parse(modelUri), backingUri: backingUri ? URI.parse(backingUri) : undefined });
-			input.setDirty(dirty);
-			input.setMatchRanges(matchRanges);
-			return input;
+		if (config && (config.query !== undefined)) {
+			if (modelUri) {
+				const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput,
+					{ config, modelUri: URI.parse(modelUri), backingUri: backingUri ? URI.parse(backingUri) : undefined });
+				input.setDirty(dirty);
+				input.setMatchRanges(matchRanges);
+				return input;
+			} else {
+				if (backingUri) {
+					return instantiationService.invokeFunction(getOrMakeSearchEditorInput,
+						{ config, backingUri: URI.parse(backingUri) });
+				} else {
+					return instantiationService.invokeFunction(getOrMakeSearchEditorInput,
+						{ config, text: '' });
+				}
+			}
 		}
 		return undefined;
 	}
@@ -212,6 +228,37 @@ CommandsRegistry.registerCommand(
 //#region Actions
 const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
 
+export type LegacySearchEditorArgs = Partial<{
+	query: string,
+	includes: string,
+	excludes: string,
+	contextLines: number,
+	wholeWord: boolean,
+	caseSensitive: boolean,
+	regexp: boolean,
+	useIgnores: boolean,
+	showIncludesExcludes: boolean,
+	triggerSearch: boolean,
+	focusResults: boolean,
+	location: 'reuse' | 'new'
+}>;
+
+const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearchEditorArgs = {}): OpenSearchEditorArgs => {
+	const config: OpenSearchEditorArgs = {};
+	const overrides: { [K in keyof LegacySearchEditorArgs]: keyof OpenSearchEditorArgs } = {
+		includes: 'filesToInclude',
+		excludes: 'filesToExclude',
+		wholeWord: 'matchWholeWord',
+		caseSensitive: 'isCaseSensitive',
+		regexp: 'isRegexp',
+		useIgnores: 'useExcludeSettingsAndIgnoreFiles',
+	};
+	Object.entries(legacyConfig).forEach(([key, value]) => {
+		(config as any)[(overrides as any)[key] ?? key] = value;
+	});
+	return config;
+};
+
 export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
@@ -220,13 +267,13 @@ const openArgDescription = {
 		schema: {
 			properties: {
 				query: { type: 'string' },
-				includes: { type: 'string' },
-				excludes: { type: 'string' },
+				filesToInclude: { type: 'string' },
+				filesToExclude: { type: 'string' },
 				contextLines: { type: 'number' },
-				wholeWord: { type: 'boolean' },
-				caseSensitive: { type: 'boolean' },
-				regexp: { type: 'boolean' },
-				useIgnores: { type: 'boolean' },
+				matchWholeWord: { type: 'boolean' },
+				isCaseSensitive: { type: 'boolean' },
+				isRegexp: { type: 'boolean' },
+				useExcludeSettingsAndIgnoreFiles: { type: 'boolean' },
 				showIncludesExcludes: { type: 'boolean' },
 				triggerSearch: { type: 'boolean' },
 				focusResults: { type: 'boolean' },
@@ -269,8 +316,8 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'new' });
+	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig({ ...args, location: 'new' }));
 	}
 });
 
@@ -284,8 +331,8 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'reuse' });
+	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig({ ...args, location: 'reuse' }));
 	}
 });
 
@@ -299,8 +346,8 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args, true);
+	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig(args), true);
 	}
 });
 

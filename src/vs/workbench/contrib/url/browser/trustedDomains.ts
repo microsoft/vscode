@@ -36,10 +36,8 @@ export const manageTrustedDomainSettingsCommand = {
 	}
 };
 
-type ConfigureTrustedDomainChoice = 'trustDomain' | 'trustSubdomain' | 'trustAll' | 'manage';
-interface ConfigureTrustedDomainsQuickPickItem extends IQuickPickItem {
-	id: ConfigureTrustedDomainChoice;
-}
+type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage'; } | { id: 'trust'; toTrust: string });
+
 type ConfigureTrustedDomainsChoiceClassification = {
 	choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
@@ -59,34 +57,54 @@ export async function configureOpenerTrustedDomainsHandler(
 	const toplevelDomainSegements = parsedDomainToConfigure.authority.split('.');
 	const domainEnd = toplevelDomainSegements.slice(toplevelDomainSegements.length - 2).join('.');
 	const topLevelDomain = '*.' + domainEnd;
+	const options: ConfigureTrustedDomainsQuickPickItem[] = [];
 
-	const trustDomainAndOpenLinkItem: ConfigureTrustedDomainsQuickPickItem = {
+	options.push({
 		type: 'item',
 		label: localize('trustedDomain.trustDomain', 'Trust {0}', domainToConfigure),
-		id: 'trustDomain',
+		id: 'trust',
+		toTrust: domainToConfigure,
 		picked: true
-	};
-	const trustSubDomainAndOpenLinkItem: ConfigureTrustedDomainsQuickPickItem = {
-		type: 'item',
-		label: localize('trustedDomain.trustSubDomain', 'Trust {0} and all its subdomains', domainEnd),
-		id: 'trustSubdomain'
-	};
-	const openAllLinksItem: ConfigureTrustedDomainsQuickPickItem = {
+	});
+
+	const isIP =
+		toplevelDomainSegements.length === 4 &&
+		toplevelDomainSegements.every(segment =>
+			Number.isInteger(+segment) || Number.isInteger(+segment.split(':')[0]));
+
+	if (isIP) {
+		if (parsedDomainToConfigure.authority.includes(':')) {
+			const base = parsedDomainToConfigure.authority.split(':')[0];
+			options.push({
+				type: 'item',
+				label: localize('trustedDomain.trustAllPorts', 'Trust {0} on all ports', base),
+				toTrust: base + ':*',
+				id: 'trust'
+			});
+		}
+	} else {
+		options.push({
+			type: 'item',
+			label: localize('trustedDomain.trustSubDomain', 'Trust {0} and all its subdomains', domainEnd),
+			toTrust: topLevelDomain,
+			id: 'trust'
+		});
+	}
+
+	options.push({
 		type: 'item',
 		label: localize('trustedDomain.trustAllDomains', 'Trust all domains (disables link protection)'),
-		id: 'trustAll'
-	};
-	const manageTrustedDomainItem: ConfigureTrustedDomainsQuickPickItem = {
+		toTrust: '*',
+		id: 'trust'
+	});
+	options.push({
 		type: 'item',
 		label: localize('trustedDomain.manageTrustedDomains', 'Manage Trusted Domains'),
 		id: 'manage'
-	};
+	});
 
 	const pickedResult = await quickInputService.pick<ConfigureTrustedDomainsQuickPickItem>(
-		[trustDomainAndOpenLinkItem, trustSubDomainAndOpenLinkItem, openAllLinksItem, manageTrustedDomainItem],
-		{
-			activeItem: trustDomainAndOpenLinkItem
-		}
+		options, { activeItem: options[0] }
 	);
 
 	if (pickedResult && pickedResult.id) {
@@ -104,13 +122,8 @@ export async function configureOpenerTrustedDomainsHandler(
 				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
 					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
 				return trustedDomains;
-			case 'trustDomain':
-			case 'trustSubdomain':
-			case 'trustAll':
-				const itemToTrust = pickedResult.id === 'trustDomain'
-					? domainToConfigure
-					: pickedResult.id === 'trustSubdomain' ? topLevelDomain : '*';
-
+			case 'trust':
+				const itemToTrust = pickedResult.toTrust;
 				if (trustedDomains.indexOf(itemToTrust) === -1) {
 					storageService.remove(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, StorageScope.GLOBAL);
 					storageService.store(
@@ -161,14 +174,44 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 	return [...set];
 }
 
-export async function readTrustedDomains(accessor: ServicesAccessor) {
+export interface IStaticTrustedDomains {
+	readonly defaultTrustedDomains: string[];
+	readonly trustedDomains: string[];
+}
 
-	const storageService = accessor.get(IStorageService);
-	const productService = accessor.get(IProductService);
-	const authenticationService = accessor.get(IAuthenticationService);
+export interface ITrustedDomains extends IStaticTrustedDomains {
+	readonly userDomains: string[];
+	readonly workspaceDomains: string[];
+}
+
+export async function readTrustedDomains(accessor: ServicesAccessor): Promise<ITrustedDomains> {
+	const { defaultTrustedDomains, trustedDomains } = readStaticTrustedDomains(accessor);
+	const [workspaceDomains, userDomains] = await Promise.all([readWorkspaceTrustedDomains(accessor), readAuthenticationTrustedDomains(accessor)]);
+	return {
+		workspaceDomains,
+		userDomains,
+		defaultTrustedDomains,
+		trustedDomains,
+	};
+}
+
+export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	return getRemotes(fileService, textFileService, workspaceContextService);
+}
+
+export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
+	const authenticationService = accessor.get(IAuthenticationService);
+	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
+		? [`https://github.com`]
+		: [];
+}
+
+export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {
+	const storageService = accessor.get(IStorageService);
+	const productService = accessor.get(IProductService);
 
 	const defaultTrustedDomains: string[] = productService.linkProtectionTrustedDomains
 		? [...productService.linkProtectionTrustedDomains]
@@ -182,20 +225,8 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 		}
 	} catch (err) { }
 
-	const userDomains =
-		authenticationService.isAuthenticationProviderRegistered('github')
-			? ((await authenticationService.getSessions('github')) ?? [])
-				.map(session => session.account.label)
-				.filter((v, i, a) => a.indexOf(v) === i)
-				.map(username => `https://github.com/${username}/`)
-			: [];
-
-	const workspaceDomains = await getRemotes(fileService, textFileService, workspaceContextService);
-
 	return {
 		defaultTrustedDomains,
 		trustedDomains,
-		userDomains,
-		workspaceDomains
 	};
 }

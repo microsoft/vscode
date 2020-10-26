@@ -77,41 +77,9 @@ import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmReposito
 import { IPosition } from 'vs/editor/common/core/position';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
-
-function splitMatches(uri: URI, filterData: FuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
-	let matches: IMatch[] | undefined;
-	let descriptionMatches: IMatch[] | undefined;
-
-	if (filterData) {
-		matches = [];
-		descriptionMatches = [];
-
-		const fileName = basename(uri);
-		const allMatches = createMatches(filterData);
-
-		for (const match of allMatches) {
-			if (match.start < fileName.length) {
-				matches!.push(
-					{
-						start: match.start,
-						end: Math.min(match.end, fileName.length)
-					}
-				);
-			} else {
-				descriptionMatches!.push(
-					{
-						start: match.start - (fileName.length + 1),
-						end: match.end - (fileName.length + 1)
-					}
-				);
-			}
-		}
-	}
-
-	return [matches, descriptionMatches];
-}
 
 interface ISCMLayout {
 	height: number | undefined;
@@ -343,7 +311,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 	}
 }
 
-class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore, ResourceTemplate> {
+class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore, ResourceTemplate> {
 
 	static readonly TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
@@ -373,7 +341,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		return { element, name, fileLabel, decorationIcon, actionBar, elementDisposables: Disposable.None, disposables };
 	}
 
-	renderElement(node: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore>, index: number, template: ResourceTemplate): void {
+	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
 		template.elementDisposables.dispose();
 
 		const elementDisposables = new DisposableStore();
@@ -382,11 +350,13 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
-		const [matches, descriptionMatches] = splitMatches(uri, node.filterData);
 		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
 		template.actionBar.clear();
 		template.actionBar.context = resourceOrFolder;
+
+		let matches: IMatch[] | undefined;
+		let descriptionMatches: IMatch[] | undefined;
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
@@ -395,12 +365,14 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 				template.name.classList.toggle('strike-through', resourceOrFolder.element.decorations.strikeThrough);
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
 			} else {
+				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
 				template.name.classList.remove('strike-through');
 				template.element.classList.remove('faded');
 			}
 		} else {
+			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
 			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
@@ -437,11 +409,11 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.elementDisposables = elementDisposables;
 	}
 
-	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore> | ITreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore>, index: number, template: ResourceTemplate): void {
+	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
 		template.elementDisposables.dispose();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
 		template.elementDisposables.dispose();
 
 		const elementDisposables = new DisposableStore();
@@ -451,12 +423,11 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const label = compressed.elements.map(e => e.name).join('/');
 		const fileKind = FileKind.FOLDER;
 
-		const [matches, descriptionMatches] = splitMatches(folder.uri, node.filterData);
+		const matches = createMatches(node.filterData as FuzzyScore | undefined);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
-			matches,
-			descriptionMatches
+			matches
 		});
 
 		template.actionBar.clear();
@@ -474,13 +445,63 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.elementDisposables = elementDisposables;
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
 		template.elementDisposables.dispose();
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
 		template.elementDisposables.dispose();
 		template.disposables.dispose();
+	}
+
+	private _processFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+		if (!filterData) {
+			return [undefined, undefined];
+		}
+
+		if (!(filterData as LabelFuzzyScore).label) {
+			const matches = createMatches(filterData as FuzzyScore);
+			return [matches, undefined];
+		}
+
+		const fileName = basename(uri);
+		const label = (filterData as LabelFuzzyScore).label;
+		const pathLength = label.length - fileName.length;
+		const matches = createMatches((filterData as LabelFuzzyScore).score);
+
+		// FileName match
+		if (label === fileName) {
+			return [matches, undefined];
+		}
+
+		// FilePath match
+		let labelMatches: IMatch[] = [];
+		let descriptionMatches: IMatch[] = [];
+
+		for (const match of matches) {
+			if (match.start > pathLength) {
+				// Label match
+				labelMatches.push({
+					start: match.start - pathLength,
+					end: match.end - pathLength
+				});
+			} else if (match.end < pathLength) {
+				// Description match
+				descriptionMatches.push(match);
+			} else {
+				// Spanning match
+				labelMatches.push({
+					start: 0,
+					end: match.end - pathLength
+				});
+				descriptionMatches.push({
+					start: match.start,
+					end: pathLength
+				});
+			}
+		}
+
+		return [labelMatches, descriptionMatches];
 	}
 }
 
@@ -596,9 +617,12 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
 
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+	constructor(
+		private viewModelProvider: () => ViewModel,
+		@ILabelService private readonly labelService: ILabelService,
+	) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | undefined {
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | { toString(): string; }[] | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element)) {
@@ -608,12 +632,20 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			// Since a match in the file name takes precedence over a match
-			// in the folder name we are returning the label as file/folder.
-			const fileName = basename(element.sourceUri);
-			const filePath = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true });
+			const viewModel = this.viewModelProvider();
+			if (viewModel.mode === ViewModelMode.List) {
+				// In List mode match using the file name and the path.
+				// Since we want to match both on the file name and the
+				// full path we return an array of labels. A match in the
+				// file name takes precedence over a match in the path.
+				const fileName = basename(element.sourceUri);
+				const filePath = this.labelService.getUriLabel(element.sourceUri, { relative: true });
 
-			return filePath.length !== 0 ? `${fileName} ${filePath}` : fileName;
+				return [fileName, filePath];
+			} else {
+				// In Tree mode only match using the file name
+				return basename(element.sourceUri);
+			}
 		}
 	}
 
@@ -1307,14 +1339,14 @@ class SCMInputWidget extends Disposable {
 			if (value === textModel.getValue()) { // circuit breaker
 				return;
 			}
-			textModel.setValue(input.value);
+			textModel.setValue(value);
 			this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
 		}));
 
 		// Keep API in sync with model, update placeholder visibility and validate
 		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
-			input.value = textModel.getValue();
+			input.setValue(textModel.getValue(), true);
 			updatePlaceholderVisibility();
 			triggerValidation();
 		}));
@@ -1433,6 +1465,18 @@ class SCMInputWidget extends Disposable {
 			this.validationDisposable.dispose();
 		}));
 
+		const firstLineKey = contextKeyService2.createKey('scmInputIsInFirstLine', false);
+		const lastLineKey = contextKeyService2.createKey('scmInputIsInLastLine', false);
+
+		this._register(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this.inputEditor._getViewModel()!;
+			const lastLineNumber = viewModel.getLineCount();
+			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+
+			firstLineKey.set(viewPosition.lineNumber === 1);
+			lastLineKey.set(viewPosition.lineNumber === lastLineNumber);
+		}));
+
 		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
 		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
@@ -1446,10 +1490,7 @@ class SCMInputWidget extends Disposable {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const dimension: Dimension = {
-			width: this.element.clientWidth - 2,
-			height: editorHeight,
-		};
+		const dimension = new Dimension(this.element.clientWidth - 2, editorHeight);
 
 		this.inputEditor.layout(dimension);
 		this.renderValidation();
@@ -1619,7 +1660,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner);
 		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
 
-		const renderers: ICompressibleTreeRenderer<any, FuzzyScore, any>[] = [
+		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider),
 			this.inputRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider),
@@ -1628,7 +1669,7 @@ export class SCMViewPane extends ViewPane {
 
 		const filter = new SCMTreeFilter();
 		const sorter = new SCMTreeSorter(() => this.viewModel);
-		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider);
+		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewModel);
 		const identityProvider = new SCMResourceIdentityProvider();
 
 		this.tree = this.instantiationService.createInstance(
@@ -1835,27 +1876,27 @@ export class SCMViewPane extends ViewPane {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryMenu;
 			context = element.provider;
-			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+			[actions, disposable] = collectContextMenuActions(menu);
 		} else if (isSCMInput(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.getResourceGroupMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+			[actions, disposable] = collectContextMenuActions(menu);
 		} else if (ResourceTree.isResourceNode(element)) {
 			if (element.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(element.element.resourceGroup.provider);
 				const menu = menus.getResourceMenu(element.element);
-				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+				[actions, disposable] = collectContextMenuActions(menu);
 			} else {
 				const menus = this.scmViewService.menus.getRepositoryMenus(element.context.provider);
 				const menu = menus.getResourceFolderMenu(element.context);
-				[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+				[actions, disposable] = collectContextMenuActions(menu);
 			}
 		} else {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.resourceGroup.provider);
 			const menu = menus.getResourceMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu, this.contextMenuService);
+			[actions, disposable] = collectContextMenuActions(menu);
 		}
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());

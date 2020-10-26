@@ -13,12 +13,12 @@ suite('dom', () => {
 		let element = document.createElement('div');
 		element.className = 'foobar boo far';
 
-		assert(dom.hasClass(element, 'foobar'));
-		assert(dom.hasClass(element, 'boo'));
-		assert(dom.hasClass(element, 'far'));
-		assert(!dom.hasClass(element, 'bar'));
-		assert(!dom.hasClass(element, 'foo'));
-		assert(!dom.hasClass(element, ''));
+		assert(element.classList.contains('foobar'));
+		assert(element.classList.contains('boo'));
+		assert(element.classList.contains('far'));
+		assert(!element.classList.contains('bar'));
+		assert(!element.classList.contains('foo'));
+		assert(!element.classList.contains(''));
 	});
 
 	test('removeClass', () => {
@@ -26,63 +26,56 @@ suite('dom', () => {
 		let element = document.createElement('div');
 		element.className = 'foobar boo far';
 
-		dom.removeClass(element, 'boo');
-		assert(dom.hasClass(element, 'far'));
-		assert(!dom.hasClass(element, 'boo'));
-		assert(dom.hasClass(element, 'foobar'));
+		element.classList.remove('boo');
+		assert(element.classList.contains('far'));
+		assert(!element.classList.contains('boo'));
+		assert(element.classList.contains('foobar'));
 		assert.equal(element.className, 'foobar far');
 
 		element = document.createElement('div');
 		element.className = 'foobar boo far';
 
-		dom.removeClass(element, 'far');
-		assert(!dom.hasClass(element, 'far'));
-		assert(dom.hasClass(element, 'boo'));
-		assert(dom.hasClass(element, 'foobar'));
+		element.classList.remove('far');
+		assert(!element.classList.contains('far'));
+		assert(element.classList.contains('boo'));
+		assert(element.classList.contains('foobar'));
 		assert.equal(element.className, 'foobar boo');
 
-		dom.removeClass(element, 'boo');
-		assert(!dom.hasClass(element, 'far'));
-		assert(!dom.hasClass(element, 'boo'));
-		assert(dom.hasClass(element, 'foobar'));
+		element.classList.remove('boo');
+		assert(!element.classList.contains('far'));
+		assert(!element.classList.contains('boo'));
+		assert(element.classList.contains('foobar'));
 		assert.equal(element.className, 'foobar');
 
-		dom.removeClass(element, 'foobar');
-		assert(!dom.hasClass(element, 'far'));
-		assert(!dom.hasClass(element, 'boo'));
-		assert(!dom.hasClass(element, 'foobar'));
+		element.classList.remove('foobar');
+		assert(!element.classList.contains('far'));
+		assert(!element.classList.contains('boo'));
+		assert(!element.classList.contains('foobar'));
 		assert.equal(element.className, '');
 	});
 
 	test('removeClass should consider hyphens', function () {
 		let element = document.createElement('div');
 
-		dom.addClass(element, 'foo-bar');
-		dom.addClass(element, 'bar');
+		element.classList.add('foo-bar');
+		element.classList.add('bar');
 
-		assert(dom.hasClass(element, 'foo-bar'));
-		assert(dom.hasClass(element, 'bar'));
+		assert(element.classList.contains('foo-bar'));
+		assert(element.classList.contains('bar'));
 
-		dom.removeClass(element, 'bar');
-		assert(dom.hasClass(element, 'foo-bar'));
-		assert(!dom.hasClass(element, 'bar'));
+		element.classList.remove('bar');
+		assert(element.classList.contains('foo-bar'));
+		assert(!element.classList.contains('bar'));
 
-		dom.removeClass(element, 'foo-bar');
-		assert(!dom.hasClass(element, 'foo-bar'));
-		assert(!dom.hasClass(element, 'bar'));
+		element.classList.remove('foo-bar');
+		assert(!element.classList.contains('foo-bar'));
+		assert(!element.classList.contains('bar'));
 	});
 
-	//test('[perf] hasClass * 100000', () => {
-	//
-	//	for (let i = 0; i < 100000; i++) {
-	//		let element = document.createElement('div');
-	//		element.className = 'foobar boo far';
-	//
-	//		assert(dom.hasClass(element, 'far'));
-	//		assert(dom.hasClass(element, 'boo'));
-	//		assert(dom.hasClass(element, 'foobar'));
-	//	}
-	//});
+	test('multibyteAwareBtoa', () => {
+		assert.equal(dom.multibyteAwareBtoa('hello world'), dom.multibyteAwareBtoa('hello world'));
+		assert.ok(dom.multibyteAwareBtoa('平仮名'));
+	});
 
 	suite('$', () => {
 		test('should build simple nodes', () => {
