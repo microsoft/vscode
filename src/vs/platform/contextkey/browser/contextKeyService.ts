@@ -89,6 +89,8 @@ class NullContext extends Context {
 	}
 }
 
+const configContextObject = Object.freeze({});
+
 class ConfigAwareContextValuesContainer extends Context {
 
 	private static readonly _keyPrefix = 'config.';
@@ -112,10 +114,23 @@ class ConfigAwareContextValuesContainer extends Context {
 			} else {
 				const changedKeys: string[] = [];
 				for (const configKey of event.affectedKeys) {
-					const contextKey = `config.${configKey}`;
+					let contextKey = `config.${configKey}`;
 					if (this._values.has(contextKey)) {
+						const value = this._values.get(contextKey);
+
 						this._values.delete(contextKey);
 						changedKeys.push(contextKey);
+
+						if (value === configContextObject) {
+							contextKey += '.';
+
+							for (const key of this._values.keys()) {
+								if (key.startsWith(contextKey)) {
+									this._values.delete(key);
+									changedKeys.push(key);
+								}
+							}
+						}
 					}
 				}
 				emitter.fire(new ArrayContextKeyChangeEvent(changedKeys));
@@ -149,6 +164,8 @@ class ConfigAwareContextValuesContainer extends Context {
 			default:
 				if (Array.isArray(configValue)) {
 					value = JSON.stringify(configValue);
+				} else {
+					value = configContextObject;
 				}
 		}
 
