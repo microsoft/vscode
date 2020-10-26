@@ -226,6 +226,24 @@ suite.only('markdown.SmartSelect', () => {
 
 		assertNestedRangesEqual(ranges![0], [0, 3], [0, 6]);
 	});
+	test('Smart select last blockquote element under header then subheaders and their content', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`> block`,
+				`> block`,
+				`>> block`,
+				`>> ${CURSOR}block`,
+				``,
+				`paragraph`,
+				`## sub header`,
+				``,
+				`content 2`,
+				`# main header 2`));
+
+		assertNestedRangesEqual(ranges![0], [4, 6], [2, 6], [1, 7], [1, 10], [0, 10]);
+	});
 });
 
 function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {

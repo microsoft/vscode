@@ -42,12 +42,8 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		for (const token of blockTokens) {
 			currentRange = createBlockRange(document, token, parentRange);
-			if (currentRange && currentRange.parent && parentRange) {
+			if (currentRange) {
 				parentRange = currentRange;
-			} else if (currentRange) {
-				return currentRange;
-			} else {
-				return parentRange;
 			}
 		}
 		if (currentRange) {
@@ -131,12 +127,10 @@ function createHeaderRange(isClosestHeaderToPosition: boolean, onHeaderLine: boo
 			} else {
 				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(headerPlusContentRange, parent));
 			}
+		} else if (partialContentRange) {
+			return new vscode.SelectionRange(partialContentRange, new vscode.SelectionRange(contentRange, (new vscode.SelectionRange(headerPlusContentRange))));
 		} else {
-			if (partialContentRange) {
-				return new vscode.SelectionRange(partialContentRange, new vscode.SelectionRange(contentRange, (new vscode.SelectionRange(headerPlusContentRange))));
-			} else {
-				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(headerPlusContentRange));
-			}
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(headerPlusContentRange));
 		}
 	} else {
 		return undefined;
@@ -149,8 +143,7 @@ function createBlockRange(document: vscode.TextDocument, block?: Token, parent?:
 			return createFencedRange(block, document, parent);
 		} else {
 			let startLine = document.lineAt(block.map[0]).isEmptyOrWhitespace ? block.map[0] + 1 : block.map[0];
-			let adjustedEndLine = document.lineAt(block.map[1]).isEmptyOrWhitespace ? block.map[1] - 1 : block.map[1];
-			let endLine = startLine !== adjustedEndLine && isList(block.type) ? adjustedEndLine - 1 : adjustedEndLine;
+			let endLine = startLine !== block.map[1] && isList(block.type) ? block.map[1] - 1 : block.map[1];
 			let startPos = new vscode.Position(startLine, 0);
 			let endPos = new vscode.Position(endLine, getEndCharacter(document, startLine, endLine));
 			let range = new vscode.Range(startPos, endPos);
