@@ -49,6 +49,12 @@
 		border-color: windowtext !important;
 	}
 
+	/* text background */
+	.monaco-editor-background,
+	.monaco-editor.margin {
+		background-color: window !important;
+	}
+
 	/* selected text background */
 	.monaco-editor.vs .selected-text,
 	.monaco-editor.vs-dark .selected-text {
