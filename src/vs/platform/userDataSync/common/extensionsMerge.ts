@@ -7,6 +7,7 @@ import { ISyncExtension, ISyncExtensionWithVersion } from 'vs/platform/userDataS
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
+import * as semver from 'vs/base/common/semver/semver';
 
 export interface IMergeResult {
 	added: ISyncExtension[];
@@ -216,8 +217,7 @@ function mergeExtensionState(localExtension: ISyncExtensionWithVersion, remoteEx
 	if (!remoteExtension.version) {
 		return localState;
 	}
-	/*
-	 * Enable this after making semver a common module
+
 	// If local state exists and local extension is latest then use local state
 	if (localState && semver.gt(localExtension.version, remoteExtension.version)) {
 		return localState;
@@ -226,7 +226,7 @@ function mergeExtensionState(localExtension: ISyncExtensionWithVersion, remoteEx
 	if (remoteState && semver.gt(remoteExtension.version, localExtension.version)) {
 		return remoteState;
 	}
-	*/
+
 
 	/* Remote and local are on same version */
 
