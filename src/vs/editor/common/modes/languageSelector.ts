@@ -8,17 +8,17 @@ import { URI } from 'vs/base/common/uri'; // TODO@Alex
 import { normalize } from 'vs/base/common/path';
 
 export interface LanguageFilter {
-	language?: string;
-	scheme?: string;
-	pattern?: string | IRelativePattern;
+	readonly language?: string;
+	readonly scheme?: string;
+	readonly pattern?: string | IRelativePattern;
 	/**
 	 * This provider is implemented in the UI thread.
 	 */
-	hasAccessToAllModels?: boolean;
-	exclusive?: boolean;
+	readonly hasAccessToAllModels?: boolean;
+	readonly exclusive?: boolean;
 }
 
-export type LanguageSelector = string | LanguageFilter | Array<string | LanguageFilter>;
+export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
 
 export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
 

@@ -25,6 +25,10 @@ const emptyDialogService = new class implements IDialogService {
 	about(): never {
 		throw new Error('not implemented');
 	}
+
+	input(): never {
+		throw new Error('not implemented');
+	}
 };
 
 const emptyCommandService: ICommandService = {

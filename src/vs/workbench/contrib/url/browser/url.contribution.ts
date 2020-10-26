@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IURLService } from 'vs/platform/url/common/url';

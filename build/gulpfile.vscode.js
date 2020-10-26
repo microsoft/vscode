@@ -201,13 +201,18 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
+		const jsFilter = util.filter(data => !data.isDirectory() &&/\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**', '!**/package-lock.json']))
+			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')))
-			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*', '**/*.wasm'], 'app/node_modules.asar'));
+			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
+			.pipe(jsFilter)
+			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
+			.pipe(jsFilter.restore)
+			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*', '**/*.wasm'], 'node_modules.asar'));
 
 		let all = es.merge(
 			packageJsonStream,

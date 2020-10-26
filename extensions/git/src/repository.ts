@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
 import * as nls from 'vscode-nls';
 import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery } from './api/git';
 import { AutoFetcher } from './autofetch';
@@ -300,6 +300,7 @@ export const enum Operation {
 	RenameBranch = 'RenameBranch',
 	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
+	Rebase = 'Rebase',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
 	DeleteTag = 'DeleteTag',
@@ -642,6 +643,7 @@ export class Repository implements Disposable {
 		}
 
 		this._rebaseCommit = rebaseCommit;
+		commands.executeCommand('setContext', 'gitRebaseInProgress', !!this._rebaseCommit);
 	}
 
 	get rebaseCommit(): Commit | undefined {
@@ -1065,6 +1067,10 @@ export class Repository implements Disposable {
 
 	async merge(ref: string): Promise<void> {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
+	}
+
+	async rebase(branch: string): Promise<void> {
+		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
 	}
 
 	async tag(name: string, message?: string): Promise<void> {
@@ -1784,6 +1790,28 @@ export class Repository implements Disposable {
 		}
 
 		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;
+	}
+
+	get syncTooltip(): string {
+		if (!this.HEAD
+			|| !this.HEAD.name
+			|| !this.HEAD.commit
+			|| !this.HEAD.upstream
+			|| !(this.HEAD.ahead || this.HEAD.behind)
+		) {
+			return localize('sync changes', "Synchronize Changes");
+		}
+
+		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
+		const remote = this.remotes.find(r => r.name === remoteName);
+
+		if ((remote && remote.isReadOnly) || !this.HEAD.ahead) {
+			return localize('pull n', "Pull {0} commits from {1}/{2}", this.HEAD.behind, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+		} else if (!this.HEAD.behind) {
+			return localize('push n', "Push {0} commits to {1}/{2}", this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+		} else {
+			return localize('pull push n', "Pull {0} and push {1} commits between {2}/{3}", this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+		}
 	}
 
 	private updateInputBoxPlaceholder(): void {

@@ -49,6 +49,7 @@ const indentationFilter = [
 	'!src/vs/loader.js',
 	'!src/vs/base/common/insane/insane.js',
 	'!src/vs/base/common/marked/marked.js',
+	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
@@ -134,6 +135,7 @@ const jsHygieneFilter = [
 	'!src/vs/nls.build.js',
 	'!src/**/insane.js',
 	'!src/**/marked.js',
+	'!src/**/semver.js',
 	'!**/test/**',
 ];
 module.exports.jsHygieneFilter = jsHygieneFilter;

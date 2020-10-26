@@ -21,6 +21,7 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -265,7 +266,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this.dispose();
 	}
 
-	async backup(): Promise<IWorkingCopyBackup> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
 

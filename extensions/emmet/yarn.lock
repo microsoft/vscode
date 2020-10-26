@@ -2,17 +2,26 @@
 # yarn lockfile v1
 
 
+"@emmetio/abbreviation@^2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@emmetio/abbreviation/-/abbreviation-2.0.2.tgz#e26d55d78c00cdeb2ef983e902c7ad55ed0b648d"
+  integrity sha512-kpWg6jyR1YEj/yWceruvDj/fe1BhXqA0tGH3Z2ZiPFo8SDMH4JHg6FChqon5x0CCfLf4zVswrQa0gcZ4XtdRBQ==
+  dependencies:
+    "@emmetio/scanner" "^1.0.0"
+
+"@emmetio/css-abbreviation@^2.1.2":
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/@emmetio/css-abbreviation/-/css-abbreviation-2.1.2.tgz#4a5d96f2576dd827a2c1a060374ffa8a5408cc1c"
+  integrity sha512-CvYTzJltVpLqJaCZ1Qn97LVAKsl2Uwl2fzir1EX/WuMY3xWxgc3BWRCheL6k65km6GyDrLVl6RhrrNb/pxOiAQ==
+  dependencies:
+    "@emmetio/scanner" "^1.0.0"
+
 "@emmetio/css-parser@ramya-rao-a/css-parser#vscode":
   version "0.4.0"
   resolved "https://codeload.github.com/ramya-rao-a/css-parser/tar.gz/370c480ac103bd17c7bcfb34bf5d577dc40d3660"
   dependencies:
     "@emmetio/stream-reader" "^2.2.0"
     "@emmetio/stream-reader-utils" "^0.1.0"
-
-"@emmetio/extract-abbreviation@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@emmetio/extract-abbreviation/-/extract-abbreviation-0.2.0.tgz#0afc2b40c060549b98ea7b18f426e8317df5829e"
-  integrity sha512-eWIRoybKwQ0LkZw7aSULPFS+r2kp0+HdJlnw0HaE6g3AKbMNL4Ogwm2OTA9gNWZ5zdp6daOAOHFqjDqqhE5y/g==
 
 "@emmetio/html-matcher@^0.3.3":
   version "0.3.3"
@@ -30,6 +39,11 @@
     "@emmetio/stream-reader" "^2.0.1"
     "@emmetio/stream-reader-utils" "^0.1.0"
 
+"@emmetio/scanner@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@emmetio/scanner/-/scanner-1.0.0.tgz#065b2af6233fe7474d44823e3deb89724af42b5f"
+  integrity sha512-8HqW8EVqjnCmWXVpqAOZf+EGESdkR27odcMMMGefgKXtar00SoYNSryGv//TELI4T3QFsECo78p+0lmalk/CFA==
+
 "@emmetio/stream-reader-utils@^0.1.0":
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/@emmetio/stream-reader-utils/-/stream-reader-utils-0.1.0.tgz#244cb02c77ec2e74f78a9bd318218abc9c500a61"
@@ -41,9 +55,9 @@
   integrity sha1-Rs/+oRmgoAMxKiHC2bVijLX81EI=
 
 "@types/node@^12.11.7":
-  version "12.12.67"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.12.67.tgz#4f86badb292e822e3b13730a1f9713ed2377f789"
-  integrity sha512-R48tgL2izApf+9rYNH+3RBMbRpPeW3N8f0I9HMhggeq4UXwBDqumJ14SDs4ctTMhG11pIOduZ4z3QWGOiMc9Vg==
+  version "12.12.68"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.12.68.tgz#dd5acf4a52a458ff1d9ef4fd66406fba0afbbb33"
+  integrity sha512-3RW2s24ewB7F9dAHvgb9FRvNHn6nO9IK6Eaknbz7HTOe2a5GVne5XbUh5+YA+kcCn67glyHhClUUdFP73LWrgQ==
 
 ajv@^6.12.3:
   version "6.12.6"
@@ -436,6 +450,14 @@ ecc-jsbn@~0.1.1:
   dependencies:
     jsbn "~0.1.0"
     safer-buffer "^2.1.0"
+
+emmet@^2.1.5:
+  version "2.1.5"
+  resolved "https://registry.yarnpkg.com/emmet/-/emmet-2.1.5.tgz#160c454d827e29db543a447b7673488f11485c8d"
+  integrity sha512-u0RR8qb067EELZ8t+LtxbhLXvfJ4nklbxcoFrHcvs61r7rk8SgJwgcVSM/Xa/4/tlq2jKdunGbVp5Nqz8MZYOg==
+  dependencies:
+    "@emmetio/abbreviation" "^2.0.2"
+    "@emmetio/css-abbreviation" "^2.1.2"
 
 end-of-stream@^1.0.0:
   version "1.4.4"
@@ -2383,12 +2405,13 @@ vinyl@~2.0.1:
     replace-ext "^1.0.0"
 
 vscode-emmet-helper@^2.0.0:
-  version "2.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.0.3.tgz#57353a8275c021c9d46cc7e187fb8b62acae622c"
-  integrity sha512-heigyJWZyONg3udB/l4mQd7G9KupPnJey8IHJjxZ2P9sv5MeBt2yyrsctAku8Cqp4IIIXJ+0iRPyIYj6PMUMLg==
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.0.6.tgz#c3d0eb249da922a87229603fd4fc09dfdfeea830"
+  integrity sha512-cWF1xSBJ38OJ6q3i961g4Gjs7pwoxf8kTIXfpx7qgnmkclYjxsLZqh4K1HWrzTELJknoZm5PJoLBCkJ3m+7Pzw==
   dependencies:
-    "@emmetio/extract-abbreviation" "^0.2.0"
+    emmet "^2.1.5"
     jsonc-parser "^2.3.0"
+    vscode-languageserver-textdocument "^1.0.1"
     vscode-languageserver-types "^3.15.1"
     vscode-uri "^2.1.2"
 

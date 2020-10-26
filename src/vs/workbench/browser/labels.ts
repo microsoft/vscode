@@ -511,7 +511,7 @@ class ResourceLabelWidget extends IconLabel {
 		const resource = toResource(this.label);
 		const label = this.label.name;
 
-		if (this.options && typeof this.options.title === 'string') {
+		if (this.options && (this.options.title !== undefined)) {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
@@ -541,7 +541,7 @@ class ResourceLabelWidget extends IconLabel {
 			if (deco) {
 				this.renderDisposables.add(deco);
 
-				if (deco.tooltip) {
+				if (deco.tooltip && (typeof iconLabelOptions.title === 'string')) {
 					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
 				}
 

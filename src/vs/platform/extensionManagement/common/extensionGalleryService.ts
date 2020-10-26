@@ -371,6 +371,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return !!this.extensionsGalleryUrl;
 	}
 
+	async getExtensions(names: string[], token: CancellationToken): Promise<IGalleryExtension[]> {
+		const result: IGalleryExtension[] = [];
+		let { total, firstPage: pageResult, getPage } = await this.query({ names, pageSize: names.length }, token);
+		result.push(...pageResult);
+		for (let pageIndex = 1; result.length < total; pageIndex++) {
+			pageResult = await getPage(pageIndex, token);
+			if (pageResult.length) {
+				result.push(...pageResult);
+			} else {
+				break;
+			}
+		}
+		return result;
+	}
+
 	async getCompatibleExtension(arg1: IExtensionIdentifier | IGalleryExtension, version?: string): Promise<IGalleryExtension | null> {
 		const extension = await this.getCompatibleExtensionByEngine(arg1, version);
 

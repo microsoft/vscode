@@ -283,13 +283,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
+		// Title
+		const composite = this.instantiatedCompositeItems.get(compositeId);
+		if (composite) {
+			this.updateTitle(compositeId, composite.composite.getTitle());
+		}
 
 		// Active Composite
 		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
-
-			// Title
-			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle());
-
 			// Actions
 			const actionsBinding = this.collectCompositeActions(this.activeComposite);
 			this.mapActionsBindingToComposite.set(this.activeComposite.getId(), actionsBinding);
@@ -412,9 +413,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		const $this = this;
 		return {
-			updateTitle: (_id, title, keybinding) => {
-				titleLabel.innerText = title;
-				titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+			updateTitle: (id, title, keybinding) => {
+				// The title label is shared for all composites in the base CompositePart
+				if (!this.activeComposite || this.activeComposite.getId() === id) {
+					titleLabel.innerText = title;
+					titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+				}
 			},
 
 			updateStyles: () => {
@@ -483,7 +487,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super.layout(width, height);
 
 		// Layout contents
-		this.contentAreaSize = super.layoutContents(width, height).contentSize;
+		this.contentAreaSize = Dimension.lift(super.layoutContents(width, height).contentSize);
 
 		// Layout composite
 		if (this.activeComposite) {

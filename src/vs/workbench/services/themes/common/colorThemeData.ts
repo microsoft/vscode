@@ -10,8 +10,6 @@ import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbe
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import * as objects from 'vs/base/common/objects';
-import * as arrays from 'vs/base/common/arrays';
 import * as resources from 'vs/base/common/resources';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
@@ -47,16 +45,16 @@ export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDe
 
 export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope; };
 
-const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
-
 export class ColorThemeData implements IWorkbenchColorTheme {
+
+	static readonly STORAGE_KEY = 'colorThemeData';
 
 	id: string;
 	label: string;
 	settingsId: string;
 	description?: string;
 	isLoaded: boolean;
-	location?: URI;
+	location?: URI; // only set for extension from the registry, not for themes restored from the storage
 	watch?: boolean;
 	extensionData?: ExtensionData;
 
@@ -517,27 +515,23 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			selector: this.id.split(' ').join('.'), // to not break old clients
-			themeTokenColors: this.themeTokenColors,
+			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't pesist names
 			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
-			location: this.location?.toJSON(),
 			themeSemanticHighlighting: this.themeSemanticHighlighting,
 			colorMap: colorMapData,
 			watch: this.watch
 		});
-		storageService.store(PERSISTED_THEME_STORAGE_KEY, value, StorageScope.GLOBAL);
-	}
 
-	hasEqualData(other: ColorThemeData) {
-		return objects.equals(this.colorMap, other.colorMap)
-			&& objects.equals(this.themeTokenColors, other.themeTokenColors)
-			&& arrays.equals(this.semanticTokenRules, other.semanticTokenRules, SemanticTokenRule.equals)
-			&& this.themeSemanticHighlighting === other.themeSemanticHighlighting;
+		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL);
 	}
 
 	get baseTheme(): string {
-		return this.id.split(' ')[0];
+		return this.classNames[0];
+	}
+
+	get classNames(): string[] {
+		return this.id.split(' ');
 	}
 
 	get type(): ColorScheme {
@@ -576,7 +570,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ColorThemeData | undefined {
-		const input = storageService.get(PERSISTED_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ColorThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
@@ -607,7 +601,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						}
 						break;
 					case 'location':
-						theme.location = URI.revive(data.location);
+						// ignore, no longer restore
 						break;
 					case 'extensionData':
 						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);

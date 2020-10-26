@@ -7,20 +7,24 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionIdWithVersion, IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
 	private readonly _storageService: IStorageService;
+	private readonly _storageKeysSyncRegistryService: IStorageKeysSyncRegistryService;
 	private readonly _proxy: ExtHostStorageShape;
 	private readonly _storageListener: IDisposable;
 	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		this._storageService = storageService;
+		this._storageKeysSyncRegistryService = storageKeysSyncRegistryService;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
 		this._storageListener = this._storageService.onDidChangeStorage(e => {
@@ -67,5 +71,9 @@ export class MainThreadStorage implements MainThreadStorageShape {
 			return Promise.reject(err);
 		}
 		return Promise.resolve(undefined);
+	}
+
+	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
+		this._storageKeysSyncRegistryService.registerExtensionStorageKeys(extension, keys);
 	}
 }

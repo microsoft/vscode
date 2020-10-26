@@ -15,7 +15,7 @@ import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLin
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutputChannelModel, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
 import { IViewsService } from 'vs/workbench/common/views';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';

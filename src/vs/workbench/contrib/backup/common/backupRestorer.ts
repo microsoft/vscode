@@ -9,7 +9,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';

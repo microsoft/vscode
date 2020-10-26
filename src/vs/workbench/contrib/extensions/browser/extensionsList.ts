@@ -14,7 +14,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, SyncIgnoredIconAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, SyncIgnoredIconAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -24,6 +24,7 @@ import { isLanguagePackExtension } from 'vs/platform/extensions/common/extension
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -61,6 +62,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -86,6 +88,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
+				if (action instanceof ActionWithDropDownAction) {
+					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				}
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).createActionViewItem();
 				}
@@ -101,7 +106,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(SyncIgnoredIconAction),
 			this.instantiationService.createInstance(UpdateAction),
 			reloadAction,
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallDropdownAction),
+			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
@@ -197,13 +203,21 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.extensionViewState.onFocus(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(true));
+				data.actionbar.viewItems.forEach(item => {
+					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
+						item.setFocus(true);
+					}
+				});
 			}
 		}, this, data.extensionDisposables);
 
 		this.extensionViewState.onBlur(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(false));
+				data.actionbar.viewItems.forEach(item => {
+					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
+						item.setFocus(false);
+					}
+				});
 			}
 		}, this, data.extensionDisposables);
 

@@ -18,7 +18,7 @@ import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/se
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { dirname } from 'vs/base/common/resources';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';

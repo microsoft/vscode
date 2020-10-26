@@ -65,7 +65,3 @@ export function testRepeat(n: number, description: string, callback: (this: any,
 		test(`${description} (iteration ${i})`, callback);
 	}
 }
-
-export function testRepeatOnly(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
-	suite.only('repeat', () => testRepeat(n, description, callback));
-}

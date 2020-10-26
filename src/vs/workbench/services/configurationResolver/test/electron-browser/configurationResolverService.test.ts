@@ -448,6 +448,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(1, mockCommandService.callCount);
 		});
 	});
+
 	test('a single prompt input variable', () => {
 
 		const configuration = {
@@ -475,6 +476,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(0, mockCommandService.callCount);
 		});
 	});
+
 	test('a single pick input variable', () => {
 
 		const configuration = {
@@ -502,6 +504,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(0, mockCommandService.callCount);
 		});
 	});
+
 	test('a single command input variable', () => {
 
 		const configuration = {
@@ -529,6 +532,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(1, mockCommandService.callCount);
 		});
 	});
+
 	test('several input variables and command', () => {
 
 		const configuration = {
@@ -558,6 +562,35 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(2, mockCommandService.callCount);
 		});
 	});
+
+	test('input variable with undefined workspace folder', () => {
+
+		const configuration = {
+			'name': 'Attach to Process',
+			'type': 'node',
+			'request': 'attach',
+			'processId': '${input:input1}',
+			'port': 5858,
+			'sourceMaps': false,
+			'outDir': null
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, 'tasks').then(result => {
+
+			assert.deepEqual(result, {
+				'name': 'Attach to Process',
+				'type': 'node',
+				'request': 'attach',
+				'processId': 'resolvedEnterinput1',
+				'port': 5858,
+				'sourceMaps': false,
+				'outDir': null
+			});
+
+			assert.equal(0, mockCommandService.callCount);
+		});
+	});
+
 	test('contributed variable', () => {
 		const buildTask = 'npm: compile';
 		const variable = 'defaultBuildTask';

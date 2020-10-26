@@ -31,6 +31,7 @@ import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semantic
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 // --- adapter
 
@@ -896,6 +897,7 @@ class SuggestAdapter {
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 
+		const sw = new StopWatch(true);
 		const itemsOrList = await asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context)));
 
 		if (!itemsOrList) {
@@ -921,7 +923,8 @@ class SuggestAdapter {
 			x: pid,
 			[extHostProtocol.ISuggestResultDtoField.completions]: completions,
 			[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined
+			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined,
+			[extHostProtocol.ISuggestResultDtoField.duration]: sw.elapsed()
 		};
 
 		for (let i = 0; i < list.items.length; i++) {
@@ -1740,7 +1743,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._apiDeprecation, extension), extension);
-		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
+		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), `${extension.identifier.value}(${triggerCharacters.join('')})`);
 		return this._createDisposable(handle);
 	}
 
@@ -1810,10 +1813,20 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo, token), undefined);
 	}
 
-	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new FoldingProviderAdapter(this._documents, provider), extension);
-		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider2): vscode.Disposable {
+		const handle = this._nextHandle();
+		const eventHandle = typeof provider.onDidChangeFoldingRanges === 'function' ? this._nextHandle() : undefined;
+
+		this._adapter.set(handle, new AdapterData(new FoldingProviderAdapter(this._documents, provider), extension));
+		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			const subscription = provider.onDidChangeFoldingRanges!(_ => this._proxy.$emitFoldingRangeEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
 	}
 
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined> {

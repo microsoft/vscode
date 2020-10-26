@@ -473,7 +473,7 @@ export class StartFindAction extends MultiEditorAction {
 			id: FIND_IDS.StartFindAction,
 			label: nls.localize('startFindAction', "Find"),
 			alias: 'Find',
-			precondition: undefined,
+			precondition: ContextKeyExpr.or(ContextKeyExpr.has('editorFocus'), ContextKeyExpr.has('editorIsOpen')),
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
@@ -722,7 +722,7 @@ export class StartFindReplaceAction extends MultiEditorAction {
 			id: FIND_IDS.StartFindReplaceAction,
 			label: nls.localize('startReplace', "Replace"),
 			alias: 'Replace',
-			precondition: undefined,
+			precondition: ContextKeyExpr.or(ContextKeyExpr.has('editorFocus'), ContextKeyExpr.has('editorIsOpen')),
 			kbOpts: {
 				kbExpr: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,

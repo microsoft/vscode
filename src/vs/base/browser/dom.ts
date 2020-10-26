@@ -10,12 +10,13 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -35,31 +36,15 @@ export function isInDOM(node: Node | null): boolean {
 
 interface IDomClassList {
 	addClass(node: HTMLElement | SVGElement, className: string): void;
-	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
-	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
 	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
 const _classList: IDomClassList = new class implements IDomClassList {
 
-	addClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
-	}
-
 	addClass(node: HTMLElement, className: string): void {
 		if (className && node.classList) {
 			node.classList.add(className);
 		}
-	}
-
-	removeClass(node: HTMLElement, className: string): void {
-		if (className && node.classList) {
-			node.classList.remove(className);
-		}
-	}
-
-	removeClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
 	}
 
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
@@ -71,10 +56,6 @@ const _classList: IDomClassList = new class implements IDomClassList {
 
 /** @deprecated ES6 - use classList*/
 export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
-/** @deprecated ES6 - use classList*/
-export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
 export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
 
@@ -499,6 +480,26 @@ export class Dimension implements IDimension {
 		public readonly width: number,
 		public readonly height: number,
 	) { }
+
+	with(width: number = this.width, height: number = this.height): Dimension {
+		if (width !== this.width || height !== this.height) {
+			return new Dimension(width, height);
+		} else {
+			return this;
+		}
+	}
+
+	static is(obj: unknown): obj is IDimension {
+		return typeof obj === 'object' && typeof (<IDimension>obj).height === 'number' && typeof (<IDimension>obj).width === 'number';
+	}
+
+	static lift(obj: IDimension): Dimension {
+		if (obj instanceof Dimension) {
+			return obj;
+		} else {
+			return new Dimension(obj.width, obj.height);
+		}
+	}
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -998,8 +999,15 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 /**
  * Removes all children from `parent` and appends `children`
  */
-export function reset(parent: HTMLElement, ...children: Array<Node | string>) {
+export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
+	appendChildren(parent, ...children);
+}
+
+/**
+ * Appends `children` to `parent`
+ */
+export function appendChildren(parent: HTMLElement, ...children: Array<Node | string>): void {
 	for (const child of children) {
 		if (child instanceof Node) {
 			parent.appendChild(child);
@@ -1315,23 +1323,24 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 // -- sanitize and trusted html
 
-function newInsaneOptions(allowedTags: string[], allowedAttributesForAll: string[], allowedAttributes: Record<string, string[]>): InsaneOptions {
-	for (let tag of allowedTags) {
-		let array = allowedAttributes[tag];
-		if (!array) {
-			array = allowedAttributesForAll;
-		} else {
-			array = array.concat(allowedAttributesForAll);
-		}
-		allowedAttributes[tag] = array;
-	}
-	const value: InsaneOptions = {
-		allowedTags,
-		allowedAttributes,
-	};
-	return value;
-}
+function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
 
+	let allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
+
+	if (opts.allowedTags) {
+		for (let tag of opts.allowedTags) {
+			let array = allowedAttributes[tag];
+			if (!array) {
+				array = allowedAttributesForAll;
+			} else {
+				array = array.concat(allowedAttributesForAll);
+			}
+			allowedAttributes[tag] = array;
+		}
+	}
+
+	return { ...opts, allowedAttributes };
+}
 
 const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
 	createHTML(value, options: InsaneOptions) {
@@ -1344,10 +1353,9 @@ const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
 
-	const options = newInsaneOptions(
-		['a', 'button', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'textarea', 'ul'],
-		['class', 'id', 'role', 'tabindex'],
-		{
+	const options = _extInsaneOptions({
+		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+		allowedAttributes: {
 			'a': ['href'],
 			'button': ['data-href'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
@@ -1355,9 +1363,218 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 			'select': ['required'],
 			'span': ['data-command', 'role'],
 			'textarea': ['name', 'placeholder', 'required'],
-		}
-	);
+		},
+		allowedSchemes: ['http', 'https', 'command']
+	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
 	node.innerHTML = html as unknown as string;
+}
+
+/**
+ * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
+ *
+ * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
+ */
+function toBinary(str: string): string {
+	const codeUnits = new Uint16Array(str.length);
+	for (let i = 0; i < codeUnits.length; i++) {
+		codeUnits[i] = str.charCodeAt(i);
+	}
+	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+}
+
+/**
+ * Version of the global `btoa` function that handles multi-byte characters instead
+ * of throwing an exception.
+ */
+export function multibyteAwareBtoa(str: string): string {
+	return btoa(toBinary(str));
+}
+
+/**
+ * Typings for the https://wicg.github.io/file-system-access
+ *
+ * Use `supported(window)` to find out if the browser supports this kind of API.
+ */
+export namespace WebFileSystemAccess {
+
+	// https://wicg.github.io/file-system-access/#dom-window-showdirectorypicker
+	export interface FileSystemAccess {
+		showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemdirectoryhandle
+	export interface FileSystemDirectoryHandle {
+		readonly kind: 'directory',
+		readonly name: string,
+
+		getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
+		getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemfilehandle
+	export interface FileSystemFileHandle {
+		readonly kind: 'file',
+		readonly name: string,
+
+		createWritable: (options?: { keepExistingData?: boolean }) => Promise<FileSystemWritableFileStream>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemwritablefilestream
+	export interface FileSystemWritableFileStream {
+		write: (buffer: Uint8Array) => Promise<void>;
+		close: () => Promise<void>;
+	}
+
+	export function supported(obj: any & Window): obj is FileSystemAccess {
+		const candidate = obj as FileSystemAccess;
+		if (typeof candidate?.showDirectoryPicker === 'function') {
+			return true;
+		}
+
+		return false;
+	}
+}
+
+type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
+
+export interface IModifierKeyStatus {
+	altKey: boolean;
+	shiftKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	lastKeyPressed?: ModifierKey;
+	lastKeyReleased?: ModifierKey;
+	event?: KeyboardEvent;
+}
+
+export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
+
+	private readonly _subscriptions = new DisposableStore();
+	private _keyStatus: IModifierKeyStatus;
+	private static instance: ModifierKeyEmitter;
+
+	private constructor() {
+		super();
+
+		this._keyStatus = {
+			altKey: false,
+			shiftKey: false,
+			ctrlKey: false,
+			metaKey: false
+		};
+
+		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
+			const event = new StandardKeyboardEvent(e);
+
+			if (e.altKey && !this._keyStatus.altKey) {
+				this._keyStatus.lastKeyPressed = 'alt';
+			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyPressed = 'ctrl';
+			} else if (e.metaKey && !this._keyStatus.metaKey) {
+				this._keyStatus.lastKeyPressed = 'meta';
+			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyPressed = 'shift';
+			} else if (event.keyCode !== KeyCode.Alt) {
+				this._keyStatus.lastKeyPressed = undefined;
+			} else {
+				return;
+			}
+
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.metaKey = e.metaKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyPressed) {
+				this._keyStatus.event = e;
+				this.fire(this._keyStatus);
+			}
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
+			if (!e.altKey && this._keyStatus.altKey) {
+				this._keyStatus.lastKeyReleased = 'alt';
+			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyReleased = 'ctrl';
+			} else if (!e.metaKey && this._keyStatus.metaKey) {
+				this._keyStatus.lastKeyReleased = 'meta';
+			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyReleased = 'shift';
+			} else {
+				this._keyStatus.lastKeyReleased = undefined;
+			}
+
+			if (this._keyStatus.lastKeyPressed !== this._keyStatus.lastKeyReleased) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.metaKey = e.metaKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyReleased) {
+				this._keyStatus.event = e;
+				this.fire(this._keyStatus);
+			}
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
+			if (e.buttons) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+		}));
+
+		this._subscriptions.add(domEvent(window, 'blur')(e => {
+			this.resetKeyStatus();
+		}));
+	}
+
+	get keyStatus(): IModifierKeyStatus {
+		return this._keyStatus;
+	}
+
+	get isModifierPressed(): boolean {
+		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+	}
+
+	/**
+	 * Allows to explicitly reset the key status based on more knowledge (#109062)
+	 */
+	resetKeyStatus(): void {
+		this.doResetKeyStatus();
+		this.fire(this._keyStatus);
+	}
+
+	private doResetKeyStatus(): void {
+		this._keyStatus = {
+			altKey: false,
+			shiftKey: false,
+			ctrlKey: false,
+			metaKey: false
+		};
+	}
+
+	static getInstance() {
+		if (!ModifierKeyEmitter.instance) {
+			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
+		}
+
+		return ModifierKeyEmitter.instance;
+	}
+
+	dispose() {
+		super.dispose();
+		this._subscriptions.dispose();
+	}
 }

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -56,7 +57,7 @@ class SplitPaneContainer extends Disposable {
 				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
 				amount *= -1;
 			}
-			this._layoutService.resizePart(Parts.PANEL_PART, amount);
+			this._layoutService.resizePart(Parts.PANEL_PART, amount, amount);
 			return;
 		}
 
@@ -218,6 +219,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _activeInstanceIndex: number;
 	private _isVisible: boolean = false;
+	private _willFocus: boolean = false;
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -228,7 +230,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	constructor(
 		private _container: HTMLElement | undefined,
-		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
+		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
@@ -236,6 +238,28 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	) {
 		super();
 
+		if (shellLaunchConfigOrInstance) {
+			this.addInstance(shellLaunchConfigOrInstance);
+		}
+
+		this._activeInstanceIndex = 0;
+
+		if (this._container) {
+			this.attachToElement(this._container);
+		}
+	}
+
+	/**
+	 * Focus the current active instance, or if there isn't one yet, the first instance added
+	 */
+	setWillFocus(focus: boolean): void {
+		this._willFocus = focus;
+		if (focus && this.activeInstance) {
+			this.activeInstance.focusWhenReady();
+		}
+	}
+
+	public addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
 		let instance: ITerminalInstance;
 		if ('id' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
@@ -244,10 +268,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 		this._terminalInstances.push(instance);
 		this._initInstanceListeners(instance);
-		this._activeInstanceIndex = 0;
 
-		if (this._container) {
-			this.attachToElement(this._container);
+		if (this._splitPaneContainer) {
+			this._splitPaneContainer!.split(instance);
+		}
+
+		this._onInstancesChanged.fire();
+
+		if (this.terminalInstances.length === 1 && this._willFocus) {
+			instance.focusWhenReady();
 		}
 	}
 
@@ -358,6 +387,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public get title(): string {
+		if (!this.terminalInstances.length) {
+			return nls.localize('terminal.integrated.starting', "Starting...");
+		}
+
 		let title = this.terminalInstances[0].title;
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			if (this.terminalInstances[i].title) {

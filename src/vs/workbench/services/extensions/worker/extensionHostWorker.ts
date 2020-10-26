@@ -45,9 +45,9 @@ self.addEventListener = () => console.trace(`'addEventListener' has been blocked
 (<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
-if (location.protocol === 'data:') {
+if ((<any>self).Worker) {
 	// make sure new Worker(...) always uses data:
-	const _Worker = Worker;
+	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		const js = `importScripts('${stringUrl}');`;
 		options = options || {};

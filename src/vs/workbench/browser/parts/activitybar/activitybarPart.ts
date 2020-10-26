@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction, HomeActionViewItem, ACCOUNTS_VISIBILITY_PREFERENCE_KEY } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -41,6 +41,8 @@ import { Action, Separator } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 interface IPlaceholderViewContainer {
 	id: string;
@@ -1042,4 +1044,24 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 }
 
+class FocusActivityBarAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.focusActivityBar',
+			title: { value: nls.localize('focusActivityBar', "Focus Activity Bar"), original: 'Focus Activity Bar' },
+			category: CATEGORIES.View,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const activityBarService = accessor.get(IActivityBarService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setActivityBarHidden(false);
+		activityBarService.focusActivityBar();
+	}
+}
+
 registerSingleton(IActivityBarService, ActivitybarPart);
+registerAction2(FocusActivityBarAction);

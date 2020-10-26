@@ -77,7 +77,18 @@
 		}
 	},
 	{
-		"c": " *   id: number,",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   id: number,",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -88,7 +99,18 @@
 		}
 	},
 	{
-		"c": " *   fn: !Function,",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   fn: !Function,",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -99,7 +121,18 @@
 		}
 	},
 	{
-		"c": " *   context: (!Object|undefined)",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   context: (!Object|undefined)",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -110,7 +143,18 @@
 		}
 	},
 	{
-		"c": " * }",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " }",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -352,7 +396,18 @@
 		}
 	},
 	{
-		"c": " *   measureTask: goog.dom.animationFrame.Task_,",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   measureTask: goog.dom.animationFrame.Task_,",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -363,7 +418,18 @@
 		}
 	},
 	{
-		"c": " *   mutateTask: goog.dom.animationFrame.Task_,",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   mutateTask: goog.dom.animationFrame.Task_,",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -374,7 +440,18 @@
 		}
 	},
 	{
-		"c": " *   state: (!Object|undefined),",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   state: (!Object|undefined),",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -385,7 +462,18 @@
 		}
 	},
 	{
-		"c": " *   args: (!Array|undefined),",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   args: (!Array|undefined),",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -396,7 +484,18 @@
 		}
 	},
 	{
-		"c": " *   isScheduled: boolean",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "   isScheduled: boolean",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -407,7 +506,18 @@
 		}
 	},
 	{
-		"c": " * }",
+		"c": " *",
+		"t": "source.ts comment.block.documentation.ts",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " }",
 		"t": "source.ts comment.block.documentation.ts entity.name.type.instance.jsdoc",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",

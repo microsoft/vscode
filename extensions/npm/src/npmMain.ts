@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { invalidateTasksCache, NpmTaskProvider } from './tasks';
+import { getPackageManager, invalidateTasksCache, NpmTaskProvider } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
@@ -56,7 +56,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.refresh', () => {
 		invalidateScriptCaches();
 	}));
-
+	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManager', (args) => {
+		if (args instanceof vscode.Uri) {
+			return getPackageManager(args, true);
+		}
+		return '';
+	}));
 }
 
 function canRunNpmInCurrentWorkspace() {
