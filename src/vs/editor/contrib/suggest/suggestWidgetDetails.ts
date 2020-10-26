@@ -328,26 +328,29 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		// position: EAST, west, south
 		let width = bodyBox.width - (anchorBox.left + anchorBox.width);
 		left = -borderWidth + anchorBox.left + anchorBox.width;
-		maxSizeTop = new dom.Dimension(bodyBox.width - (anchorBox.left + anchorBox.width), bodyBox.height - anchorBox.top);
+		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top);
 		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height);
 
-		// position: east, WEST, south
-		if (anchorBox.left > width) {
-			// pos = SuggestDetailsPosition.West;
-			width = anchorBox.left;
-			left = Math.max(0, anchorBox.left - (size.width + borderWidth));
-			maxSizeTop = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
-			maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
-		}
+		// find a better place if the widget is wider than there is space available
+		if (size.width > width) {
+			// position: east, WEST, south
+			if (anchorBox.left > width) {
+				// pos = SuggestDetailsPosition.West;
+				width = anchorBox.left;
+				left = Math.max(0, anchorBox.left - (size.width + borderWidth));
+				maxSizeTop = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
+				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
+			}
 
-		// position: east, west, SOUTH
-		if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
-			width = anchorBox.width;
-			left = anchorBox.left;
-			top = -borderWidth + anchorBox.top + anchorBox.height;
-			maxSizeTop = new dom.Dimension(anchorBox.width - borderHeight, bodyBox.height - (anchorBox.top + anchorBox.height));
-			maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top);
-			minSize = minSize.with(maxSizeTop.width);
+			// position: east, west, SOUTH
+			if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
+				width = anchorBox.width;
+				left = anchorBox.left;
+				top = -borderWidth + anchorBox.top + anchorBox.height;
+				maxSizeTop = new dom.Dimension(anchorBox.width - borderHeight, bodyBox.height - (anchorBox.top + anchorBox.height));
+				maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top);
+				minSize = minSize.with(maxSizeTop.width);
+			}
 		}
 
 		// top/bottom placement
