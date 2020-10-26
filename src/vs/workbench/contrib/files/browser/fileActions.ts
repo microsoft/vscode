@@ -43,13 +43,13 @@ import { WebFileSystemAccess, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { sequence, timeout } from 'vs/base/common/async';
+import { RunOnceWorker, sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { trim, rtrim } from 'vs/base/common/strings';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -1040,7 +1040,8 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
 
 					interface IDownloadOperation {
-						startTime: number,
+						startTime: number;
+						progressScheduler: RunOnceWorker<IProgressStep>;
 
 						filesTotal: number;
 						filesDownloaded: number;
@@ -1139,13 +1140,15 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 							message = nls.localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, BinarySize.formatSize(operation.fileBytesDownloaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesDownloadedPerSecond));
 						}
 
-						progress.report({ message });
+						// Report progress but limit to update only once per second
+						operation.progressScheduler.work({ message });
 					}
 
 					try {
 						const parentFolder: WebFileSystemAccess.FileSystemDirectoryHandle = await window.showDirectoryPicker();
 						const operation: IDownloadOperation = {
 							startTime: Date.now(),
+							progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
 
 							filesTotal: stat.isDirectory ? 0 : 1, // folders increment filesTotal within downloadFolder method
 							filesDownloaded: 0,
@@ -1160,6 +1163,8 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 						} else {
 							await downloadFile(parentFolder, stat.name, stat.resource, operation);
 						}
+
+						operation.progressScheduler.dispose();
 					} catch (error) {
 						logService.warn(error);
 						cts.cancel(); // `showDirectoryPicker` will throw an error when the user cancels
