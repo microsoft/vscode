@@ -5,7 +5,7 @@
 
 import * as nls from 'vscode-nls';
 import * as vscode from 'vscode';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
@@ -174,26 +174,27 @@ export class GitHubServer {
 	}
 
 	public async getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
+		let result: Response;
 		try {
 			Logger.info('Getting user info...');
-			const result = await fetch('https://api.github.com/user', {
+			result = await fetch('https://api.github.com/user', {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'
 				}
 			});
-
-			if (result.ok) {
-				const json = await result.json();
-				Logger.info('Got account info!');
-				return { id: json.id, accountName: json.login };
-			} else {
-				Logger.error(`Getting account info failed: ${result.statusText}`);
-				throw new Error(result.statusText);
-			}
 		} catch (ex) {
 			Logger.error(ex.message);
 			throw new Error(NETWORK_ERROR);
+		}
+
+		if (result.ok) {
+			const json = await result.json();
+			Logger.info('Got account info!');
+			return { id: json.id, accountName: json.login };
+		} else {
+			Logger.error(`Getting account info failed: ${result.statusText}`);
+			throw new Error(result.statusText);
 		}
 	}
 }
