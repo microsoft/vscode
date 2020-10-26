@@ -37,11 +37,11 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			return undefined;
 		}
 
-		let parentRange = headerRange ? headerRange : createBlockRange(document, blockTokens.shift());
+		let parentRange = headerRange ? headerRange : createBlockRange(document, position.line, blockTokens.shift());
 		let currentRange: vscode.SelectionRange | undefined;
 
 		for (const token of blockTokens) {
-			currentRange = createBlockRange(document, token, parentRange);
+			currentRange = createBlockRange(document, position.line, token, parentRange);
 			if (currentRange) {
 				parentRange = currentRange;
 			}
@@ -137,10 +137,10 @@ function createHeaderRange(isClosestHeaderToPosition: boolean, onHeaderLine: boo
 	}
 }
 
-function createBlockRange(document: vscode.TextDocument, block?: Token, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+function createBlockRange(document: vscode.TextDocument, cursorLine: number, block?: Token, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	if (block) {
 		if (block.type === 'fence') {
-			return createFencedRange(block, document, parent);
+			return createFencedRange(block, cursorLine, document, parent);
 		} else {
 			let startLine = document.lineAt(block.map[0]).isEmptyOrWhitespace ? block.map[0] + 1 : block.map[0];
 			let endLine = startLine !== block.map[1] && isList(block.type) ? block.map[1] - 1 : block.map[1];
@@ -178,11 +178,12 @@ function createBlockRange(document: vscode.TextDocument, block?: Token, parent?:
 	}
 }
 
-function createFencedRange(token: Token, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
+function createFencedRange(token: Token, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
 	const startLine = token.map[0];
 	const endLine = token.map[1] - 1;
+	let onFenceLine = cursorLine === startLine || cursorLine === endLine;
 	let fenceRange = new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine, document.lineAt(endLine).text.length));
-	let contentRange = endLine - startLine > 2 ? new vscode.Range(new vscode.Position(startLine + 1, 0), new vscode.Position(endLine - 1, getEndCharacter(document, startLine + 1, endLine))) : undefined;
+	let contentRange = endLine - startLine > 2 && !onFenceLine ? new vscode.Range(new vscode.Position(startLine + 1, 0), new vscode.Position(endLine - 1, getEndCharacter(document, startLine + 1, endLine))) : undefined;
 	if (parent && contentRange) {
 		if (parent.range.contains(fenceRange) && !parent.range.isEqual(fenceRange)) {
 			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(fenceRange, parent));

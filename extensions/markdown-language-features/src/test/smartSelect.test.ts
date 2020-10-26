@@ -340,6 +340,30 @@ suite.only('markdown.SmartSelect', () => {
 
 		assertNestedRangesEqual(ranges![0], [9, 11], [8, 12], [7, 17], [1, 17], [0, 17]);
 	});
+	test('Smart select fenced code block then list then rest of content on fenced line', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`> block`,
+				`> block`,
+				`>> block`,
+				`>> block`,
+				``,
+				`- paragraph`,
+				`- ~~~${CURSOR}`,
+				`  my`,
+				`  code`,
+				`  goes here`,
+				`  ~~~`,
+				`- content`,
+				`- content 2`,
+				`- content 2`,
+				`- content 2`,
+				`- content 2`));
+
+		assertNestedRangesEqual(ranges![0], [8, 12], [7, 17], [1, 17], [0, 17]);
+	});
 });
 
 function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {
