@@ -453,7 +453,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
-			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
