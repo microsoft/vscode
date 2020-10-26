@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.51.0",
-  "distro": "74c7075cd3aa62f7b74214e04d027bb05b743a1a",
+  "distro": "2129418c601c23896883e91a13c9f542bcff9cc3",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -61,7 +61,6 @@
     "native-keymap": "2.2.0",
     "native-watchdog": "1.3.0",
     "node-pty": "0.10.0-beta18",
-    "semver-umd": "^5.5.7",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
     "tas-client-umd": "0.1.2",

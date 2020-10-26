@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare } from 'vs/base/common/strings';
+import { compare, compareSubstring } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -102,12 +102,16 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const availableSnippets = new Set<Snippet>(snippets);
 		const suggestions: SnippetCompletion[] = [];
 
-		for (let start of lineOffsets) {
+		const columnOffset = position.column - 1;
+
+		for (const start of lineOffsets) {
 			availableSnippets.forEach(snippet => {
-				if (isPatternInWord(lineContent, start, position.column - 1, snippet.prefixLow, 0, snippet.prefixLow.length)) {
-					const snippetPrefixSubstr = snippet.prefixLow.substr(position.column - (1 + start));
-					const endColumn = lineContent.indexOf(snippetPrefixSubstr, position.column - 1) >= 0 ? position.column + snippetPrefixSubstr.length : position.column;
-					const replace = Range.fromPositions(position.delta(0, -(position.column - (1 + start))), { lineNumber: position.lineNumber, column: endColumn });
+				if (isPatternInWord(lineContent, start, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
+					const prefixPos = position.column - (1 + start);
+					const prefixRestLen = snippet.prefixLow.length - prefixPos;
+					const endsWithPrefixRest = compareSubstring(lineContent, snippet.prefixLow, columnOffset, (columnOffset) + prefixRestLen, prefixPos, prefixPos + prefixRestLen);
+					const endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
+					const replace = Range.fromPositions(position.delta(0, -prefixPos), { lineNumber: position.lineNumber, column: endColumn });
 					const insert = replace.setEndPosition(position.lineNumber, position.column);
 
 					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
@@ -120,7 +124,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			// interesting positions have been found
 			availableSnippets.forEach(snippet => {
 				const insert = Range.fromPositions(position);
-				const replace = lineContent.indexOf(snippet.prefixLow, position.column - 1) >= 0 ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
+				const replace = lineContent.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
 				suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
 			});
 		}

@@ -373,8 +373,8 @@ configurationRegistry.registerConfiguration({
 				'modifications'
 			],
 			'enumDescriptions': [
-				nls.localize('everything', "Format the whole file."),
-				nls.localize('modification', "Format modifications (requires source control)."),
+				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
+				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
 			],
 			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is `true`."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
