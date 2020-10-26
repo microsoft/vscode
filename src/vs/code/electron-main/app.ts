@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -111,17 +111,69 @@ export class CodeApplication extends Disposable {
 		// Dispose on shutdown
 		this.lifecycleMainService.onWillShutdown(() => this.dispose());
 
+		// Login handler for proxy support
+		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') === true) {
+			let handledProxyLogins = 0;
+			app.on('login', (event, webContents, req, authInfo, cb) => {
+				if (!authInfo.isProxy) {
+					return; // only for proxy
+				}
+
+				this.logService.trace('app#login (proxy) - enter');
+
+				if (!this.windowsMainService) {
+					this.logService.trace('app#login (proxy) - exit - too early to handle');
+					return; // too early to handle
+				}
+
+				// Find suitable window to show dialog
+				const window = this.windowsMainService.getWindowByWebContents(webContents) || this.windowsMainService.getLastActiveWindow();
+				if (!window) {
+					this.logService.trace('app#login (proxy) - exit - no opened window found');
+					return; // unexpected
+				}
+
+				// Limit logins to 1 per session to avoid duplicate login prompts
+				handledProxyLogins++;
+				if (handledProxyLogins > 1) {
+					return; // only once
+				}
+
+				// Signal we handle this on our own
+				event.preventDefault();
+
+				// Open proxy dialog
+				this.logService.trace(`app#login (proxy) - asking window ${window.id} to handle proxy login`);
+				const payload = { authInfo, replyChannel: `vscode:proxyAuthResponse:${generateUuid()}` };
+				window.sendWhenReady('vscode:openProxyAuthDialog', payload);
+
+				// Handle reply
+				const proxyAuthResponseHandler = (event: Event, channel: string, credentials: { username: string, password: string }) => {
+					if (channel === payload.replyChannel) {
+						this.logService.trace(`app#login (proxy) - exit - received credentials from window ${window.id}`);
+						webContents.off('ipc-message', proxyAuthResponseHandler);
+
+						cb(credentials.username, credentials.password);
+					}
+				};
+
+				webContents.on('ipc-message', proxyAuthResponseHandler);
+			});
+		}
+
 		// Contextmenu via IPC support
 		registerContextMenuListener();
 
-		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
+		// Accessibility change event
+		app.on('accessibility-support-changed', (event, accessibilitySupportEnabled) => {
 			if (this.windowsMainService) {
 				this.windowsMainService.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
 			}
 		});
 
-		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
-			this.logService.trace('App#activate');
+		// macOS dock activate
+		app.on('activate', (event, hasVisibleWindows) => {
+			this.logService.trace('app#activate');
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows && this.windowsMainService) {
@@ -134,7 +186,7 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 		app.on('remote-require', (event, sender, module) => {
-			this.logService.trace('App#on(remote-require): prevented');
+			this.logService.trace('app#on(remote-require): prevented');
 
 			event.preventDefault();
 		});
@@ -164,8 +216,8 @@ export class CodeApplication extends Disposable {
 
 			event.preventDefault();
 		});
-		app.on('web-contents-created', (_event: Event, contents) => {
-			contents.on('will-attach-webview', (event: Event, webPreferences, params) => {
+		app.on('web-contents-created', (event, contents) => {
+			contents.on('will-attach-webview', (event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string | undefined): boolean => {
 					if (!source) {
@@ -207,7 +259,7 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			contents.on('new-window', (event: Event, url: string) => {
+			contents.on('new-window', (event, url) => {
 				event.preventDefault(); // prevent code that wants to open links
 
 				shell.openExternal(url);
@@ -226,8 +278,8 @@ export class CodeApplication extends Disposable {
 
 		let macOpenFileURIs: IWindowOpenable[] = [];
 		let runningTimeout: NodeJS.Timeout | null = null;
-		app.on('open-file', (event: Event, path: string) => {
-			this.logService.trace('App#open-file: ', path);
+		app.on('open-file', (event, path) => {
+			this.logService.trace('app#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
@@ -386,7 +438,9 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Setup Auth Handler
-		this._register(new ProxyAuthHandler());
+		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') !== true) {
+			this._register(new ProxyAuthHandler());
+		}
 
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));

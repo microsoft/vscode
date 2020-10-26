@@ -63,6 +63,8 @@ import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 export class NativeWindow extends Disposable {
 
@@ -107,7 +109,8 @@ export class NativeWindow extends Disposable {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -199,7 +202,28 @@ export class NativeWindow extends Disposable {
 			setFullscreen(false);
 		});
 
-		// accessibility support changed event
+		// Proxy Login Dialog
+		ipcRenderer.on('vscode:openProxyAuthDialog', async (event: unknown, payload: { authInfo: AuthInfo, replyChannel: string }) => {
+			const result = await this.dialogService.input('question', nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
+				[
+					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+				],
+				[
+					{ placeholder: nls.localize('username', "Username") },
+					{ placeholder: nls.localize('password', "Password"), type: 'password' }
+				],
+				{
+					cancelId: 1,
+					detail: nls.localize('proxyDetail', "The proxy {0} requires a userame and password.", `${payload.authInfo.host}:${payload.authInfo.port}`)
+				});
+
+			if (result.choice !== 1 && result.values) {
+				ipcRenderer.send(payload.replyChannel, { username: result.values[0], password: result.values[1] });
+			}
+		});
+
+		// Accessibility support changed event
 		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
