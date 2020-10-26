@@ -60,7 +60,7 @@ export class ExtensionMemento implements vscode.Memento {
 	}
 }
 
-export class ExtensionGlobalMemento extends ExtensionMemento implements vscode.SyncedMemento {
+export class ExtensionGlobalMemento extends ExtensionMemento {
 
 	private readonly _extension: IExtensionDescription;
 
