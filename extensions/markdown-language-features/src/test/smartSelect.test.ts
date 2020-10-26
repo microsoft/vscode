@@ -244,6 +244,78 @@ suite.only('markdown.SmartSelect', () => {
 
 		assertNestedRangesEqual(ranges![0], [4, 6], [2, 6], [1, 7], [1, 10], [0, 10]);
 	});
+	test('Smart select content of subheader then subheader then content of main header then main header', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`> block`,
+				`> block`,
+				`>> block`,
+				`>> block`,
+				``,
+				`paragraph`,
+				`## sub header`,
+				``,
+				``,
+				`${CURSOR}`,
+				``,
+				`### main header 2`,
+				`- content 2`,
+				`- content 2`,
+				`- content 2`,
+				`content 2`));
+
+		assertNestedRangesEqual(ranges![0], [11, 12], [9, 12], [9, 17], [8, 17], [1, 17], [0, 17]);
+	});
+	test('Smart select last line content of subheader then subheader then content of main header then main header', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`> block`,
+				`> block`,
+				`>> block`,
+				`>> block`,
+				``,
+				`paragraph`,
+				`## sub header`,
+				``,
+				``,
+				``,
+				``,
+				`### main header 2`,
+				`- content 2`,
+				`- content 2`,
+				`- content 2`,
+				`${CURSOR}content 2`));
+
+		assertNestedRangesEqual(ranges![0], [16, 17], [14, 17], [14, 17], [13, 17], [9, 17], [8, 17], [1, 17], [0, 17]);
+	});
+	test('Smart select last line content after content of subheader then subheader then content of main header then main header', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`> block`,
+				`> block`,
+				`>> block`,
+				`>> block`,
+				``,
+				`paragraph`,
+				`## sub header`,
+				``,
+				``,
+				``,
+				``,
+				`### main header 2`,
+				`- content 2`,
+				`- content 2`,
+				`- content 2`,
+				`content 2${CURSOR}`));
+
+		assertNestedRangesEqual(ranges![0], [16, 17], [14, 17], [14, 17], [13, 17], [9, 17], [8, 17], [1, 17], [0, 17]);
+	});
 });
 
 function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {

@@ -150,7 +150,25 @@ function createBlockRange(document: vscode.TextDocument, block?: Token, parent?:
 			if (parent && parent.range.contains(range) && !parent.range.isEqual(range)) {
 				return new vscode.SelectionRange(range, parent);
 			} else if (parent) {
-				return parent;
+				if (rangeLinesEqual(range, parent.range)) {
+					return range.end.character > parent.range.end.character ? new vscode.SelectionRange(range) : parent;
+				} else if (parent.range.end.line + 1 === range.end.line) {
+					let adjustedRange = new vscode.Range(range.start, range.end.translate(-1, parent.range.end.character));
+					if (adjustedRange.isEqual(parent.range)) {
+						return parent;
+					} else {
+						return new vscode.SelectionRange(adjustedRange, parent);
+					}
+				} else if (parent.range.end.line === range.end.line) {
+					let adjustedRange = new vscode.Range(parent.range.start, range.end.translate(undefined, parent.range.end.character));
+					if (adjustedRange.isEqual(parent.range)) {
+						return parent;
+					} else {
+						return new vscode.SelectionRange(adjustedRange, parent.parent);
+					}
+				} else {
+					return parent;
+				}
 			} else {
 				return new vscode.SelectionRange(range);
 			}
@@ -167,14 +185,11 @@ function createFencedRange(token: Token, document: vscode.TextDocument, parent?:
 		return new vscode.SelectionRange(childRange, new vscode.SelectionRange(blockRange.range, parent));
 	} else if (parent?.range.isEqual(blockRange.range)) {
 		return new vscode.SelectionRange(childRange, parent);
+	} else if (parent?.parent?.range.contains(blockRange.range)) {
+		blockRange.parent = parent.parent;
+		return new vscode.SelectionRange(childRange, blockRange);
 	} else {
-		if (parent?.parent?.range.contains(blockRange.range)) {
-			// in a list that's end range has been shortened
-			blockRange.parent = parent.parent;
-			return new vscode.SelectionRange(childRange, blockRange);
-		} else {
-			return new vscode.SelectionRange(childRange, blockRange);
-		}
+		return new vscode.SelectionRange(childRange, blockRange);
 	}
 }
 
@@ -187,4 +202,8 @@ function getEndCharacter(document: vscode.TextDocument, startLine: number, endLi
 	let endLength = document.lineAt(startLine).text ? document.lineAt(startLine).text.length : 0;
 	let endChar = Math.max(startLength, endLength);
 	return startLine !== endLine ? 0 : endChar;
+}
+
+function rangeLinesEqual(range: vscode.Range, parent: vscode.Range) {
+	return range.start.line === parent.start.line && range.end.line === parent.end.line;
 }
