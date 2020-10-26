@@ -206,8 +206,7 @@
                     "vs/nls",
                     "**/vs/base/common/**",
                     "**/vs/base/parts/*/common/**",
-                    "**/vs/platform/*/common/**",
-                    "semver-umd"
+                    "**/vs/platform/*/common/**"
                 ]
             },
             {
