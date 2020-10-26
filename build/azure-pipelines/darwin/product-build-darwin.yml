@@ -95,6 +95,14 @@ steps:
 
 - script: |
     set -e
+    export SDKROOT=/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+    ls /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
+    yarn electron-rebuild
+  displayName: Rebuild native modules for ARM64
+  condition: eq(variables['VSCODE_ARCH'], 'arm64')
+
+- script: |
+    set -e
     node build/azure-pipelines/mixin
   displayName: Mix in quality
 
