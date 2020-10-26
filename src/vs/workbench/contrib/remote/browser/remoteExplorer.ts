@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -128,7 +129,8 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDebugService private readonly debugService: IDebugService
 	) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration((e) => {
@@ -162,7 +164,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		if (this.contextServiceListener) {
 			this.contextServiceListener.dispose();
 		}
-		this.urlFinder = this._register(new UrlFinder(this.terminalService));
+		this.urlFinder = this._register(new UrlFinder(this.terminalService, this.debugService));
 		this._register(this.urlFinder.onDidMatchLocalUrl(async (localUrl) => {
 			if (mapHasTunnelLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, localUrl.host, localUrl.port)) {
 				return;
