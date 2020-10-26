@@ -20,6 +20,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { flatten } from 'vs/base/common/arrays';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
+import { canceled } from 'vs/base/common/errors';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensioManagementService {
 
@@ -38,6 +43,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IProductService protected readonly productService: IProductService,
 		@IDownloadService protected readonly downloadService: IDownloadService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
@@ -224,6 +232,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(([local]) => local);
 	}
 
+	async installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]> {
+		if (!installOptions) {
+			const isMachineScoped = await this.hasToFlagExtensionsMachineScoped(extensions);
+			installOptions = { isMachineScoped, isBuiltin: false };
+		}
+		return Promise.all(extensions.map(extension => this.installFromGallery(extension, installOptions)));
+	}
+
 	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 
 		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
@@ -244,7 +260,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (servers.length) {
-			if (!installOptions?.isMachineScoped) {
+			if (!installOptions) {
+				const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
+				installOptions = { isMachineScoped, isBuiltin: false };
+			}
+			if (!installOptions.isMachineScoped) {
 				if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)) {
 					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 				}
@@ -301,6 +321,37 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		return undefined;
+	}
+
+	private async hasToFlagExtensionsMachineScoped(extensions: IGalleryExtension[]): Promise<boolean> {
+		if (!this.userDataAutoSyncEnablementService.isEnabled() || !this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions)) {
+			return false;
+		}
+		return this.instantiationService.invokeFunction(async accessor => {
+			const dialogService = accessor.get(IDialogService);
+			const result = await dialogService.show(
+				Severity.Info,
+				extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
+				[
+					localize('install', "Install"),
+					localize('install and do no sync', "Install (Do not sync)"),
+					localize('cancel', "Cancel"),
+				],
+				{
+					cancelId: 2,
+					detail: extensions.length === 1
+						? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
+						: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?")
+				}
+			);
+			switch (result.choice) {
+				case 0:
+					return false;
+				case 1:
+					return true;
+			}
+			throw canceled();
+		});
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
