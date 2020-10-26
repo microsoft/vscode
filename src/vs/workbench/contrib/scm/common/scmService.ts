@@ -8,7 +8,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { HistoryNavigator2 } from 'vs/base/common/history';
 
 class SCMInput implements ISCMInput {
 
@@ -16,21 +17,6 @@ class SCMInput implements ISCMInput {
 
 	get value(): string {
 		return this._value;
-	}
-
-	set value(value: string) {
-		if (value === this._value) {
-			return;
-		}
-
-		this._value = value;
-
-		if (this.repository.provider.rootUri) {
-			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
-			this.storageService.store(key, value, StorageScope.WORKSPACE);
-		}
-
-		this._onDidChange.fire(value);
 	}
 
 	private readonly _onDidChange = new Emitter<string>();
@@ -79,14 +65,71 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 
+	private historyNavigator: HistoryNavigator2<string>;
+
 	constructor(
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
 	) {
-		if (this.repository.provider.rootUri) {
-			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
-			this._value = this.storageService.get(key, StorageScope.WORKSPACE, '');
+		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
+		let history: string[] | undefined;
+		let rawHistory = this.storageService.get(historyKey, StorageScope.WORKSPACE, '');
+
+		if (rawHistory) {
+			try {
+				history = JSON.parse(rawHistory);
+			} catch {
+				// noop
+			}
 		}
+
+		if (!history || history.length === 0) {
+			history = [this._value];
+		} else {
+			this._value = history[history.length - 1];
+		}
+
+		this.historyNavigator = new HistoryNavigator2(history, 50);
+
+		this.storageService.onWillSaveState(e => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				if (this.historyNavigator.isAtEnd()) {
+					this.historyNavigator.replaceLast(this._value);
+				}
+
+				if (this.repository.provider.rootUri) {
+					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.WORKSPACE);
+				}
+			}
+		});
+	}
+
+	setValue(value: string, transient: boolean) {
+		if (value === this._value) {
+			return;
+		}
+
+		if (!transient) {
+			this.historyNavigator.replaceLast(this._value);
+			this.historyNavigator.add(value);
+		}
+
+		this._value = value;
+		this._onDidChange.fire(value);
+	}
+
+	showNextHistoryValue(): void {
+		const value = this.historyNavigator.next();
+		this.setValue(value, true);
+	}
+
+	showPreviousHistoryValue(): void {
+		if (this.historyNavigator.isAtEnd()) {
+			this.historyNavigator.replaceLast(this._value);
+		}
+
+		const value = this.historyNavigator.previous();
+		this.setValue(value, true);
 	}
 }
 

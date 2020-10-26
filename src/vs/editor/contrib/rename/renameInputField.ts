@@ -134,6 +134,14 @@ export class RenameInputField implements IContentWidget {
 		};
 	}
 
+	afterRender(position: ContentWidgetPositionPreference | null): void {
+		if (!position) {
+			// cancel rename when input widget isn't rendered anymore
+			this.cancelInput(true);
+		}
+	}
+
+
 	private _currentAcceptInput?: (wantsPreview: boolean) => void;
 	private _currentCancelInput?: (focusEditor: boolean) => void;
 

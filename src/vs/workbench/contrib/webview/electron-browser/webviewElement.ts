@@ -291,6 +291,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			return;
 		}
 
+		// Clear the existing focus first.
+		// This is required because the next part where we set the focus is async.
+		if (document.activeElement && document.activeElement instanceof HTMLElement) {
+			document.activeElement.blur();
+		}
+
 		// Workaround for https://github.com/microsoft/vscode/issues/75209
 		// Electron's webview.focus is async so for a sequence of actions such as:
 		//
@@ -306,8 +312,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			if (!this.isFocused || !this.element) {
 				return;
 			}
-
-			if (document.activeElement?.tagName === 'INPUT') {
+			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 			try {

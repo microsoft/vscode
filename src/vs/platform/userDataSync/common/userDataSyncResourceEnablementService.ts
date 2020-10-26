@@ -32,7 +32,7 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 	}
 
 	isResourceEnabled(resource: SyncResource): boolean {
-		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.GLOBAL, this.getDefaultResourceEnablementValue(resource));
+		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.GLOBAL, true);
 	}
 
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
@@ -52,9 +52,4 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 			}
 		}
 	}
-
-	protected getDefaultResourceEnablementValue(resource: SyncResource): boolean {
-		return true;
-	}
-
 }

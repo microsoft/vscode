@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -83,7 +82,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		public readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		public extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
@@ -103,9 +102,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
 			this._logService.debug(`Webview(${this.id}): webview ready`);
 
-			if (this.element) {
-				addClass(this.element, 'ready');
-			}
+			this.element?.classList.add('ready');
 
 			if (this._state.type === WebviewState.Type.Initializing) {
 				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));

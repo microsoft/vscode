@@ -197,7 +197,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
-					this.renderRemoteStatusIndicator(`$(sync~spin) ${nls.localize('host.open', "Opening Remote...")}`, nls.localize('host.open', "Opening Remote..."));
+					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
 					break;
 				case 'disconnected':
 					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", hostLabel)}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
@@ -219,7 +219,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string): void {
+	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string, showProgress?: boolean): void {
 		const name = nls.localize('remoteHost', "Remote Host");
 		if (typeof command !== 'string' && this.remoteMenu.getActions().length > 0) {
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
@@ -230,6 +230,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
 			ariaLabel: name,
 			text,
+			showProgress,
 			tooltip,
 			command
 		};

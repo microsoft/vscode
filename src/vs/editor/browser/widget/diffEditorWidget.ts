@@ -2133,7 +2133,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		}
 
 		let sb = createStringBuilder(10000);
-		let marginHTML: string[] = [];
+		let marginDomNode = document.createElement('div');
 		const layoutInfo = this.modifiedEditorOptions.get(EditorOption.layoutInfo);
 		const fontInfo = this.modifiedEditorOptions.get(EditorOption.fontInfo);
 		const lineDecorationsWidth = layoutInfo.decorationsWidth;
@@ -2148,9 +2148,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 			if (this.renderIndicators) {
 				let index = lineNumber - lineChange.originalStartLineNumber;
-				marginHTML = marginHTML.concat([
-					`<div class="delete-sign ${diffRemoveIcon.classNames}" style="position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;"></div>`
-				]);
+				const marginElement = document.createElement('div');
+				marginElement.className = `delete-sign ${diffRemoveIcon.classNames}`;
+				marginElement.setAttribute('style', `position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;`);
+				marginDomNode.appendChild(marginElement);
 			}
 		}
 		maxCharsPerLine += this.modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
@@ -2160,9 +2161,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		domNode.innerHTML = sb.build();
 		Configuration.applyFontInfoSlow(domNode, fontInfo);
 
-		let marginDomNode = document.createElement('div');
 		marginDomNode.className = 'inline-deleted-margin-view-zone';
-		marginDomNode.innerHTML = marginHTML.join('');
 		Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
 
 		return {

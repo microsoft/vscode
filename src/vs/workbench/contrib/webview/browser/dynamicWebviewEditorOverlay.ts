@@ -30,6 +30,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
 
+	private _extension: WebviewExtensionDescription | undefined;
 	private _contentOptions: WebviewContentOptions;
 	private _options: WebviewOptions;
 
@@ -42,13 +43,14 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		public readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		extension: WebviewExtensionDescription | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
+		this._extension = extension;
 		this._options = initialOptions;
 		this._contentOptions = initialContentOptions;
 
@@ -173,6 +175,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	public set state(value: string | undefined) {
 		this._state = value;
 		this.withWebview(webview => webview.state = value);
+	}
+
+	public get extension(): WebviewExtensionDescription | undefined { return this._extension; }
+	public set extension(value: WebviewExtensionDescription | undefined) {
+		this._extension = value;
+		this.withWebview(webview => webview.extension = value);
 	}
 
 	public get options(): WebviewOptions { return this._options; }

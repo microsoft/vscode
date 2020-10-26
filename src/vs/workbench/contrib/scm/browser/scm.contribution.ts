@@ -11,7 +11,7 @@ import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, IS
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMStatusController } from './activity';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -221,12 +221,39 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!repository || !repository.provider.acceptInputCommand) {
 			return Promise.resolve(null);
 		}
-
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
 
 		const commandService = accessor.get(ICommandService);
 		return commandService.executeCommand(id, ...(args || []));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.viewNextCommit',
+	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.has('scmInputIsInLastLine'),
+	primary: KeyCode.DownArrow,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showNextHistoryValue();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.viewPriorCommit',
+	description: { description: localize('scm view prior commit', "SCM: View Prior Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.has('scmInputIsInFirstLine'),
+	primary: KeyCode.UpArrow,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showPreviousHistoryValue();
 	}
 });
 

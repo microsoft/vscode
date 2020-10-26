@@ -18,11 +18,6 @@ import { URI } from 'vs/base/common/uri';
 
 suite('StorageService', function () {
 
-	// Given issues such as https://github.com/microsoft/vscode/issues/108113
-	// we see random test failures when accessing the native file system.
-	this.retries(3);
-	this.timeout(1000 * 10);
-
 	test('Remove Data (global, in-memory)', () => {
 		removeData(StorageScope.GLOBAL);
 	});
@@ -89,6 +84,12 @@ suite('StorageService', function () {
 	}
 
 	test('Migrate Data', async () => {
+
+		// Given issues such as https://github.com/microsoft/vscode/issues/108113
+		// we see random test failures when accessing the native file system.
+		this.retries(3);
+		this.timeout(1000 * 20);
+
 		class StorageTestEnvironmentService extends NativeEnvironmentService {
 
 			constructor(private workspaceStorageFolderPath: URI, private _extensionsPath: string) {

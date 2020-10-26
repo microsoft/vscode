@@ -13,7 +13,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { isMacintosh, isWindows, isRootUser, isLinux } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { dirExists } from 'vs/base/node/pfs';
@@ -27,12 +27,21 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
-export class NativeHostMainService implements INativeHostMainService {
+interface ChunkedPassword {
+	content: string;
+	hasNextChunk: boolean;
+}
+
+const MAX_PASSWORD_LENGTH = 2500;
+const PASSWORD_CHUNK_SIZE = MAX_PASSWORD_LENGTH - 100;
+
+export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -40,10 +49,12 @@ export class NativeHostMainService implements INativeHostMainService {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		this.registerListeners();
 	}
 
@@ -51,7 +62,7 @@ export class NativeHostMainService implements INativeHostMainService {
 
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
-			this._onColorSchemeChange.fire({
+			this._onDidChangeColorScheme.fire({
 				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
 				dark: nativeTheme.shouldUseDarkColors
 			});
@@ -67,21 +78,24 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	//#region Events
 
-	readonly onWindowOpen = Event.map(this.windowsMainService.onWindowOpened, window => window.id);
+	readonly onDidOpenWindow = Event.map(this.windowsMainService.onWindowOpened, window => window.id);
 
-	readonly onWindowMaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowUnmaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onWindowBlur = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowFocus = Event.any(
+	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidFocusWindow = Event.any(
 		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
 	);
 
-	readonly onOSResume = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-	private readonly _onColorSchemeChange = new Emitter<IColorScheme>();
-	readonly onColorSchemeChange = this._onColorSchemeChange.event;
+	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
+	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+
+	private readonly _onDidChangePassword = this._register(new Emitter<void>());
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	//#endregion
 
@@ -627,19 +641,67 @@ export class NativeHostMainService implements INativeHostMainService {
 	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
 		const keytar = await import('keytar');
 
-		return keytar.getPassword(service, account);
+		const password = await keytar.getPassword(service, account);
+		if (password) {
+			try {
+				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+				if (!content || !hasNextChunk) {
+					return password;
+				}
+
+				let index = 1;
+				while (hasNextChunk) {
+					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
+					const result: ChunkedPassword = JSON.parse(nextChunk!);
+					content += result.content;
+					hasNextChunk = result.hasNextChunk;
+				}
+
+				return content;
+			} catch {
+				return password;
+			}
+		}
+
+		return password;
 	}
 
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
 		const keytar = await import('keytar');
 
-		return keytar.setPassword(service, account, password);
+		if (isWindows && password.length > MAX_PASSWORD_LENGTH) {
+			let index = 0;
+			let chunk = 0;
+			let hasNextChunk = true;
+			while (hasNextChunk) {
+				const passwordChunk = password.substring(index, index + PASSWORD_CHUNK_SIZE);
+				index += PASSWORD_CHUNK_SIZE;
+				hasNextChunk = password.length - index > 0;
+				const content: ChunkedPassword = {
+					content: passwordChunk,
+					hasNextChunk: hasNextChunk
+				};
+
+				await keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
+				chunk++;
+			}
+
+		} else {
+			await keytar.setPassword(service, account, password);
+		}
+
+		this._onDidChangePassword.fire();
 	}
 
 	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
 		const keytar = await import('keytar');
 
-		return keytar.deletePassword(service, account);
+		const didDelete = await keytar.deletePassword(service, account);
+		if (didDelete) {
+			this._onDidChangePassword.fire();
+		}
+
+		return didDelete;
 	}
 
 	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {

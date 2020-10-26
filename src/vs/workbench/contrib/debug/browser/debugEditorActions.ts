@@ -19,6 +19,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -122,6 +123,7 @@ export class RunToCursorAction extends EditorAction {
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 		const focusedSession = debugService.getViewModel().focusedSession;
 		if (debugService.state !== State.Stopped || !focusedSession) {
 			return;
@@ -145,7 +147,7 @@ export class RunToCursorAction extends EditorAction {
 			if (!bpExists) {
 				let column = 0;
 				const focusedStackFrame = debugService.getViewModel().focusedStackFrame;
-				if (focusedStackFrame && focusedStackFrame.source.uri.toString() === uri.toString() && focusedStackFrame.range.startLineNumber === position.lineNumber) {
+				if (focusedStackFrame && uriIdentityService.extUri.isEqual(focusedStackFrame.source.uri, uri) && focusedStackFrame.range.startLineNumber === position.lineNumber) {
 					// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint at column 0 on the line
 					// otherwise set it at the precise column #102199
 					column = position.column;
@@ -272,10 +274,11 @@ class StepIntoTargetsAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const contextMenuService = accessor.get(IContextMenuService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 		const session = debugService.getViewModel().focusedSession;
 		const frame = debugService.getViewModel().focusedStackFrame;
 
-		if (session && frame && editor.hasModel() && editor.getModel().uri.toString() === frame.source.uri.toString()) {
+		if (session && frame && editor.hasModel() && uriIdentityService.extUri.isEqual(editor.getModel().uri, frame.source.uri)) {
 			const targets = await session.stepInTargets(frame.frameId);
 			if (!targets) {
 				return;
@@ -305,6 +308,8 @@ class GoToBreakpointAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
 		if (editor.hasModel()) {
 			const currentUri = editor.getModel().uri;
 			const currentLine = editor.getPosition().lineNumber;
@@ -314,8 +319,8 @@ class GoToBreakpointAction extends EditorAction {
 			//Try to find breakpoint in current file
 			let moveBreakpoint =
 				this.isNext
-					? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
-					: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
+					? allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber > currentLine).shift()
+					: allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber < currentLine).pop();
 
 			//Try to find breakpoints in following files
 			if (!moveBreakpoint) {

@@ -163,6 +163,11 @@ declare module 'vscode' {
 		 * @param key The key the password was stored under.
 		 */
 		export function deletePassword(key: string): Thenable<void>;
+
+		/**
+		 * Fires when a password is set or deleted.
+		 */
+		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
@@ -987,7 +992,7 @@ declare module 'vscode' {
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
-		exclusive?: boolean;
+		readonly exclusive?: boolean;
 	}
 
 	//#endregion
@@ -1524,7 +1529,7 @@ declare module 'vscode' {
 		 *
 		 * Messages are only delivered if the editor is live.
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -1726,7 +1731,7 @@ declare module 'vscode' {
 		 *
 		 * Messages are only delivered if the editor is live.
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -1841,6 +1846,7 @@ declare module 'vscode' {
 		): Disposable;
 
 		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
+		export function openNotebookDocument(uri: Uri, viewType?: string): Promise<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
@@ -2153,23 +2159,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/103120 @alexr00
-	export class ThemeIcon2 extends ThemeIcon {
-
-		/**
-		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
-		 */
-		public readonly id: string;
-
-		/**
-		 * Creates a reference to a theme icon.
-		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
-		 * @param color optional `ThemeColor` for the icon.
-		 */
-		constructor(id: string, color?: ThemeColor);
-	}
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
 	export interface CommentThread {
 		/**
@@ -2177,6 +2166,31 @@ declare module 'vscode' {
 		 * Defaults to true.
 		 */
 		canReply: boolean;
+	}
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
+	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
+
+		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChangeFoldingRanges?: Event<void>;
+
+	}
+	//#endregion
+
+	//#region Syncing Extension's Global State https://github.com/microsoft/vscode/issues/95209 @sandy081
+	export interface ExtensionContext {
+
+		readonly syncedGlobalState: Memento & {
+			/**
+			 * List of keys whose values should be synced across devices when extensions synchronization is enabled .
+			 * Set synced keys to an empty array to unset the synced state.
+			 */
+			syncedKeys: ReadonlyArray<string>;
+		};
+
 	}
 	//#endregion
 }

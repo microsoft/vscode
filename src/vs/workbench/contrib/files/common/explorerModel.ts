@@ -16,6 +16,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
 import { SortOrder } from 'vs/workbench/contrib/files/common/files';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class ExplorerModel implements IDisposable {
 
@@ -25,6 +26,7 @@ export class ExplorerModel implements IDisposable {
 
 	constructor(
 		private readonly contextService: IWorkspaceContextService,
+		private readonly uriIdentityService: IUriIdentityService,
 		fileService: IFileService
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
@@ -62,7 +64,7 @@ export class ExplorerModel implements IDisposable {
 	findClosest(resource: URI): ExplorerItem | null {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
-			const root = this.roots.find(r => r.resource.toString() === folder.uri.toString());
+			const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, folder.uri));
 			if (root) {
 				return root.find(resource);
 			}

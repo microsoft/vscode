@@ -44,14 +44,21 @@ import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/wi
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { WebResourceIdentityService, IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from 'vs/nls';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 class BrowserMain extends Disposable {
 
@@ -84,7 +91,7 @@ class BrowserMain extends Disposable {
 		);
 
 		// Listeners
-		this.registerListeners(workbench, services.storageService);
+		this.registerListeners(workbench, services.configurationService, services.storageService, services.logService);
 
 		// Driver
 		if (this.configuration.driver) {
@@ -97,20 +104,25 @@ class BrowserMain extends Disposable {
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);
+			const lifecycleService = accessor.get(ILifecycleService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
-				}
+				},
+				shutdown: () => lifecycleService.shutdown()
 			};
 		});
 	}
 
-	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
+	private registerListeners(workbench: Workbench, configurationService: IConfigurationService, storageService: BrowserStorageService, logService: ILogService): void {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
+			workbench.layout();
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
@@ -124,7 +136,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				console.warn('Unload prevented: pending storage update');
+				console.warn('Unload veto: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
 			}
 		}));
@@ -144,7 +156,7 @@ class BrowserMain extends Disposable {
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -233,7 +245,7 @@ class BrowserMain extends Disposable {
 			mark('didInitRequiredUserData');
 		}
 
-		return { serviceCollection, logService, storageService };
+		return { serviceCollection, configurationService, logService, storageService };
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
@@ -269,21 +281,40 @@ class BrowserMain extends Disposable {
 		}
 
 		// User data
-		if (!this.configuration.userDataProvider) {
-			let indexedDBUserDataProvider: IFileSystemProvider | null = null;
-			try {
-				indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
-			} catch (error) {
-				console.error(error);
-			}
-			if (indexedDBUserDataProvider) {
-				this.configuration.userDataProvider = indexedDBUserDataProvider;
-			} else {
-				this.configuration.userDataProvider = new InMemoryFileSystemProvider();
-			}
+		let indexedDBUserDataProvider: IIndexedDBFileSystemProvider | null = null;
+		try {
+			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
+		} catch (error) {
+			console.error(error);
 		}
 
-		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
+		if (indexedDBUserDataProvider) {
+			registerAction2(class ResetUserDataAction extends Action2 {
+				constructor() {
+					super({
+						id: 'workbench.action.resetUserData',
+						title: { original: 'Reset User Data', value: localize('reset', "Reset User Data") },
+						category: CATEGORIES.Developer,
+						menu: {
+							id: MenuId.CommandPalette
+						}
+					});
+				}
+				async run(accessor: ServicesAccessor): Promise<void> {
+					const dialogService = accessor.get(IDialogService);
+					const hostService = accessor.get(IHostService);
+					const result = await dialogService.confirm({
+						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
+					});
+					if (result.confirmed) {
+						await indexedDBUserDataProvider!.reset();
+					}
+					hostService.reload();
+				}
+			});
+		}
+
+		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {

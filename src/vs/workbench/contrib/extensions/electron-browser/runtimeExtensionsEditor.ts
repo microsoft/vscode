@@ -606,8 +606,8 @@ export class DebugExtensionHostAction extends Action {
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this.productService.nameLong),
-				primaryButton: nls.localize('restart3', "Restart"),
-				secondaryButton: nls.localize('cancel', "Cancel")
+				primaryButton: nls.localize('restart3', "&&Restart"),
+				secondaryButton: nls.localize('cancel', "&&Cancel")
 			});
 			if (res.confirmed) {
 				await this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });

@@ -20,11 +20,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
-const PERSISTED_PRODUCT_ICON_THEME_STORAGE_KEY = 'productIconThemeData';
-
 export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
 
 export class ProductIconThemeData implements IWorkbenchProductIconTheme {
+
+	static readonly STORAGE_KEY = 'productIconThemeData';
+
 	id: string;
 	label: string;
 	settingsId: string;
@@ -104,7 +105,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ProductIconThemeData | undefined {
-		const input = storageService.get(PERSISTED_PRODUCT_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ProductIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
@@ -122,7 +123,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
-						theme.location = URI.revive(data.location);
+						// ignore, no longer restore
 						break;
 					case 'extensionData':
 						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
@@ -141,12 +142,11 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location?.toJSON(),
 			styleSheetContent: this.styleSheetContent,
 			watch: this.watch,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 		});
-		storageService.store(PERSISTED_PRODUCT_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);
+		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL);
 	}
 }
 

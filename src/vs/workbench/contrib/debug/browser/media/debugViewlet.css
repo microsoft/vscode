@@ -55,6 +55,11 @@
 	padding-bottom: 0;
 }
 
+
+.monaco-workbench.safari .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
+	margin-bottom: 0px;
+}
+
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
 	opacity: 0.7;
 	font-style: italic;
@@ -93,7 +98,7 @@
 	width: 100%;
 }
 
-.debug-pane .debug-call-stack-title > .pause-message {
+.debug-pane .debug-call-stack-title > .state-message {
 	flex: 1;
 	text-align: right;
 	text-overflow: ellipsis;
@@ -102,7 +107,7 @@
 	margin: 0px 10px;
 }
 
-.debug-pane .debug-call-stack-title > .pause-message > .label {
+.debug-pane .debug-call-stack-title > .state-message > .label {
 	border-radius: 3px;
 	padding: 1px 2px;
 	font-size: 9px;

@@ -103,6 +103,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
 	'driver-verbose': { type: 'boolean' },
+	'install-builtin-extension': { type: 'string[]' },
 	'force': { type: 'boolean' },
 	'do-not-sync': { type: 'boolean' },
 	'trace': { type: 'boolean' },

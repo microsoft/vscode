@@ -39,6 +39,7 @@ import { Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { domEvent } from 'vs/base/browser/event';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -78,6 +79,7 @@ export class WalkThroughPart extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
@@ -270,7 +272,10 @@ export class WalkThroughPart extends EditorPane {
 		this.content.innerText = '';
 
 		return super.setInput(input, options, context, token)
-			.then(() => {
+			.then(async () => {
+				if (input.resource.path.endsWith('.md')) {
+					await this.extensionService.whenInstalledExtensionsRegistered();
+				}
 				return input.resolve();
 			})
 			.then(model => {
