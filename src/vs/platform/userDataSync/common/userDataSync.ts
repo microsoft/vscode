@@ -289,6 +289,11 @@ export interface ISyncExtension {
 	version?: string;
 	disabled?: boolean;
 	installed?: boolean;
+	state?: IStringDictionary<any>;
+}
+
+export interface ISyncExtensionWithVersion extends ISyncExtension {
+	version: string;
 }
 
 export interface IStorageValue {

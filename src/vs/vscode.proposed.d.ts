@@ -2179,4 +2179,22 @@ declare module 'vscode' {
 
 	}
 	//#endregion
+
+	//#region Syncing Extension's Global State https://github.com/microsoft/vscode/issues/95209 @sandy081
+
+	export interface ExtensionContext {
+		readonly syncedGlobalState: SyncedMemento;
+	}
+
+	export interface SyncedMemento extends Memento {
+
+		/**
+		 * List of keys whose values should be synced across devices when extensions synchronization is enabled .
+		 * Set synced keys to an empty array to unset the synced state.
+		 */
+		syncedKeys: ReadonlyArray<string>;
+
+	}
+
+	//#endregion
 }
