@@ -9,33 +9,18 @@ import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
-export class ExtensionMemento implements vscode.SyncedMemento {
+export class ExtensionMemento implements vscode.Memento {
 
-	private readonly _extension: IExtensionDescription;
-	private readonly _id: string;
-	private readonly _version: string;
+	protected readonly _id: string;
 	private readonly _shared: boolean;
-	private readonly _storage: ExtHostStorage;
+	protected readonly _storage: ExtHostStorage;
 
 	private readonly _init: Promise<ExtensionMemento>;
 	private _value?: { [n: string]: any; };
 	private readonly _storageListener: IDisposable;
 
-	private _syncedKeys: string[] = [];
-	get syncedKeys(): ReadonlyArray<string> { return Object.freeze(this._syncedKeys); }
-	set syncedKeys(syncKeys: ReadonlyArray<string>) {
-		checkProposedApiEnabled(this._extension);
-		if (!this._shared) {
-			throw new Error('Only global state is synchronized');
-		}
-		this._syncedKeys = [...syncKeys];
-		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._version }, this._syncedKeys);
-	}
-
-	constructor(extensionDescription: IExtensionDescription, global: boolean, storage: ExtHostStorage) {
-		this._extension = extensionDescription;
-		this._id = extensionDescription.identifier.value;
-		this._version = extensionDescription.version;
+	constructor(id: string, global: boolean, storage: ExtHostStorage) {
+		this._id = id;
 		this._shared = global;
 		this._storage = storage;
 
@@ -73,4 +58,23 @@ export class ExtensionMemento implements vscode.SyncedMemento {
 	dispose(): void {
 		this._storageListener.dispose();
 	}
+}
+
+export class ExtensionGlobalMemento extends ExtensionMemento implements vscode.SyncedMemento {
+
+	private readonly _extension: IExtensionDescription;
+
+	private _syncedKeys: string[] = [];
+	get syncedKeys(): ReadonlyArray<string> { return Object.freeze(this._syncedKeys); }
+	set syncedKeys(syncKeys: ReadonlyArray<string>) {
+		checkProposedApiEnabled(this._extension);
+		this._syncedKeys = [...syncKeys];
+		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._extension.version }, this._syncedKeys);
+	}
+
+	constructor(extensionDescription: IExtensionDescription, storage: ExtHostStorage) {
+		super(extensionDescription.identifier.value, true, storage);
+		this._extension = extensionDescription;
+	}
+
 }
