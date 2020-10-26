@@ -11,7 +11,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, Dimension, asCSSUrl, prepend } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, ISCMRevision } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions, isSCMRevision, getSCMRevisionInfo } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions, isSCMRevision, getSCMRevisionFromUri } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -515,7 +515,7 @@ interface RevisionTemplate {
 	disposables: IDisposable;
 }
 
-class RevisionRenderer implements ICompressibleTreeRenderer<ISCMResource, FuzzyScore | LabelFuzzyScore, RevisionTemplate> {
+class RevisionRenderer implements ICompressibleTreeRenderer<ISCMRevision, FuzzyScore | LabelFuzzyScore, RevisionTemplate> {
 
 	static readonly TEMPLATE_ID = 'revision';
 	get templateId(): string { return RevisionRenderer.TEMPLATE_ID; }
@@ -527,8 +527,10 @@ class RevisionRenderer implements ICompressibleTreeRenderer<ISCMResource, FuzzyS
 	) { }
 
 	renderTemplate(container: HTMLElement): RevisionTemplate {
-		const iconLabel = new IconLabel(container, { supportHighlights: true, supportCodicons: true });
-		const icon = prepend(iconLabel.element, $('span.revision-icon'));
+		const element = append(container, $('.resource.revision'));
+		const name = append(element, $('.name'));
+		const iconLabel = new IconLabel(name, { supportHighlights: true, supportCodicons: true });
+		const icon = prepend(iconLabel.element, $('span.icon'));
 		const actionsContainer = append(iconLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
@@ -540,31 +542,35 @@ class RevisionRenderer implements ICompressibleTreeRenderer<ISCMResource, FuzzyS
 		return { icon, iconLabel, actionBar, elementDisposables: Disposable.None, disposables };
 	}
 
-	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
+	renderElement(node: ITreeNode<ISCMRevision, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMRevision, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
 		template.elementDisposables.dispose();
 
 		const elementDisposables = new DisposableStore();
 
 		const { element: item } = node;
 
-		const revision = getSCMRevisionInfo(item);
+		const revision = item.revision ?? getSCMRevisionFromUri(item);
 
 		template.actionBar.clear();
 		template.actionBar.context = item;
 
-		// const [matches, descriptionMatches] = this._processFilterData(revision.message, node.filterData);
 		const menus = this.scmViewService.menus.getRepositoryMenus(item.resourceGroup.provider);
 		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(item), template.actionBar));
 
-		const icon = item.decorations.icon?.path.substr(1);
-		const iconClass = icon ? ThemeIcon.asClassName({ id: icon }) : undefined;
-		template.icon.className = `revision-icon${iconClass ? ` ${iconClass}` : ''}`;
+		const iconClass = ThemeIcon.isThemeIcon(revision.iconPath) ? ThemeIcon.asClassName(revision.iconPath) : undefined;
+		template.icon.className = `icon${iconClass ? ` ${iconClass}` : ''}`;
 
-		const date = new Date(revision.date);
-		const relativeTime = fromNow(date, true);
+		let relativeTime;
+		if (revision.timestamp) {
+			relativeTime = fromNow(new Date(revision.timestamp), true);
+		}
 
-		template.iconLabel.setLabel(revision.message, relativeTime, {
-			title: `${revision.ref.substr(0, 8)} (unpublished)\n${relativeTime}\n\n${revision.message}`,
+		const newlineIndex = revision.message.indexOf('\n');
+		const message = newlineIndex !== -1 ? `${revision.message.substring(0, newlineIndex)} \u2026` : revision.message;
+
+		// const [matches, descriptionMatches] = this._processFilterData(revision.message, node.filterData);
+		template.iconLabel.setLabel(message, relativeTime, {
+			title: `${revision.author ? `${revision.author} — ` : ''}${revision.shortId ?? revision.id}${revision.status ? ` (${revision.status})` : ''}${relativeTime ? `\n${relativeTime}` : ''}\n\n${revision.message}`,
 			matches: createMatches(node.filterData as FuzzyScore | undefined),
 			// descriptionMatches
 		});
@@ -572,15 +578,15 @@ class RevisionRenderer implements ICompressibleTreeRenderer<ISCMResource, FuzzyS
 		template.elementDisposables = elementDisposables;
 	}
 
-	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
+	disposeElement(resource: ITreeNode<ISCMRevision, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
 		template.elementDisposables.dispose();
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource>, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate, height: number | undefined): void {
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMRevision>, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate, height: number | undefined): void {
 		template.elementDisposables.dispose();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource>, FuzzyScore | LabelFuzzyScore>, index: number, templateData: RevisionTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMRevision>, FuzzyScore | LabelFuzzyScore>, index: number, templateData: RevisionTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 

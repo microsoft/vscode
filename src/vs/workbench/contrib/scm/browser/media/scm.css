@@ -119,6 +119,11 @@
 	text-overflow: ellipsis;
 }
 
+.scm-view .monaco-list-row .revision .icon {
+	padding-right: 6px;
+	padding-top: 3px;
+}
+
 .scm-view .monaco-list-row .resource {
 	display: flex;
 	height: 100%;
@@ -131,11 +136,6 @@
 .scm-view .monaco-list-row .resource > .name {
 	flex: 1;
 	overflow: hidden;
-}
-
-.scm-view .monaco-list-row .revision-icon {
-	padding-right: 6px;
-	padding-top: 3px;
 }
 
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {

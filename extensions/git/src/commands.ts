@@ -384,6 +384,10 @@ export class CommandCenter {
 	}
 
 	private getLeftResource(resource: Resource): Uri | undefined {
+		if (resource.unpublished) {
+			return toGitUri(resource.original, resource.unpublished.upstream);
+		}
+
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
@@ -396,15 +400,15 @@ export class CommandCenter {
 
 			case Status.DELETED_BY_THEM:
 				return toGitUri(resource.resourceUri, '');
-
-			case Status.UNPUBLISHED:
-				return toGitUri(resource.resourceUri, resource.unpublishedUpstream!);
-
 		}
 		return undefined;
 	}
 
 	private getRightResource(resource: Resource): Uri | undefined {
+		if (resource.unpublished) {
+			return toGitUri(resource.original, 'HEAD');
+		}
+
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
@@ -444,16 +448,16 @@ export class CommandCenter {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
-
-			case Status.UNPUBLISHED:
-				return resource.resourceUri;
-
 		}
 		return undefined;
 	}
 
 	private getTitle(resource: Resource): string {
 		const basename = path.basename(resource.resourceUri.fsPath);
+
+		if (resource.unpublished) {
+			return localize('git.title.unpublished', '{0} (Unpublished)', basename);
+		}
 
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
@@ -2552,7 +2556,7 @@ export class CommandCenter {
 		if (!GitTimelineItem.is(item)) {
 			if (isRevisionUri(item.resourceUri)) {
 				const revision = fromRevisionUri(item.resourceUri);
-				env.clipboard.writeText(revision.ref);
+				env.clipboard.writeText(revision.id);
 			}
 
 			return;
@@ -2582,6 +2586,22 @@ export class CommandCenter {
 		} else {
 			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
 		}
+	}
+
+	@command('git.setUnpublishedViewToCommits', { repository: true })
+	async setUnpublishedViewToCommits(repository: Repository) {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		config.update('unpublishedChanges', 'commits');
+
+		setTimeout(() => void this.refresh(repository), 50);
+	}
+
+	@command('git.setUnpublishedViewToFiles', { repository: true })
+	async setUnpublishedViewToFiles(repository: Repository) {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		config.update('unpublishedChanges', 'files');
+
+		setTimeout(() => void this.refresh(repository), 50);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMService, ISCMViewService, ISCMRevision } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMService, ISCMViewService, ISCMRevision, ISCMRevisionState } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -132,17 +132,10 @@ export function getRepositoryVisibilityActions(scmService: ISCMService, scmViewS
 	return actions;
 }
 
-export interface SCMRevisionParams {
-	path: string;
-	ref: string;
-	message: string;
-	date: number;
-}
-
 export function isSCMRevision(element: any): element is ISCMRevision {
 	return /^revision$/.test(element.sourceUri.scheme);
 }
 
-export function getSCMRevisionInfo(element: ISCMRevision): SCMRevisionParams {
+export function getSCMRevisionFromUri(element: ISCMRevision): ISCMRevisionState {
 	return JSON.parse(element.sourceUri.query);
 }

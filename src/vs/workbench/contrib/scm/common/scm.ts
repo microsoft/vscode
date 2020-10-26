@@ -11,6 +11,7 @@ import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -30,9 +31,20 @@ export interface ISCMResourceDecorations {
 	faded?: boolean;
 }
 
+export interface ISCMRevisionState {
+	readonly id: string;
+	readonly shortId?: string;
+	readonly timestamp?: number;
+	readonly message: string;
+	readonly author?: string;
+	readonly iconPath?: URI | { light: URI; dark: URI; } | ThemeIcon;
+	readonly status?: string;
+}
+
 export interface ISCMRevision {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
+	readonly revision?: ISCMRevisionState;
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue?: string;
 	open(preserveFocus: boolean): Promise<void>;

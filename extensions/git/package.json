@@ -476,6 +476,18 @@
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git"
+      },
+      {
+        "command": "git.setUnpublishedViewToCommits",
+        "title": "%command.setUnpublishedViewToCommits%",
+        "category": "Git",
+        "icon": "$(files)"
+      },
+      {
+        "command": "git.setUnpublishedViewToFiles",
+        "title": "%command.setUnpublishedViewToFiles%",
+        "category": "Git",
+        "icon": "$(git-commit)"
       }
     ],
     "keybindings": [
@@ -839,6 +851,14 @@
         {
           "command": "git.copyCommitMessage",
           "when": "false"
+        },
+        {
+          "command": "git.setUnpublishedViewToCommits",
+          "when": "config.git.unpublishedChanges == files"
+        },
+        {
+          "command": "git.setUnpublishedViewToFiles",
+          "when": "config.git.unpublishedChanges == commits"
         }
       ],
       "scm/title": [
@@ -998,13 +1018,23 @@
         },
         {
           "command": "git.push",
-          "when": "scmProvider == git && scmResourceGroup =~ /^unpublished(Commits)?/",
+          "when": "scmProvider == git && scmResourceGroup == unpublished",
           "group": "inline@0"
         },
         {
           "command": "git.sync",
-          "when": "scmProvider == git && scmResourceGroup =~ /^unpublished(Commits)?/",
+          "when": "scmProvider == git && scmResourceGroup == unpublished",
           "group": "inline@1"
+        },
+        {
+          "command": "git.setUnpublishedViewToCommits",
+          "when": "scmProvider == git && scmResourceGroup == unpublished && config.git.unpublishedChanges == files",
+          "group": "inline@10"
+        },
+        {
+          "command": "git.setUnpublishedViewToFiles",
+          "when": "scmProvider == git && scmResourceGroup == unpublished && config.git.unpublishedChanges == commits",
+          "group": "inline@10"
         }
       ],
       "scm/resourceFolder/context": [
@@ -1258,22 +1288,22 @@
         {
           "command": "git.undoCommit",
           "group": "inline",
-          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b(?=.*?\\b\\+tip\\b)/"
+          "when": "scmProvider == git && scmResourceGroup == unpublished && scmResourceState =~ /commit\\b(?=.*?\\b\\+tip\\b)/"
         },
         {
           "command": "git.undoCommit",
           "group": "2_git",
-          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b(?=.*?\\b\\+tip\\b)/"
+          "when": "scmProvider == git && scmResourceGroup == unpublished && scmResourceState =~ /commit\\b(?=.*?\\b\\+tip\\b)/"
         },
         {
           "command": "git.copyCommitId",
           "group": "5_copy@1",
-          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b/"
+          "when": "scmProvider == git && scmResourceGroup == unpublished && scmResourceState =~ /commit\\b/"
         },
         {
           "command": "git.copyCommitMessage",
           "group": "5_copy@2",
-          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b/"
+          "when": "scmProvider == git && scmResourceGroup == unpublished && scmResourceState =~ /commit\\b/"
         }
       ],
       "editor/title": [
@@ -1979,6 +2009,21 @@
           "default": true,
           "description": "%config.timeline.showAuthor%",
           "scope": "window"
+        },
+        "git.unpublishedChanges": {
+          "enum": [
+            "hidden",
+            "commits",
+            "files"
+          ],
+          "enumDescriptions": [
+            "%config.unpublishedChanges.hidden%",
+            "%config.unpublishedChanges.commits%",
+            "%config.unpublishedChanges.files%"
+          ],
+          "default": "hidden",
+          "description": "%config.unpublishedChanges%",
+          "scope": "resource"
         }
       }
     },
