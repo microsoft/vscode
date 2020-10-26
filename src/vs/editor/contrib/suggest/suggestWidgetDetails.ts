@@ -16,6 +16,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { count } from 'vs/base/common/strings';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -112,7 +113,7 @@ export class SuggestDetailsWidget {
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
-		this.domNode.classList.remove('no-docs');
+		this.domNode.classList.remove('no-docs', 'no-type');
 		this.layout(this.size.width, this.getLayoutInfo().lineHeight * 2);
 		this._onDidChangeContents.fire(this);
 	}
@@ -139,7 +140,7 @@ export class SuggestDetailsWidget {
 			return;
 		}
 
-		this.domNode.classList.remove('no-docs');
+		this.domNode.classList.remove('no-docs', 'no-type');
 
 		// --- details
 		if (detail) {
@@ -148,6 +149,7 @@ export class SuggestDetailsWidget {
 		} else {
 			dom.clearNode(this._type);
 			dom.hide(this._type);
+			this.domNode.classList.add('no-type');
 		}
 
 		// --- documentation
@@ -178,7 +180,16 @@ export class SuggestDetailsWidget {
 		};
 
 		this._body.scrollTop = 0;
-		this.layout(this._size.width, this.getLayoutInfo().lineHeight * (2 + (documentation ? 5 : 0)));
+
+		let heightInLines = 0;
+		if (detail) {
+			heightInLines += 2 + count(detail, '\n');
+		}
+		if (documentation) {
+			heightInLines += 5;
+		}
+
+		this.layout(this._size.width, this.getLayoutInfo().lineHeight * heightInLines);
 		this._onDidChangeContents.fire(this);
 	}
 
