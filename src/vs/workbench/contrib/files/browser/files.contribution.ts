@@ -390,7 +390,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane."),
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
 			'default': 9
 		},
 		'explorer.autoReveal': {
