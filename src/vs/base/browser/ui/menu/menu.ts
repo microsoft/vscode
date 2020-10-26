@@ -448,9 +448,11 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				// In all other cases, set timout to allow context menu cancellation to trigger
 				// otherwise the action will destroy the menu and a second context menu
 				// will still trigger for right click.
-				setTimeout(() => {
-					this.onClick(e);
-				}, 0);
+				else {
+					setTimeout(() => {
+						this.onClick(e);
+					}, 0);
+				}
 			}));
 
 			this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => {
