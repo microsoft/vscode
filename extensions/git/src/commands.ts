@@ -13,7 +13,7 @@ import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri, isGitUri } from './uri';
+import { fromGitUri, toGitUri, isGitUri, isRevisionUri, fromRevisionUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
@@ -2651,18 +2651,28 @@ export class CommandCenter {
 		};
 	}
 
-	@command('git.timeline.copyCommitId', { repository: false })
-	async timelineCopyCommitId(item: TimelineItem, _uri: Uri | undefined, _source: string) {
+	@command('git.copyCommitId', { repository: false })
+	async copyCommitId(item: GitTimelineItem | SourceControlResourceState, _uri: Uri | undefined, _source: string) {
 		if (!GitTimelineItem.is(item)) {
+			if (isRevisionUri(item.resourceUri)) {
+				const revision = fromRevisionUri(item.resourceUri);
+				env.clipboard.writeText(revision.ref);
+			}
+
 			return;
 		}
 
 		env.clipboard.writeText(item.ref);
 	}
 
-	@command('git.timeline.copyCommitMessage', { repository: false })
-	async timelineCopyCommitMessage(item: TimelineItem, _uri: Uri | undefined, _source: string) {
+	@command('git.copyCommitMessage', { repository: false })
+	async copyCommitMessage(item: GitTimelineItem | SourceControlResourceState, _uri: Uri | undefined, _source: string) {
 		if (!GitTimelineItem.is(item)) {
+			if (isRevisionUri(item.resourceUri)) {
+				const revision = fromRevisionUri(item.resourceUri);
+				env.clipboard.writeText(revision.message);
+			}
+
 			return;
 		}
 

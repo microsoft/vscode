@@ -5,10 +5,11 @@
 
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
+import { fromNow } from 'vs/base/common/date';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $, Dimension, asCSSUrl, trackFocus } from 'vs/base/browser/dom';
+import { append, $, Dimension, asCSSUrl, prepend, trackFocus } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -23,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, getSCMRevisionInfo, isSCMRevision } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -82,6 +83,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -522,6 +524,164 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	}
 }
 
+interface RevisionTemplate {
+	icon: HTMLElement;
+	iconLabel: IconLabel;
+	actionBar: ActionBar;
+	elementDisposables: IDisposable;
+	disposables: IDisposable;
+}
+
+class RevisionRenderer implements ICompressibleTreeRenderer<ISCMResource, FuzzyScore | LabelFuzzyScore, RevisionTemplate> {
+
+	static readonly TEMPLATE_ID = 'revision';
+	get templateId(): string { return RevisionRenderer.TEMPLATE_ID; }
+
+	constructor(
+		private actionViewItemProvider: IActionViewItemProvider,
+		private actionRunner: ActionRunner,
+		@ISCMViewService private scmViewService: ISCMViewService,
+	) { }
+
+	renderTemplate(container: HTMLElement): RevisionTemplate {
+		const iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true });
+		const icon = prepend(iconLabel.element, $('span.revision-icon'));
+		const actionsContainer = append(iconLabel.element, $('.actions'));
+		const actionBar = new ActionBar(actionsContainer, {
+			actionViewItemProvider: this.actionViewItemProvider,
+			actionRunner: this.actionRunner
+		});
+
+		const disposables = combinedDisposable(actionBar, iconLabel);
+
+		return { icon, iconLabel, actionBar, elementDisposables: Disposable.None, disposables };
+	}
+
+	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
+		template.elementDisposables.dispose();
+
+		const elementDisposables = new DisposableStore();
+
+		const { element: item } = node;
+
+		const revision = getSCMRevisionInfo(item);
+
+		template.actionBar.clear();
+		template.actionBar.context = item;
+
+		// const [matches, descriptionMatches] = this._processFilterData(revision.message, node.filterData);
+		const menus = this.scmViewService.menus.getRepositoryMenus(item.resourceGroup.provider);
+		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(item), template.actionBar));
+
+		const icon = item.decorations.icon;
+		if (icon) {
+			if (ThemeIcon.isThemeIcon(icon)) {
+				template.icon.className = `revision-icon ${ThemeIcon.asClassName(icon)}`;
+				// if (icon.color) {
+				// 	const theme = this.themeService.getColorTheme();
+				// 	template.icon.style.color = theme.getColor(icon.color.id)?.toString() ?? '';
+				// }
+				// template.icon.style.display = '';
+				// template.icon.style.backgroundImage = '';
+			} else {
+				template.icon.className = '';
+				// template.icon.style.color = '';
+				// template.icon.style.display = '';
+				// template.icon.style.backgroundImage = asCSSUrl(icon);
+			}
+			// template.icon.title = tooltip;
+		} else {
+			template.icon.className = '';
+			// template.icon.style.color = '';
+			// template.icon.style.display = 'none';
+			// template.icon.style.backgroundImage = '';
+			// template.icon.title = '';
+		}
+
+
+		// const icon = item.decorations.icon?.path.substr(1);
+		// const iconClass = icon ? ThemeIcon.asClassName({ id: icon }) : undefined;
+		// template.icon.className = `revision-icon${iconClass ? ` ${iconClass}` : ''}`;
+
+		const date = new Date(revision.date);
+		const relativeTime = fromNow(date, true);
+
+		template.iconLabel.setLabel(revision.message, relativeTime, {
+			title: `${revision.ref.substr(0, 8)} (unpublished)\n${relativeTime}\n\n${revision.message}`,
+			matches: createMatches(node.filterData as FuzzyScore | undefined),
+			// descriptionMatches
+		});
+
+		template.elementDisposables = elementDisposables;
+	}
+
+	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate): void {
+		template.elementDisposables.dispose();
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource>, FuzzyScore | LabelFuzzyScore>, index: number, template: RevisionTemplate, height: number | undefined): void {
+		template.elementDisposables.dispose();
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource>, FuzzyScore | LabelFuzzyScore>, index: number, templateData: RevisionTemplate, height: number | undefined): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	disposeTemplate(template: RevisionTemplate): void {
+		template.elementDisposables.dispose();
+		template.disposables.dispose();
+	}
+
+	// private _processFilterData(message: string, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+	// 	if (!filterData) {
+	// 		return [undefined, undefined];
+	// 	}
+
+	// 	if (!(filterData as LabelFuzzyScore).label) {
+	// 		const matches = createMatches(filterData as FuzzyScore);
+	// 		return [matches, undefined];
+	// 	}
+
+	// 	const label = (filterData as LabelFuzzyScore).label;
+	// 	const pathLength = label.length - message.length;
+	// 	const matches = createMatches((filterData as LabelFuzzyScore).score);
+
+	// 	// FileName match
+	// 	if (label === message) {
+	// 		return [matches, undefined];
+	// 	}
+
+	// 	// FilePath match
+	// 	let labelMatches: IMatch[] = [];
+	// 	let descriptionMatches: IMatch[] = [];
+
+	// 	for (const match of matches) {
+	// 		if (match.start > pathLength) {
+	// 			// Label match
+	// 			labelMatches.push({
+	// 				start: match.start - pathLength,
+	// 				end: match.end - pathLength
+	// 			});
+	// 		} else if (match.end < pathLength) {
+	// 			// Description match
+	// 			descriptionMatches.push(match);
+	// 		} else {
+	// 			// Spanning match
+	// 			labelMatches.push({
+	// 				start: 0,
+	// 				end: match.end - pathLength
+	// 			});
+	// 			descriptionMatches.push({
+	// 				start: match.start,
+	// 				end: pathLength
+	// 			});
+	// 		}
+	// 	}
+
+	// 	return [labelMatches, descriptionMatches];
+	// }
+}
+
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	constructor(private readonly inputRenderer: InputRenderer) { }
@@ -539,7 +699,12 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return RepositoryRenderer.TEMPLATE_ID;
 		} else if (isSCMInput(element)) {
 			return InputRenderer.TEMPLATE_ID;
-		} else if (ResourceTree.isResourceNode(element) || isSCMResource(element)) {
+		} else if (ResourceTree.isResourceNode(element)) {
+			return ResourceRenderer.TEMPLATE_ID;
+		} else if (isSCMResource(element)) {
+			if (isSCMRevision(element)) {
+				return RevisionRenderer.TEMPLATE_ID;
+			}
 			return ResourceRenderer.TEMPLATE_ID;
 		} else {
 			return ResourceGroupRenderer.TEMPLATE_ID;
@@ -1970,7 +2135,8 @@ export class SCMViewPane extends ViewPane {
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
-			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
+			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner),
+			this.instantiationService.createInstance(RevisionRenderer, getActionViewItemProvider(this.instantiationService), actionRunner),
 		];
 
 		const filter = new SCMTreeFilter();

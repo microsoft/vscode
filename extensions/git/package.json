@@ -288,7 +288,8 @@
       {
         "command": "git.undoCommit",
         "title": "%command.undoCommit%",
-        "category": "Git"
+        "category": "Git",
+        "icon": "$(discard)"
       },
       {
         "command": "git.checkout",
@@ -373,7 +374,8 @@
       {
         "command": "git.push",
         "title": "%command.push%",
-        "category": "Git"
+        "category": "Git",
+        "icon": "$(arrow-up)"
       },
       {
         "command": "git.pushForce",
@@ -423,7 +425,8 @@
       {
         "command": "git.sync",
         "title": "%command.sync%",
-        "category": "Git"
+        "category": "Git",
+        "icon": "$(sync)"
       },
       {
         "command": "git.syncRebase",
@@ -492,13 +495,13 @@
         "category": "Git"
       },
       {
-        "command": "git.timeline.copyCommitId",
-        "title": "%command.timelineCopyCommitId%",
+        "command": "git.copyCommitId",
+        "title": "%command.copyCommitId%",
         "category": "Git"
       },
       {
-        "command": "git.timeline.copyCommitMessage",
-        "title": "%command.timelineCopyCommitMessage%",
+        "command": "git.copyCommitMessage",
+        "title": "%command.copyCommitMessage%",
         "category": "Git"
       },
       {
@@ -884,11 +887,11 @@
           "when": "false"
         },
         {
-          "command": "git.timeline.copyCommitId",
+          "command": "git.copyCommitId",
           "when": "false"
         },
         {
-          "command": "git.timeline.copyCommitMessage",
+          "command": "git.copyCommitMessage",
           "when": "false"
         },
         {
@@ -1059,6 +1062,16 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "command": "git.push",
+          "when": "scmProvider == git && scmResourceGroup =~ /^unpublished(Commits)?/",
+          "group": "inline@0"
+        },
+        {
+          "command": "git.sync",
+          "when": "scmProvider == git && scmResourceGroup =~ /^unpublished(Commits)?/",
+          "group": "inline@1"
         }
       ],
       "scm/resourceFolder/context": [
@@ -1308,6 +1321,26 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.undoCommit",
+          "group": "inline",
+          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b(?=.*?\\b\\+tip\\b)/"
+        },
+        {
+          "command": "git.undoCommit",
+          "group": "2_git",
+          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b(?=.*?\\b\\+tip\\b)/"
+        },
+        {
+          "command": "git.copyCommitId",
+          "group": "5_copy@1",
+          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b/"
+        },
+        {
+          "command": "git.copyCommitMessage",
+          "group": "5_copy@2",
+          "when": "scmProvider == git && scmResourceGroup == unpublishedCommits && scmResourceState =~ /commit\\b/"
         }
       ],
       "editor/title": [
@@ -1386,12 +1419,12 @@
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
         },
         {
-          "command": "git.timeline.copyCommitId",
+          "command": "git.copyCommitId",
           "group": "5_copy@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         },
         {
-          "command": "git.timeline.copyCommitMessage",
+          "command": "git.copyCommitMessage",
           "group": "5_copy@2",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         }
@@ -2376,7 +2409,17 @@
         "enablement": "git.state == initialized",
         "group": "5_scm@10"
       }
-    ]
+    ],
+    "resourceLabelFormatters": [
+			{
+        "scheme": "git-commit",
+				"authority": "*",
+				"formatting": {
+					"label": "${query.message} (${query.sha})",
+					"separator": "/"
+				}
+			}
+		]
   },
   "dependencies": {
     "byline": "^5.0.0",

@@ -878,7 +878,11 @@ export class Repository {
 
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z'];
+		if (options?.ref) {
+			args.push(options.ref);
+		}
+		args.push('--');
 		if (options?.path) {
 			args.push(options.path);
 		}

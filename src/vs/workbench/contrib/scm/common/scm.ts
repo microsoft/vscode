@@ -32,6 +32,14 @@ export interface ISCMResourceDecorations {
 	faded?: boolean;
 }
 
+export interface ISCMRevision {
+	readonly resourceGroup: ISCMResourceGroup;
+	readonly sourceUri: URI;
+	readonly decorations: ISCMResourceDecorations;
+	readonly contextValue?: string;
+	open(preserveFocus: boolean): Promise<void>;
+}
+
 export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;

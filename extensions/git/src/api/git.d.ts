@@ -85,7 +85,9 @@ export const enum Status {
 	DELETED_BY_THEM,
 	BOTH_ADDED,
 	BOTH_DELETED,
-	BOTH_MODIFIED
+	BOTH_MODIFIED,
+
+	UNPUBLISHED
 }
 
 export interface Change {
@@ -127,6 +129,7 @@ export interface LogOptions {
 	/** Max number of log entries to retrieve. If not specified, the default is 32. */
 	readonly maxEntries?: number;
 	readonly path?: string;
+	readonly ref?: string;
 }
 
 export interface CommitOptions {
