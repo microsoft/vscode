@@ -322,7 +322,6 @@ export class BackLayerWebView extends Disposable {
 					self.require = {};
 				</script>
 				${coreDependencies}
-				<div id="__vscode_preloads"></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<script>${preloadsScriptStr(outputNodePadding)}</script>
 			</body>

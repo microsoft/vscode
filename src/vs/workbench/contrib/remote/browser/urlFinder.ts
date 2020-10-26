@@ -6,6 +6,7 @@
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 
 export class UrlFinder extends Disposable {
 	private static readonly terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
@@ -20,10 +21,11 @@ export class UrlFinder extends Disposable {
 
 	private _onDidMatchLocalUrl: Emitter<{ host: string, port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
-	private listeners: Map<ITerminalInstance, IDisposable> = new Map();
+	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
 
-	constructor(terminalService: ITerminalService) {
+	constructor(terminalService: ITerminalService, debugService: IDebugService) {
 		super();
+		// Terminal
 		terminalService.terminalInstances.forEach(instance => {
 			this.listeners.set(instance, instance.onData(data => {
 				this.processData(data);
@@ -35,8 +37,45 @@ export class UrlFinder extends Disposable {
 			}));
 		}));
 		this._register(terminalService.onInstanceDisposed(instance => {
+			this.listeners.get(instance)?.dispose();
 			this.listeners.delete(instance);
 		}));
+
+		// Debug
+		this._register(debugService.onDidNewSession(session => {
+			if (!session.parentSession || (session.parentSession && session.hasSeparateRepl())) {
+				this.listeners.set(session.getId(), session.onDidChangeReplElements(() => {
+					this.processNewReplElements(session);
+				}));
+			}
+		}));
+		this._register(debugService.onDidEndSession(session => {
+			if (this.listeners.has(session.getId())) {
+				this.listeners.get(session.getId())?.dispose();
+				this.listeners.delete(session.getId());
+			}
+		}));
+	}
+
+	private replPositions: Map<string, { position: number, tail: IReplElement }> = new Map();
+	private processNewReplElements(session: IDebugSession) {
+		const oldReplPosition = this.replPositions.get(session.getId());
+		const replElements = session.getReplElements();
+		this.replPositions.set(session.getId(), { position: replElements.length - 1, tail: replElements[replElements.length - 1] });
+
+		if (!oldReplPosition && replElements.length > 0) {
+			replElements.forEach(element => this.processData(element.toString()));
+		} else if (oldReplPosition && (replElements.length - 1 !== oldReplPosition.position)) {
+			// Process lines until we reach the old "tail"
+			for (let i = replElements.length - 1; i >= 0; i--) {
+				const element = replElements[i];
+				if (element === oldReplPosition.tail) {
+					break;
+				} else {
+					this.processData(element.toString());
+				}
+			}
+		}
 	}
 
 	dispose() {
@@ -63,7 +102,7 @@ export class UrlFinder extends Disposable {
 					if (host !== '0.0.0.0' && host !== '127.0.0.1') {
 						host = 'localhost';
 					}
-					// Exclude node inspect, except when using defualt port
+					// Exclude node inspect, except when using default port
 					if (port !== 9229 && data.startsWith('Debugger listening on')) {
 						return;
 					}

@@ -172,6 +172,7 @@
 	"submenu.branch": "Branch",
 	"submenu.remotes": "Remote",
 	"submenu.stash": "Stash",
+	"submenu.tags": "Tags",
 	"colors.added": "Color for added resources.",
 	"colors.modified": "Color for modified resources.",
 	"colors.stageModified": "Color for modified resources which have been staged.",

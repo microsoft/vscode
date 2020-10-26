@@ -265,13 +265,6 @@ interface IWorkbenchConstructionOptions {
 	readonly connectionToken?: string;
 
 	/**
-	 * Session id of the current authenticated user
-	 *
-	 * @deprecated Instead pass current authenticated user info through [credentialsProvider](#credentialsProvider)
-	 */
-	readonly authenticationSessionId?: string;
-
-	/**
 	 * An endpoint to serve iframe content ("webview") from. This is required
 	 * to provide full security isolation from the workbench host.
 	 */

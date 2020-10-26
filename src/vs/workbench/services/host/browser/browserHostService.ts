@@ -86,7 +86,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -213,88 +212,91 @@ export class BrowserHostService extends Disposable implements IHostService {
 		// Handle Folders to Add
 		if (foldersToAdd.length > 0) {
 			this.instantiationService.invokeFunction(accessor => {
-				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
+				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);  // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
 				workspaceEditingService.addFolders(foldersToAdd);
 			});
 		}
 
 		// Handle Files
 		if (fileOpenables.length > 0) {
+			this.instantiationService.invokeFunction(async accessor => {
+				const editorService = accessor.get(IEditorService); // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
 
-			// Support diffMode
-			if (options?.diffMode && fileOpenables.length === 2) {
-				const editors = await pathsToEditors(fileOpenables, this.fileService);
-				if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
-					return; // invalid resources
-				}
-
-				// Same Window: open via editor service in current window
-				if (this.shouldReuse(options, true /* file */)) {
-					this.editorService.openEditor({
-						leftResource: editors[0].resource,
-						rightResource: editors[1].resource
-					});
-				}
-
-				// New Window: open into empty window
-				else {
-					const environment = new Map<string, string>();
-					environment.set('diffFileSecondary', editors[0].resource.toString());
-					environment.set('diffFilePrimary', editors[1].resource.toString());
-
-					this.doOpen(undefined, { payload: Array.from(environment.entries()) });
-				}
-			}
-
-			// Just open normally
-			else {
-				for (const openable of fileOpenables) {
+				// Support diffMode
+				if (options?.diffMode && fileOpenables.length === 2) {
+					const editors = await pathsToEditors(fileOpenables, this.fileService);
+					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
+						return; // invalid resources
+					}
 
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
-						let openables: IPathData[] = [];
-
-						// Support: --goto parameter to open on line/col
-						if (options?.gotoLineMode) {
-							const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
-							openables = [{
-								fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-								lineNumber: pathColumnAware.line,
-								columnNumber: pathColumnAware.column
-							}];
-						} else {
-							openables = [openable];
-						}
-
-						this.editorService.openEditors(await pathsToEditors(openables, this.fileService));
+						editorService.openEditor({
+							leftResource: editors[0].resource,
+							rightResource: editors[1].resource
+						});
 					}
 
 					// New Window: open into empty window
 					else {
 						const environment = new Map<string, string>();
-						environment.set('openFile', openable.fileUri.toString());
-
-						if (options?.gotoLineMode) {
-							environment.set('gotoLineMode', 'true');
-						}
+						environment.set('diffFileSecondary', editors[0].resource.toString());
+						environment.set('diffFilePrimary', editors[1].resource.toString());
 
 						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
 					}
 				}
-			}
 
-			// Support wait mode
-			const waitMarkerFileURI = options?.waitMarkerFileURI;
-			if (waitMarkerFileURI) {
-				(async () => {
+				// Just open normally
+				else {
+					for (const openable of fileOpenables) {
 
-					// Wait for the resources to be closed in the editor...
-					await this.editorService.whenClosed(fileOpenables.map(openable => ({ resource: openable.fileUri })), { waitForSaved: true });
+						// Same Window: open via editor service in current window
+						if (this.shouldReuse(options, true /* file */)) {
+							let openables: IPathData[] = [];
 
-					// ...before deleting the wait marker file
-					await this.fileService.del(waitMarkerFileURI);
-				})();
-			}
+							// Support: --goto parameter to open on line/col
+							if (options?.gotoLineMode) {
+								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
+								openables = [{
+									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
+									lineNumber: pathColumnAware.line,
+									columnNumber: pathColumnAware.column
+								}];
+							} else {
+								openables = [openable];
+							}
+
+							editorService.openEditors(await pathsToEditors(openables, this.fileService));
+						}
+
+						// New Window: open into empty window
+						else {
+							const environment = new Map<string, string>();
+							environment.set('openFile', openable.fileUri.toString());
+
+							if (options?.gotoLineMode) {
+								environment.set('gotoLineMode', 'true');
+							}
+
+							this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+						}
+					}
+				}
+
+				// Support wait mode
+				const waitMarkerFileURI = options?.waitMarkerFileURI;
+				if (waitMarkerFileURI) {
+					(async () => {
+
+						// Wait for the resources to be closed in the editor...
+						await editorService.whenClosed(fileOpenables.map(openable => ({ resource: openable.fileUri })), { waitForSaved: true });
+
+						// ...before deleting the wait marker file
+						await this.fileService.del(waitMarkerFileURI);
+					})();
+				}
+			});
 		}
 	}
 

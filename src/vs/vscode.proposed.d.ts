@@ -992,7 +992,7 @@ declare module 'vscode' {
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
-		exclusive?: boolean;
+		readonly exclusive?: boolean;
 	}
 
 	//#endregion
@@ -2176,6 +2176,20 @@ declare module 'vscode' {
 		 * An optional event to signal that the folding ranges from this provider have changed.
 		 */
 		onDidChangeFoldingRanges?: Event<void>;
+
+	}
+	//#endregion
+
+	//#region Syncing Extension's Global State https://github.com/microsoft/vscode/issues/95209 @sandy081
+	export interface ExtensionContext {
+
+		readonly syncedGlobalState: Memento & {
+			/**
+			 * List of keys whose values should be synced across devices when extensions synchronization is enabled .
+			 * Set synced keys to an empty array to unset the synced state.
+			 */
+			syncedKeys: ReadonlyArray<string>;
+		};
 
 	}
 	//#endregion

@@ -124,6 +124,11 @@ export class SuggestController implements IEditorContribution {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
 
+		// context key: update insert/replace mode
+		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
+		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
+		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
+
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
@@ -654,13 +659,13 @@ MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
 	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
 	group: 'left',
 	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'insert'))
+	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
 });
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
 	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.replace', "Replace") },
 	group: 'left',
 	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'replace'))
+	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
 });
 
 registerEditorCommand(new SuggestCommand({
@@ -679,13 +684,13 @@ registerEditorCommand(new SuggestCommand({
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'insert')),
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert')),
 		title: nls.localize('accept.replace', "Replace")
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'replace')),
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace')),
 		title: nls.localize('accept.insert', "Insert")
 	}]
 }));

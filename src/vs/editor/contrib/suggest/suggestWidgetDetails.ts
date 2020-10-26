@@ -16,6 +16,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { count } from 'vs/base/common/strings';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -112,7 +113,7 @@ export class SuggestDetailsWidget {
 	renderLoading(): void {
 		this._type.textContent = nls.localize('loading', "Loading...");
 		this._docs.textContent = '';
-		this.domNode.classList.remove('no-docs');
+		this.domNode.classList.remove('no-docs', 'no-type');
 		this.layout(this.size.width, this.getLayoutInfo().lineHeight * 2);
 		this._onDidChangeContents.fire(this);
 	}
@@ -139,7 +140,7 @@ export class SuggestDetailsWidget {
 			return;
 		}
 
-		this.domNode.classList.remove('no-docs');
+		this.domNode.classList.remove('no-docs', 'no-type');
 
 		// --- details
 		if (detail) {
@@ -148,6 +149,7 @@ export class SuggestDetailsWidget {
 		} else {
 			dom.clearNode(this._type);
 			dom.hide(this._type);
+			this.domNode.classList.add('no-type');
 		}
 
 		// --- documentation
@@ -178,7 +180,16 @@ export class SuggestDetailsWidget {
 		};
 
 		this._body.scrollTop = 0;
-		this.layout(this._size.width, this.getLayoutInfo().lineHeight * (2 + (documentation ? 5 : 0)));
+
+		let heightInLines = 0;
+		if (detail) {
+			heightInLines += 2 + count(detail, '\n');
+		}
+		if (documentation) {
+			heightInLines += 5;
+		}
+
+		this.layout(this._size.width, this.getLayoutInfo().lineHeight * heightInLines);
 		this._onDidChangeContents.fire(this);
 	}
 
@@ -317,26 +328,29 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		// position: EAST, west, south
 		let width = bodyBox.width - (anchorBox.left + anchorBox.width);
 		left = -borderWidth + anchorBox.left + anchorBox.width;
-		maxSizeTop = new dom.Dimension(bodyBox.width - (anchorBox.left + anchorBox.width), bodyBox.height - anchorBox.top);
+		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top);
 		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height);
 
-		// position: east, WEST, south
-		if (anchorBox.left > width) {
-			// pos = SuggestDetailsPosition.West;
-			width = anchorBox.left;
-			left = Math.max(0, anchorBox.left - (size.width + borderWidth));
-			maxSizeTop = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
-			maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
-		}
+		// find a better place if the widget is wider than there is space available
+		if (size.width > width) {
+			// position: east, WEST, south
+			if (anchorBox.left > width) {
+				// pos = SuggestDetailsPosition.West;
+				width = anchorBox.left;
+				left = Math.max(0, anchorBox.left - (size.width + borderWidth));
+				maxSizeTop = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
+				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
+			}
 
-		// position: east, west, SOUTH
-		if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
-			width = anchorBox.width;
-			left = anchorBox.left;
-			top = -borderWidth + anchorBox.top + anchorBox.height;
-			maxSizeTop = new dom.Dimension(anchorBox.width - borderHeight, bodyBox.height - (anchorBox.top + anchorBox.height));
-			maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top);
-			minSize = minSize.with(maxSizeTop.width);
+			// position: east, west, SOUTH
+			if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
+				width = anchorBox.width;
+				left = anchorBox.left;
+				top = -borderWidth + anchorBox.top + anchorBox.height;
+				maxSizeTop = new dom.Dimension(anchorBox.width - borderHeight, bodyBox.height - (anchorBox.top + anchorBox.height));
+				maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top);
+				minSize = minSize.with(maxSizeTop.width);
+			}
 		}
 
 		// top/bottom placement

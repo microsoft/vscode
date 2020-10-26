@@ -26,7 +26,7 @@ import { areSameExtensions, getGalleryExtensionId, getMaliciousExtensionsSet, ge
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/product/common/product';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -237,10 +237,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					this.logService.warn(`Cannot install packed extensions of extension:`, local.identifier.id, error.message);
 				}
 			}
-			this._onDidInstallExtension.fire({ identifier: identifierWithVersion.identifier, zipPath, local, operation });
+			this._onDidInstallExtension.fire({ identifier: identifierWithVersion, zipPath, local, operation });
 			return local;
 		} catch (error) {
-			this._onDidInstallExtension.fire({ identifier: identifierWithVersion.identifier, zipPath, operation, error });
+			this._onDidInstallExtension.fire({ identifier: identifierWithVersion, zipPath, operation, error });
 			throw error;
 		}
 	}
@@ -415,19 +415,18 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return null;
 		}
 
-		this.logService.trace('Removing the extension from uninstalled list:', identifierWithVersion.identifier.id);
+		this.logService.trace('Removing the extension from uninstalled list:', identifierWithVersion.id);
 		// If the same version of extension is marked as uninstalled, remove it from there and return the local.
 		await this.unsetUninstalled(identifierWithVersion);
-		this.logService.info('Removed the extension from uninstalled list:', identifierWithVersion.identifier.id);
+		this.logService.info('Removed the extension from uninstalled list:', identifierWithVersion.id);
 
 		const installed = await this.getInstalled(ExtensionType.User);
 		return installed.find(i => new ExtensionIdentifierWithVersion(i.identifier, i.manifest.version).equals(identifierWithVersion)) || null;
 	}
 
 	private async extractAndInstall({ zipPath, identifierWithVersion, metadata }: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
-		const { identifier } = identifierWithVersion;
 		let local = await this.extensionsScanner.extractUserExtension(identifierWithVersion, zipPath, token);
-		this.logService.info('Installation completed.', identifier.id);
+		this.logService.info('Installation completed.', identifierWithVersion.id);
 		if (metadata) {
 			local = await this.extensionsScanner.saveMetadataForLocalExtension(local, metadata);
 		}

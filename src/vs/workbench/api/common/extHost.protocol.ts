@@ -57,6 +57,7 @@ import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -571,6 +572,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 export interface MainThreadStorageShape extends IDisposable {
 	$getValue<T>(shared: boolean, key: string): Promise<T | undefined>;
 	$setValue(shared: boolean, key: string, value: object): Promise<void>;
+	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void;
 }
 
 export interface MainThreadTelemetryShape extends IDisposable {
