@@ -179,18 +179,38 @@ function createBlockRange(document: vscode.TextDocument, block?: Token, parent?:
 }
 
 function createFencedRange(token: Token, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
-	let blockRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(token.map[0], 0), new vscode.Position(token.map[1], getEndCharacter(document, token.map[0], token.map[1]))));
-	let childRange = new vscode.Range(new vscode.Position(token.map[0] + 1, 0), new vscode.Position(token.map[1] - 1, getEndCharacter(document, token.map[0] + 1, token.map[1] - 1)));
-	if (parent && parent.range.contains(blockRange.range) && !parent.range.isEqual(blockRange.range)) {
-		return new vscode.SelectionRange(childRange, new vscode.SelectionRange(blockRange.range, parent));
-	} else if (parent?.range.isEqual(blockRange.range)) {
-		return new vscode.SelectionRange(childRange, parent);
-	} else if (parent?.parent?.range.contains(blockRange.range)) {
-		blockRange.parent = parent.parent;
-		return new vscode.SelectionRange(childRange, blockRange);
-	} else {
-		return new vscode.SelectionRange(childRange, blockRange);
+	const startLine = token.map[0];
+	const endLine = token.map[1] - 1;
+	let fenceRange = new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(endLine, document.lineAt(endLine).text.length));
+	let contentRange = endLine - startLine > 2 ? new vscode.Range(new vscode.Position(startLine + 1, 0), new vscode.Position(endLine - 1, getEndCharacter(document, startLine + 1, endLine))) : undefined;
+	if (parent && contentRange) {
+		if (parent.range.contains(fenceRange) && !parent.range.isEqual(fenceRange)) {
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(fenceRange, parent));
+		} else if (parent.range.isEqual(fenceRange)) {
+			return new vscode.SelectionRange(contentRange, parent);
+		} else if (rangeLinesEqual(fenceRange, parent.range)) {
+			let revisedRange = fenceRange.end.character > parent.range.end.character ? fenceRange : parent.range;
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(revisedRange, getRealParent(parent, revisedRange)));
+		} else if (parent.range.end.line === fenceRange.end.line) {
+			parent.range.end.translate(undefined, fenceRange.end.character);
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(fenceRange, parent));
+		}
+	} else if (contentRange) {
+		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(fenceRange));
+	} else if (parent) {
+		if (parent.range.contains(fenceRange) && !parent.range.isEqual(fenceRange)) {
+			return new vscode.SelectionRange(fenceRange, parent);
+		} else if (parent.range.isEqual(fenceRange)) {
+			return parent;
+		} else if (rangeLinesEqual(fenceRange, parent.range)) {
+			let revisedRange = fenceRange.end.character > parent.range.end.character ? fenceRange : parent.range;
+			return new vscode.SelectionRange(revisedRange, parent.parent);
+		} else if (parent.range.end.line === fenceRange.end.line) {
+			parent.range.end.translate(undefined, fenceRange.end.character);
+			return new vscode.SelectionRange(fenceRange, parent);
+		}
 	}
+	return new vscode.SelectionRange(fenceRange, parent);
 }
 
 function isList(type: string): boolean {
@@ -202,6 +222,14 @@ function getEndCharacter(document: vscode.TextDocument, startLine: number, endLi
 	let endLength = document.lineAt(startLine).text ? document.lineAt(startLine).text.length : 0;
 	let endChar = Math.max(startLength, endLength);
 	return startLine !== endLine ? 0 : endChar;
+}
+
+function getRealParent(parent: vscode.SelectionRange, range: vscode.Range) {
+	let currentParent: vscode.SelectionRange | undefined = parent;
+	while (currentParent && !currentParent.range.contains(range)) {
+		currentParent = currentParent.parent;
+	}
+	return currentParent;
 }
 
 function rangeLinesEqual(range: vscode.Range, parent: vscode.Range) {
