@@ -68,7 +68,10 @@ export class IndexedDB {
 
 }
 
-export interface IIndexedDBFileSystemProvider extends Disposable, IFileSystemProviderWithFileReadWriteCapability { }
+export interface IIndexedDBFileSystemProvider extends Disposable, IFileSystemProviderWithFileReadWriteCapability {
+	reset(): Promise<void>;
+}
+
 class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities =
@@ -252,6 +255,16 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 			const transaction = this.database.transaction([this.store], 'readwrite');
 			const objectStore = transaction.objectStore(this.store);
 			const request = objectStore.delete(key);
+			request.onerror = () => e(request.error);
+			request.onsuccess = () => c();
+		});
+	}
+
+	reset(): Promise<void> {
+		return new Promise(async (c, e) => {
+			const transaction = this.database.transaction([this.store], 'readwrite');
+			const objectStore = transaction.objectStore(this.store);
+			const request = objectStore.clear();
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => c();
 		});
