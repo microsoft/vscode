@@ -45,8 +45,8 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { NativeResourceIdentityService } from 'vs/workbench/services/resourceIdentity/node/resourceIdentityServiceImpl';
+import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';

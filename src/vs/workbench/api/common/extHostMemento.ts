@@ -6,12 +6,14 @@
 import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtensionMemento implements vscode.Memento {
 
-	private readonly _id: string;
+	protected readonly _id: string;
 	private readonly _shared: boolean;
-	private readonly _storage: ExtHostStorage;
+	protected readonly _storage: ExtHostStorage;
 
 	private readonly _init: Promise<ExtensionMemento>;
 	private _value?: { [n: string]: any; };
@@ -56,4 +58,23 @@ export class ExtensionMemento implements vscode.Memento {
 	dispose(): void {
 		this._storageListener.dispose();
 	}
+}
+
+export class ExtensionGlobalMemento extends ExtensionMemento {
+
+	private readonly _extension: IExtensionDescription;
+
+	private _syncedKeys: string[] = [];
+	get syncedKeys(): ReadonlyArray<string> { return Object.freeze(this._syncedKeys); }
+	set syncedKeys(syncKeys: ReadonlyArray<string>) {
+		checkProposedApiEnabled(this._extension);
+		this._syncedKeys = [...syncKeys];
+		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._extension.version }, this._syncedKeys);
+	}
+
+	constructor(extensionDescription: IExtensionDescription, storage: ExtHostStorage) {
+		super(extensionDescription.identifier.value, true, storage);
+		this._extension = extensionDescription;
+	}
+
 }

@@ -161,20 +161,21 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 		const insert = replace.setEndPosition(position.lineNumber, position.column);
 
 		const client = await this._workerManager.withWorker();
-		const words = await client.textualSuggest(model.uri, position);
-		if (!words) {
+		const data = await client.textualSuggest(model.uri, position);
+		if (!data) {
 			return undefined;
 		}
 
 		return {
-			suggestions: words.map((word): modes.CompletionItem => {
+			duration: data.duration,
+			suggestions: data.words.map((word): modes.CompletionItem => {
 				return {
 					kind: modes.CompletionItemKind.Text,
 					label: word,
 					insertText: word,
 					range: { insert, replace }
 				};
-			})
+			}),
 		};
 	}
 }
@@ -462,7 +463,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: IPosition): Promise<string[] | null> {
+	public textualSuggest(resource: URI, position: IPosition): Promise<{ words: string[], duration: number } | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

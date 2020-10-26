@@ -123,7 +123,7 @@ const authenticationDefinitionSchema: IJSONSchema = {
 const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<AuthenticationProviderInformation[]>({
 	extensionPoint: 'authentication',
 	jsonSchema: {
-		description: nls.localize('authenticationExtensionPoint', 'Contributes authentication'),
+		description: nls.localize({ key: 'authenticationExtensionPoint', comment: [`'Contributes' means adds here`] }, 'Contributes authentication'),
 		type: 'array',
 		items: authenticationDefinitionSchema
 	}
@@ -457,7 +457,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const didTimeout: Promise<MainThreadAuthenticationProvider> = new Promise((_, reject) => {
 			setTimeout(() => {
 				reject();
-			}, 2000);
+			}, 5000);
 		});
 
 		return Promise.race([didRegister, didTimeout]);

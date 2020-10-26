@@ -10,6 +10,11 @@ import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthen
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
+interface GetSessionsRequest {
+	scopes: string;
+	result: Promise<vscode.AuthenticationSession | undefined>;
+}
+
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, vscode.AuthenticationProvider> = new Map<string, vscode.AuthenticationProvider>();
@@ -26,6 +31,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	private _onDidChangePassword = new Emitter<void>();
 	readonly onDidChangePassword: Event<void> = this._onDidChangePassword.event;
+
+	private _inFlightRequests = new Map<string, GetSessionsRequest[]>();
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
@@ -50,10 +57,30 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
+		const sortedScopes = scopes.sort().join(' ');
+		let inFlightRequest: GetSessionsRequest | undefined = inFlightRequests.find(request => request.scopes === sortedScopes);
+
+		if (inFlightRequest) {
+			return inFlightRequest.result;
+		} else {
+			const session = this._getSession(requestingExtension, extensionId, providerId, scopes, options);
+			inFlightRequest = {
+				scopes: sortedScopes,
+				result: session
+			};
+
+			inFlightRequests.push(inFlightRequest);
+			this._inFlightRequests.set(extensionId, inFlightRequests);
+			return session;
+		}
+	}
+
+	private async _getSession(requestingExtension: IExtensionDescription, extensionId: string, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		await this._proxy.$ensureProvider(providerId);
 		const provider = this._authenticationProviders.get(providerId);
 		const extensionName = requestingExtension.displayName || requestingExtension.name;
-		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 
 		if (!provider) {
 			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
@@ -62,20 +89,20 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		const orderedScopes = scopes.sort().join(' ');
 		const sessions = (await provider.getSessions()).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
 
+		let session: vscode.AuthenticationSession | undefined = undefined;
 		if (sessions.length) {
 			if (!provider.supportsMultipleAccounts) {
-				const session = sessions[0];
+				session = sessions[0];
 				const allowed = await this._proxy.$getSessionsPrompt(providerId, session.account.label, provider.label, extensionId, extensionName);
-				if (allowed) {
-					return session;
-				} else {
+				if (!allowed) {
 					throw new Error('User did not consent to login.');
 				}
+			} else {
+				// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
+				const selected = await this._proxy.$selectSession(providerId, provider.label, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
+				session = sessions.find(session => session.id === selected.id);
 			}
 
-			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
-			const selected = await this._proxy.$selectSession(providerId, provider.label, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
-			return sessions.find(session => session.id === selected.id);
 		} else {
 			if (options.createIfNone) {
 				const isAllowed = await this._proxy.$loginPrompt(provider.label, extensionName);
@@ -83,14 +110,21 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 					throw new Error('User did not consent to login.');
 				}
 
-				const session = await provider.login(scopes);
+				session = await provider.login(scopes);
 				await this._proxy.$setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
-				return session;
 			} else {
 				await this._proxy.$requestNewSession(providerId, scopes, extensionId, extensionName);
-				return undefined;
 			}
 		}
+
+		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
+		const requestIndex = inFlightRequests.findIndex(request => request.scopes === scopes.sort().join(' '));
+		if (requestIndex > -1) {
+			inFlightRequests.splice(requestIndex);
+			this._inFlightRequests.set(extensionId, inFlightRequests);
+		}
+
+		return session;
 	}
 
 	async logout(providerId: string, sessionId: string): Promise<void> {

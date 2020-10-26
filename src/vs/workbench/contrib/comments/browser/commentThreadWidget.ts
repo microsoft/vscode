@@ -47,6 +47,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
@@ -914,6 +915,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
 		if (blockQuoteBOrder) {
 			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
+		}
+
+		const border = theme.getColor(PANEL_BORDER);
+		if (border) {
+			content.push(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
 		}
 
 		const hcBorder = theme.getColor(contrastBorder);

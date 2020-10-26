@@ -28,11 +28,15 @@ const TRUSTED_DOMAINS_STAT: IStat = {
 const CONFIG_HELP_TEXT_PRE = `// Links matching one or more entries in the list below can be opened without link protection.
 // The following examples show what entries can look like:
 // - "https://microsoft.com": Matches this specific domain using https
+// - "https://microsoft.com:8080": Matches this specific domain on this port using https
+// - "https://microsoft.com:*": Matches this specific domain on any port using https
 // - "https://microsoft.com/foo": Matches https://microsoft.com/foo and https://microsoft.com/foo/bar,
 //   but not https://microsoft.com/foobar or https://microsoft.com/bar
 // - "https://*.microsoft.com": Match all domains ending in "microsoft.com" using https
 // - "microsoft.com": Match this specific domain using either http or https
 // - "*.microsoft.com": Match all domains ending in "microsoft.com" using either http or https
+// - "http://192.168.0.1: Matches this specific IP using http
+// - "http://192.168.0.*: Matches all IP's with this prefix using http
 // - "*": Match all domains using either http or https
 //
 `;
@@ -59,7 +63,7 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 	}
 
 	if (userTrustedDomains.length) {
-		content += `//\n// Additionally, the following domains are trusted based on your current GitHub login:\n`;
+		content += `//\n// Additionally, the following domains are trusted based on your logged-in Accounts:\n`;
 		userTrustedDomains.forEach(d => {
 			content += `// - "${d}"\n`;
 		});

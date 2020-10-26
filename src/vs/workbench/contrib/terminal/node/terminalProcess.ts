@@ -57,6 +57,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		cols: number,
 		rows: number,
 		env: platform.IProcessEnvironment,
+		/**
+		 * environment used for `findExecutable`
+		 */
+		private readonly _executableEnv: platform.IProcessEnvironment,
 		windowsEnableConpty: boolean,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -139,7 +143,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				// The executable isn't an absolute path, try find it on the PATH or CWD
 				let cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
 				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-				const executable = await findExecutable(slc.executable!, cwd, envPaths);
+				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
 				if (!executable) {
 					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 				}

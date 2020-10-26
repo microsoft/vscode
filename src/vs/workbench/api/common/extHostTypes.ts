@@ -2729,7 +2729,7 @@ export enum DebugConfigurationProviderTriggerKind {
 @es5ClassCompat
 export class QuickInputButtons {
 
-	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
 }

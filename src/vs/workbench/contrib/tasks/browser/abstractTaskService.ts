@@ -20,7 +20,7 @@ import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LRUCache, Touch } from 'vs/base/common/map';
 
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -213,7 +213,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
-	protected _areJsonTasksSupportedPromise: Promise<boolean> = Promise.resolve(false);
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListener?: IDisposable;
@@ -543,7 +542,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
-		this._taskSystemInfos.set(key, info);
+		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
+			this._taskSystemInfos.set(key, info);
+		}
+	}
+
+	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
+		if (this.environmentService.remoteAuthority) {
+			return this._taskSystemInfos.get(key);
+		}
+		return undefined;
 	}
 
 	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
@@ -1588,7 +1596,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.pathService, this.viewDescriptorService, this.logService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
-					return this._taskSystemInfos.get(workspaceFolder.uri.scheme);
+					return this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 				} else if (this._taskSystemInfos.size > 0) {
 					return this._taskSystemInfos.values().next().value;
 				} else {
@@ -1883,8 +1891,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public setJsonTasksSupported(areSupported: Promise<boolean>) {
-		this._areJsonTasksSupportedPromise = areSupported;
+	private get jsonTasksSupported(): boolean {
+		return !!ShellExecutionSupportedContext.getValue(this.contextKeyService) && !!ProcessExecutionSupportedContext.getValue(this.contextKeyService);
 	}
 
 	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
@@ -1896,7 +1904,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return Promise.resolve({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
 				}
 				return ProblemMatcherRegistry.onReady().then(async (): Promise<WorkspaceFolderTaskResult> => {
-					let taskSystemInfo: TaskSystemInfo | undefined = this._taskSystemInfos.get(workspaceFolder.uri.scheme);
+					let taskSystemInfo: TaskSystemInfo | undefined = this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 					let problemReporter = new ProblemReporter(this._outputChannel);
 					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this.contextKeyService);
 					let hasErrors = false;
@@ -1917,10 +1925,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							customizedTasks.byIdentifier[task.configures._key] = task;
 						}
 					}
-					if (!(await this._areJsonTasksSupportedPromise) && (parseResult.custom.length > 0)) {
+					if (!this.jsonTasksSupported && (parseResult.custom.length > 0)) {
 						console.warn('Custom workspace tasks are not supported.');
 					}
-					return { workspaceFolder, set: { tasks: await this._areJsonTasksSupportedPromise ? parseResult.custom : [] }, configurations: customizedTasks, hasErrors };
+					return { workspaceFolder, set: { tasks: this.jsonTasksSupported ? parseResult.custom : [] }, configurations: customizedTasks, hasErrors };
 				});
 			});
 	}
@@ -1993,7 +2001,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!config) {
 			return false;
 		}
-		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this._taskSystemInfos.get(workspaceFolder.uri.scheme) : undefined;
+		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this.getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
 		let problemReporter = new ProblemReporter(this._outputChannel);
 		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this.contextKeyService, isRecentTask);
 		let hasErrors = false;
@@ -2010,7 +2018,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				customized[task.configures._key] = task;
 			}
 		}
-		if (!(await this._areJsonTasksSupportedPromise) && (parseResult.custom.length > 0)) {
+		if (!this.jsonTasksSupported && (parseResult.custom.length > 0)) {
 			console.warn('Custom workspace tasks are not supported.');
 		} else {
 			for (let task of parseResult.custom) {

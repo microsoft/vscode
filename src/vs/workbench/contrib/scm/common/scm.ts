@@ -86,7 +86,8 @@ export interface IInputValidator {
 export interface ISCMInput {
 	readonly repository: ISCMRepository;
 
-	value: string;
+	readonly value: string;
+	setValue(value: string, fromKeyboard: boolean): void;
 	readonly onDidChange: Event<string>;
 
 	placeholder: string;
@@ -97,6 +98,9 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
+
+	showNextHistoryValue(): void;
+	showPreviousHistoryValue(): void;
 }
 
 export interface ISCMRepository extends IDisposable {

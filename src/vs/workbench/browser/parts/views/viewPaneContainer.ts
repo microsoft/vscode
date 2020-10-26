@@ -305,6 +305,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(this.toolbar);
 		this.setActions();
 
+		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
+
 		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
 			this.updateTitle(this.title);
 		}));

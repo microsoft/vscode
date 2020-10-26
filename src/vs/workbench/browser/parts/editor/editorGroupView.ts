@@ -340,7 +340,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -1361,7 +1361,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.handleDirtyClosing(editors);
 	}
 
-	private async doHandleDirtyClosing(editor: EditorInput): Promise<boolean /* veto */> {
+	private async doHandleDirtyClosing(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
 		if (!editor.isDirty() || editor.isSaving()) {
 			return false; // editor must be dirty and not saving
 		}
@@ -1396,9 +1396,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Auto-save on focus change: assume to Save unless the editor is untitled
 		// because bringing up a dialog would save in this case anyway.
+		// However, make sure to respect `skipAutoSave` option in case the automated
+		// save fails which would result in the editor never closing
+		// (see https://github.com/microsoft/vscode/issues/108752)
 		let confirmation: ConfirmResult;
 		let saveReason = SaveReason.EXPLICIT;
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled()) {
+		let autoSave = false;
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled() && !options?.skipAutoSave) {
+			autoSave = true;
 			confirmation = ConfirmResult.SAVE;
 			saveReason = SaveReason.FOCUS_CHANGE;
 		}
@@ -1430,7 +1435,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Otherwise, handle accordingly
 		switch (confirmation) {
 			case ConfirmResult.SAVE:
-				await editor.save(this.id, { reason: saveReason });
+				const result = await editor.save(this.id, { reason: saveReason });
+				if (!result && autoSave) {
+					// Save failed and we need to signal this back to the user, so
+					// we handle the dirty editor again but this time ensuring to
+					// show the confirm dialog
+					// (see https://github.com/microsoft/vscode/issues/108752)
+					return this.doHandleDirtyClosing(editor, { skipAutoSave: true });
+				}
 
 				return editor.isDirty(); // veto if still dirty
 			case ConfirmResult.DONT_SAVE:

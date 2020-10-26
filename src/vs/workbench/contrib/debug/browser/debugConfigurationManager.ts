@@ -40,6 +40,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { flatten } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -78,6 +79,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IHistoryService private readonly historyService: IHistoryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
@@ -264,7 +266,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return results.reduce((first, second) => first.concat(second), []);
 	}
 
-	async getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider | undefined, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
+	async getDynamicProviders(): Promise<{ label: string, type: string, getProvider: () => Promise<IDebugConfigurationProvider | undefined>, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
 		const extensions = await this.extensionService.getExtensions();
 		const onDebugDynamicConfigurationsName = 'onDebugDynamicConfigurations';
 		const debugDynamicExtensionsTypes = extensions.reduce((acc, e) => {
@@ -294,13 +296,17 @@ export class ConfigurationManager implements IConfigurationManager {
 			return acc;
 		}, [] as string[]);
 
-		await Promise.all(debugDynamicExtensionsTypes.map(type => this.activateDebuggers(onDebugDynamicConfigurationsName, type)));
 		return debugDynamicExtensionsTypes.map(type => {
-			const provider = this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations);
 			return {
 				label: this.getDebuggerLabel(type)!,
-				provider,
+				getProvider: async () => {
+					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
+					return this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations);
+				},
+				type,
 				pick: async () => {
+					// Do a late 'onDebugDynamicConfigurationsName' activation so extensions are not activated too early #108578
+					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
 					const disposables = new DisposableStore();
 					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
 					input.busy = true;
@@ -323,6 +329,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 					const token = new CancellationTokenSource();
 					const picks: Promise<IDynamicPickItem[]>[] = [];
+					const provider = this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations);
 					this.getLaunches().forEach(launch => {
 						if (launch.workspace && provider) {
 							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
@@ -491,7 +498,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return undefined;
 		}
 
-		return this.launches.find(l => l.workspace && l.workspace.uri.toString() === workspaceUri.toString());
+		return this.launches.find(l => l.workspace && this.uriIdentityService.extUri.isEqual(l.workspace.uri, workspaceUri));
 	}
 
 	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, config: IConfig | undefined, type: string | undefined } {
@@ -540,12 +547,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
 			// We could not find the previously used name. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
-			const providers = await this.getDynamicProviders();
-			const provider = providers.find(p => p.provider && p.provider.type === type);
+			const providers = (await this.getDynamicProviders()).filter(p => p.type === type);
+			const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
+			const provider = activatedProviders.find(p => p && p.type === type);
 			let nameToSet = names.length ? names[0] : undefined;
-			if (provider && launch && launch.workspace && provider.provider) {
+			if (provider && launch && launch.workspace) {
 				const token = new CancellationTokenSource();
-				const dynamicConfigs = await provider.provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
+				const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
 				const dynamicConfig = dynamicConfigs.find(c => c.name === name);
 				if (dynamicConfig) {
 					config = dynamicConfig;
@@ -699,8 +707,17 @@ abstract class AbstractLaunch {
 		if (!config || !config.configurations) {
 			return undefined;
 		}
-
-		return config.configurations.find(config => config && config.name === name);
+		const configuration = config.configurations.find(config => config && config.name === name);
+		if (configuration) {
+			if (this instanceof UserLaunch) {
+				configuration.__configurationTarget = ConfigurationTarget.USER;
+			} else if (this instanceof WorkspaceLaunch) {
+				configuration.__configurationTarget = ConfigurationTarget.WORKSPACE;
+			} else {
+				configuration.__configurationTarget = ConfigurationTarget.WORKSPACE_FOLDER;
+			}
+		}
+		return configuration;
 	}
 
 	async getInitialConfigurationContent(folderUri?: uri, type?: string, token?: CancellationToken): Promise<string> {

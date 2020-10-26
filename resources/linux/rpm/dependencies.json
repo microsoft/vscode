@@ -62,7 +62,8 @@
 		"libc.so.6(GLIBC_2.9)(64bit)",
 		"libxcb.so.1()(64bit)",
 		"libxkbfile.so.1()(64bit)",
-		"libsecret-1.so.0()(64bit)"
+		"libsecret-1.so.0()(64bit)",
+		"libgbm.so.1()(64bit)"
 	],
 	"aarch64": [
 		"libpthread.so.0()(aarch64)",

@@ -27,6 +27,8 @@ import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
+const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
+
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
@@ -52,7 +54,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: this.fileDialogService.defaultWorkspacePath(),
+			defaultUri: this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
 			availableFileSystems: this.environmentService.remoteAuthority ? [Schemas.vscodeRemote] : undefined
 		});
 

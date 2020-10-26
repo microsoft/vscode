@@ -88,6 +88,13 @@ steps:
       yarn gulp vscode-web-min-ci
   displayName: Build
 
+- script: |
+    set -e
+    AZURE_STORAGE_ACCOUNT="$(web-storage-account)" \
+    AZURE_STORAGE_ACCESS_KEY="$(web-storage-key)" \
+      node build/azure-pipelines/upload-cdn.js
+  displayName: Upload to CDN
+
   # upload only the workbench.web.api.js source maps because
   # we just compiled these bits in the previous step and the
   # general task to upload source maps has already been run
