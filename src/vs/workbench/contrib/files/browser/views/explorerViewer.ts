@@ -41,7 +41,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { ITask, sequence } from 'vs/base/common/async';
+import { ITask, RunOnceWorker, sequence } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -779,11 +779,13 @@ interface IWebkitDataTransferItemEntryReader {
 }
 
 interface IUploadOperation {
+	startTime: number;
+	progressScheduler: RunOnceWorker<IProgressStep>;
+
 	filesTotal: number;
 	filesUploaded: number;
 
-	startTime: number;
-	bytesUploaded: number;
+	totalBytesUploaded: number;
 }
 
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
@@ -1047,7 +1049,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const results: { isFile: boolean, resource: URI }[] = [];
-		const operation: IUploadOperation = { filesTotal: entries.length, filesUploaded: 0, startTime: Date.now(), bytesUploaded: 0 };
+		const operation: IUploadOperation = {
+			startTime: Date.now(),
+			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
+
+			filesTotal: entries.length,
+			filesUploaded: 0,
+
+			totalBytesUploaded: 0
+		};
 
 		for (let entry of entries) {
 			if (token.isCancellationRequested) {
@@ -1075,6 +1085,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 
+		operation.progressScheduler.dispose();
+
 		// Open uploaded file in editor only if we upload just one
 		const firstUploadedFile = results[0];
 		if (!token.isCancellationRequested && firstUploadedFile?.isFile) {
@@ -1091,9 +1103,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		let fileBytesUploaded = 0;
 		const reportProgress = (fileSize: number, bytesUploaded: number): void => {
 			fileBytesUploaded += bytesUploaded;
-			operation.bytesUploaded += bytesUploaded;
+			operation.totalBytesUploaded += bytesUploaded;
 
-			const bytesUploadedPerSecond = operation.bytesUploaded / ((Date.now() - operation.startTime) / 1000);
+			const bytesUploadedPerSecond = operation.totalBytesUploaded / ((Date.now() - operation.startTime) / 1000);
 
 			// Small file
 			let message: string;
@@ -1110,7 +1122,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, BinarySize.formatSize(fileBytesUploaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesUploadedPerSecond));
 			}
 
-			progress.report({ message });
+			// Report progress but limit to update only once per second
+			operation.progressScheduler.work({ message });
 		};
 		operation.filesUploaded++;
 		reportProgress(0, 0);
