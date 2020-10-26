@@ -89,10 +89,8 @@ class NullContext extends Context {
 	}
 }
 
-const configContextObject = Object.freeze({});
-
 class ConfigAwareContextValuesContainer extends Context {
-
+	private static readonly _configContextObject = Object.freeze({});
 	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = new Map<string, any>();
@@ -113,26 +111,32 @@ class ConfigAwareContextValuesContainer extends Context {
 				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
 				const changedKeys: string[] = [];
+				const changedObjectKeys: string[] = [];
+
 				for (const configKey of event.affectedKeys) {
-					let contextKey = `config.${configKey}`;
+					const contextKey = `config.${configKey}`;
 					if (this._values.has(contextKey)) {
 						const value = this._values.get(contextKey);
 
 						this._values.delete(contextKey);
 						changedKeys.push(contextKey);
 
-						if (value === configContextObject) {
-							contextKey += '.';
-
-							for (const key of this._values.keys()) {
-								if (key.startsWith(contextKey)) {
-									this._values.delete(key);
-									changedKeys.push(key);
-								}
-							}
+						if (value === ConfigAwareContextValuesContainer._configContextObject) {
+							changedObjectKeys.push(contextKey + '.');
 						}
 					}
 				}
+
+				if (changedObjectKeys.length) {
+					const regex = new RegExp(`^(${changedObjectKeys.join('|').replace(/\./g, '\\.')})`);
+					for (const key of this._values.keys()) {
+						if (regex.test(key)) {
+							this._values.delete(key);
+							changedKeys.push(key);
+						}
+					}
+				}
+
 				emitter.fire(new ArrayContextKeyChangeEvent(changedKeys));
 			}
 		});
@@ -165,7 +169,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				if (Array.isArray(configValue)) {
 					value = JSON.stringify(configValue);
 				} else {
-					value = configContextObject;
+					value = ConfigAwareContextValuesContainer._configContextObject;
 				}
 		}
 
