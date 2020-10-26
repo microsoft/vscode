@@ -219,6 +219,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _activeInstanceIndex: number;
 	private _isVisible: boolean = false;
+	private _willFocus: boolean = false;
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -248,6 +249,16 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 	}
 
+	/**
+	 * Focus the current active instance, or if there isn't one yet, the first instance added
+	 */
+	setWillFocus(focus: boolean): void {
+		this._willFocus = focus;
+		if (focus && this.activeInstance) {
+			this.activeInstance.focusWhenReady();
+		}
+	}
+
 	public addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
 		let instance: ITerminalInstance;
 		if ('id' in shellLaunchConfigOrInstance) {
@@ -263,6 +274,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 
 		this._onInstancesChanged.fire();
+
+		if (this.terminalInstances.length === 1 && this._willFocus) {
+			instance.focusWhenReady();
+		}
 	}
 
 	public dispose(): void {
