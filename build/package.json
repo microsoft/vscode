@@ -36,6 +36,7 @@
     "azure-storage": "^2.1.0",
     "electron-osx-sign": "^0.4.16",
     "github-releases": "^0.4.1",
+    "gulp-azure-storage": "^0.11.1",
     "gulp-bom": "^1.0.0",
     "gulp-gzip": "^1.4.2",
     "gulp-sourcemaps": "^1.11.0",
