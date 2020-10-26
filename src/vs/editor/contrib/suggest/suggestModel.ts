@@ -288,7 +288,7 @@ export class SuggestModel implements IDisposable {
 		this._currentSelection = this._editor.getSelection();
 
 		if (!e.selection.isEmpty()
-			|| e.reason !== CursorChangeReason.NotSet
+			|| (e.reason !== CursorChangeReason.NotSet && e.reason !== CursorChangeReason.Explicit)
 			|| (e.source !== 'keyboard' && e.source !== 'deleteLeft')
 		) {
 			// Early exit if nothing needs to be done!
@@ -357,6 +357,11 @@ export class SuggestModel implements IDisposable {
 
 			}, this._quickSuggestDelay);
 
+
+		} else if (e.reason === CursorChangeReason.Explicit) {
+			// suggest is active and something like cursor keys are used to move
+			// the cursor. this means we can refilter at the new position
+			this._refilterCompletionItems();
 		}
 	}
 
