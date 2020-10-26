@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as semver from 'semver-umd';
 import { ISyncExtension, ISyncExtensionWithVersion } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { deepClone, equals } from 'vs/base/common/objects';
@@ -217,6 +216,8 @@ function mergeExtensionState(localExtension: ISyncExtensionWithVersion, remoteEx
 	if (!remoteExtension.version) {
 		return localState;
 	}
+	/*
+	 * Enable this after making semver a common module
 	// If local state exists and local extension is latest then use local state
 	if (localState && semver.gt(localExtension.version, remoteExtension.version)) {
 		return localState;
@@ -225,6 +226,7 @@ function mergeExtensionState(localExtension: ISyncExtensionWithVersion, remoteEx
 	if (remoteState && semver.gt(remoteExtension.version, localExtension.version)) {
 		return remoteState;
 	}
+	*/
 
 	/* Remote and local are on same version */
 
