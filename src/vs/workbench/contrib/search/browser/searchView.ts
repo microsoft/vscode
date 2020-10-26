@@ -920,14 +920,15 @@ export class SearchView extends ViewPane {
 		}
 
 		let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
-		if (selectedText) {
-			if (this.searchWidget.searchInput.getRegex()) {
-				selectedText = strings.escapeRegExpCharacters(selectedText);
-			}
-
-			this.updateText(selectedText, allowSearchOnType);
+		if (selectedText === null) {
+			return false;
 		}
 
+		if (this.searchWidget.searchInput.getRegex()) {
+			selectedText = strings.escapeRegExpCharacters(selectedText);
+		}
+
+		this.updateText(selectedText, allowSearchOnType);
 		return true;
 	}
 
