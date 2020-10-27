@@ -381,6 +381,16 @@ export const terminalConfiguration: IConfigurationNode = {
 					default: '#ff0000',
 				}
 			]
+		},
+		'terminal.integrated.serverSpawn': {
+			description: localize('terminal.integrated.serverSpawn', "Experimental: spawn remote terminals from the remote agent process instead of the remote extension host"),
+			type: 'boolean',
+			default: true
+		},
+		'terminal.integrated.enableTerminalReconnection': {
+			description: localize('terminal.integrated.enableTerminalReconnection', "Experimental: reconnect to terminals when reopening the workspace. Currently only supported in VS Code Remote workspaces."),
+			type: 'boolean',
+			default: true
 		}
 	}
 };
