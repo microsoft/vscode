@@ -14,6 +14,12 @@ function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): 
 		: [];
 }
 
+function mapProperties<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
+	return node && node.type === 'object' && node.children
+		? node.children.map(f)
+		: [];
+}
+
 class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 
 	public provideDocumentLinks(
@@ -28,8 +34,16 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		return coalesce([
 			this.getExtendsLink(document, root),
 			...this.getFilesLinks(document, root),
-			...this.getReferencesLinks(document, root)
+			...this.getReferencesLinks(document, root),
+			...this.getKeyLinks(document, root)
 		]);
+	}
+
+	private getKeyLinks(document: vscode.TextDocument, root: jsonc.Node): (vscode.DocumentLink | undefined)[] {
+		return mapProperties(
+			jsonc.findNodeAtLocation(root, ['compilerOptions']),
+			(node) => node.children?.[0]?.value && new vscode.DocumentLink(this.getRange(document, node.children[0]), vscode.Uri.parse(`https://www.typescriptlang.org/tsconfig#${node.children[0].value}`, true))
+		);
 	}
 
 	private getExtendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
