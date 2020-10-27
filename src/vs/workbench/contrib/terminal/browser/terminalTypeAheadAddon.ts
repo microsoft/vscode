@@ -7,9 +7,10 @@ import { Color } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { equals as arrayEqual } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { XTermAttributes } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
 
@@ -37,8 +38,6 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  *  - mode set/reset
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
-
-const core = (t: Terminal): XTermCore => (t as any)._core;
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -638,7 +637,7 @@ export class PredictionTimeline {
 	/**
 	 * Cursor graphics attributes prior to applying the predictions.
 	 */
-	private cursorAttrs = '';
+	private cursorAttrs = `${CSI}0m`;
 
 	/**
 	 * Current prediction generation.
@@ -664,6 +663,12 @@ export class PredictionTimeline {
 	 */
 	private showPredictions = false;
 
+	/**
+	 * Number of typeahead style arguments we expect to read. If this is 0 and
+	 * we see a style coming in, we know that the PTY actually wanted to update.
+	 */
+	private expectedIncomingStyles = 0;
+
 	private readonly addedEmitter = new Emitter<IPrediction>();
 	public readonly onPredictionAdded = this.addedEmitter.event;
 	private readonly failedEmitter = new Emitter<IPrediction>();
@@ -678,7 +683,7 @@ export class PredictionTimeline {
 			return;
 		}
 
-		// console.log('set predictions:', show);
+		console.log('set predictions:', show);
 		this.showPredictions = show;
 
 		const buffer = this.getActiveBuffer();
@@ -689,6 +694,7 @@ export class PredictionTimeline {
 		const toApply = this.expected.filter(({ gen }) => gen === this.expected[0].gen).map(({ p }) => p);
 		if (show) {
 			this.cursor = undefined;
+			this.expectedIncomingStyles += toApply.reduce((count, p) => p.affectsStyle ? count + 1 : count, 0);
 			this.terminal.write(toApply.map(p => p.apply(buffer, this.getCursor(buffer))).join(''));
 		} else {
 			this.terminal.write(toApply.reverse().map(p => p.rollback(this.getCursor(buffer))).join(''));
@@ -778,6 +784,9 @@ export class PredictionTimeline {
 				if (gen !== this.expected[0].gen) {
 					break;
 				}
+				if (p.affectsStyle) {
+					this.expectedIncomingStyles++;
+				}
 
 				output += p.apply(buffer, this.getCursor(buffer));
 			}
@@ -809,18 +818,12 @@ export class PredictionTimeline {
 		this.addedEmitter.fire(prediction);
 
 		if (this.currentGen === this.expected[0].gen) {
-			// todo@connor4312 / todo@tyriar: this has a race condition where a
-			// previous prediction may still be writing to the terminal, causing
-			// us to read the style of the predictions instead of the right style.
-			// To fix this we should parse the input and maintain the correct style
-			// internally.
-			if (this.expected.length === 1) {
-				this.cursorAttrs = getBufferCellAttributes(core(this.terminal)._inputHandler._curAttrData);
-			}
-
 			const text = prediction.apply(buffer, this.getCursor(buffer));
 			if (this.showPredictions && text) {
-				// console.log('predict:', JSON.stringify(text));
+				if (prediction.affectsStyle) {
+					this.expectedIncomingStyles++;
+				}
+				console.log('predict:', JSON.stringify(text));
 				this.terminal.write(text);
 			}
 
@@ -838,6 +841,20 @@ export class PredictionTimeline {
 	public addBoundary(buffer: IBuffer, prediction: IPrediction) {
 		this.addPrediction(buffer, prediction);
 		this.currentGen++;
+	}
+
+	/**
+	 * Should be called when graphics attributes are written to the terminal
+	 * in order to track the intended cursor style.
+	 */
+	public updateCursorSyle(args: number[], typeaheadArgs: number[]) {
+		if (this.expectedIncomingStyles && arrayEqual(args, typeaheadArgs)) {
+			this.expectedIncomingStyles--;
+			return;
+		}
+
+		// todo: apply to attribute smartly once xterm api is available...
+		this.cursorAttrs = `${CSI}${args.join(';')}m`;
 	}
 
 	public getCursor(buffer: IBuffer) {
@@ -880,17 +897,18 @@ const getBufferCellAttributes = (cell: XTermAttributes) => cell.isAttributeDefau
 		cell.isBgDefault() && `${CSI}49m`,
 	].filter(seq => !!seq).join('');
 
-const parseTypeheadStyle = (style: string | number) => {
+const parseTypeheadArgs = (style: string | number) => {
 	if (typeof style === 'number') {
-		return `${CSI}${style}m`;
+		return [style];
 	}
 
 	const { r, g, b } = Color.fromHex(style).rgba;
-	return `${CSI}32;${r};${g};${b}m`;
+	return [32, r, g, b];
 };
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
-	private typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
+	private typeaheadArgs = parseTypeheadArgs(this.config.config.typeaheadStyle);
+	private typeaheadStyle = `${CSI}${this.typeaheadArgs.join(';')}m`;
 	private typeaheadThreshold = this.config.config.typeaheadThreshold;
 	private lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
@@ -909,10 +927,15 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const stats = this.stats = this._register(new PredictionStats(this.timeline));
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
+		this._register(terminal.parser.registerCsiHandler({ final: 'm' }, args => {
+			timeline.updateCursorSyle(args as number[], this.typeaheadArgs);
+			return false;
+		}));
 		this._register(terminal.onData(e => this.onUserData(e)));
 		this._register(terminal.onResize(() => timeline.clearCursor()));
 		this._register(this.config.onConfigChanged(() => {
-			this.typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
+			this.typeaheadArgs = parseTypeheadArgs(this.config.config.typeaheadStyle);
+			this.typeaheadStyle = `${CSI}${this.typeaheadArgs.join(';')}m`;
 			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
 			this.reevaluatePredictorState(stats, timeline);
 		}));
@@ -975,7 +998,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		// console.log('user data:', JSON.stringify(data));
+		console.log('user data:', JSON.stringify(data));
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
@@ -1005,7 +1028,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 			if (reader.eatCharCode(32, 126)) { // alphanum
 				const char = data[reader.index - 1];
-				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeheadStyle, char)) && this.timeline.getCursor(buffer).x === terminal.cols) {
+				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeaheadStyle, char)) && this.timeline.getCursor(buffer).x === terminal.cols) {
 					this.timeline.addBoundary(buffer, new TentativeBoundary(new LinewrapPrediction()));
 				}
 				continue;
@@ -1049,9 +1072,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		// console.log('incoming data:', JSON.stringify(event.data));
+		console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
-		// console.log('emitted data:', JSON.stringify(event.data));
+		console.log('emitted data:', JSON.stringify(event.data));
 
 		// If there's something that looks like a password prompt, omit giving
 		// input. This is approximate since there's no TTY "password here" code,
