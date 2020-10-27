@@ -142,12 +142,16 @@ export class SuggestDetailsWidget {
 
 		this.domNode.classList.remove('no-docs', 'no-type');
 
+		let detailsLines = 0;
 		// --- details
+
 		if (detail) {
 			const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
 			this._type.textContent = cappedDetail;
 			this._type.title = cappedDetail;
 			dom.show(this._type);
+			detailsLines = count(cappedDetail, '\n');
+			this._type.classList.toggle('auto-wrap', detailsLines === 0);
 		} else {
 			dom.clearNode(this._type);
 			this._type.title = '';
@@ -186,7 +190,7 @@ export class SuggestDetailsWidget {
 
 		let heightInLines = 0;
 		if (detail) {
-			heightInLines += 2 + count(detail, '\n');
+			heightInLines += 2 + detailsLines;
 		}
 		if (documentation) {
 			heightInLines += 5;
