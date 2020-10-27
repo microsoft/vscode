@@ -11,6 +11,7 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { generateUuid } from 'vs/base/common/uuid';
+import product from 'vs/platform/product/common/product';
 
 type LoginEvent = {
 	event: ElectronEvent;
@@ -26,7 +27,7 @@ type Credentials = {
 
 export class ProxyAuthHandler2 extends Disposable {
 
-	private static PROXY_CREDENTIALS_SERVICE_KEY = 'vscode.proxy-credentials';
+	private static PROXY_CREDENTIALS_SERVICE_KEY = `${product.urlProtocol}.proxy-credentials`;
 
 	private pendingProxyHandler = false;
 	private proxyDialogShown = false;
