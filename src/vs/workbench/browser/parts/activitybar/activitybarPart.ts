@@ -439,7 +439,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (homeIndicator) {
 			let codicon = iconRegistry.get(homeIndicator.icon);
 			if (!codicon) {
-				console.warn(`Unknown home indicator icon ${homeIndicator.icon}`);
 				codicon = Codicon.code;
 			}
 
