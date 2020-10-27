@@ -233,7 +233,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.viewNextCommit',
 	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmInputIsInLastLine'),
+	when: ContextKeyExpr.has('scmInputIsInLastPosition'),
 	primary: KeyCode.DownArrow,
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -247,8 +247,36 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.viewPriorCommit',
 	description: { description: localize('scm view prior commit', "SCM: View Prior Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmInputIsInFirstLine'),
+	when: ContextKeyExpr.has('scmInputIsInFirstPosition'),
 	primary: KeyCode.UpArrow,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showPreviousHistoryValue();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.viewNextCommit',
+	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showNextHistoryValue();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.viewPriorCommit',
+	description: { description: localize('scm view prior commit', "SCM: View Prior Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);

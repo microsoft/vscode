@@ -1465,16 +1465,16 @@ class SCMInputWidget extends Disposable {
 			this.validationDisposable.dispose();
 		}));
 
-		const firstLineKey = contextKeyService2.createKey('scmInputIsInFirstLine', false);
-		const lastLineKey = contextKeyService2.createKey('scmInputIsInLastLine', false);
+		const firstLineKey = contextKeyService2.createKey('scmInputIsInFirstPosition', false);
+		const lastLineKey = contextKeyService2.createKey('scmInputIsInLastPosition', false);
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputEditor._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
+			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
-
-			firstLineKey.set(viewPosition.lineNumber === 1);
-			lastLineKey.set(viewPosition.lineNumber === lastLineNumber);
+			firstLineKey.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
+			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
 		}));
 
 		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
