@@ -20,10 +20,10 @@
     vscode-ws-jsonrpc "^0.2.0"
     ws "^5.2.2"
 
-"@gitpod/supervisor-api-grpc@ak-supervisor-tasks":
-  version "0.1.5-ak-supervisor-tasks.109"
-  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-ak-supervisor-tasks.109.tgz#3b5dc225bf497018295278462e0f934ffbe5c9a1"
-  integrity sha512-ppnB7cgwDYud95taQGK8Z2eKIoNVvIGorqjV1eJRtYvSongD57QdqWrfMxQ2glxOy8iHqYtWBJHIID1wMh+Qaw==
+"@gitpod/supervisor-api-grpc@cw-supervisor-ports":
+  version "0.1.5-cw-supervisor-ports.175"
+  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-cw-supervisor-ports.175.tgz#50afa1d1e22a4f655a1daa328367e73c7fbe3496"
+  integrity sha512-5Lr3siOXvKH93mAggYk4ay+1zFhlNG5HM9cIuWoWk0qk/YE7A2IkvG/F6lpmA/xzV0ZtQvHzRXBtZG23EW3E+Q==
   dependencies:
     "@grpc/grpc-js" "^1.1.5"
     google-protobuf "^3.8.0-rc.1"
@@ -661,7 +661,7 @@ punycode@^2.1.0:
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.1.1.tgz#b58b010ac40c22c5657616c8d2c2c02c7bf479ec"
   integrity sha512-XRsRjdf+j5ml+y/6GKHPZbrF/8p2Yga0JPtdqTIY2Xe5ohJPD9saDJJLPvp9+NSBprVvevdXZybnj2cv8OEd0A==
 
-reconnecting-websocket@^4.2.0:
+reconnecting-websocket@^4.2.0, reconnecting-websocket@^4.4.0:
   version "4.4.0"
   resolved "https://registry.yarnpkg.com/reconnecting-websocket/-/reconnecting-websocket-4.4.0.tgz#3b0e5b96ef119e78a03135865b8bb0af1b948783"
   integrity sha512-D2E33ceRPga0NvTDhJmphEgJ7FUYF0v4lr1ki0csq06OdlxKfugGzN0dSkxM/NfqCxYELK4KcaTOUOjTV6Dcng==

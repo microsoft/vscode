@@ -34,6 +34,21 @@
         "command": "gitpod.stopWorkspace",
         "category": "Gitpod",
         "title": "%stopWorkspace%"
+      },
+      {
+        "command": "gitpod.ports.openBrowser",
+        "title": "Open Browser",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "gitpod.ports.makePrivate",
+        "title": "Make Private",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "gitpod.ports.makePublic",
+        "title": "Make Public",
+        "icon": "$(unlock)"
       }
     ],
     "menus": {
@@ -49,6 +64,37 @@
         {
           "command": "gitpod.stopWorkspace",
           "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitpod.ports.openBrowser",
+          "when": "view == gitpod.workspace && viewItem =~ /exposed-served-port$/",
+          "group": "inline"
+        },
+        {
+          "command": "gitpod.ports.makePublic",
+          "when": "view == gitpod.workspace && viewItem =~ /^private/",
+          "group": "inline"
+        },
+        {
+          "command": "gitpod.ports.makePrivate",
+          "when": "view == gitpod.workspace && viewItem =~ /^public/",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "gitpod.ports.openBrowser",
+          "when": "false"
+        },
+        {
+          "command": "gitpod.ports.makePublic",
+          "when": "false"
+        },
+        {
+          "command": "gitpod.ports.makePrivate",
+          "when": "false"
         }
       ]
     },
@@ -73,10 +119,11 @@
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "master",
-    "@gitpod/supervisor-api-grpc": "ak-supervisor-tasks",
+    "@gitpod/supervisor-api-grpc": "cw-supervisor-ports",
     "@grpc/grpc-js": "^1.1.7",
     "bufferutil": "^4.0.1",
     "ps-tree": "^1.2.0",
+    "reconnecting-websocket": "^4.4.0",
     "utf-8-validate": "^5.0.2",
     "vscode-nls": "^5.0.0",
     "ws": "^7.3.1"

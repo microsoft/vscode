@@ -262,11 +262,8 @@ async function doStart(): Promise<IDisposable> {
 			if (!localhost) {
 				return uri;
 			}
-			const externalPort = await commands.executeCommand('gitpod.resolveExternalPort', localhost.port);
-			return uri.with({
-				authority: `${externalPort}-${supervisorHost}`,
-				scheme: location.protocol.substring(0, location.protocol.length - 1)
-			});
+			const publicUrl = (await commands.executeCommand('gitpod.resolveExternalPort', localhost.port)) as any as string;
+			return URI.parse(publicUrl);
 		},
 		homeIndicator,
 		windowIndicator: {
