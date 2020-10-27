@@ -123,6 +123,11 @@ class SCMInput implements ISCMInput {
 			return;
 		}
 
+		if (!this.historyNavigator.has(this.value)) {
+			this.historyNavigator.replaceLast(this._value);
+			this.historyNavigator.resetCursor();
+		}
+
 		const value = this.historyNavigator.next();
 		this.setValue(value, true);
 	}
@@ -130,6 +135,11 @@ class SCMInput implements ISCMInput {
 	showPreviousHistoryValue(): void {
 		if (this.historyNavigator.isAtEnd()) {
 			this.historyNavigator.replaceLast(this._value);
+		}
+
+		if (!this.historyNavigator.has(this._value)) {
+			this.historyNavigator.replaceLast(this._value);
+			this.historyNavigator.resetCursor();
 		}
 
 		const value = this.historyNavigator.previous();
