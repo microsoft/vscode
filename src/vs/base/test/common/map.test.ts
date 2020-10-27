@@ -533,13 +533,38 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree - delete & cleanup', function () {
+		// normal delete
 		let trie = new TernarySearchTree<string, number>(new StringIterator());
 		trie.set('foo', 1);
 		trie.set('foobar', 2);
 		trie.set('bar', 3);
-
+		assertTernarySearchTree(trie, ['foo', 1], ['foobar', 2], ['bar', 3]);
 		trie.delete('foo');
+		assertTernarySearchTree(trie, ['foobar', 2], ['bar', 3]);
 		trie.delete('foobar');
+		assertTernarySearchTree(trie, ['bar', 3]);
+
+		// superstr-delete
+		trie = new TernarySearchTree<string, number>(new StringIterator());
+		trie.set('foo', 1);
+		trie.set('foobar', 2);
+		trie.set('bar', 3);
+		trie.deleteSuperstr('foo');
+		assertTernarySearchTree(trie, ['bar', 3]);
+
+		trie = new TernarySearchTree<string, number>(new StringIterator());
+		trie.set('foo', 1);
+		trie.set('foobar', 2);
+		trie.set('bar', 3);
+		trie.deleteSuperstr('fo');
+		assertTernarySearchTree(trie, ['bar', 3]);
+
+		// trie = new TernarySearchTree<string, number>(new StringIterator());
+		// trie.set('foo', 1);
+		// trie.set('foobar', 2);
+		// trie.set('bar', 3);
+		// trie.deleteSuperStr('f');
+		// assertTernarySearchTree(trie, ['bar', 3]);
 	});
 
 	test('TernarySearchTree (PathSegments) - basics', function () {
@@ -618,6 +643,41 @@ suite('Map', () => {
 		assert.equal(map.findSuperstr('/userr'), undefined);
 	});
 
+
+	test('TernarySearchTree (PathSegments) - delete_superstr', function () {
+
+		const map = new TernarySearchTree<string, number>(new PathIterator());
+		map.set('/user/foo/bar', 1);
+		map.set('/user/foo', 2);
+		map.set('/user/foo/flip/flop', 3);
+		map.set('/usr/foo', 4);
+
+		assertTernarySearchTree(map,
+			['/user/foo/bar', 1],
+			['/user/foo', 2],
+			['/user/foo/flip/flop', 3],
+			['/usr/foo', 4],
+		);
+
+		// not a segment
+		map.deleteSuperstr('/user/fo');
+		assertTernarySearchTree(map,
+			['/user/foo/bar', 1],
+			['/user/foo', 2],
+			['/user/foo/flip/flop', 3],
+			['/usr/foo', 4],
+		);
+
+		// delete a segment
+		map.set('/user/foo/bar', 1);
+		map.set('/user/foo', 2);
+		map.set('/user/foo/flip/flop', 3);
+		map.set('/usr/foo', 4);
+		map.deleteSuperstr('/user/foo');
+		assertTernarySearchTree(map,
+			['/usr/foo', 4],
+		);
+	});
 
 	test('TernarySearchTree (URI) - basics', function () {
 		let trie = new TernarySearchTree<URI, number>(new UriIterator(false));
