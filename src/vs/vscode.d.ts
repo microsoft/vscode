@@ -11698,6 +11698,12 @@ declare module 'vscode' {
 		collapsibleState: CommentThreadCollapsibleState;
 
 		/**
+		 * Whether the thread supports reply.
+		 * Defaults to true.
+		 */
+		canReply: boolean;
+
+		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.
 		 * For example, a comment thread is given a context value as `editable`. When contributing actions to `comments/commentThread/title`
 		 * using `menus` extension point, you can specify context value for key `commentThread` in `when` expression like `commentThread == editable`.

@@ -2159,16 +2159,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
-	export interface CommentThread {
-		/**
-		 * Whether the thread supports reply.
-		 * Defaults to true.
-		 */
-		canReply: boolean;
-	}
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
 	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
 
