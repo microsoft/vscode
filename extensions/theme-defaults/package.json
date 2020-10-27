@@ -16,6 +16,12 @@
 				"path": "./themes/dark_plus.json"
 			},
 			{
+				"id": "Dark+ Color blind",
+				"label": "Dark+ (color blind)",
+				"uiTheme": "vs-dark",
+				"path": "./themes/dark_plus_colorblind.json"
+			},
+			{
 				"id": "Default Light+",
 				"label": "Light+ (default light)",
 				"uiTheme": "vs",
