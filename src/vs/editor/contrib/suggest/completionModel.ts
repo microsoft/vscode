@@ -245,7 +245,11 @@ export class CompletionModel {
 
 		this._filteredItems = target.sort(this._snippetCompareFn);
 		this._refilterKind = Refilter.Nothing;
-		this._stats = { pLabelLen: quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b) };
+		this._stats = {
+			pLabelLen: labelLengths.length ?
+				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
+				: 0
+		};
 	}
 
 	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {
