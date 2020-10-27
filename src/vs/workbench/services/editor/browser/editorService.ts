@@ -942,7 +942,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// differs from the canonical resource, we print a warning as this means
 		// the model will not be able to be opened as editor.
 		if (!isEqual(resource, canonicalResource) && this.modelService?.getModel(resource)) {
-			console.warn(`EditorService: a model exists for a resource that is not canonical: ${resource.toString(true)}`);
+			this.logService.warn(`EditorService: a model exists for a resource that is not canonical: ${resource.toString(true)}`);
 		}
 
 		return canonicalResource;
