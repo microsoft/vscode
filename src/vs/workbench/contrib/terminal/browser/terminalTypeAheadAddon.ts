@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { equals as arrayEqual } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { XTermAttributes } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
 
@@ -38,6 +38,8 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  *  - mode set/reset
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
+
+const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -859,6 +861,7 @@ export class PredictionTimeline {
 
 	public getCursor(buffer: IBuffer) {
 		if (!this.cursor) {
+			core(this.terminal).writeSync('');
 			this.cursor = new Cursor(this.terminal.rows, this.terminal.cols, buffer);
 		}
 
