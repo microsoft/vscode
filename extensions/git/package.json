@@ -523,7 +523,7 @@
         "command": "git.setUnpublishedViewToCommits",
         "title": "%command.setUnpublishedViewToCommits%",
         "category": "Git",
-        "icon": "$(files)"
+        "icon": "$(list-selection)"
       },
       {
         "command": "git.setUnpublishedViewToFiles",
