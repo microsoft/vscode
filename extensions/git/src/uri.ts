@@ -72,5 +72,5 @@ export function toRevisionUri(commit: Commit): Uri {
 		status: 'unpublished',
 		iconPath: new (ThemeIcon as any)('git-commit')
 	};
-	return Uri.parse(`revision://${shortId}/?${JSON.stringify(revision)}`);
+	return Uri.parse(`revision://${shortId}/?${encodeURIComponent(JSON.stringify(revision))}`);
 }
