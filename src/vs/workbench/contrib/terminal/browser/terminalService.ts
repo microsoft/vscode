@@ -109,7 +109,6 @@ export class TerminalService implements ITerminalService {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IViewsService private _viewsService: IViewsService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService private readonly _workspaceConfigurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
@@ -348,8 +347,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async initializeTerminals(): Promise<void> {
-		const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue<boolean | undefined>('terminal.integrated.serverSpawn');
-		if (!!this._environmentService.remoteAuthority && enableRemoteAgentTerminals !== false) {
+		const enableTerminalReconnection = this.configHelper.config.enableTerminalReconnection;
+		const serverSpawn = this.configHelper.config.serverSpawn;
+		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
 			let emptyTab: TerminalTab | undefined;
 			if (!this.terminalTabs.length) {
 				emptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
