@@ -54,11 +54,6 @@ const _classList: IDomClassList = new class implements IDomClassList {
 	}
 };
 
-/** @deprecated ES6 - use classList*/
-export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
-
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;

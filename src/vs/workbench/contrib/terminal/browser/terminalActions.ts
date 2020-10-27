@@ -30,7 +30,6 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { addClass } from 'vs/base/browser/dom';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -361,7 +360,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	render(container: HTMLElement): void {
 		super.render(container);
-		addClass(container, 'switch-terminal');
+		container.classList.add('switch-terminal');
 		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
 			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
 		}));
