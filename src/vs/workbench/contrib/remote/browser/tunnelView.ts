@@ -411,11 +411,16 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	private static compactLongAddress(address: string): string {
-		if (address.length < 15) {
+		if (address.length < 16) {
 			return address;
 		}
-		const host = new URL(address).host;
-		return host.length > 0 ? host : address;
+		let url: URL | undefined;
+		try {
+			url = new URL(address);
+		} catch (e) {
+			// Address isn't a valid url and can't be compacted.
+		}
+		return url && url.host.length > 0 ? url.host : address;
 	}
 
 	set description(description: string | undefined) {
