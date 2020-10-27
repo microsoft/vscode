@@ -16,7 +16,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { count } from 'vs/base/common/strings';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -142,7 +141,6 @@ export class SuggestDetailsWidget {
 
 		this.domNode.classList.remove('no-docs', 'no-type');
 
-		let detailsLines = 0;
 		// --- details
 
 		if (detail) {
@@ -150,8 +148,7 @@ export class SuggestDetailsWidget {
 			this._type.textContent = cappedDetail;
 			this._type.title = cappedDetail;
 			dom.show(this._type);
-			detailsLines = count(cappedDetail, '\n');
-			this._type.classList.toggle('auto-wrap', detailsLines === 0);
+			this._type.classList.toggle('auto-wrap', !cappedDetail.includes('\n'));
 		} else {
 			dom.clearNode(this._type);
 			this._type.title = '';
@@ -188,15 +185,7 @@ export class SuggestDetailsWidget {
 
 		this._body.scrollTop = 0;
 
-		let heightInLines = 0;
-		if (detail) {
-			heightInLines += 2 + detailsLines;
-		}
-		if (documentation) {
-			heightInLines += 5;
-		}
-
-		this.layout(this._size.width, this.getLayoutInfo().lineHeight * heightInLines);
+		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 		this._onDidChangeContents.fire(this);
 	}
 
