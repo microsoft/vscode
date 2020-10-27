@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -40,7 +40,7 @@ export class SuggestDetailsWidget {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _markdownRenderer: MarkdownRenderer;
-	private _renderDisposeable?: IDisposable;
+	private readonly _renderDisposeable = new DisposableStore();
 	private _borderWidth: number = 1;
 	private _size = new dom.Dimension(330, 0);
 
@@ -73,14 +73,11 @@ export class SuggestDetailsWidget {
 				this._configureFont();
 			}
 		}));
-
-		// this._disposables.add(this._markdownRenderer.onDidRenderCodeBlock(() => this.layout()));
 	}
 
 	dispose(): void {
 		this._disposables.dispose();
-		this._renderDisposeable?.dispose();
-		this._renderDisposeable = undefined;
+		this._renderDisposeable.dispose();
 	}
 
 	private _configureFont(): void {
@@ -118,8 +115,7 @@ export class SuggestDetailsWidget {
 	}
 
 	renderItem(item: CompletionItem, explainMode: boolean): void {
-		this._renderDisposeable?.dispose();
-		this._renderDisposeable = undefined;
+		this._renderDisposeable.clear();
 
 		let { detail, documentation } = item.completion;
 
@@ -166,8 +162,9 @@ export class SuggestDetailsWidget {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
 			const renderedContents = this._markdownRenderer.render(documentation);
-			this._renderDisposeable = renderedContents;
 			this._docs.appendChild(renderedContents.element);
+			this._renderDisposeable.add(renderedContents);
+			this._renderDisposeable.add(this._markdownRenderer.onDidRenderCodeBlock(() => this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight)));
 		}
 
 		this.domNode.style.userSelect = 'text';
