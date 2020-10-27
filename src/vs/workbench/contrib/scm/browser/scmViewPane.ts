@@ -744,9 +744,17 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		if (isSCMInput(one)) {
-			return -1;
+			if (isSCMResourceGroup(other) && other.id === 'unpublished') {
+				return -1;
+			} else {
+				return 1;
+			}
 		} else if (isSCMInput(other)) {
-			return 1;
+			if (isSCMResourceGroup(one) && one.id === 'unpublished') {
+				return 1;
+			}
+
+			return -1;
 		}
 
 		if (isSCMResourceGroup(one)) {
@@ -754,6 +762,13 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 				throw new Error('Invalid comparison');
 			}
 
+			if (one.id === 'unpublished') {
+				return 1;
+			}
+
+			if (other.id === 'unpublished') {
+				return -1;
+			}
 			return 0;
 		}
 

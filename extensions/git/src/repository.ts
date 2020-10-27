@@ -917,9 +917,9 @@ export class Repository implements Disposable {
 		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
 		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "Untracked Changes"));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
 		this._unpublishedGroup = this._sourceControl.createResourceGroup('unpublished', localize('unpublished changes', "Commits to push"));
 
 		const updateIndexGroupVisibility = () => {
