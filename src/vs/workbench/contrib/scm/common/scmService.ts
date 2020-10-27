@@ -73,7 +73,7 @@ class SCMInput implements ISCMInput {
 	) {
 		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
 		let history: string[] | undefined;
-		let rawHistory = this.storageService.get(historyKey, StorageScope.WORKSPACE, '');
+		let rawHistory = this.storageService.get(historyKey, StorageScope.GLOBAL, '');
 
 		if (rawHistory) {
 			try {
@@ -98,7 +98,7 @@ class SCMInput implements ISCMInput {
 				}
 
 				if (this.repository.provider.rootUri) {
-					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.WORKSPACE);
+					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL);
 				}
 			}
 		});
