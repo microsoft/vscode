@@ -119,12 +119,21 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+		switch (this.shutdownReason) {
 
-		// Veto the shutdown depending on `window.confirmBeforeClose` setting
-		const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
-		if (confirmBeforeClose === 'always' || (this.shutdownReason === HostShutdownReason.Keyboard && confirmBeforeClose === 'keyboardOnly')) {
-			this.logService.warn(`Unload veto: window.confirmBeforeClose=${confirmBeforeClose}`);
-			e.veto(true);
+			// Unknown / Keyboard shows veto depending on setting
+			case HostShutdownReason.Unknown:
+			case HostShutdownReason.Keyboard:
+				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
+					this.logService.warn(`Unload veto: window.confirmBeforeClose=${confirmBeforeClose}`);
+					e.veto(true);
+				}
+				break;
+
+			// Api never shows veto
+			case HostShutdownReason.Api:
+				break;
 		}
 
 		// Unset for next shutdown
