@@ -119,6 +119,10 @@ class SCMInput implements ISCMInput {
 	}
 
 	showNextHistoryValue(): void {
+		if (this.historyNavigator.isAtEnd()) {
+			return;
+		}
+
 		const value = this.historyNavigator.next();
 		this.setValue(value, true);
 	}
