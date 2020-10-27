@@ -40,6 +40,7 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
 const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
 
 const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
+const flushOutput = (terminal: Terminal) => core(terminal).writeSync('');
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -678,6 +679,10 @@ export class PredictionTimeline {
 	private readonly succeededEmitter = new Emitter<IPrediction>();
 	public readonly onPredictionSucceeded = this.succeededEmitter.event;
 
+	public get isShowingPredictions() {
+		return this.showPredictions;
+	}
+
 	constructor(public readonly terminal: Terminal) { }
 
 	public setShowPredictions(show: boolean) {
@@ -840,9 +845,20 @@ export class PredictionTimeline {
 	 * after this one will only be displayed after the give prediction matches
 	 * pty output/
 	 */
-	public addBoundary(buffer: IBuffer, prediction: IPrediction) {
-		this.addPrediction(buffer, prediction);
+	public addBoundary(): void;
+	public addBoundary(buffer: IBuffer, prediction: IPrediction): void;
+	public addBoundary(buffer?: IBuffer, prediction?: IPrediction) {
+		if (buffer && prediction) {
+			this.addPrediction(buffer, prediction);
+		}
 		this.currentGen++;
+	}
+
+	/**
+	 * Peeks the last prediction written.
+	 */
+	public peekEnd() {
+		return this.expected[this.expected.length - 1]?.p;
 	}
 
 	/**
@@ -861,7 +877,9 @@ export class PredictionTimeline {
 
 	public getCursor(buffer: IBuffer) {
 		if (!this.cursor) {
-			core(this.terminal).writeSync('');
+			if (this.showPredictions) {
+				flushOutput(this.terminal);
+			}
 			this.cursor = new Cursor(this.terminal.rows, this.terminal.cols, buffer);
 		}
 
@@ -1025,6 +1043,17 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const reader = new StringReader(data);
 		while (reader.remaining > 0) {
 			if (reader.eatCharCode(127)) { // backspace
+				const previous = this.timeline.peekEnd();
+				if (previous && previous instanceof CharacterPrediction) {
+					this.timeline.addBoundary();
+				}
+
+				// backspace must be able to read the previously-written character in
+				// the event that it needs to undo it
+				if (this.timeline.isShowingPredictions) {
+					flushOutput(this.timeline.terminal);
+				}
+
 				addLeftNavigating(new BackspacePrediction());
 				continue;
 			}
