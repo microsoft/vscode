@@ -304,11 +304,13 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 	}
 
-	hide(): void {
+	hide(sessionEnded: boolean = false): void {
 		if (this._added) {
 			this._editor.removeOverlayWidget(this);
 			this._added = false;
 			this._anchorBox = undefined;
+		}
+		if (sessionEnded) {
 			this._userSize = undefined;
 		}
 	}

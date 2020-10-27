@@ -421,7 +421,7 @@ export class SuggestWidget implements IDisposable {
 		switch (state) {
 			case State.Hidden:
 				dom.hide(this.messageElement, this.listElement, this.status.element);
-				this._details.hide();
+				this._details.hide(true);
 				this._contentWidget.hide();
 				this.ctxSuggestWidgetVisible.reset();
 				this.ctxSuggestWidgetMultipleSuggestions.reset();
