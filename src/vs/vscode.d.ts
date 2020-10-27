@@ -5647,7 +5647,12 @@ declare module 'vscode' {
 		 * A memento object that stores state independent
 		 * of the current opened [workspace](#workspace.workspaceFolders).
 		 */
-		readonly globalState: Memento;
+		readonly globalState: Memento & {
+			/**
+			 * Set the keys whose values should be synced across devices when extensions synchronization is enabled.
+			 */
+			setKeysForSync(keys: string[]): void;
+		};
 
 		/**
 		 * The uri of the directory containing the extension.
