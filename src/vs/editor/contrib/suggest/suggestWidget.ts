@@ -742,7 +742,7 @@ export class SuggestWidget implements IDisposable {
 			if (width > maxWidth) {
 				width = maxWidth;
 			}
-			const preferredWidth = this.completionModel ? this.completionModel.stats.avgLabelLen.value * typicalHalfwidthCharacterWidth : width;
+			const preferredWidth = this.completionModel ? this.completionModel.stats.pLabelLen * typicalHalfwidthCharacterWidth : width;
 
 			// height math
 			const fullHeight = statusBarHeight + this.list.contentHeight + borderHeight;
