@@ -45,6 +45,7 @@ const gitpodWebResources = [
 
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
+	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js.map',
 
 	// Excludes
 	'!out-build/vs/**/{node,electron-browser,electron-sandbox,electron-main}/**',

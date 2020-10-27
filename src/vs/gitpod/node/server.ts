@@ -74,6 +74,38 @@ const WEB_MAIN = path.join(APP_ROOT, 'out', 'vs', 'code', 'browser', 'workbench'
 const WEB_MAIN_DEV = path.join(APP_ROOT, 'out', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
 setUnexpectedErrorHandler(console.error);
+// Print a console message when rejection isn't handled within N seconds. For details:
+// see https://nodejs.org/api/process.html#process_event_unhandledrejection
+// and https://nodejs.org/api/process.html#process_event_rejectionhandled
+const unhandledPromises: Promise<any>[] = [];
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+	unhandledPromises.push(promise);
+	setTimeout(() => {
+		const idx = unhandledPromises.indexOf(promise);
+		if (idx >= 0) {
+			promise.catch(e => {
+				unhandledPromises.splice(idx, 1);
+				console.warn(`rejected promise not handled within 1 second: ${e}`);
+				if (e && e.stack) {
+					console.warn(`stack trace: ${e.stack}`);
+				}
+				onUnexpectedError(reason);
+			});
+		}
+	}, 1000);
+});
+
+process.on('rejectionHandled', (promise: Promise<any>) => {
+	const idx = unhandledPromises.indexOf(promise);
+	if (idx >= 0) {
+		unhandledPromises.splice(idx, 1);
+	}
+});
+
+// Print a console message when an exception isn't handled.
+process.on('uncaughtException', function (err: Error) {
+	onUnexpectedError(err);
+});
 
 interface ManagementProtocol {
 	protocol: PersistentProtocol
@@ -536,6 +568,9 @@ async function main(): Promise<void> {
 			return;
 		}
 		console.log(`[${token}] Socket upgraded for "${req.url}".`);
+		socket.on('error', e => {
+			console.error(`[${token}] Socket failed for "${req.url}".`, e);
+		});
 
 		const acceptKey = req.headers['sec-websocket-key'];
 		const hash = crypto.createHash('sha1').update(acceptKey + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
