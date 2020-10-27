@@ -51,7 +51,7 @@
 
 	/* text background */
 	.monaco-editor-background,
-	.monaco-editor.margin {
+	.monaco-editor .margin {
 		background-color: window !important;
 	}
 
