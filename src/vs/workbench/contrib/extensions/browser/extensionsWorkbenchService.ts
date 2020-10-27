@@ -1053,7 +1053,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					return new Promise((resolve, reject) => {
 						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessage(extension, allExtensions, dependents), [
 							{
-								label: nls.localize('disable dep and dependents', 'Disable all related dependencies'),
+								label: nls.localize('disable extension and dependents', 'Disable all related dependencies'),
 								run: async () => {
 									await this.checkAndSetEnablement(dependents, [extension], enablementState);
 									return resolve();
