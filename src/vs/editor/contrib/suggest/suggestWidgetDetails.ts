@@ -235,6 +235,11 @@ export class SuggestDetailsWidget {
 	}
 }
 
+interface TopLeftPosition {
+	top: number;
+	left: number;
+}
+
 export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private readonly _disposables = new DisposableStore();
@@ -243,6 +248,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	private _added: boolean = false;
 	private _anchorBox?: dom.IDomNodePagePosition;
 	private _userSize?: dom.Dimension;
+	private _topLeft?: TopLeftPosition;
 
 	constructor(
 		readonly widget: SuggestDetailsWidget,
@@ -254,10 +260,40 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
 
+		let topLeftNow: TopLeftPosition | undefined;
+		let sizeNow: dom.Dimension | undefined;
+		let deltaTop: number = 0;
+		let deltaLeft: number = 0;
+		this._disposables.add(this._resizable.onDidWillResize(() => {
+			topLeftNow = this._topLeft;
+			sizeNow = this._resizable.size;
+		}));
+
 		this._disposables.add(this._resizable.onDidResize(e => {
-			if (this._anchorBox) {
-				this._placeAtAnchor(this._anchorBox, e.dimension);
-				this._userSize = e.dimension;
+			if (topLeftNow && sizeNow) {
+				this.widget.layout(e.dimension.width, e.dimension.height);
+
+				let updateTopLeft = false;
+				if (e.west) {
+					deltaLeft = sizeNow.width - e.dimension.width;
+					updateTopLeft = true;
+				}
+				if (e.north) {
+					deltaTop = sizeNow.height - e.dimension.height;
+					updateTopLeft = true;
+				}
+				if (updateTopLeft) {
+					this._applyTopLeft({
+						top: topLeftNow.top + deltaTop,
+						left: topLeftNow.left + deltaLeft,
+					});
+				}
+			}
+			if (e.done) {
+				topLeftNow = undefined;
+				sizeNow = undefined;
+				deltaTop = 0;
+				deltaLeft = 0;
 			}
 		}));
 
@@ -298,6 +334,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			this._editor.removeOverlayWidget(this);
 			this._added = false;
 			this._anchorBox = undefined;
+			this._topLeft = undefined;
 		}
 		if (sessionEnded) {
 			this._userSize = undefined;
@@ -323,9 +360,13 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		let top = anchorBox.top;
 		let bottom = anchorBox.top + anchorBox.height - borderHeight;
 
+		let alignAtTop: boolean;
+		let alignEast: boolean;
+
 		// position: EAST, west, south
 		let width = bodyBox.width - (anchorBox.left + anchorBox.width);
 		left = -borderWidth + anchorBox.left + anchorBox.width;
+		alignEast = true;
 		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top);
 		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height);
 
@@ -335,8 +376,9 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			if (anchorBox.left > width) {
 				// pos = SuggestDetailsPosition.West;
 				width = anchorBox.left;
+				alignEast = false;
 				left = Math.max(0, anchorBox.left - (size.width + borderWidth));
-				maxSizeTop = new dom.Dimension(anchorBox.left, bodyBox.height - anchorBox.top);
+				maxSizeTop = maxSizeTop.with(anchorBox.left - borderWidth);
 				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
 			}
 
@@ -352,7 +394,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 
 		// top/bottom placement
-		let alignAtTop: boolean;
 		let height = size.height;
 		let maxHeight = Math.max(maxSizeTop.height, maxSizeBottom.height);
 		if (height > maxHeight) {
@@ -367,19 +408,20 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			maxSize = maxSizeBottom;
 		}
 
+		this._applyTopLeft({ left, top: alignAtTop ? top : bottom - height });
 		this.getDomNode().style.position = 'fixed';
-		this.getDomNode().style.left = `${left}px`;
-		if (alignAtTop) {
-			this.getDomNode().style.top = `${top}px`;
-			this._resizable.enableSashes(false, true, true, false);
-		} else {
-			this.getDomNode().style.top = `${bottom - height}px`;
-			this._resizable.enableSashes(true, true, false, false);
-		}
+
+		this._resizable.enableSashes(!alignAtTop, alignEast, alignAtTop, !alignEast);
 
 		this._resizable.minSize = minSize;
 		this._resizable.maxSize = maxSize;
 		this._resizable.layout(height, Math.min(maxSize.width, size.width));
 		this.widget.layout(this._resizable.size.width, this._resizable.size.height);
+	}
+
+	private _applyTopLeft(topLeft: TopLeftPosition): void {
+		this._topLeft = topLeft;
+		this.getDomNode().style.left = `${this._topLeft.left}px`;
+		this.getDomNode().style.top = `${this._topLeft.top}px`;
 	}
 }
