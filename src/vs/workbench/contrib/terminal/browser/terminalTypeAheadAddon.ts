@@ -112,18 +112,7 @@ class Cursor implements ICoordinate {
 			this._y = 0;
 		}
 
-		return `${CSI}${this.getRealLineY(this._y) + 1};${this._x + 1}H`;
-	}
-
-	private getRealLineY(y: number) {
-		let targetY = y;
-		for (let i = 0; i < y; i++) {
-			if (this.buffer.getLine(y)?.isWrapped) {
-				targetY--;
-			}
-		}
-
-		return targetY;
+		return `${CSI}${this._y + 1};${this._x + 1}H`;
 	}
 }
 
