@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -93,7 +95,7 @@ class ConfigAwareContextValuesContainer extends Context {
 	private static readonly _configContextObject = Object.freeze({});
 	private static readonly _keyPrefix = 'config.';
 
-	private readonly _values = new Map<string, any>();
+	private readonly _values = TernarySearchTree.forConfigKeys<any>();
 	private readonly _listener: IDisposable;
 
 	constructor(
@@ -106,34 +108,23 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener = this._configurationService.onDidChangeConfiguration(event => {
 			if (event.source === ConfigurationTarget.DEFAULT) {
 				// new setting, reset everything
-				const allKeys = Array.from(this._values.keys());
+				const allKeys = Array.from(Iterable.map(this._values, ([k, v]) => k));
 				this._values.clear();
 				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
 				const changedKeys: string[] = [];
-				const changedObjectKeys: string[] = [];
-
 				for (const configKey of event.affectedKeys) {
 					const contextKey = `config.${configKey}`;
-					if (this._values.has(contextKey)) {
-						const value = this._values.get(contextKey);
 
-						this._values.delete(contextKey);
-						changedKeys.push(contextKey);
-
-						if (value === ConfigAwareContextValuesContainer._configContextObject) {
-							changedObjectKeys.push(contextKey + '.');
-						}
+					const cachedItems = this._values.findSuperstr(contextKey);
+					if (cachedItems !== undefined) {
+						changedKeys.push(...[...Iterable.map(cachedItems, ([key]) => key)]);
+						this._values.deleteSuperstr(contextKey);
 					}
-				}
 
-				if (changedObjectKeys.length) {
-					const regex = new RegExp(`^(${changedObjectKeys.join('|').replace(/\./g, '\\.')})`);
-					for (const key of this._values.keys()) {
-						if (regex.test(key)) {
-							this._values.delete(key);
-							changedKeys.push(key);
-						}
+					if (this._values.has(contextKey)) {
+						changedKeys.push(contextKey);
+						this._values.delete(contextKey);
 					}
 				}
 
