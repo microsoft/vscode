@@ -816,7 +816,7 @@ declare module 'vscode' {
 		/**
 		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
-		readonly themeColor?: ThemeColor;
+		readonly color?: ThemeColor;
 
 		/**
 		 * Creates a reference to a theme icon.

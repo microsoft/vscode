@@ -845,8 +845,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			let iconClass: string | undefined;
 			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
-				if (node.themeIcon.themeColor) {
-					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.themeColor.id)?.toString() ?? '';
+				if (node.themeIcon.color) {
+					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
 				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';

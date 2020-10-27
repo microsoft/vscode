@@ -2181,11 +2181,11 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
-	readonly themeColor?: ThemeColor;
+	readonly color?: ThemeColor;
 
 	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
-		this.themeColor = color;
+		this.color = color;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
