@@ -260,8 +260,9 @@ class DecorationProviderWrapper {
 			const iter = this.data.findSuperstr(uri);
 			if (iter) {
 				for (let item = iter.next(); !item.done; item = iter.next()) {
-					if (item.value && !(item.value instanceof DecorationDataRequest)) {
-						callback(item.value, true);
+					const value = item.value?.[1];
+					if (value && !(value instanceof DecorationDataRequest)) {
+						callback(value, true);
 					}
 				}
 			}
