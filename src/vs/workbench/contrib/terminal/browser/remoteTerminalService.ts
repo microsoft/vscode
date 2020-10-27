@@ -109,7 +109,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		if (this._isPreconnectionTerminal) {
 			// Add a loading title only if this terminal is
 			// instantiated before a connection is up and running
-			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting2...")), 0);
+			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
 		}
 	}
 
