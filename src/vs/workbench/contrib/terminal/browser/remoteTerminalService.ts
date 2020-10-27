@@ -137,7 +137,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 			const result = await this._remoteTerminalChannel.createTerminalProcess(
 				shellLaunchConfigDto,
 				this._activeWorkspaceRootUri,
-				!this._shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enableTerminalReconnection,
+				!this._shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions,
 				this._cols,
 				this._rows,
 				isWorkspaceShellAllowed,

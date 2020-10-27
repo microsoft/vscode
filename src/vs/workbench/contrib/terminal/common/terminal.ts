@@ -138,7 +138,7 @@ export interface ITerminalConfiguration {
 	typeaheadThreshold: number;
 	typeaheadStyle: number | string;
 	serverSpawn: boolean;
-	enableTerminalReconnection: boolean;
+	enablePersistentSessions: boolean;
 }
 
 export interface ITerminalConfigHelper {

@@ -387,8 +387,8 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.enableTerminalReconnection': {
-			description: localize('terminal.integrated.enableTerminalReconnection', "Experimental: reconnect to terminals when reopening the workspace. Currently only supported in VS Code Remote workspaces."),
+		'terminal.integrated.enablePersistentSessions': {
+			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
 			type: 'boolean',
 			default: true
 		}
