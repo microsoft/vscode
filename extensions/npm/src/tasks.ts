@@ -5,14 +5,13 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window
+	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
 import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
-import { findPreferredPM } from './preferred-pm';
 
 const localize = nls.loadMessageBundle();
 
@@ -41,7 +40,7 @@ export class NpmTaskProvider implements TaskProvider {
 		return provideNpmScripts();
 	}
 
-	public resolveTask(_task: Task): Promise<Task> | undefined {
+	public resolveTask(_task: Task): Task | undefined {
 		const npmTask = (<any>_task.definition).script;
 		if (npmTask) {
 			const kind: NpmTaskDefinition = (<any>_task.definition);
@@ -108,20 +107,8 @@ export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 	return value && typeof value !== 'number';
 }
 
-export async function getPackageManager(folder: Uri, silent: boolean = false): Promise<string> {
-	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
-
-	if (packageManagerName === 'auto') {
-		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
-		packageManagerName = name;
-
-		if (multiplePMDetected && !silent) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Found multiple lockfiles for {0}. Using {1} as the preferred package manager.', folder.fsPath, packageManagerName);
-			window.showWarningMessage(multiplePMWarning);
-		}
-	}
-
-	return packageManagerName;
+export function getPackageManager(folder: Uri): string {
+	return workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 }
 
 export async function hasNpmScripts(): Promise<boolean> {
@@ -251,9 +238,8 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 	const result: Task[] = [];
 
 	const prePostScripts = getPrePostScripts(scripts);
-
-	for (const each of Object.keys(scripts)) {
-		const task = await createTask(each, `run ${each}`, folder!, packageJsonUri, scripts![each]);
+	Object.keys(scripts).forEach(each => {
+		const task = createTask(each, `run ${each}`, folder!, packageJsonUri, scripts![each]);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
@@ -269,10 +255,9 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
 		result.push(task);
-	}
-
+	});
 	// always add npm install (without a problem matcher)
-	result.push(await createTask(INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, 'install dependencies from package', []));
+	result.push(createTask(INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, 'install dependencies from package', []));
 	return result;
 }
 
@@ -283,7 +268,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Promise<Task> {
+export function createTask(script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Task {
 	let kind: NpmTaskDefinition;
 	if (typeof script === 'string') {
 		kind = { type: 'npm', script: script };
@@ -291,27 +276,27 @@ export async function createTask(script: NpmTaskDefinition | string, cmd: string
 		kind = script;
 	}
 
-	const packageManager = await getPackageManager(folder.uri);
-	async function getCommandLine(cmd: string): Promise<string> {
+	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
+		let packageManager = getPackageManager(folder.uri);
 		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
 			return `${packageManager} --silent ${cmd}`;
 		}
 		return `${packageManager} ${cmd}`;
 	}
 
-	function getRelativePath(packageJsonUri: Uri): string {
+	function getRelativePath(folder: WorkspaceFolder, packageJsonUri: Uri): string {
 		let rootUri = folder.uri;
 		let absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
 		return absolutePath.substring(rootUri.path.length + 1);
 	}
 
-	let relativePackageJson = getRelativePath(packageJsonUri);
+	let relativePackageJson = getRelativePath(folder, packageJsonUri);
 	if (relativePackageJson.length) {
-		kind.path = relativePackageJson;
+		kind.path = getRelativePath(folder, packageJsonUri);
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(await getCommandLine(cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(getCommandLine(folder, cmd), { cwd: cwd }), matcher);
 	task.detail = detail;
 	return task;
 }
@@ -363,22 +348,22 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
-export async function runScript(script: string, document: TextDocument) {
+export function runScript(script: string, document: TextDocument) {
 	let uri = document.uri;
 	let folder = workspace.getWorkspaceFolder(uri);
 	if (folder) {
-		let task = await createTask(script, `run ${script}`, folder, uri);
+		let task = createTask(script, `run ${script}`, folder, uri);
 		tasks.executeTask(task);
 	}
 }
 
-export async function startDebugging(scriptName: string, cwd: string, folder: WorkspaceFolder) {
+export function startDebugging(scriptName: string, cwd: string, folder: WorkspaceFolder) {
 	const config: DebugConfiguration = {
 		type: 'pwa-node',
 		request: 'launch',
 		name: `Debug ${scriptName}`,
 		cwd,
-		runtimeExecutable: await getPackageManager(folder.uri),
+		runtimeExecutable: getPackageManager(folder.uri),
 		runtimeArgs: [
 			'run',
 			scriptName,
