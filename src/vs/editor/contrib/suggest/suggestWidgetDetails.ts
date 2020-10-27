@@ -144,10 +144,13 @@ export class SuggestDetailsWidget {
 
 		// --- details
 		if (detail) {
-			this._type.textContent = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
+			const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
+			this._type.textContent = cappedDetail;
+			this._type.title = cappedDetail;
 			dom.show(this._type);
 		} else {
 			dom.clearNode(this._type);
+			this._type.title = '';
 			dom.hide(this._type);
 			this.domNode.classList.add('no-type');
 		}
