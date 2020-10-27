@@ -421,7 +421,7 @@ export class SuggestWidget implements IDisposable {
 		switch (state) {
 			case State.Hidden:
 				dom.hide(this.messageElement, this.listElement, this.status.element);
-				this._details.hide();
+				this._details.hide(true);
 				this._contentWidget.hide();
 				this.ctxSuggestWidgetVisible.reset();
 				this.ctxSuggestWidgetMultipleSuggestions.reset();
@@ -742,7 +742,7 @@ export class SuggestWidget implements IDisposable {
 			if (width > maxWidth) {
 				width = maxWidth;
 			}
-			const preferredWidth = this.completionModel ? this.completionModel.stats.avgLabelLen.value * typicalHalfwidthCharacterWidth : width;
+			const preferredWidth = this.completionModel ? this.completionModel.stats.pLabelLen * typicalHalfwidthCharacterWidth : width;
 
 			// height math
 			const fullHeight = statusBarHeight + this.list.contentHeight + borderHeight;

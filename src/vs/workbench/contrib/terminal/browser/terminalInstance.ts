@@ -498,7 +498,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._container = container;
 		this._wrapperElement = document.createElement('div');
-		dom.addClass(this._wrapperElement, 'terminal-wrapper');
+		this._wrapperElement.classList.add('terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
@@ -823,7 +823,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public setVisible(visible: boolean): void {
 		this._isVisible = visible;
 		if (this._wrapperElement) {
-			dom.toggleClass(this._wrapperElement, 'active', visible);
+			this._wrapperElement.classList.toggle('active', visible);
 		}
 		if (visible && this._xterm && this._xtermCore) {
 			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is

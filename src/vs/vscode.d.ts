@@ -816,7 +816,7 @@ declare module 'vscode' {
 		/**
 		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
-		readonly themeColor?: ThemeColor;
+		readonly color?: ThemeColor;
 
 		/**
 		 * Creates a reference to a theme icon.
@@ -11696,6 +11696,12 @@ declare module 'vscode' {
 		 * Defaults to Collapsed.
 		 */
 		collapsibleState: CommentThreadCollapsibleState;
+
+		/**
+		 * Whether the thread supports reply.
+		 * Defaults to true.
+		 */
+		canReply: boolean;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.

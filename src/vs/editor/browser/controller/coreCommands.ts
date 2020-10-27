@@ -217,7 +217,7 @@ export namespace RevealLine_ {
 
 		const reveaLineArg: RawArguments = arg;
 
-		if (!types.isNumber(reveaLineArg.lineNumber)) {
+		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;
 		}
 
@@ -246,7 +246,7 @@ export namespace RevealLine_ {
 					'required': ['lineNumber'],
 					'properties': {
 						'lineNumber': {
-							'type': 'number',
+							'type': ['number', 'string'],
 						},
 						'at': {
 							'type': 'string',
@@ -262,7 +262,7 @@ export namespace RevealLine_ {
 	 * Arguments for reveal line command
 	 */
 	export interface RawArguments {
-		lineNumber?: number;
+		lineNumber?: number | string;
 		at?: string;
 	}
 
@@ -1605,7 +1605,8 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
 			const revealLineArg = <RevealLine_.RawArguments>args;
-			let lineNumber = (revealLineArg.lineNumber || 0) + 1;
+			const lineNumberArg = revealLineArg.lineNumber || 0;
+			let lineNumber = typeof lineNumberArg === 'number' ? (lineNumberArg + 1) : (parseInt(lineNumberArg) + 1);
 			if (lineNumber < 1) {
 				lineNumber = 1;
 			}

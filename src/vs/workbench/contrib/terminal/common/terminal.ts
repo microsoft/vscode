@@ -137,6 +137,8 @@ export interface ITerminalConfiguration {
 	experimentalLinkProvider: boolean;
 	typeaheadThreshold: number;
 	typeaheadStyle: number | string;
+	serverSpawn: boolean;
+	enableTerminalReconnection: boolean;
 }
 
 export interface ITerminalConfigHelper {
