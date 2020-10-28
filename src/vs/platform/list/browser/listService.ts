@@ -428,11 +428,13 @@ export interface IResourceNavigatorOptions {
 
 export interface SelectionKeyboardEvent extends KeyboardEvent {
 	preserveFocus?: boolean;
+	__forceEvent?: boolean;
 }
 
 export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: boolean): SelectionKeyboardEvent {
 	const e = new KeyboardEvent(typeArg);
 	(<SelectionKeyboardEvent>e).preserveFocus = preserveFocus;
+	(<SelectionKeyboardEvent>e).__forceEvent = true;
 
 	return e;
 }
