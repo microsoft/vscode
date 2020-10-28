@@ -135,9 +135,7 @@ export class SuggestDetailsWidget {
 		}
 
 		if (!explainMode && !canExpandCompletionItem(item)) {
-			this._type.textContent = '';
-			this._docs.textContent = '';
-			this.domNode.classList.add('no-docs');
+			this.clearContents();
 			return;
 		}
 
@@ -193,6 +191,12 @@ export class SuggestDetailsWidget {
 
 		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 		this._onDidChangeContents.fire(this);
+	}
+
+	clearContents() {
+		this.domNode.classList.add('no-docs');
+		this._type.textContent = '';
+		this._docs.textContent = '';
 	}
 
 	get size() {
@@ -345,6 +349,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 		if (sessionEnded) {
 			this._userSize = undefined;
+			this.widget.clearContents();
 		}
 	}
 
