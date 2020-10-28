@@ -25,13 +25,19 @@ type Credentials = {
 	password: string;
 };
 
+enum ProxyAuthState {
+	Initial = 1,
+	StoredCredentialsUsed,
+	LoginDialogShown
+}
+
 export class ProxyAuthHandler2 extends Disposable {
 
 	private static PROXY_CREDENTIALS_SERVICE_KEY = `${product.urlProtocol}.proxy-credentials`;
 
-	private pendingProxyHandler = false;
-	private proxyDialogShown = false;
-	private storedProxyCredentialsUsed = false;
+	private pendingProxyHandler: Promise<Credentials | undefined> | undefined = undefined;
+
+	private state = ProxyAuthState.Initial;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -49,48 +55,59 @@ export class ProxyAuthHandler2 extends Disposable {
 		this._register(onLogin(this.onLogin, this));
 	}
 
-	private onLogin(event: LoginEvent): void {
+	private async onLogin(event: LoginEvent): Promise<void> {
 		if (!event.authInfo.isProxy) {
 			return; // only for proxy
 		}
 
-		if (this.pendingProxyHandler) {
-			this.logService.trace('auth#onLogin (proxy) - exit - pending proxy handling found');
-
-			return; // never more than once at the same time
-		}
-
-		if (this.proxyDialogShown) {
+		if (!this.pendingProxyHandler && this.state === ProxyAuthState.LoginDialogShown) {
 			this.logService.trace('auth#onLogin (proxy) - exit - proxy dialog already shown');
 
 			return; // only one dialog per session at max
 		}
 
-		this.handleOnLogin(event);
-	}
+		let credentials: Credentials | undefined = undefined;
+		if (!this.pendingProxyHandler) {
+			this.logService.trace('auth#onLogin (proxy) - no pending proxy handling found, starting new');
 
-	private async handleOnLogin({ event, webContents, authInfo, cb }: LoginEvent): Promise<void> {
-		this.logService.trace('auth#handleOnLogin (proxy) - enter');
-
-		this.pendingProxyHandler = true;
-		try {
-			const credentials = await this.resolveProxyCredentials(event, webContents, authInfo);
-			if (credentials) {
-				this.logService.trace('auth#handleOnLogin (proxy) - got credentials');
-
-				cb(credentials.username, credentials.password);
-			} else {
-				this.logService.trace('auth#handleOnLogin (proxy) - did not get credentials');
+			this.pendingProxyHandler = this.resolveProxyCredentials(event);
+			try {
+				credentials = await this.pendingProxyHandler;
+			} finally {
+				this.pendingProxyHandler = undefined;
 			}
-		} finally {
-			this.logService.trace('auth#handleOnLogin (proxy) - exit');
+		} else {
+			this.logService.trace('auth#onLogin (proxy) - pending proxy handling found');
 
-			this.pendingProxyHandler = false;
+			credentials = await this.pendingProxyHandler;
+		}
+
+		if (credentials) {
+			event.cb(credentials.username, credentials.password);
 		}
 	}
 
-	private async resolveProxyCredentials(event: ElectronEvent, webContents: WebContents, authInfo: AuthInfo): Promise<Credentials | undefined> {
-		this.logService.trace('auth#resolveProxyCredentials - enter');
+	private async resolveProxyCredentials({ event, webContents, authInfo }: LoginEvent): Promise<Credentials | undefined> {
+		this.logService.trace('auth#resolveProxyCredentials (proxy) - enter');
+
+		try {
+			const credentials = await this.doResolveProxyCredentials(event, webContents, authInfo);
+			if (credentials) {
+				this.logService.trace('auth#resolveProxyCredentials (proxy) - got credentials');
+
+				return credentials;
+			} else {
+				this.logService.trace('auth#resolveProxyCredentials (proxy) - did not get credentials');
+			}
+		} finally {
+			this.logService.trace('auth#resolveProxyCredentials (proxy) - exit');
+		}
+
+		return undefined;
+	}
+
+	private async doResolveProxyCredentials(event: ElectronEvent, webContents: WebContents, authInfo: AuthInfo): Promise<Credentials | undefined> {
+		this.logService.trace('auth#doResolveProxyCredentials - enter');
 
 		// Signal we handle this on our own
 		event.preventDefault();
@@ -115,9 +132,9 @@ export class ProxyAuthHandler2 extends Disposable {
 		// Reply with stored credentials unless we used them already.
 		// In that case we need to show a login dialog again because
 		// they seem invalid.
-		if (!this.storedProxyCredentialsUsed && username && password) {
-			this.logService.trace('auth#resolveProxyCredentials (proxy) - exit - found stored credentials to use');
-			this.storedProxyCredentialsUsed = true;
+		if (this.state !== ProxyAuthState.StoredCredentialsUsed && username && password) {
+			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found stored credentials to use');
+			this.state = ProxyAuthState.StoredCredentialsUsed;
 
 			return { username, password };
 		}
@@ -125,23 +142,23 @@ export class ProxyAuthHandler2 extends Disposable {
 		// Find suitable window to show dialog
 		const window = this.windowsMainService.getWindowByWebContents(webContents) || this.windowsMainService.getLastActiveWindow();
 		if (!window) {
-			this.logService.trace('auth#resolveProxyCredentials (proxy) - exit - no opened window found to show dialog in');
+			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - no opened window found to show dialog in');
 
 			return undefined; // unexpected
 		}
 
-		this.logService.trace(`auth#resolveProxyCredentials (proxy) - asking window ${window.id} to handle proxy login`);
+		this.logService.trace(`auth#doResolveProxyCredentials (proxy) - asking window ${window.id} to handle proxy login`);
 
 		// Open proxy dialog
 		const payload = { authInfo, username, password, replyChannel: `vscode:proxyAuthResponse:${generateUuid()}` };
 		window.sendWhenReady('vscode:openProxyAuthenticationDialog', payload);
-		this.proxyDialogShown = true;
+		this.state = ProxyAuthState.LoginDialogShown;
 
 		// Handle reply
 		return new Promise(resolve => {
 			const proxyAuthResponseHandler = async (event: ElectronEvent, channel: string, reply: Credentials & { remember: boolean }) => {
 				if (channel === payload.replyChannel) {
-					this.logService.trace(`auth#resolveProxyCredentials - exit - received credentials from window ${window.id}`);
+					this.logService.trace(`auth#doResolveProxyCredentials - exit - received credentials from window ${window.id}`);
 					webContents.off('ipc-message', proxyAuthResponseHandler);
 
 					const credentials: Credentials = { username: reply.username, password: reply.password };
