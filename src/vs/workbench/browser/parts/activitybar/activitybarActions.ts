@@ -131,6 +131,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -143,7 +144,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
+			this.showContextMenu(e);
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -241,16 +242,19 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		return menus;
 	}
 
-	private async showContextMenu(): Promise<void> {
+	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const accountsActions: IAction[] = [];
 		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
+		const native = getTitleBarStyle(this.configurationService, this.environmentService) === 'native';
+		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		const location = { x: containerPosition.left + (position === 'left' ? containerPosition.width : 0), y: containerPosition.top };
 		const actions = await this.getActions(accountsMenu);
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
+			getAnchor: () => !native ? location : e || this.container,
+			anchorAlignment: !native ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
 			getActions: () => actions,
 			onHide: () => {
 				accountsMenu.dispose();
