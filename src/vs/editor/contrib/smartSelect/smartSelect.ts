@@ -23,6 +23,9 @@ import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSe
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 class SelectionRanges {
 
@@ -59,7 +62,10 @@ class SmartSelectController implements IEditorContribution {
 	private _selectionListener?: IDisposable;
 	private _ignoreSelection: boolean = false;
 
-	constructor(editor: ICodeEditor) {
+	constructor(
+		editor: ICodeEditor,
+		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
+	) {
 		this._editor = editor;
 	}
 
@@ -83,7 +89,10 @@ class SmartSelectController implements IEditorContribution {
 		let promise: Promise<void> = Promise.resolve(undefined);
 
 		if (!this._state) {
-			promise = provideSelectionRanges(model, selections.map(s => s.getPosition()), CancellationToken.None).then(ranges => {
+
+			const selectLeadingAndTrailingWhitespace = this._configService.getValue<boolean>(model.uri, 'editor.smartSelect.selectLeadingAndTrailingWhitespace') ?? true;
+
+			promise = provideSelectionRanges(model, selections.map(s => s.getPosition()), { selectLeadingAndTrailingWhitespace }, CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
 					// invalid result
 					return;
@@ -177,6 +186,21 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	}
 }
 
+//todo@jrieken use proper editor config instead. however, to keep the number
+// of changes low use the quick config definition
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'editor',
+	properties: {
+		'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			description: nls.localize('selectLeadingAndTrailingWhitespace', "Weather leading and trailing whitespace should always be selected."),
+			default: true,
+			type: 'boolean'
+		}
+	}
+});
+
+
 // renamed command id
 CommandsRegistry.registerCommandAlias('editor.action.smartSelect.grow', 'editor.action.smartSelect.expand');
 
@@ -213,7 +237,11 @@ registerEditorAction(ShrinkSelectionAction);
 // word selection
 modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
 
-export function provideSelectionRanges(model: ITextModel, positions: Position[], token: CancellationToken): Promise<Range[][]> {
+export interface SelectionRangesOptions {
+	selectLeadingAndTrailingWhitespace: boolean
+}
+
+export function provideSelectionRanges(model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
 	const providers = modes.SelectionRangeRegistry.all(model);
 
@@ -277,6 +305,10 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 				}
 			}
 
+			if (!options.selectLeadingAndTrailingWhitespace) {
+				return oneRanges;
+			}
+
 			// add ranges that expand trivia at line starts and ends whenever a range
 			// wraps onto the a new line
 			let oneRangesWithTrivia: Range[] = [oneRanges[0]];
@@ -304,5 +336,5 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 
 registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
 	const [positions] = args;
-	return provideSelectionRanges(model, positions, CancellationToken.None);
+	return provideSelectionRanges(model, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
 });
