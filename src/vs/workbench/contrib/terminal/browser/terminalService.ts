@@ -63,6 +63,8 @@ export class TerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
 	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
+	private _remoteTerminalsInitialized: Promise<void> | undefined;
+	private _tempEmptyTab: TerminalTab | undefined;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -132,6 +134,41 @@ export class TerminalService implements ITerminalService {
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
+
+		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+		const serverSpawn = this.configHelper.config.serverSpawn;
+		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
+			this._remoteTerminalsInitialized = this._reconnectToRemoteTerminals();
+		}
+	}
+
+	private async _reconnectToRemoteTerminals(): Promise<void> {
+		const remoteTerms = await this._remoteTerminalService.listTerminals();
+		const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
+
+		/* __GDPR__
+			"terminalReconnection" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		 */
+		const data = {
+			count: unattachedRemoteTerms.length
+		};
+		this._telemetryService.publicLog('terminalReconnection', data);
+		if (unattachedRemoteTerms.length > 0) {
+			// Reattach to all remote terminals
+			if (this._tempEmptyTab) {
+				this.createTerminal({ remoteAttach: unattachedRemoteTerms[0] }, this._tempEmptyTab);
+				this._tempEmptyTab = undefined;
+				for (let term of unattachedRemoteTerms.slice(1)) {
+					this.createTerminal({ remoteAttach: term });
+				}
+			} else {
+				for (let term of unattachedRemoteTerms) {
+					this.createTerminal({ remoteAttach: term });
+				}
+			}
+		}
 	}
 
 	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {
@@ -347,42 +384,21 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async initializeTerminals(): Promise<void> {
-		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
-		const serverSpawn = this.configHelper.config.serverSpawn;
-		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
-			let emptyTab: TerminalTab | undefined;
+		if (this._remoteTerminalsInitialized) {
 			if (!this.terminalTabs.length) {
-				emptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
-				this._terminalTabs.push(emptyTab);
+				this._tempEmptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
+				this._terminalTabs.push(this._tempEmptyTab);
 				this._onInstanceTitleChanged.fire(undefined);
 			}
 
-			const remoteTerms = await this._remoteTerminalService.listTerminals();
-			const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
+			await this._remoteTerminalsInitialized;
 
-			/* __GDPR__
-				"terminalReconnection" : {
-					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			 */
-			const data = {
-				count: unattachedRemoteTerms.length
-			};
-			this._telemetryService.publicLog('terminalReconnection', data);
-			if (unattachedRemoteTerms.length > 0) {
-				// Reattach to all remote terminals
-				this.createTerminal({ remoteAttach: unattachedRemoteTerms[0] }, emptyTab);
-				for (let term of unattachedRemoteTerms.slice(1)) {
-					this.createTerminal({ remoteAttach: term });
-				}
-			} else if (this.terminalTabs.length === 1 && this.terminalTabs[0] === emptyTab) {
-				// No terminals to reconnect to, and the only terminal tab is our placeholder
-				this.createTerminal(undefined, emptyTab);
-			} else if (emptyTab) {
-				// There is another tab, need to remove the empty tab
-				this._removeTab(emptyTab);
+			if (!this.terminalTabs.length) {
+				this.createTerminal(undefined, this._tempEmptyTab);
+			} else if (this._tempEmptyTab) {
+				this._removeTab(this._tempEmptyTab);
 			}
-		} else if (this.terminalTabs.length === 0) {
+		} else if (!this._environmentService.remoteAuthority && this.terminalTabs.length === 0) {
 			// Local, just create a terminal
 			this.createTerminal();
 		}
