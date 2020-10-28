@@ -552,12 +552,12 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		if (this.configurationService.getValue(AutoUpdateConfigurationKey)) {
 			actions.push(this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL));
 		} else {
-			actions.push(this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
+			actions.push(this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL, false), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
 		}
 
 		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL));
-		actions.push(this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL));
+		actions.push(this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL, false));
+		actions.push(this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL, false));
 
 		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL));
