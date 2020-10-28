@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
+import { app, AuthInfo, WebContents, Event as ElectronEvent, AuthenticationResponseDetails } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
@@ -14,11 +14,16 @@ import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/enc
 import { generateUuid } from 'vs/base/common/uuid';
 import product from 'vs/platform/product/common/product';
 
+interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
+	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70
+}
+
 type LoginEvent = {
 	event: ElectronEvent;
 	webContents: WebContents;
 	authInfo: AuthInfo;
-	cb: (username: string, password: string) => void;
+	req: ElectronAuthenticationResponseDetails;
+	callback: (username?: string, password?: string) => void;
 };
 
 type Credentials = {
@@ -52,7 +57,7 @@ export class ProxyAuthHandler2 extends Disposable {
 	}
 
 	private registerListeners(): void {
-		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, webContents: WebContents, req: ElectronAuthenticationResponseDetails, authInfo: AuthInfo, callback) => ({ event, webContents, req, authInfo, callback }));
 		this._register(onLogin(this.onLogin, this));
 	}
 
@@ -83,9 +88,14 @@ export class ProxyAuthHandler2 extends Disposable {
 			credentials = await this.pendingProxyHandler;
 		}
 
-		if (credentials) {
-			event.cb(credentials.username, credentials.password);
-		}
+		// According to Electron docs, it is fine to call back without
+		// username or password to signal that the authentication was handled
+		// by us, even though without having credentials received:
+		//
+		// > If `callback` is called without a username or password, the authentication
+		// > request will be cancelled and the authentication error will be returned to the
+		// > page.
+		event.callback(credentials?.username, credentials?.password);
 	}
 
 	private async resolveProxyCredentials({ event, webContents, authInfo }: LoginEvent): Promise<Credentials | undefined> {
