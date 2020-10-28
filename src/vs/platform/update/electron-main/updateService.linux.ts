@@ -12,8 +12,8 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { openExternal } from 'vs/platform/opener/electron-main/openExternal';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -64,9 +64,9 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
-			shell.openExternal(product.downloadUrl);
+			openExternal(product.downloadUrl);
 		} else if (state.update.url) {
-			shell.openExternal(state.update.url);
+			openExternal(state.update.url);
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));

@@ -8,7 +8,7 @@ import * as os from 'os';
 import product from 'vs/platform/product/common/product';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
+import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -21,6 +21,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { FileAccess } from 'vs/base/common/network';
+import { openExternal } from 'vs/platform/opener/electron-main/openExternal';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -155,7 +156,7 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
-			shell.openExternal(arg);
+			openExternal(arg);
 		});
 
 		ipcMain.on('vscode:closeIssueReporter', (event: IpcMainEvent) => {
