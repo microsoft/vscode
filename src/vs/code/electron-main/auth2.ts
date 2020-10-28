@@ -32,8 +32,24 @@ type Credentials = {
 };
 
 enum ProxyAuthState {
+
+	/**
+	 * Initial state: we will try to use stored credentials
+	 * first to reply to the auth challenge.
+	 */
 	Initial = 1,
+
+	/**
+	 * We used stored credentials and are still challenged,
+	 * so we will show a login dialog next.
+	 */
 	StoredCredentialsUsed,
+
+	/**
+	 * Finally, if we showed a login dialog already, we will
+	 * not show any more login dialogs until restart to reduce
+	 * the UI noise.
+	 */
 	LoginDialogShown
 }
 
