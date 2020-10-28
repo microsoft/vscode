@@ -352,14 +352,14 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.typeaheadThreshold': {
-			description: localize('terminal.integrated.typeaheadThreshold', "Experimental: length of typing delay, in milliseconds, where typeahead will activate. If '0', typeahead will always be on, and if '-1' it will be disabled."),
+		'terminal.integrated.localEchoLatencyThreshold': {
+			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
 			default: 15,
 		},
-		'terminal.integrated.typeaheadStyle': {
-			description: localize('terminal.integrated.typeaheadStyle', "Experimental: terminal style of typeahead text, either a font style or an RGB color."),
+		'terminal.integrated.localEchoStyle': {
+			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
 			oneOf: [
 				{
