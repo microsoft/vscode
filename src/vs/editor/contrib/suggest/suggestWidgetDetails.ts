@@ -300,6 +300,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 				sizeNow = undefined;
 				deltaTop = 0;
 				deltaLeft = 0;
+				this._userSize = e.dimension;
 			}
 		}));
 
@@ -381,10 +382,10 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			// position: east, WEST, south
 			if (anchorBox.left > width) {
 				// pos = SuggestDetailsPosition.West;
-				width = anchorBox.left - info.borderWidth - info.horizontalPadding;
+				width = anchorBox.left - info.borderWidth;
 				alignEast = false;
-				left = Math.max(0, anchorBox.left - (size.width + info.borderWidth));
-				maxSizeTop = maxSizeTop.with(width);
+				left = Math.max(info.horizontalPadding, anchorBox.left - width);
+				maxSizeTop = maxSizeTop.with(anchorBox.left - info.horizontalPadding - info.borderWidth);
 				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
 			}
 
