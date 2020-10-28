@@ -707,6 +707,7 @@ export class SuggestWidget implements IDisposable {
 		}
 		this._positionDetails();
 	}
+
 	private _layout(size: dom.Dimension | undefined): void {
 		if (!this.editor.hasModel()) {
 			return;
@@ -720,14 +721,14 @@ export class SuggestWidget implements IDisposable {
 		let width = size?.width;
 
 		const bodyBox = dom.getClientArea(document.body);
-		const { itemHeight, statusBarHeight, borderHeight, typicalHalfwidthCharacterWidth } = this.getLayoutInfo();
+		const info = this.getLayoutInfo();
 
 		// status bar
-		this.status.element.style.lineHeight = `${itemHeight}px`;
+		this.status.element.style.lineHeight = `${info.itemHeight}px`;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			// showing a message only
-			height = itemHeight + borderHeight;
+			height = info.itemHeight + info.borderHeight;
 			width = 230;
 			this.element.enableSashes(false, false, false, false);
 			this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
@@ -737,25 +738,25 @@ export class SuggestWidget implements IDisposable {
 			// showing items
 
 			// width math
-			const maxWidth = bodyBox.width - borderHeight;
+			const maxWidth = bodyBox.width - info.borderHeight - 2 * info.horizontalPadding;
 			if (width === undefined) {
 				width = 430;
 			}
 			if (width > maxWidth) {
 				width = maxWidth;
 			}
-			const preferredWidth = this.completionModel ? this.completionModel.stats.pLabelLen * typicalHalfwidthCharacterWidth : width;
+			const preferredWidth = this.completionModel ? this.completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
 
 			// height math
-			const fullHeight = statusBarHeight + this.list.contentHeight + borderHeight;
-			const preferredHeight = statusBarHeight + (itemHeight * this.editor.getOption(EditorOption.suggest).maxVisibleSuggestions) + borderHeight;
-			const minHeight = itemHeight + statusBarHeight;
+			const fullHeight = info.statusBarHeight + this.list.contentHeight + info.borderHeight;
+			const preferredHeight = info.statusBarHeight + (info.itemHeight * this.editor.getOption(EditorOption.suggest).maxVisibleSuggestions) + info.borderHeight;
+			const minHeight = info.itemHeight + info.statusBarHeight;
 			const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
-			const maxHeightBelow = bodyBox.height - cursorBottom;
-			const maxHeightAbove = editorBox.top + cursorBox.top - 22 /*TOP_PADDING of contentWidget#_layoutBoxInPage*/;
-			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) - borderHeight, fullHeight);
+			const maxHeightBelow = bodyBox.height - cursorBottom - info.verticalPadding;
+			const maxHeightAbove = editorBox.top + cursorBox.top - info.verticalPadding;
+			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) - info.borderHeight, fullHeight);
 
 
 			if (height === undefined) {
@@ -787,6 +788,11 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _resize(width: number, height: number): void {
+
+		const { width: maxWidth, height: maxHeight } = this.element.maxSize;
+		width = Math.min(maxWidth, width);
+		height = Math.min(maxHeight, height);
+
 		const { statusBarHeight } = this.getLayoutInfo();
 		this.list.layout(height - statusBarHeight, width);
 		this.listElement.style.height = `${height - statusBarHeight}px`;
@@ -808,7 +814,16 @@ export class SuggestWidget implements IDisposable {
 		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).statusBar.visible || this.state === State.Empty || this.state === State.Loading ? 0 : itemHeight;
 		const borderWidth = this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
-		return { itemHeight, statusBarHeight, borderWidth, borderHeight, typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth };
+
+		return {
+			itemHeight,
+			statusBarHeight,
+			borderWidth,
+			borderHeight,
+			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
+			verticalPadding: 22,
+			horizontalPadding: 14
+		};
 	}
 
 	private _isDetailsVisible(): boolean {
@@ -883,8 +898,8 @@ export class SuggestContentWidget implements IContentWidget {
 
 	beforeRender() {
 		const { height, width } = this._widget.element.size;
-		const { borderWidth } = this._widget.getLayoutInfo();
-		return new dom.Dimension(width + 2 * borderWidth, height + 2 * borderWidth);
+		const { borderWidth, horizontalPadding } = this._widget.getLayoutInfo();
+		return new dom.Dimension(width + 2 * borderWidth + horizontalPadding, height + 2 * borderWidth);
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null) {
