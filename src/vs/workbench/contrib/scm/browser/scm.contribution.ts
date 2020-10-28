@@ -27,6 +27,7 @@ import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -255,14 +256,14 @@ const viewPreviousCommitCommand = {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	...viewNextCommitCommand,
 	id: 'scm.viewNextCommit',
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition')),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition'), SuggestContext.Visible.toNegated()),
 	primary: KeyCode.DownArrow
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	...viewPreviousCommitCommand,
 	id: 'scm.viewPreviousCommit',
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition')),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition'), SuggestContext.Visible.toNegated()),
 	primary: KeyCode.UpArrow
 });
 
