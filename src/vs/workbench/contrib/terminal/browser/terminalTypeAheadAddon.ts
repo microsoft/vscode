@@ -962,6 +962,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
 
+		// Detect programs like git log/less that use the normal buffer but don't
+		// take input by deafult (fixes #109541)
+		if (buffer.cursorX === 1 && buffer.cursorY === terminal.rows - 1) {
+			if (buffer.getLine(buffer.cursorY + buffer.baseY)?.getCell(0)?.getChars() === ':') {
+				return;
+			}
+		}
+
 		// the following code guards the terminal prompt to avoid being able to
 		// arrow or backspace-into the prompt. Record the lowest X value at which
 		// the user gave input, and mark all additions before that as tentative.
