@@ -155,7 +155,9 @@ export class SuggestWidget implements IDisposable {
 			persistedSize = this._persistedSize.restore();
 		}));
 		this._disposables.add(this.element.onDidResize(e => {
-			this._layout(e.dimension);
+
+			this._resize(e.dimension.width, e.dimension.height);
+
 			persistHeight = persistHeight || !!e.north || !!e.south;
 			persistWidth = persistWidth || !!e.east || !!e.west;
 			if (e.done) {
@@ -776,16 +778,18 @@ export class SuggestWidget implements IDisposable {
 				this.element.enableSashes(false, true, true, false);
 				maxHeight = maxHeightBelow;
 			}
-
-			this.list.layout(height - statusBarHeight, width);
-			this.listElement.style.height = `${height - statusBarHeight}px`;
-
 			this.element.preferredSize = new dom.Dimension(preferredWidth, preferredHeight);
 			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
 			this.element.minSize = new dom.Dimension(220, minHeight);
 		}
 
+		this._resize(width, height);
+	}
 
+	private _resize(width: number, height: number): void {
+		const { statusBarHeight } = this.getLayoutInfo();
+		this.list.layout(height - statusBarHeight, width);
+		this.listElement.style.height = `${height - statusBarHeight}px`;
 		this.element.layout(height, width);
 		this._contentWidget.layout();
 
