@@ -45,6 +45,8 @@ export class ProxyAuthHandler2 extends Disposable {
 
 	private state = ProxyAuthState.Initial;
 
+	private sessionCredentials: Credentials | undefined = undefined;
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -130,16 +132,16 @@ export class ProxyAuthHandler2 extends Disposable {
 		const authInfoHash = String(hash({ scheme: authInfo.scheme, host: authInfo.host, port: authInfo.port }));
 
 		// Find any previously stored credentials
-		let username: string | undefined = undefined;
-		let password: string | undefined = undefined;
+		let storedUsername: string | undefined = undefined;
+		let storedPassword: string | undefined = undefined;
 		try {
 			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 			if (encryptedSerializedProxyCredentials) {
 				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
 
 				if (credentials.username && credentials.password) {
-					username = credentials.username;
-					password = credentials.password;
+					storedUsername = credentials.username;
+					storedPassword = credentials.password;
 				}
 			}
 		} catch (error) {
@@ -149,11 +151,11 @@ export class ProxyAuthHandler2 extends Disposable {
 		// Reply with stored credentials unless we used them already.
 		// In that case we need to show a login dialog again because
 		// they seem invalid.
-		if (this.state !== ProxyAuthState.StoredCredentialsUsed && username && password) {
+		if (this.state !== ProxyAuthState.StoredCredentialsUsed && storedUsername && storedPassword) {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found stored credentials to use');
 			this.state = ProxyAuthState.StoredCredentialsUsed;
 
-			return { username, password };
+			return { username: storedUsername, password: storedPassword };
 		}
 
 		// Find suitable window to show dialog
@@ -167,12 +169,17 @@ export class ProxyAuthHandler2 extends Disposable {
 		this.logService.trace(`auth#doResolveProxyCredentials (proxy) - asking window ${window.id} to handle proxy login`);
 
 		// Open proxy dialog
-		const payload = { authInfo, username, password, replyChannel: `vscode:proxyAuthResponse:${generateUuid()}` };
+		const payload = {
+			authInfo,
+			username: this.sessionCredentials?.username || storedUsername, // prefer to show already used username (if any) over stored
+			password: this.sessionCredentials?.password || storedPassword, // prefer to show already used password (if any) over stored
+			replyChannel: `vscode:proxyAuthResponse:${generateUuid()}`
+		};
 		window.sendWhenReady('vscode:openProxyAuthenticationDialog', payload);
 		this.state = ProxyAuthState.LoginDialogShown;
 
 		// Handle reply
-		return new Promise<Credentials | undefined>(resolve => {
+		const loginDialogCredentials = await new Promise<Credentials | undefined>(resolve => {
 			const proxyAuthResponseHandler = async (event: ElectronEvent, channel: string, reply: Credentials & { remember: boolean } | undefined /* canceled */) => {
 				if (channel === payload.replyChannel) {
 					this.logService.trace(`auth#doResolveProxyCredentials - exit - received credentials from window ${window.id}`);
@@ -206,5 +213,12 @@ export class ProxyAuthHandler2 extends Disposable {
 
 			webContents.on('ipc-message', proxyAuthResponseHandler);
 		});
+
+		// Remember credentials for the session in case
+		// the credentials are wrong and we show the dialog
+		// again
+		this.sessionCredentials = loginDialogCredentials;
+
+		return loginDialogCredentials;
 	}
 }
