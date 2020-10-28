@@ -226,20 +226,26 @@ export class NativeWindow extends Disposable {
 					}
 				});
 
+			// Reply back to the channel without result to indicate
+			// that the login dialog was cancelled
 			if (result.choice !== 0 || !result.values) {
-				return; // dialog canceled
+				ipcRenderer.send(payload.replyChannel);
 			}
 
-			// Update state based on checkbox
-			if (result.checkboxChecked) {
-				this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL);
-			} else {
-				this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
-			}
+			// Other reply back with the picked credentials
+			else {
 
-			// Reply back to main side with credentials
-			const [username, password] = result.values;
-			ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
+				// Update state based on checkbox
+				if (result.checkboxChecked) {
+					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL);
+				} else {
+					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+				}
+
+				// Reply back to main side with credentials
+				const [username, password] = result.values;
+				ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
+			}
 		});
 
 		// Accessibility support changed event
