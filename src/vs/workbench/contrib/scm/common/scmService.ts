@@ -185,10 +185,6 @@ export class SCMService implements ISCMService {
 	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
 	private providerCount: IContextKey<number>;
-	private _selectedRepository: ISCMRepository | undefined;
-
-	private readonly _onDidSelectRepository = new Emitter<ISCMRepository | undefined>();
-	readonly onDidSelectRepository: Event<ISCMRepository | undefined> = this._onDidSelectRepository.event;
 
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
@@ -220,38 +216,18 @@ export class SCMService implements ISCMService {
 				return;
 			}
 
-			selectedDisposable.dispose();
 			this._providerIds.delete(provider.id);
 			this._repositories.splice(index, 1);
 			this._onDidRemoveProvider.fire(repository);
-
-			if (this._selectedRepository === repository) {
-				this.select(this._repositories[0]);
-			}
 
 			this.providerCount.set(this._repositories.length);
 		});
 
 		const repository = new SCMRepository(provider, disposable, this.storageService);
-		const selectedDisposable = Event.map(Event.filter(repository.onDidChangeSelection, selected => selected), _ => repository)(this.select, this);
-
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
 
-		if (!this._selectedRepository) {
-			repository.setSelected(true);
-		}
-
 		this.providerCount.set(this._repositories.length);
 		return repository;
-	}
-
-	private select(repository: ISCMRepository | undefined): void {
-		if (this._selectedRepository) {
-			this._selectedRepository.setSelected(false);
-		}
-
-		this._selectedRepository = repository;
-		this._onDidSelectRepository.fire(this._selectedRepository);
 	}
 }

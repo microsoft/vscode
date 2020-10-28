@@ -1419,6 +1419,7 @@ class SCMInputWidget extends Disposable {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService
 	) {
 		super();
@@ -1466,7 +1467,10 @@ class SCMInputWidget extends Disposable {
 		this._register(this.inputEditor);
 
 		this._register(this.inputEditor.onDidFocusEditorText(() => {
-			this.input?.repository.setSelected(true); // TODO@joao: remove
+			if (this.input?.repository) {
+				this.scmViewService.focus(this.input.repository);
+			}
+
 			this.editorContainer.classList.add('synthetic-focus');
 			this.renderValidation();
 		}));
@@ -1838,21 +1842,25 @@ export class SCMViewPane extends ViewPane {
 	private async open(e: IOpenEvent<TreeElement | null>): Promise<void> {
 		if (!e.element) {
 			return;
-		} else if (isSCMRepository(e.element)) { // TODO@joao: remove
-			e.element.setSelected(true);
+		} else if (isSCMRepository(e.element)) {
+			this.scmViewService.focus(e.element);
 			return;
-		} else if (isSCMResourceGroup(e.element)) { // TODO@joao: remove
+		} else if (isSCMResourceGroup(e.element)) {
 			const provider = e.element.provider;
 			const repository = this.scmService.repositories.find(r => r.provider === provider);
-			repository?.setSelected(true);
+			if (repository) {
+				this.scmViewService.focus(repository);
+			}
 			return;
-		} else if (ResourceTree.isResourceNode(e.element)) { // TODO@joao: remove
+		} else if (ResourceTree.isResourceNode(e.element)) {
 			const provider = e.element.context.provider;
 			const repository = this.scmService.repositories.find(r => r.provider === provider);
-			repository?.setSelected(true);
+			if (repository) {
+				this.scmViewService.focus(repository);
+			}
 			return;
 		} else if (isSCMInput(e.element)) {
-			e.element.repository.setSelected(true); // TODO@joao: remove
+			this.scmViewService.focus(e.element.repository);
 
 			const widget = this.inputRenderer.getRenderedInputWidget(e.element);
 
@@ -1880,10 +1888,12 @@ export class SCMViewPane extends ViewPane {
 			}
 		}
 
-		// TODO@joao: remove
 		const provider = e.element.resourceGroup.provider;
 		const repository = this.scmService.repositories.find(r => r.provider === provider);
-		repository?.setSelected(true);
+
+		if (repository) {
+			this.scmViewService.focus(repository);
+		}
 	}
 
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {

@@ -19,7 +19,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { reset } from 'vs/base/browser/dom';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
-	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
+	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
 
 export function isSCMInput(element: any): element is ISCMInput {
