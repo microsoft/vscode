@@ -1040,6 +1040,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	layout(height?: number, width?: number): void {
 		this._isInLayout = true;
 		super.layout(height, width);
+		if (this.renderHeight === 0) {
+			this.view.domNode.style.visibility = 'hidden';
+		} else {
+			this.view.domNode.style.visibility = 'initial';
+		}
 		this._isInLayout = false;
 	}
 
