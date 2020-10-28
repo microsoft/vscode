@@ -83,12 +83,22 @@ export interface IInputValidator {
 	(value: string, cursorPosition: number): Promise<IInputValidation | undefined>;
 }
 
+export enum SCMInputChangeReason {
+	HistoryPrevious,
+	HistoryNext
+}
+
+export interface ISCMInputChangeEvent {
+	readonly value: string;
+	readonly reason?: SCMInputChangeReason;
+}
+
 export interface ISCMInput {
 	readonly repository: ISCMRepository;
 
 	readonly value: string;
 	setValue(value: string, fromKeyboard: boolean): void;
-	readonly onDidChange: Event<string>;
+	readonly onDidChange: Event<ISCMInputChangeEvent>;
 
 	placeholder: string;
 	readonly onDidChangePlaceholder: Event<string>;

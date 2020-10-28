@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, Dimension, asCSSUrl } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1335,12 +1335,17 @@ class SCMInputWidget extends Disposable {
 
 		// Keep model in sync with API
 		textModel.setValue(input.value);
-		this.repositoryDisposables.add(input.onDidChange(value => {
+		this.repositoryDisposables.add(input.onDidChange(({ value, reason }) => {
 			if (value === textModel.getValue()) { // circuit breaker
 				return;
 			}
 			textModel.setValue(value);
-			this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
+
+			if (reason === SCMInputChangeReason.HistoryPrevious) {
+				this.inputEditor.setPosition(textModel.getFullModelRange().getStartPosition());
+			} else {
+				this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
+			}
 		}));
 
 		// Keep API in sync with model, update placeholder visibility and validate

@@ -295,7 +295,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const disposable = combinedDisposable(
 			Event.filter(repository.onDidChangeSelection, selected => selected)(_ => this._proxy.$setSelectedSourceControl(handle)),
-			repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value))
+			repository.input.onDidChange(({ value }) => this._proxy.$onInputBoxValueChange(handle, value))
 		);
 
 		if (repository.selected) {
