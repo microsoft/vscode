@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
 
 const ESC = '\x1b';
@@ -849,13 +849,22 @@ const getBufferCellAttributes = (cell: IBufferCell) => cell.isAttributeDefault()
 		cell.isBgDefault() && `${CSI}49m`,
 	].filter(seq => !!seq).join('');
 
-const parseTypeheadStyle = (style: string | number) => {
-	if (typeof style === 'number') {
-		return `${CSI}${style}m`;
+const parseTypeheadStyle = (style: ITerminalConfiguration['typeaheadStyle']) => {
+	switch (style) {
+		case 'bold':
+			return `${CSI}1m`;
+		case 'dim':
+			return `${CSI}2m`;
+		case 'italic':
+			return `${CSI}3m`;
+		case 'underlined':
+			return `${CSI}4m`;
+		case 'inverted':
+			return `${CSI}7m`;
+		default:
+			const { r, g, b } = Color.fromHex(style).rgba;
+			return `${CSI}38;2;${r};${g};${b}m`;
 	}
-
-	const { r, g, b } = Color.fromHex(style).rgba;
-	return `${CSI}32;${r};${g};${b}m`;
 };
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
@@ -879,7 +888,11 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
 		this._register(terminal.onData(e => this.onUserData(e)));
-		this._register(terminal.onResize(() => timeline.clearCursor()));
+		this._register(terminal.onResize(() => {
+			timeline.setShowPredictions(false);
+			timeline.clearCursor();
+			this.reevaluatePredictorState(stats, timeline);
+		}));
 		this._register(this.config.onConfigChanged(() => {
 			this.typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
 			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
@@ -948,6 +961,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
+
+		// Detect programs like git log/less that use the normal buffer but don't
+		// take input by deafult (fixes #109541)
+		if (buffer.cursorX === 1 && buffer.cursorY === terminal.rows - 1) {
+			if (buffer.getLine(buffer.cursorY + buffer.baseY)?.getCell(0)?.getChars() === ':') {
+				return;
+			}
+		}
 
 		// the following code guards the terminal prompt to avoid being able to
 		// arrow or backspace-into the prompt. Record the lowest X value at which

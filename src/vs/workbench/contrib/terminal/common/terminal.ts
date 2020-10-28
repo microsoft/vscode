@@ -136,7 +136,7 @@ export interface ITerminalConfiguration {
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
 	typeaheadThreshold: number;
-	typeaheadStyle: number | string;
+	typeaheadStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
 }
