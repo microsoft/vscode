@@ -855,7 +855,7 @@ const parseTypeheadStyle = (style: string | number) => {
 	}
 
 	const { r, g, b } = Color.fromHex(style).rgba;
-	return `${CSI}32;${r};${g};${b}m`;
+	return `${CSI}38;2;${r};${g};${b}m`;
 };
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
