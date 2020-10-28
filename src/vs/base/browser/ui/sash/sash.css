@@ -69,10 +69,10 @@
 	cursor: all-scroll; position: absolute;
 }
 
-.monaco-sash.orthogonal-start.vertical::before { left: -calc(var(--sash-size) / 2); top: -var(--sash-size); }
-.monaco-sash.orthogonal-end.vertical::after { left: -calc(var(--sash-size) / 2); bottom: -var(--sash-size); }
-.monaco-sash.orthogonal-start.horizontal::before { top: -calc(var(--sash-size) / 2); left: -var(--sash-size); }
-.monaco-sash.orthogonal-end.horizontal::after { top: -calc(var(--sash-size) / 2); right: -var(--sash-size); }
+.monaco-sash.orthogonal-start.vertical::before { left: -calc(var(--sash-size) / 2); top: calc(var(--sash-size) * -1); }
+.monaco-sash.orthogonal-end.vertical::after { left: -calc(var(--sash-size) / 2); bottom: calc(var(--sash-size) * -1); }
+.monaco-sash.orthogonal-start.horizontal::before { top: -calc(var(--sash-size) / 2); left: calc(var(--sash-size) * -1); }
+.monaco-sash.orthogonal-end.horizontal::after { top: -calc(var(--sash-size) / 2); right: calc(var(--sash-size) * -1); }
 
 /** Debug **/
 

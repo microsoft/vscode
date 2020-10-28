@@ -67,7 +67,7 @@
 
 .extension-list-item > .details > .header-container > .header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;

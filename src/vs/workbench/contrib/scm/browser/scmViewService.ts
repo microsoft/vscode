@@ -49,6 +49,10 @@ export class SCMViewService implements ISCMViewService {
 		this._visibleRepositories = visibleRepositories;
 		this._visibleRepositoriesSet = set;
 		this._onDidSetVisibleRepositories.fire({ added, removed });
+
+		if (this._focusedRepository && removed.has(this._focusedRepository)) {
+			this.focus(this._visibleRepositories[0]);
+		}
 	}
 
 	private _onDidChangeRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
@@ -69,6 +73,15 @@ export class SCMViewService implements ISCMViewService {
 			}, 0)
 	);
 
+	private _focusedRepository: ISCMRepository | undefined;
+
+	get focusedRepository(): ISCMRepository | undefined {
+		return this._focusedRepository;
+	}
+
+	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
+	readonly onDidFocusRepository = this._onDidFocusRepository.event;
+
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -88,6 +101,10 @@ export class SCMViewService implements ISCMViewService {
 		this._visibleRepositoriesSet.add(repository);
 
 		this._onDidChangeRepositories.fire({ added: [repository], removed: Iterable.empty() });
+
+		if (!this._focusedRepository) {
+			this.focus(repository);
+		}
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
@@ -108,6 +125,10 @@ export class SCMViewService implements ISCMViewService {
 			}
 
 			this._onDidChangeRepositories.fire({ added, removed: [repository] });
+		}
+
+		if (this._focusedRepository === repository) {
+			this.focus(this._visibleRepositories[0]);
 		}
 	}
 
@@ -134,6 +155,15 @@ export class SCMViewService implements ISCMViewService {
 				];
 			}
 		}
+	}
+
+	focus(repository: ISCMRepository | undefined): void {
+		if (repository && !this.visibleRepositories.includes(repository)) {
+			return;
+		}
+
+		this._focusedRepository = repository;
+		this._onDidFocusRepository.fire(repository);
 	}
 
 	dispose(): void {

@@ -102,7 +102,13 @@ export class SuggestDetailsWidget {
 		const lineHeight = this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
 		const borderWidth = this._borderWidth;
 		const borderHeight = borderWidth * 2;
-		return { lineHeight, borderWidth, borderHeight };
+		return {
+			lineHeight,
+			borderWidth,
+			borderHeight,
+			verticalPadding: 22,
+			horizontalPadding: 14
+		};
 	}
 
 
@@ -129,9 +135,7 @@ export class SuggestDetailsWidget {
 		}
 
 		if (!explainMode && !canExpandCompletionItem(item)) {
-			this._type.textContent = '';
-			this._docs.textContent = '';
-			this.domNode.classList.add('no-docs');
+			this.clearContents();
 			return;
 		}
 
@@ -164,7 +168,10 @@ export class SuggestDetailsWidget {
 			const renderedContents = this._markdownRenderer.render(documentation);
 			this._docs.appendChild(renderedContents.element);
 			this._renderDisposeable.add(renderedContents);
-			this._renderDisposeable.add(this._markdownRenderer.onDidRenderCodeBlock(() => this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight)));
+			this._renderDisposeable.add(this._markdownRenderer.onDidRenderCodeBlock(() => {
+				this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+				this._onDidChangeContents.fire(this);
+			}));
 		}
 
 		this.domNode.style.userSelect = 'text';
@@ -184,6 +191,12 @@ export class SuggestDetailsWidget {
 
 		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 		this._onDidChangeContents.fire(this);
+	}
+
+	clearContents() {
+		this.domNode.classList.add('no-docs');
+		this._type.textContent = '';
+		this._docs.textContent = '';
 	}
 
 	get size() {
@@ -291,6 +304,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 				sizeNow = undefined;
 				deltaTop = 0;
 				deltaLeft = 0;
+				this._userSize = e.dimension;
 			}
 		}));
 
@@ -335,6 +349,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 		if (sessionEnded) {
 			this._userSize = undefined;
+			this.widget.clearContents();
 		}
 	}
 
@@ -347,35 +362,35 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension) {
 		const bodyBox = dom.getClientArea(document.body);
 
-		const { borderWidth, borderHeight, lineHeight } = this.widget.getLayoutInfo();
+		const info = this.widget.getLayoutInfo();
 
 		let maxSizeTop: dom.Dimension;
 		let maxSizeBottom: dom.Dimension;
-		let minSize = new dom.Dimension(220, 2 * lineHeight);
+		let minSize = new dom.Dimension(220, 2 * info.lineHeight);
 
 		let left = 0;
 		let top = anchorBox.top;
-		let bottom = anchorBox.top + anchorBox.height - borderHeight;
+		let bottom = anchorBox.top + anchorBox.height - info.borderHeight;
 
 		let alignAtTop: boolean;
 		let alignEast: boolean;
 
 		// position: EAST, west, south
-		let width = bodyBox.width - (anchorBox.left + anchorBox.width);
-		left = -borderWidth + anchorBox.left + anchorBox.width;
+		let width = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
+		left = -info.borderWidth + anchorBox.left + anchorBox.width;
 		alignEast = true;
-		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top);
-		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height);
+		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
+		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
 
 		// find a better place if the widget is wider than there is space available
 		if (size.width > width) {
 			// position: east, WEST, south
 			if (anchorBox.left > width) {
 				// pos = SuggestDetailsPosition.West;
-				width = anchorBox.left;
+				width = anchorBox.left - info.borderWidth - info.horizontalPadding;
 				alignEast = false;
-				left = Math.max(0, anchorBox.left - (size.width + borderWidth));
-				maxSizeTop = maxSizeTop.with(anchorBox.left - borderWidth);
+				left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
+				maxSizeTop = maxSizeTop.with(width);
 				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
 			}
 
@@ -383,9 +398,9 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
 				width = anchorBox.width;
 				left = anchorBox.left;
-				top = -borderWidth + anchorBox.top + anchorBox.height;
-				maxSizeTop = new dom.Dimension(anchorBox.width - borderHeight, bodyBox.height - (anchorBox.top + anchorBox.height));
-				maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top);
+				top = -info.borderWidth + anchorBox.top + anchorBox.height;
+				maxSizeTop = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
+				maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top - info.verticalPadding);
 				minSize = minSize.with(maxSizeTop.width);
 			}
 		}

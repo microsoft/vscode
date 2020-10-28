@@ -26,6 +26,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -229,32 +231,54 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'scm.viewNextCommit',
+const viewNextCommitCommand = {
 	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmInputIsInLastLine'),
-	primary: KeyCode.DownArrow,
-	handler: accessor => {
+	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
 		const repository = context.getValue<ISCMRepository>('scmRepository');
 		repository?.input.showNextHistoryValue();
 	}
-});
+};
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'scm.viewPriorCommit',
-	description: { description: localize('scm view prior commit', "SCM: View Prior Commit"), args: [] },
+const viewPreviousCommitCommand = {
+	description: { description: localize('scm view previous commit', "SCM: View Previous Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmInputIsInFirstLine'),
-	primary: KeyCode.UpArrow,
-	handler: accessor => {
+	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
 		const repository = context.getValue<ISCMRepository>('scmRepository');
 		repository?.input.showPreviousHistoryValue();
 	}
+};
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewNextCommitCommand,
+	id: 'scm.viewNextCommit',
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.DownArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewPreviousCommitCommand,
+	id: 'scm.viewPreviousCommit',
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.UpArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewNextCommitCommand,
+	id: 'scm.forceViewNextCommit',
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.DownArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewPreviousCommitCommand,
+	id: 'scm.forceViewPreviousCommit',
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
 CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {

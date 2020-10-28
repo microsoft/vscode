@@ -92,7 +92,7 @@ suite('Workbench - Terminal Typeahead', () => {
 
 		setup(() => {
 			config = upcastPartial<ITerminalConfiguration>({
-				typeaheadStyle: 3,
+				typeaheadStyle: 'italic',
 				typeaheadThreshold: 0
 			});
 			publicLog = stub();

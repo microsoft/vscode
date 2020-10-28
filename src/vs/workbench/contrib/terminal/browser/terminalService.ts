@@ -347,7 +347,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async initializeTerminals(): Promise<void> {
-		const enableTerminalReconnection = this.configHelper.config.enableTerminalReconnection;
+		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 		const serverSpawn = this.configHelper.config.serverSpawn;
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
 			let emptyTab: TerminalTab | undefined;
@@ -361,7 +361,7 @@ export class TerminalService implements ITerminalService {
 			const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
 
 			/* __GDPR__
-				"terminalReconnect" : {
+				"terminalReconnection" : {
 					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			 */

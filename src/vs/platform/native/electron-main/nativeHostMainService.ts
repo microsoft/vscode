@@ -38,9 +38,6 @@ interface ChunkedPassword {
 	hasNextChunk: boolean;
 }
 
-const MAX_PASSWORD_LENGTH = 2500;
-const PASSWORD_CHUNK_SIZE = MAX_PASSWORD_LENGTH - 100;
-
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -638,6 +635,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Credentials
 
+	private static readonly MAX_PASSWORD_LENGTH = 2500;
+	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
+
 	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
 		const keytar = await import('keytar');
 
@@ -669,14 +669,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
 		const keytar = await import('keytar');
 
-		if (isWindows && password.length > MAX_PASSWORD_LENGTH) {
+		if (isWindows && password.length > NativeHostMainService.MAX_PASSWORD_LENGTH) {
 			let index = 0;
 			let chunk = 0;
 			let hasNextChunk = true;
 			while (hasNextChunk) {
-				const passwordChunk = password.substring(index, index + PASSWORD_CHUNK_SIZE);
-				index += PASSWORD_CHUNK_SIZE;
+				const passwordChunk = password.substring(index, index + NativeHostMainService.PASSWORD_CHUNK_SIZE);
+				index += NativeHostMainService.PASSWORD_CHUNK_SIZE;
 				hasNextChunk = password.length - index > 0;
+
 				const content: ChunkedPassword = {
 					content: passwordChunk,
 					hasNextChunk: hasNextChunk

@@ -7,9 +7,7 @@
 /* eslint-disable code-import-patterns */
 
 import { ConsoleLogService } from 'vs/platform/log/common/log';
-import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
@@ -417,19 +415,6 @@ testRunner.configure({
 module.exports = testRunner;`);
 
 //#endregion
-
-
-//#region Resource Identity
-
-export class SimpleResourceIdentityService implements IResourceIdentityService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async resolveResourceIdentity(resource: URI): Promise<string> { return hash(resource.toString()).toString(16); }
-}
-
-//#endregion
-
 
 //#region Remote
 

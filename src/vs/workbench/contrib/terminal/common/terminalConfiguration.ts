@@ -360,20 +360,12 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.typeaheadStyle': {
 			description: localize('terminal.integrated.typeaheadStyle', "Experimental: terminal style of typeahead text, either a font style or an RGB color."),
-			default: 2,
+			default: 'dim',
 			oneOf: [
 				{
-					type: 'integer',
-					default: 2,
-					enum: [0, 1, 2, 3, 4, 7],
-					enumDescriptions: [
-						localize('terminal.integrated.typeaheadStyle.0', 'Normal'),
-						localize('terminal.integrated.typeaheadStyle.1', 'Bold'),
-						localize('terminal.integrated.typeaheadStyle.2', 'Dim'),
-						localize('terminal.integrated.typeaheadStyle.3', 'Italic'),
-						localize('terminal.integrated.typeaheadStyle.4', 'Underlined'),
-						localize('terminal.integrated.typeaheadStyle.7', 'Inverted'),
-					]
+					type: 'string',
+					default: 'dim',
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
 				},
 				{
 					type: 'string',
@@ -387,8 +379,8 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.enableTerminalReconnection': {
-			description: localize('terminal.integrated.enableTerminalReconnection', "Experimental: reconnect to terminals when reopening the workspace. Currently only supported in VS Code Remote workspaces."),
+		'terminal.integrated.enablePersistentSessions': {
+			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
 			type: 'boolean',
 			default: true
 		}

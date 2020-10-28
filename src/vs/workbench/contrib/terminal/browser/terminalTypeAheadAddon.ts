@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals as arrayEqual } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { equals as arrayEqual } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IBeforeProcessDataEvent, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
 
 const ESC = '\x1b';
@@ -918,13 +918,22 @@ const getBufferCellAttributes = (cell: XTermAttributes) => cell.isAttributeDefau
 		cell.isBgDefault() && `${CSI}49m`,
 	].filter(seq => !!seq).join('');
 
-const parseTypeheadArgs = (style: string | number) => {
-	if (typeof style === 'number') {
-		return [style];
+const parseTypeheadArgs = (style: ITerminalConfiguration['typeaheadStyle']) => {
+	switch (style) {
+		case 'bold':
+			return [1];
+		case 'dim':
+			return [2];
+		case 'italic':
+			return [3];
+		case 'underlined':
+			return [4];
+		case 'inverted':
+			return [7];
+		default:
+			const { r, g, b } = Color.fromHex(style).rgba;
+			return [38, 2, r, g, b];
 	}
-
-	const { r, g, b } = Color.fromHex(style).rgba;
-	return [32, r, g, b];
 };
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
@@ -953,7 +962,11 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return false;
 		}));
 		this._register(terminal.onData(e => this.onUserData(e)));
-		this._register(terminal.onResize(() => timeline.clearCursor()));
+		this._register(terminal.onResize(() => {
+			timeline.setShowPredictions(false);
+			timeline.clearCursor();
+			this.reevaluatePredictorState(stats, timeline);
+		}));
 		this._register(this.config.onConfigChanged(() => {
 			this.typeaheadArgs = parseTypeheadArgs(this.config.config.typeaheadStyle);
 			this.typeaheadStyle = `${CSI}${this.typeaheadArgs.join(';')}m`;
@@ -1023,6 +1036,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
+
+		// Detect programs like git log/less that use the normal buffer but don't
+		// take input by deafult (fixes #109541)
+		if (buffer.cursorX === 1 && buffer.cursorY === terminal.rows - 1) {
+			if (buffer.getLine(buffer.cursorY + buffer.baseY)?.getCell(0)?.getChars() === ':') {
+				return;
+			}
+		}
 
 		// the following code guards the terminal prompt to avoid being able to
 		// arrow or backspace-into the prompt. Record the lowest X value at which

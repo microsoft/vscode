@@ -26,7 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { forEach } from 'vs/base/common/collections';
+import { forEach, IStringDictionary } from 'vs/base/common/collections';
 
 interface IExtensionResourceMergeResult extends IAcceptResult {
 	readonly added: ISyncExtension[];
@@ -362,7 +362,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await Promise.all([...added, ...updated].map(async e => {
 				const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
 
-				// Builtin Extension: Sync enablement and state
+				// Builtin Extension Sync: Enablement & State
 				if (installedExtension && installedExtension.isBuiltin) {
 					if (e.state && installedExtension.manifest.version === e.version) {
 						const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
@@ -382,19 +382,24 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					return;
 				}
 
+				// User Extension Sync: Install/Update, Enablement & State
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier);
+
+				/* Update extension state only if
+				*		extension is installed and version is same as synced version or
+				 *		extension is not installed and installable
+				 */
+				if (e.state &&
+					(installedExtension ? installedExtension.manifest.version === e.version /* Installed and has same version */
+						: !!extension /* Installable */)
+				) {
+					const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
+					forEach(e.state, ({ key, value }) => extensionState[key] = value);
+					this.storageService.store(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
+				}
+
 				if (extension) {
 					try {
-						/* Update extension state only if
-						 *		extension is not installed or
-						 *		installed extension is same version as synced version
-						 */
-						if (e.state && (!installedExtension || installedExtension.manifest.version === e.version)) {
-							const extensionState = JSON.parse(this.storageService.get(extension.identifier.id, StorageScope.GLOBAL) || '{}');
-							forEach(e.state, ({ key, value }) => extensionState[key] = value);
-							this.storageService.store(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
-						}
-
 						if (e.disabled) {
 							this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...`, e.identifier.id, extension.version);
 							await this.extensionEnablementService.disableExtension(extension.identifier);
@@ -456,7 +461,13 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				if (keys) {
 					const extensionStorageValue = this.storageService.get(identifier.id, StorageScope.GLOBAL) || '{}';
 					try {
-						syncExntesion.state = JSON.parse(extensionStorageValue, (key, value) => !key || keys.includes(key) ? value : undefined);
+						const extensionStorageState = JSON.parse(extensionStorageValue);
+						syncExntesion.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
+							if (keys.includes(key)) {
+								state[key] = extensionStorageState[key];
+							}
+							return state;
+						}, {});
 					} catch (error) {
 						this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
 					}

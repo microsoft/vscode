@@ -1434,24 +1434,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 				// Single Editor Group
 				if (this.editorGroupService.count === 1) {
-					if (this.isVisible(Parts.SIDEBAR_PART)) {
-						this.workbenchGrid.resizeView(this.editorPartView,
-							{
-								width: viewSize.width + sizeChangePxWidth,
-								height: viewSize.height
-							});
-					} else if (this.isVisible(Parts.PANEL_PART)) {
-						this.workbenchGrid.resizeView(this.editorPartView,
-							{
-								width: viewSize.width + (this.getPanelPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
-								height: viewSize.height + (this.getPanelPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
-							});
-					}
+					this.workbenchGrid.resizeView(this.editorPartView,
+						{
+							width: viewSize.width + sizeChangePxWidth,
+							height: viewSize.height + sizeChangePxHeight
+						});
 				} else {
 					const activeGroup = this.editorGroupService.activeGroup;
 
 					const { width, height } = this.editorGroupService.getSize(activeGroup);
 					this.editorGroupService.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
+
+					// After resizing the editor group
+					// if it does not change in either direction
+					// try resizing the full editor part
+					const { width: newWidth, height: newHeight } = this.editorGroupService.getSize(activeGroup);
+					if ((sizeChangePxHeight && height === newHeight) || (sizeChangePxWidth && width === newWidth)) {
+						this.workbenchGrid.resizeView(this.editorPartView,
+							{
+								width: viewSize.width + (sizeChangePxWidth && width === newWidth ? sizeChangePxWidth : 0),
+								height: viewSize.height + (sizeChangePxHeight && height === newHeight ? sizeChangePxHeight : 0)
+							});
+					}
 				}
 
 				break;
