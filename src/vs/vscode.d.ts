@@ -5652,7 +5652,7 @@ declare module 'vscode' {
 			 * Set the keys whose values should be synchronized across devices when synchronizing user-data
 			 * like configuration, extensions, and mementos.
 			 *
-			 * Note that this function defines the whole set of keys whoses values are synchronized:
+			 * Note that this function defines the whole set of keys whose values are synchronized:
 			 *  - calling it with an empty array stops synchronization for this memento
 			 *  - calling it with a non-empty array replaces all keys whose values are synchronized
 			 *
