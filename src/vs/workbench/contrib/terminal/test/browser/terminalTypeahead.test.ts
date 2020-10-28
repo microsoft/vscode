@@ -78,7 +78,6 @@ suite('Workbench - Terminal Typeahead', () => {
 		const predictedHelloo = [
 			`${CSI}?25l`, // hide cursor
 			`${CSI}2;7H`, // move cursor
-			`${CSI}0m`, // reset cursor style
 			'o', // new character
 			`${CSI}2;8H`, // place cursor back at end of line
 			`${CSI}?25h`, // show cursor
@@ -111,7 +110,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 			t.onData('o');
-			t.expectWritten(`${CSI}3mo`);
+			t.expectWritten(`${CSI}3mo${CSI}23m`);
 		});
 
 		test('validates character prediction', () => {
@@ -131,7 +130,6 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
 				`${CSI}X`, // delete character
-				`${CSI}0m`, // reset cursor style
 				'q', // new character
 				`${CSI}?25h`, // show cursor
 			].join(''));
@@ -150,7 +148,6 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
 				`${CSI}X`, // delete character
-				`${CSI}0m`, // reset cursor style
 				'q', // new character
 				`${CSI}?25h`, // show cursor
 			].join(''));
@@ -163,8 +160,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			t.onData('o');
 			expectProcessed(`${CSI}4mo`, [
 				`${CSI}?25l`, // hide cursor
-				`${CSI}2;7H`, // move cursor cursor
-				`${CSI}0m`, // reset cursor style
+				`${CSI}2;7H`, // move cursor
 				`${CSI}4m`, // new PTY's style
 				'o', // new character
 				`${CSI}2;8H`, // place cursor back at end of line
@@ -180,8 +176,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			expectProcessed(`${CSI}?25lo${CSI}?25h`, [
 				`${CSI}?25l`, // hide cursor from PTY
 				`${CSI}?25l`, // hide cursor
-				`${CSI}2;7H`, // move cursor cursor
-				`${CSI}0m`, // reset cursor style
+				`${CSI}2;7H`, // move cursor
 				'o', // new character
 				`${CSI}?25h`, // show cursor from PTY
 				`${CSI}2;8H`, // place cursor back at end of line
@@ -246,7 +241,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			expectProcessed('\r\n', '\r\n');
 
 			t.onData('o'); // back to normal mode
-			t.expectWritten(`${CSI}3mo`);
+			t.expectWritten(`${CSI}3mo${CSI}23m`);
 		});
 	});
 });
@@ -275,6 +270,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 	const written: string[] = [];
 	const cursor = { y: 1, x: 1 };
 	const onData = new Emitter<string>();
+	const csiEmitter = new Emitter<number[]>();
 
 	for (let y = 0; y < lines.length; y++) {
 		const line = lines[y];
@@ -295,17 +291,26 @@ function createMockTerminal({ lines, cursorAttrs }: {
 		},
 		clearWritten: () => written.splice(0, written.length),
 		onData: (s: string) => onData.fire(s),
+		csiEmitter,
 		terminal: {
 			cols: 80,
 			rows: 5,
 			onResize: new Emitter<void>().event,
 			onData: onData.event,
+			parser: {
+				registerCsiHandler(_: unknown, callback: () => void) {
+					csiEmitter.event(callback);
+				},
+			},
 			write(line: string) {
 				written.push(line);
 			},
 			_core: {
 				_inputHandler: {
 					_curAttrData: mockCell('', cursorAttrs)
+				},
+				writeSync() {
+
 				}
 			},
 			buffer: {

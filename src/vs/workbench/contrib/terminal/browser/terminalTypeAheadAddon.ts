@@ -960,6 +960,7 @@ class TypeAheadStyle {
 		this.undoArgs = undoArgs;
 		this.apply = TypeAheadStyle.compileArgs(this.applyArgs);
 		this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
+		this.colorFg = this.applyArgs[0] === 38;
 	}
 
 	private getArgs(style: ITerminalConfiguration['typeaheadStyle']) {
