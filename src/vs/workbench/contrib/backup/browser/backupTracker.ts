@@ -73,6 +73,7 @@ export class BrowserBackupTracker extends BackupTracker implements IWorkbenchCon
 		for (const dirtyWorkingCopy of dirtyWorkingCopies) {
 			if (!this.backupFileService.hasBackupSync(dirtyWorkingCopy.resource, this.getContentVersion(dirtyWorkingCopy))) {
 				this.logService.warn('Unload veto: pending backups');
+
 				return true; // dirty without backup: veto
 			}
 		}
