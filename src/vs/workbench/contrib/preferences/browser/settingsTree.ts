@@ -1332,6 +1332,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
 				return <ISelectOptionItem>{
 					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
+					detail: enumItemLabels && enumItemLabels[index] ? data : '',
 					description: enumItemLabels && enumItemLabels[index] ? `[${data}] ${description}` : description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: {

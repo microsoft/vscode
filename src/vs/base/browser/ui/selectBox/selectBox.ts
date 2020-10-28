@@ -46,6 +46,7 @@ export interface ISelectBoxOptions {
 // Utilize optionItem interface to capture all option parameters
 export interface ISelectOptionItem {
 	text: string;
+	detail?: string;
 	decoratorRight?: string;
 	description?: string;
 	descriptionIsMarkdown?: boolean;
@@ -57,6 +58,7 @@ export interface ISelectBoxStyles extends IListStyles {
 	selectBackground?: Color;
 	selectListBackground?: Color;
 	selectForeground?: Color;
+	detailForeground?: Color;
 	decoratorRightForeground?: Color;
 	selectBorder?: Color;
 	selectListBorder?: Color;
