@@ -361,7 +361,7 @@ export class TerminalService implements ITerminalService {
 			const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
 
 			/* __GDPR__
-				"terminalReconnect" : {
+				"terminalReconnection" : {
 					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			 */
