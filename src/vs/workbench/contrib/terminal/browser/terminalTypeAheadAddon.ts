@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals as arrayEqual } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
@@ -688,7 +687,7 @@ export class PredictionTimeline {
 			return;
 		}
 
-		console.log('set predictions:', show);
+		// console.log('set predictions:', show);
 		this.showPredictions = show;
 
 		const buffer = this.getActiveBuffer();
@@ -763,6 +762,11 @@ export class PredictionTimeline {
 					// and clear predictions, since they are no longer valid
 					const rollback = this.expected.filter(p => p.gen === startingGen).reverse();
 					output += rollback.map(({ p }) => p.rollback(this.getCursor(buffer))).join('');
+					if (rollback.some(r => r.p.affectsStyle)) {
+						// reading the current style should generally be safe, since predictions
+						// always restore the style if they modify it.
+						output += attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
+					}
 					this.expected = [];
 					this.cursor = undefined;
 					this.failedEmitter.fire(prediction);
@@ -825,7 +829,7 @@ export class PredictionTimeline {
 				if (prediction.affectsStyle) {
 					this.style.expectIncomingStyle();
 				}
-				console.log('predict:', JSON.stringify(text));
+				// console.log('predict:', JSON.stringify(text));
 				this.terminal.write(text);
 			}
 
@@ -899,6 +903,56 @@ const attributesToSeq = (cell: XTermAttributes) => cell.isAttributeDefault()
 		cell.isBgDefault() && `${CSI}49m`,
 	].filter(seq => !!seq).join('');
 
+
+const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T>) => {
+	if (a.length - ai > b.length) {
+		return false;
+	}
+
+	for (let bi = 0; bi < b.length; bi++, ai++) {
+		if (b[ai] !== a[ai]) {
+			return false;
+		}
+	}
+
+	return true;
+};
+
+/**
+ * @see https://github.com/xtermjs/xterm.js/blob/065eb13a9d3145bea687239680ec9696d9112b8e/src/common/InputHandler.ts#L2127
+ */
+const getColorWidth = (params: (number | number[])[], pos: number) => {
+	const accu = [0, 0, -1, 0, 0, 0];
+	let cSpace = 0;
+	let advance = 0;
+
+	do {
+		const v = params[pos + advance];
+		accu[advance + cSpace] = typeof v === 'number' ? v : v[0];
+		if (typeof v !== 'number') {
+			let i = 0;
+			do {
+				if (accu[1] === 5) {
+					cSpace = 1;
+				}
+				accu[advance + i + 1 + cSpace] = v[i];
+			} while (++i < v.length && i + advance + 1 + cSpace < accu.length);
+			break;
+		}
+		// exit early if can decide color mode with semicolons
+		if ((accu[1] === 5 && advance + cSpace >= 2)
+			|| (accu[1] === 2 && advance + cSpace >= 5)) {
+			break;
+		}
+		// offset colorSpace slot for semicolon mode
+		if (accu[1]) {
+			cSpace = 1;
+		}
+	} while (++advance + pos < params.length && advance + cSpace < accu.length);
+
+	return advance;
+};
+
 class TypeAheadStyle {
 	private static compileArgs(args: ReadonlyArray<number>) {
 		return `${CSI}${args.join(';')}m`;
@@ -909,9 +963,9 @@ class TypeAheadStyle {
 	 * we see a style coming in, we know that the PTY actually wanted to update.
 	 */
 	private expectedIncomingStyles = 0;
-	private applyArgs!: number[];
-	private undoArgs!: number[];
-	private colorFg = false;
+	private applyArgs!: ReadonlyArray<number>;
+	private originalUndoArgs!: ReadonlyArray<number>;
+	private undoArgs!: ReadonlyArray<number>;
 
 	public apply!: string;
 	public undo!: string;
@@ -932,21 +986,60 @@ class TypeAheadStyle {
 	 * Should be called when an attribut eupdate happens in the terminal.
 	 */
 	public onDidWriteSGR(args: (number | number[])[]) {
-		if (!this.colorFg) {
-			return; // no need to keep track if typeahead is not rgb
+		const originalUndo = this.undoArgs;
+		for (let i = 0; i < args.length;) {
+			const px = args[i];
+			const p = typeof px === 'number' ? px : px[0];
+
+			if (this.expectedIncomingStyles) {
+				if (arrayHasPrefixAt(args, i, this.undoArgs)) {
+					this.expectedIncomingStyles--;
+					i += this.undoArgs.length;
+					continue;
+				}
+				if (arrayHasPrefixAt(args, i, this.applyArgs)) {
+					this.expectedIncomingStyles--;
+					i += this.applyArgs.length;
+					continue;
+				}
+			}
+
+			const width = p === 38 || p === 48 || p === 58 ? getColorWidth(args, i) : 1;
+			switch (this.applyArgs[0]) {
+				case 1:
+					if (p === 2) {
+						this.undoArgs = [22, 2];
+					} else if (p === 22 || p === 0) {
+						this.undoArgs = [22];
+					}
+					break;
+				case 2:
+					if (p === 1) {
+						this.undoArgs = [22, 1];
+					} else if (p === 22 || p === 0) {
+						this.undoArgs = [22];
+					}
+					break;
+				case 38:
+					if (p === 0 || p === 39 || p === 100) {
+						this.undoArgs = [39];
+					} else if ((p >= 30 && p <= 38) || (p >= 90 && p <= 97)) {
+						this.undoArgs = args.slice(i, i + width) as number[];
+					}
+					break;
+				default:
+					if (p === this.applyArgs[0]) {
+						this.undoArgs = this.applyArgs;
+					} else if (p === 0) {
+						this.undoArgs = this.originalUndoArgs;
+					}
+				// no-op
+			}
+
+			i += width;
 		}
 
-		if (this.expectedIncomingStyles && (arrayEqual(args, this.applyArgs) || arrayEqual(args, this.undoArgs))) {
-			this.expectedIncomingStyles--;
-			return;
-		}
-
-		const p = args[0];
-		if (p === 0 || p === 39 || p === 100) {
-			this.undoArgs = [39];
-			this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
-		} else if ((p >= 30 && p <= 37) || (p >= 90 && p <= 97)) {
-			this.undoArgs = args as number[];
+		if (originalUndo !== this.undoArgs) {
 			this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
 		}
 	}
@@ -957,10 +1050,9 @@ class TypeAheadStyle {
 	public onUpdate(style: ITerminalConfiguration['typeaheadStyle']) {
 		const { applyArgs, undoArgs } = this.getArgs(style);
 		this.applyArgs = applyArgs;
-		this.undoArgs = undoArgs;
+		this.undoArgs = this.originalUndoArgs = undoArgs;
 		this.apply = TypeAheadStyle.compileArgs(this.applyArgs);
 		this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
-		this.colorFg = this.applyArgs[0] === 38;
 	}
 
 	private getArgs(style: ITerminalConfiguration['typeaheadStyle']) {
@@ -1076,7 +1168,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		console.log('user data:', JSON.stringify(data));
+		// console.log('user data:', JSON.stringify(data));
 
 		const terminal = this.timeline.terminal;
 		const buffer = terminal.buffer.active;
@@ -1169,9 +1261,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 
-		console.log('incoming data:', JSON.stringify(event.data));
+		// console.log('incoming data:', JSON.stringify(event.data));
 		event.data = this.timeline.beforeServerInput(event.data);
-		console.log('emitted data:', JSON.stringify(event.data));
+		// console.log('emitted data:', JSON.stringify(event.data));
 
 		// If there's something that looks like a password prompt, omit giving
 		// input. This is approximate since there's no TTY "password here" code,

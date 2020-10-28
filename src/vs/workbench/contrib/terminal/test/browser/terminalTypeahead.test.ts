@@ -130,6 +130,7 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
 				`${CSI}X`, // delete character
+				`${CSI}0m`, // reset style
 				'q', // new character
 				`${CSI}?25h`, // show cursor
 			].join(''));
@@ -139,7 +140,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('restores cursor graphics mode', () => {
 			const t = createMockTerminal({
 				lines: ['hello|'],
-				cursorAttrs: { isBold: true, isFgPalette: true, getFgColor: 1 },
+				cursorAttrs: { isAttributeDefault: false, isBold: true, isFgPalette: true, getFgColor: 1 },
 			});
 			addon.activate(t.terminal);
 			t.onData('o');
@@ -148,6 +149,8 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
 				`${CSI}X`, // delete character
+				`${CSI}1m`, // reset style
+				`${CSI}38;5;1m`, // reset style
 				'q', // new character
 				`${CSI}?25h`, // show cursor
 			].join(''));
