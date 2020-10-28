@@ -879,7 +879,11 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
 		this._register(terminal.onData(e => this.onUserData(e)));
-		this._register(terminal.onResize(() => timeline.clearCursor()));
+		this._register(terminal.onResize(() => {
+			timeline.setShowPredictions(false);
+			timeline.clearCursor();
+			this.reevaluatePredictorState(stats, timeline);
+		}));
 		this._register(this.config.onConfigChanged(() => {
 			this.typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
 			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
