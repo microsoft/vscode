@@ -74,10 +74,10 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { IPosition } from 'vs/editor/common/core/position';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
+import { Selection } from 'vs/editor/common/core/selection';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -102,7 +102,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	private inputWidgets = new Map<ISCMInput, SCMInputWidget>();
 	private contentHeights = new WeakMap<ISCMInput, number>();
-	private editorPositions = new WeakMap<ISCMInput, IPosition>();
+	private editorSelections = new WeakMap<ISCMInput, Selection[]>();
 
 	constructor(
 		private outerLayout: ISCMLayout,
@@ -134,18 +134,18 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		this.inputWidgets.set(input, templateData.inputWidget);
 		disposables.add({ dispose: () => this.inputWidgets.delete(input) });
 
-		// Widget position
-		const position = this.editorPositions.get(input);
+		// Widget cursor selections
+		const selections = this.editorSelections.get(input);
 
-		if (position) {
-			templateData.inputWidget.position = position;
+		if (selections) {
+			templateData.inputWidget.selections = selections;
 		}
 
 		disposables.add(toDisposable(() => {
-			const position = templateData.inputWidget.position;
+			const selections = templateData.inputWidget.selections;
 
-			if (position) {
-				this.editorPositions.set(input, position);
+			if (selections) {
+				this.editorSelections.set(input, selections);
 			}
 		}));
 
@@ -1270,6 +1270,11 @@ class SCMInputWidget extends Disposable {
 	private validation: IInputValidation | undefined;
 	private validationDisposable: IDisposable = Disposable.None;
 
+	// This is due to "Setup height change listener on next tick" above
+	// https://github.com/microsoft/vscode/issues/108067
+	private lastLayoutWasTrash = false;
+	private shouldFocusAfterLayout = false;
+
 	readonly onDidChangeContentHeight: Event<void>;
 
 	get input(): ISCMInput | undefined {
@@ -1395,13 +1400,13 @@ class SCMInputWidget extends Disposable {
 		this.model = { input, textModel };
 	}
 
-	get position(): IPosition | null {
-		return this.inputEditor.getPosition();
+	get selections(): Selection[] | null {
+		return this.inputEditor.getSelections();
 	}
 
-	set position(position: IPosition | null) {
-		if (position) {
-			this.inputEditor.setPosition(position);
+	set selections(selections: Selection[] | null) {
+		if (selections) {
+			this.inputEditor.setSelections(selections);
 		}
 	}
 
@@ -1497,11 +1502,28 @@ class SCMInputWidget extends Disposable {
 		const editorHeight = this.getContentHeight();
 		const dimension = new Dimension(this.element.clientWidth - 2, editorHeight);
 
+		if (dimension.width < 0) {
+			this.lastLayoutWasTrash = true;
+			return;
+		}
+
+		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
 		this.renderValidation();
+
+		if (this.shouldFocusAfterLayout) {
+			this.shouldFocusAfterLayout = false;
+			this.focus();
+		}
 	}
 
 	focus(): void {
+		if (this.lastLayoutWasTrash) {
+			this.lastLayoutWasTrash = false;
+			this.shouldFocusAfterLayout = true;
+			return;
+		}
+
 		this.inputEditor.focus();
 		this.editorContainer.classList.add('synthetic-focus');
 	}
