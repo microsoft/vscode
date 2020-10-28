@@ -35,6 +35,9 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -265,7 +268,9 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -278,7 +283,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
+			this.showContextMenu(e);
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -295,15 +300,18 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	private showContextMenu(): void {
+	private showContextMenu(e?: MouseEvent): void {
 		const globalActivityActions: IAction[] = [];
 		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
+		const native = getTitleBarStyle(this.configurationService, this.environmentService) === 'native';
+		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		const location = { x: containerPosition.left + (position === 'left' ? containerPosition.width : 0), y: containerPosition.top + containerPosition.height };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
+			getAnchor: () => !native ? location : e || this.container,
+			anchorAlignment: !native ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
 			getActions: () => globalActivityActions,
 			onHide: () => {
 				globalActivityMenu.dispose();
