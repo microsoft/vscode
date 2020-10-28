@@ -73,6 +73,17 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 			inFlightRequests.push(inFlightRequest);
 			this._inFlightRequests.set(extensionId, inFlightRequests);
+
+			try {
+				await session;
+			} finally {
+				const requestIndex = inFlightRequests.findIndex(request => request.scopes === sortedScopes);
+				if (requestIndex > -1) {
+					inFlightRequests.splice(requestIndex);
+					this._inFlightRequests.set(extensionId, inFlightRequests);
+				}
+			}
+
 			return session;
 		}
 	}
@@ -117,12 +128,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			}
 		}
 
-		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
-		const requestIndex = inFlightRequests.findIndex(request => request.scopes === scopes.sort().join(' '));
-		if (requestIndex > -1) {
-			inFlightRequests.splice(requestIndex);
-			this._inFlightRequests.set(extensionId, inFlightRequests);
-		}
 
 		return session;
 	}
