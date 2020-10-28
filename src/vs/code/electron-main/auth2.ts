@@ -5,6 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -107,16 +108,22 @@ export class ProxyAuthHandler2 extends Disposable {
 	}
 
 	private async doResolveProxyCredentials(event: ElectronEvent, webContents: WebContents, authInfo: AuthInfo): Promise<Credentials | undefined> {
-		this.logService.trace('auth#doResolveProxyCredentials - enter');
+		this.logService.info('auth#doResolveProxyCredentials - enter', authInfo);
 
 		// Signal we handle this on our own
 		event.preventDefault();
+
+		// Compute a hash over the authentication info to be used
+		// with the credentials store to return the right credentials
+		// given the properties of the auth request
+		// (see https://github.com/microsoft/vscode/issues/109497)
+		const authInfoHash = String(hash({ scheme: authInfo.scheme, host: authInfo.host, port: authInfo.port }));
 
 		// Find any previously stored credentials
 		let username: string | undefined = undefined;
 		let password: string | undefined = undefined;
 		try {
-			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, 'account');
+			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 			if (encryptedSerializedProxyCredentials) {
 				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
 
@@ -167,9 +174,9 @@ export class ProxyAuthHandler2 extends Disposable {
 					try {
 						if (reply.remember) {
 							const encryptedSerializedCredentials = await this.encryptionMainService.encrypt(JSON.stringify(credentials));
-							await this.nativeHostMainService.setPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, 'account', encryptedSerializedCredentials);
+							await this.nativeHostMainService.setPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
 						} else {
-							await this.nativeHostMainService.deletePassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, 'account');
+							await this.nativeHostMainService.deletePassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 						}
 					} catch (error) {
 						this.logService.error(error); // handle gracefully
