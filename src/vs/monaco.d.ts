@@ -3702,10 +3702,6 @@ declare namespace monaco.editor {
 		 */
 		showIcons?: boolean;
 		/**
-		 * Max suggestions to show in suggestions. Defaults to 12.
-		 */
-		maxVisibleSuggestions?: number;
-		/**
 		 * Show method-suggestions.
 		 */
 		showMethods?: boolean;

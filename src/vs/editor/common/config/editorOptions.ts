@@ -3023,10 +3023,6 @@ export interface ISuggestOptions {
 	 */
 	showIcons?: boolean;
 	/**
-	 * Max suggestions to show in suggestions. Defaults to 12.
-	 */
-	maxVisibleSuggestions?: number;
-	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -3157,7 +3153,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
-			maxVisibleSuggestions: 12,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3229,10 +3224,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
-					default: defaults.maxVisibleSuggestions,
-					minimum: 1,
-					maximum: 15,
-					description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
+					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -3399,7 +3391,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
-			maxVisibleSuggestions: EditorIntOption.clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),

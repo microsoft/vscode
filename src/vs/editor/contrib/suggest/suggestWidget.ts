@@ -749,7 +749,7 @@ export class SuggestWidget implements IDisposable {
 
 			// height math
 			const fullHeight = info.statusBarHeight + this.list.contentHeight + info.borderHeight;
-			const preferredHeight = info.statusBarHeight + (info.itemHeight * this.editor.getOption(EditorOption.suggest).maxVisibleSuggestions) + info.borderHeight;
+			const preferredHeight = info.statusBarHeight + 12 * info.itemHeight + info.borderHeight;
 			const minHeight = info.itemHeight + info.statusBarHeight;
 			const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
