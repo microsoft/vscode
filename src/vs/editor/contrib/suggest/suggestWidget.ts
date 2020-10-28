@@ -663,12 +663,12 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	showDetails(loading: boolean): void {
+		this._details.show();
 		if (loading) {
 			this._details.widget.renderLoading();
 		} else {
 			this._details.widget.renderItem(this.list.getFocusedElements()[0], this.explainMode);
 		}
-		this._details.show();
 		this._positionDetails();
 		this.editor.focus();
 		this.element.domNode.classList.add('shows-details');
