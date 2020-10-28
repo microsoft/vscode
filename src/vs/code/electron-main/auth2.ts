@@ -118,7 +118,7 @@ export class ProxyAuthHandler2 extends Disposable {
 	}
 
 	private async doResolveProxyCredentials(event: ElectronEvent, webContents: WebContents, authInfo: AuthInfo): Promise<Credentials | undefined> {
-		this.logService.info('auth#doResolveProxyCredentials - enter', authInfo);
+		this.logService.trace('auth#doResolveProxyCredentials - enter', authInfo);
 
 		// Signal we handle this on our own
 		event.preventDefault();
@@ -172,27 +172,35 @@ export class ProxyAuthHandler2 extends Disposable {
 		this.state = ProxyAuthState.LoginDialogShown;
 
 		// Handle reply
-		return new Promise(resolve => {
-			const proxyAuthResponseHandler = async (event: ElectronEvent, channel: string, reply: Credentials & { remember: boolean }) => {
+		return new Promise<Credentials | undefined>(resolve => {
+			const proxyAuthResponseHandler = async (event: ElectronEvent, channel: string, reply: Credentials & { remember: boolean } | undefined /* canceled */) => {
 				if (channel === payload.replyChannel) {
 					this.logService.trace(`auth#doResolveProxyCredentials - exit - received credentials from window ${window.id}`);
 					webContents.off('ipc-message', proxyAuthResponseHandler);
 
-					const credentials: Credentials = { username: reply.username, password: reply.password };
+					// We got credentials from the window
+					if (reply) {
+						const credentials: Credentials = { username: reply.username, password: reply.password };
 
-					// Update stored credentials based on `remember` flag
-					try {
-						if (reply.remember) {
-							const encryptedSerializedCredentials = await this.encryptionMainService.encrypt(JSON.stringify(credentials));
-							await this.nativeHostMainService.setPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
-						} else {
-							await this.nativeHostMainService.deletePassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+						// Update stored credentials based on `remember` flag
+						try {
+							if (reply.remember) {
+								const encryptedSerializedCredentials = await this.encryptionMainService.encrypt(JSON.stringify(credentials));
+								await this.nativeHostMainService.setPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
+							} else {
+								await this.nativeHostMainService.deletePassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+							}
+						} catch (error) {
+							this.logService.error(error); // handle gracefully
 						}
-					} catch (error) {
-						this.logService.error(error); // handle gracefully
+
+						resolve({ username: credentials.username, password: credentials.password });
 					}
 
-					resolve({ username: credentials.username, password: credentials.password });
+					// We did not get any credentials from the window (e.g. cancelled)
+					else {
+						resolve(undefined);
+					}
 				}
 			};
 
