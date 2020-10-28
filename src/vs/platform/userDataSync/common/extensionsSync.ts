@@ -362,7 +362,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await Promise.all([...added, ...updated].map(async e => {
 				const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
 
-				// Builtin Extension: Sync enablement and state
+				// Builtin Extension Sync: Enablement & State
 				if (installedExtension && installedExtension.isBuiltin) {
 					if (e.state && installedExtension.manifest.version === e.version) {
 						const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
@@ -382,19 +382,24 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					return;
 				}
 
+				// User Extension Sync: Install/Update, Enablement & State
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier);
+
+				/* Update extension state only if
+				*		extension is installed and version is same as synced version or
+				 *		extension is not installed and installable
+				 */
+				if (e.state &&
+					(installedExtension ? installedExtension.manifest.version === e.version /* Installed and has same version */
+						: !!extension /* Installable */)
+				) {
+					const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
+					forEach(e.state, ({ key, value }) => extensionState[key] = value);
+					this.storageService.store(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
+				}
+
 				if (extension) {
 					try {
-						/* Update extension state only if
-						 *		extension is not installed or
-						 *		installed extension is same version as synced version
-						 */
-						if (e.state && (!installedExtension || installedExtension.manifest.version === e.version)) {
-							const extensionState = JSON.parse(this.storageService.get(extension.identifier.id, StorageScope.GLOBAL) || '{}');
-							forEach(e.state, ({ key, value }) => extensionState[key] = value);
-							this.storageService.store(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
-						}
-
 						if (e.disabled) {
 							this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...`, e.identifier.id, extension.version);
 							await this.extensionEnablementService.disableExtension(extension.identifier);
