@@ -83,7 +83,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'extensions',
 	command: {
 		id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
-		title: localize('installVSIX', "Install VSIX"),
+		title: localize('installVSIX', "Install Extension VSIX"),
 	},
 	when: ResourceContextKey.Extension.isEqualTo('.vsix')
 });
@@ -225,16 +225,8 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, resources: URI[] | URI) => {
 		const extensionService = accessor.get(IExtensionService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const hostService = accessor.get(IHostService);
 		const notificationService = accessor.get(INotificationService);
-
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
-
-		if (!viewlet) {
-			return;
-		}
 
 		const extensions = Array.isArray(resources) ? resources : [resources];
 		await Promise.all(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
@@ -254,7 +246,6 @@ CommandsRegistry.registerCommand({
 						{ sticky: true }
 					);
 				}
-				await instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
 			});
 	}
 });
