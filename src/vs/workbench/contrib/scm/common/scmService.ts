@@ -5,7 +5,7 @@
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
@@ -19,8 +19,8 @@ class SCMInput implements ISCMInput {
 		return this._value;
 	}
 
-	private readonly _onDidChange = new Emitter<string>();
-	readonly onDidChange: Event<string> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<ISCMInputChangeEvent>();
+	readonly onDidChange: Event<ISCMInputChangeEvent> = this._onDidChange.event;
 
 	private _placeholder = '';
 
@@ -104,7 +104,7 @@ class SCMInput implements ISCMInput {
 		});
 	}
 
-	setValue(value: string, transient: boolean) {
+	setValue(value: string, transient: boolean, reason?: SCMInputChangeReason) {
 		if (value === this._value) {
 			return;
 		}
@@ -115,35 +115,31 @@ class SCMInput implements ISCMInput {
 		}
 
 		this._value = value;
-		this._onDidChange.fire(value);
+		this._onDidChange.fire({ value, reason });
 	}
 
 	showNextHistoryValue(): void {
 		if (this.historyNavigator.isAtEnd()) {
 			return;
-		}
-
-		if (!this.historyNavigator.has(this.value)) {
+		} else if (!this.historyNavigator.has(this.value)) {
 			this.historyNavigator.replaceLast(this._value);
 			this.historyNavigator.resetCursor();
 		}
 
 		const value = this.historyNavigator.next();
-		this.setValue(value, true);
+		this.setValue(value, true, SCMInputChangeReason.HistoryNext);
 	}
 
 	showPreviousHistoryValue(): void {
 		if (this.historyNavigator.isAtEnd()) {
 			this.historyNavigator.replaceLast(this._value);
-		}
-
-		if (!this.historyNavigator.has(this._value)) {
+		} else if (!this.historyNavigator.has(this._value)) {
 			this.historyNavigator.replaceLast(this._value);
 			this.historyNavigator.resetCursor();
 		}
 
 		const value = this.historyNavigator.previous();
-		this.setValue(value, true);
+		this.setValue(value, true, SCMInputChangeReason.HistoryPrevious);
 	}
 }
 
