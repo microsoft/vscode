@@ -816,7 +816,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	static isBuiltInExtensionsQuery(query: string): boolean {
-		return /@builtin$/i.test(query.trim());
+		return /^\s*@builtin$/i.test(query.trim());
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
