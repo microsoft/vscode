@@ -754,8 +754,8 @@ export class SuggestWidget implements IDisposable {
 			const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
-			const maxHeightBelow = bodyBox.height - cursorBottom - info.verticalPadding;
-			const maxHeightAbove = editorBox.top + cursorBox.top - info.verticalPadding;
+			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
+			const maxHeightAbove = Math.min(editorBox.top + cursorBox.top - info.verticalPadding, fullHeight);
 			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) - info.borderHeight, fullHeight);
 
 
