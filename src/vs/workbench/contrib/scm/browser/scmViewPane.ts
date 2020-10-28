@@ -1346,11 +1346,11 @@ class SCMInputWidget extends Disposable {
 			}
 			textModel.setValue(value);
 
-			if (reason === SCMInputChangeReason.HistoryPrevious) {
-				this.inputEditor.setPosition(textModel.getFullModelRange().getStartPosition());
-			} else {
-				this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
-			}
+			const position = reason === SCMInputChangeReason.HistoryPrevious
+				? textModel.getFullModelRange().getStartPosition()
+				: textModel.getFullModelRange().getEndPosition();
+			this.inputEditor.setPosition(position);
+			this.inputEditor.revealPositionInCenterIfOutsideViewport(position);
 		}));
 
 		// Keep API in sync with model, update placeholder visibility and validate
