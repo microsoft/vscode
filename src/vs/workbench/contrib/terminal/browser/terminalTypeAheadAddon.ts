@@ -187,7 +187,7 @@ export interface IPrediction {
 	/**
 	 * If available, this will be called when the prediction is correct.
 	 */
-	rollForwards(cursor: Cursor, withInput: string, cursorAttributes: string): string;
+	rollForwards(cursor: Cursor, withInput: string): string;
 
 	/**
 	 * Returns whether the given input is one expected by this prediction.
@@ -344,25 +344,22 @@ class CharacterPrediction implements IPrediction {
 	public readonly affectsStyle = true;
 
 	protected appliedAt?: {
-		pos: ICoordinate,
+		pos: ICoordinate;
 		oldAttributes: string;
 		oldChar: string;
 	};
 
-	constructor(private readonly style: string, private readonly char: string) { }
+	constructor(private readonly style: TypeAheadStyle, private readonly char: string) { }
 
 	public apply(_: IBuffer, cursor: Cursor) {
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { pos: cursor.coordinate, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
+			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
 			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
 
 		cursor.shift(1);
 
-		// no need to change the style after applying -- we know that the next
-		// character will be a prediction (which sets its own style) or we'll roll
-		// back or forwards and set the style there.
-		return this.style + this.char;
+		return this.style.apply + this.char + this.style.undo;
 	}
 
 	public rollback(cursor: Cursor) {
@@ -375,12 +372,12 @@ class CharacterPrediction implements IPrediction {
 		return r;
 	}
 
-	public rollForwards(cursor: Cursor, input: string, cursorAttributes: string) {
+	public rollForwards(cursor: Cursor, input: string) {
 		if (!this.appliedAt) {
 			return ''; // not applied
 		}
 
-		return cursor.clone().moveTo(this.appliedAt.pos) + cursorAttributes + input;
+		return cursor.clone().moveTo(this.appliedAt.pos) + input;
 	}
 
 	public matches(input: StringReader) {
@@ -402,18 +399,30 @@ class CharacterPrediction implements IPrediction {
 	}
 }
 
-class BackspacePrediction extends CharacterPrediction {
-	constructor() {
-		super('', '\b');
-	}
+class BackspacePrediction implements IPrediction {
+	protected appliedAt?: {
+		pos: ICoordinate;
+		oldAttributes: string;
+		oldChar: string;
+	};
 
 	public apply(_: IBuffer, cursor: Cursor) {
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { pos: cursor.coordinate, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
+			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
 			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
 
 		return cursor.shift(-1) + DELETE_CHAR;
+	}
+
+	public rollback(cursor: Cursor) {
+		if (!this.appliedAt) {
+			return ''; // not applied
+		}
+
+		const { oldAttributes, oldChar, pos } = this.appliedAt;
+		const r = cursor.moveTo(pos) + (oldChar ? `${oldAttributes}${oldChar}${cursor.moveTo(pos)}` : DELETE_CHAR);
+		return r;
 	}
 
 	public rollForwards() {
@@ -501,7 +510,7 @@ class CursorMovePrediction implements IPrediction {
 	public apply(buffer: IBuffer, cursor: Cursor) {
 		const prevPosition = cursor.x;
 		const currentCell = cursor.getCell();
-		const prevAttrs = currentCell ? getBufferCellAttributes(currentCell) : '';
+		const prevAttrs = currentCell ? attributesToSeq(currentCell) : '';
 
 		const { amount, direction, moveByWords } = this;
 		const delta = direction === CursorMoveDirection.Back ? -1 : 1;
@@ -638,11 +647,6 @@ export class PredictionTimeline {
 	private expected: ({ gen: number; p: IPrediction })[] = [];
 
 	/**
-	 * Cursor graphics attributes prior to applying the predictions.
-	 */
-	private cursorAttrs = `${CSI}0m`;
-
-	/**
 	 * Current prediction generation.
 	 */
 	private currentGen = 0;
@@ -666,12 +670,6 @@ export class PredictionTimeline {
 	 */
 	private showPredictions = false;
 
-	/**
-	 * Number of typeahead style arguments we expect to read. If this is 0 and
-	 * we see a style coming in, we know that the PTY actually wanted to update.
-	 */
-	private expectedIncomingStyles = 0;
-
 	private readonly addedEmitter = new Emitter<IPrediction>();
 	public readonly onPredictionAdded = this.addedEmitter.event;
 	private readonly failedEmitter = new Emitter<IPrediction>();
@@ -683,7 +681,7 @@ export class PredictionTimeline {
 		return this.showPredictions;
 	}
 
-	constructor(public readonly terminal: Terminal) { }
+	constructor(public readonly terminal: Terminal, private readonly style: TypeAheadStyle) { }
 
 	public setShowPredictions(show: boolean) {
 		if (show === this.showPredictions) {
@@ -701,7 +699,7 @@ export class PredictionTimeline {
 		const toApply = this.expected.filter(({ gen }) => gen === this.expected[0].gen).map(({ p }) => p);
 		if (show) {
 			this.cursor = undefined;
-			this.expectedIncomingStyles += toApply.reduce((count, p) => p.affectsStyle ? count + 1 : count, 0);
+			this.style.expectIncomingStyle(toApply.reduce((count, p) => p.affectsStyle ? count + 1 : count, 0));
 			this.terminal.write(toApply.map(p => p.apply(buffer, this.getCursor(buffer))).join(''));
 		} else {
 			this.terminal.write(toApply.reverse().map(p => p.rollback(this.getCursor(buffer))).join(''));
@@ -750,7 +748,7 @@ export class PredictionTimeline {
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
 					const eaten = input.slice(beforeTestReaderIndex, reader.index);
-					output += prediction.rollForwards?.(cursor, eaten, this.cursorAttrs);
+					output += prediction.rollForwards?.(cursor, eaten);
 					this.succeededEmitter.fire(prediction);
 					this.expected.shift();
 					break;
@@ -765,9 +763,6 @@ export class PredictionTimeline {
 					// and clear predictions, since they are no longer valid
 					const rollback = this.expected.filter(p => p.gen === startingGen).reverse();
 					output += rollback.map(({ p }) => p.rollback(this.getCursor(buffer))).join('');
-					if (rollback.some(r => r.p.affectsStyle)) {
-						output += this.cursorAttrs;
-					}
 					this.expected = [];
 					this.cursor = undefined;
 					this.failedEmitter.fire(prediction);
@@ -792,7 +787,7 @@ export class PredictionTimeline {
 					break;
 				}
 				if (p.affectsStyle) {
-					this.expectedIncomingStyles++;
+					this.style.expectIncomingStyle();
 				}
 
 				output += p.apply(buffer, this.getCursor(buffer));
@@ -828,7 +823,7 @@ export class PredictionTimeline {
 			const text = prediction.apply(buffer, this.getCursor(buffer));
 			if (this.showPredictions && text) {
 				if (prediction.affectsStyle) {
-					this.expectedIncomingStyles++;
+					this.style.expectIncomingStyle();
 				}
 				console.log('predict:', JSON.stringify(text));
 				this.terminal.write(text);
@@ -861,20 +856,6 @@ export class PredictionTimeline {
 		return this.expected[this.expected.length - 1]?.p;
 	}
 
-	/**
-	 * Should be called when graphics attributes are written to the terminal
-	 * in order to track the intended cursor style.
-	 */
-	public updateCursorSyle(args: number[], typeaheadArgs: number[]) {
-		if (this.expectedIncomingStyles && arrayEqual(args, typeaheadArgs)) {
-			this.expectedIncomingStyles--;
-			return;
-		}
-
-		// todo: apply to attribute smartly once xterm api is available...
-		this.cursorAttrs = `${CSI}${args.join(';')}m`;
-	}
-
 	public getCursor(buffer: IBuffer) {
 		if (!this.cursor) {
 			if (this.showPredictions) {
@@ -898,7 +879,7 @@ export class PredictionTimeline {
 /**
  * Gets the escape sequence to restore state/appearence in the cell.
  */
-const getBufferCellAttributes = (cell: XTermAttributes) => cell.isAttributeDefault()
+const attributesToSeq = (cell: XTermAttributes) => cell.isAttributeDefault()
 	? `${CSI}0m`
 	: [
 		cell.isBold() && `${CSI}1m`,
@@ -918,27 +899,90 @@ const getBufferCellAttributes = (cell: XTermAttributes) => cell.isAttributeDefau
 		cell.isBgDefault() && `${CSI}49m`,
 	].filter(seq => !!seq).join('');
 
-const parseTypeheadArgs = (style: ITerminalConfiguration['typeaheadStyle']) => {
-	switch (style) {
-		case 'bold':
-			return [1];
-		case 'dim':
-			return [2];
-		case 'italic':
-			return [3];
-		case 'underlined':
-			return [4];
-		case 'inverted':
-			return [7];
-		default:
-			const { r, g, b } = Color.fromHex(style).rgba;
-			return [38, 2, r, g, b];
+class TypeAheadStyle {
+	private static compileArgs(args: ReadonlyArray<number>) {
+		return `${CSI}${args.join(';')}m`;
 	}
-};
+
+	/**
+	 * Number of typeahead style arguments we expect to read. If this is 0 and
+	 * we see a style coming in, we know that the PTY actually wanted to update.
+	 */
+	private expectedIncomingStyles = 0;
+	private applyArgs!: number[];
+	private undoArgs!: number[];
+	private colorFg = false;
+
+	public apply!: string;
+	public undo!: string;
+
+	constructor(value: ITerminalConfiguration['typeaheadStyle']) {
+		this.onUpdate(value);
+	}
+
+	/**
+	 * Signals that a style was written to the terminal and we should watch
+	 * for it coming in.
+	 */
+	public expectIncomingStyle(n = 1) {
+		this.expectedIncomingStyles += n * 2;
+	}
+
+	/**
+	 * Should be called when an attribut eupdate happens in the terminal.
+	 */
+	public onDidWriteSGR(args: (number | number[])[]) {
+		if (!this.colorFg) {
+			return; // no need to keep track if typeahead is not rgb
+		}
+
+		if (this.expectedIncomingStyles && (arrayEqual(args, this.applyArgs) || arrayEqual(args, this.undoArgs))) {
+			this.expectedIncomingStyles--;
+			return;
+		}
+
+		const p = args[0];
+		if (p === 0 || p === 39 || p === 100) {
+			this.undoArgs = [39];
+			this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
+		} else if ((p >= 30 && p <= 37) || (p >= 90 && p <= 97)) {
+			this.undoArgs = args as number[];
+			this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
+		}
+	}
+
+	/**
+	 * Updates the current typeahead style.
+	 */
+	public onUpdate(style: ITerminalConfiguration['typeaheadStyle']) {
+		const { applyArgs, undoArgs } = this.getArgs(style);
+		this.applyArgs = applyArgs;
+		this.undoArgs = undoArgs;
+		this.apply = TypeAheadStyle.compileArgs(this.applyArgs);
+		this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
+	}
+
+	private getArgs(style: ITerminalConfiguration['typeaheadStyle']) {
+		switch (style) {
+			case 'bold':
+				return { applyArgs: [1], undoArgs: [22] };
+			case 'dim':
+				return { applyArgs: [2], undoArgs: [22] };
+			case 'italic':
+				return { applyArgs: [3], undoArgs: [23] };
+			case 'underlined':
+				return { applyArgs: [4], undoArgs: [24] };
+			case 'inverted':
+				return { applyArgs: [7], undoArgs: [27] };
+			default:
+				const { r, g, b } = Color.fromHex(style).rgba;
+				return { applyArgs: [38, 2, r, g, b], undoArgs: [39] };
+		}
+	}
+}
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
-	private typeaheadArgs = parseTypeheadArgs(this.config.config.typeaheadStyle);
-	private typeaheadStyle = `${CSI}${this.typeaheadArgs.join(';')}m`;
+	private typeaheadStyle = new TypeAheadStyle(this.config.config.typeaheadStyle);
 	private typeaheadThreshold = this.config.config.typeaheadThreshold;
 	private lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
@@ -953,12 +997,12 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	public activate(terminal: Terminal): void {
-		const timeline = this.timeline = new PredictionTimeline(terminal);
+		const timeline = this.timeline = new PredictionTimeline(terminal, this.typeaheadStyle);
 		const stats = this.stats = this._register(new PredictionStats(this.timeline));
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
 		this._register(terminal.parser.registerCsiHandler({ final: 'm' }, args => {
-			timeline.updateCursorSyle(args as number[], this.typeaheadArgs);
+			this.typeaheadStyle.onDidWriteSGR(args);
 			return false;
 		}));
 		this._register(terminal.onData(e => this.onUserData(e)));
@@ -968,8 +1012,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.config.onConfigChanged(() => {
-			this.typeaheadArgs = parseTypeheadArgs(this.config.config.typeaheadStyle);
-			this.typeaheadStyle = `${CSI}${this.typeaheadArgs.join(';')}m`;
+			this.typeaheadStyle.onUpdate(this.config.config.typeaheadStyle);
 			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
 			this.reevaluatePredictorState(stats, timeline);
 		}));
