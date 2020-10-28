@@ -970,7 +970,7 @@ class TypeAheadStyle {
 	public apply!: string;
 	public undo!: string;
 
-	constructor(value: ITerminalConfiguration['typeaheadStyle']) {
+	constructor(value: ITerminalConfiguration['localEchoStyle']) {
 		this.onUpdate(value);
 	}
 
@@ -1047,7 +1047,7 @@ class TypeAheadStyle {
 	/**
 	 * Updates the current typeahead style.
 	 */
-	public onUpdate(style: ITerminalConfiguration['typeaheadStyle']) {
+	public onUpdate(style: ITerminalConfiguration['localEchoStyle']) {
 		const { applyArgs, undoArgs } = this.getArgs(style);
 		this.applyArgs = applyArgs;
 		this.undoArgs = this.originalUndoArgs = undoArgs;
@@ -1055,7 +1055,7 @@ class TypeAheadStyle {
 		this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
 	}
 
-	private getArgs(style: ITerminalConfiguration['typeaheadStyle']) {
+	private getArgs(style: ITerminalConfiguration['localEchoStyle']) {
 		switch (style) {
 			case 'bold':
 				return { applyArgs: [1], undoArgs: [22] };
@@ -1075,8 +1075,8 @@ class TypeAheadStyle {
 }
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
-	private typeaheadStyle = new TypeAheadStyle(this.config.config.typeaheadStyle);
-	private typeaheadThreshold = this.config.config.typeaheadThreshold;
+	private typeaheadStyle = new TypeAheadStyle(this.config.config.localEchoStyle);
+	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 	private lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
 	public stats?: PredictionStats;
@@ -1105,8 +1105,8 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.config.onConfigChanged(() => {
-			this.typeaheadStyle.onUpdate(this.config.config.typeaheadStyle);
-			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
+			this.typeaheadStyle.onUpdate(this.config.config.localEchoStyle);
+			this.typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
