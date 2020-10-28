@@ -41,19 +41,15 @@ export class ResizableHTMLElement {
 
 	constructor() {
 		this.domNode = document.createElement('div');
-		this._northSash = new Sash(this.domNode, { getHorizontalSashTop: () => 0 }, { orientation: Orientation.HORIZONTAL });
 		this._eastSash = new Sash(this.domNode, { getVerticalSashLeft: () => this._size.width }, { orientation: Orientation.VERTICAL });
-		this._southSash = new Sash(this.domNode, { getHorizontalSashTop: () => this._size.height }, { orientation: Orientation.HORIZONTAL });
 		this._westSash = new Sash(this.domNode, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL });
+		this._northSash = new Sash(this.domNode, { getHorizontalSashTop: () => 0 }, { orientation: Orientation.HORIZONTAL });
+		this._southSash = new Sash(this.domNode, { getHorizontalSashTop: () => this._size.height }, { orientation: Orientation.HORIZONTAL });
 
 		this._northSash.orthogonalStartSash = this._westSash;
 		this._northSash.orthogonalEndSash = this._eastSash;
-		this._eastSash.orthogonalStartSash = this._northSash;
-		this._eastSash.orthogonalEndSash = this._southSash;
 		this._southSash.orthogonalStartSash = this._westSash;
 		this._southSash.orthogonalEndSash = this._eastSash;
-		this._westSash.orthogonalStartSash = this._northSash;
-		this._westSash.orthogonalEndSash = this._southSash;
 
 		let currentSize: Dimension | undefined;
 		let deltaY = 0;
