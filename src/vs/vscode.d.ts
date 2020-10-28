@@ -5649,7 +5649,7 @@ declare module 'vscode' {
 		 */
 		readonly globalState: Memento & {
 			/**
-			 * Set the keys whose values should be synced across devices when extensions synchronization is enabled.
+			 * Set the keys whose values should be synced across devices while synchronizing the extension.
 			 */
 			setKeysForSync(keys: string[]): void;
 		};
