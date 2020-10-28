@@ -1345,7 +1345,11 @@ class SCMInputWidget extends Disposable {
 				return;
 			}
 			textModel.setValue(value);
-
+			let model = this.inputEditor.getModel();
+			if (model) {
+				// scroll to bottom line
+				this.inputEditor.revealLine(model.getLineCount());
+			}
 			if (reason === SCMInputChangeReason.HistoryPrevious) {
 				this.inputEditor.setPosition(textModel.getFullModelRange().getStartPosition());
 			} else {
