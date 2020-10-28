@@ -26,7 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { forEach } from 'vs/base/common/collections';
+import { forEach, IStringDictionary } from 'vs/base/common/collections';
 
 interface IExtensionResourceMergeResult extends IAcceptResult {
 	readonly added: ISyncExtension[];
@@ -461,7 +461,13 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				if (keys) {
 					const extensionStorageValue = this.storageService.get(identifier.id, StorageScope.GLOBAL) || '{}';
 					try {
-						syncExntesion.state = JSON.parse(extensionStorageValue, (key, value) => !key || keys.includes(key) ? value : undefined);
+						const extensionStorageState = JSON.parse(extensionStorageValue);
+						syncExntesion.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
+							if (keys.includes(key)) {
+								state[key] = extensionStorageState[key];
+							}
+							return state;
+						}, {});
 					} catch (error) {
 						this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
 					}
