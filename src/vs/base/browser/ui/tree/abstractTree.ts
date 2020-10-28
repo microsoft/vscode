@@ -994,7 +994,7 @@ class Trait<T> {
 	constructor(private identityProvider?: IIdentityProvider<T>) { }
 
 	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
-		if (!(browserEvent as any).__forceEvent && equals(this.nodes, nodes)) {
+		if (!(browserEvent as any)?.__forceEvent && equals(this.nodes, nodes)) {
 			return;
 		}
 

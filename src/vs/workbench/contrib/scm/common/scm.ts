@@ -114,11 +114,8 @@ export interface ISCMInput {
 }
 
 export interface ISCMRepository extends IDisposable {
-	readonly selected: boolean;
-	readonly onDidChangeSelection: Event<boolean>;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
-	setSelected(selected: boolean): void;
 }
 
 export interface ISCMService {
@@ -168,4 +165,8 @@ export interface ISCMViewService {
 
 	isVisible(repository: ISCMRepository): boolean;
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+
+	readonly focusedRepository: ISCMRepository | undefined;
+	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
+	focus(repository: ISCMRepository): void;
 }
