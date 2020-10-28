@@ -5649,7 +5649,17 @@ declare module 'vscode' {
 		 */
 		readonly globalState: Memento & {
 			/**
-			 * Set the keys whose values should be synced across devices while synchronizing the extension.
+			 * Set the keys whose values should be synchronized across devices when synchronizing user-data
+			 * like configuration, extensions, and mementos.
+			 *
+			 * Note that this function defines the whole set of keys whoses values should be synchronized:
+			 *  - calling it with an empty array stops synchronization for this memento
+			 *  - calling it with repeatedly with different arrays synchronizes the intersection
+			 *
+			 * For any given set of keys this function needs to be called only once but there is no harm in
+			 * always repeatedly calling it.
+			 *
+			 * @param keys The set of keys whose values are synced.
 			 */
 			setKeysForSync(keys: string[]): void;
 		};
