@@ -68,9 +68,6 @@ export class TerminalViewPane extends ViewPane {
 			this._onDidChangeViewWelcomeState.fire();
 		});
 
-		this._register(this.onDidFocus(() => {
-			this._terminalService.getActiveTab()?.setWillFocus(true);
-		}));
 		this._register(this.onDidBlur(() => {
 			this._terminalService.getActiveTab()?.setWillFocus(false);
 		}));
@@ -217,6 +214,10 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		return super.getActionViewItem(action);
+	}
+
+	public focus() {
+		this._terminalService.getActiveTab()?.setWillFocus(true);
 	}
 
 	public focusFindWidget() {
