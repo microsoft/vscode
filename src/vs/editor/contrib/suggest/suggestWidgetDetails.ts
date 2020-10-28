@@ -387,10 +387,10 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			// position: east, WEST, south
 			if (anchorBox.left > width) {
 				// pos = SuggestDetailsPosition.West;
-				width = anchorBox.left - info.borderWidth;
+				width = anchorBox.left - info.borderWidth - info.horizontalPadding;
 				alignEast = false;
-				left = Math.max(info.horizontalPadding, anchorBox.left - width);
-				maxSizeTop = maxSizeTop.with(anchorBox.left - info.horizontalPadding - info.borderWidth);
+				left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
+				maxSizeTop = maxSizeTop.with(width);
 				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
 			}
 
