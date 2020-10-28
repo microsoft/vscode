@@ -66,10 +66,10 @@ export class ProxyAuthHandler2 extends Disposable {
 			return; // only for proxy
 		}
 
-		if (!this.pendingProxyHandler && this.state === ProxyAuthState.LoginDialogShown) {
+		if (!this.pendingProxyHandler && this.state === ProxyAuthState.LoginDialogShown && event.req.firstAuthAttempt) {
 			this.logService.trace('auth#onLogin (proxy) - exit - proxy dialog already shown');
 
-			return; // only one dialog per session at max
+			return; // only one dialog per session at max (except when firstAuthAttempt: false which indicates a login problem)
 		}
 
 		let credentials: Credentials | undefined = undefined;
