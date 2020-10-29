@@ -8,9 +8,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator2 } from 'vs/base/common/history';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class SCMInput implements ISCMInput {
 
@@ -70,8 +69,7 @@ class SCMInput implements ISCMInput {
 
 	constructor(
 		readonly repository: ISCMRepository,
-		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IStorageService private storageService: IStorageService
 	) {
 		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
 		let history: string[] | undefined;
@@ -153,13 +151,12 @@ class SCMRepository implements ISCMRepository {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput(this, this.storageService, this.contextService);
+	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(
 		public readonly provider: ISCMProvider,
 		private disposable: IDisposable,
-		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IStorageService private storageService: IStorageService
 	) { }
 
 	setSelected(selected: boolean): void {
@@ -196,8 +193,7 @@ export class SCMService implements ISCMService {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IStorageService private storageService: IStorageService
 	) {
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
 	}
@@ -225,7 +221,7 @@ export class SCMService implements ISCMService {
 			this.providerCount.set(this._repositories.length);
 		});
 
-		const repository = new SCMRepository(provider, disposable, this.storageService, this.contextService);
+		const repository = new SCMRepository(provider, disposable, this.storageService);
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
 
