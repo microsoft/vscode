@@ -21,7 +21,7 @@ const DELETE_CHAR = `${CSI}X`;
 const DELETE_REST_OF_LINE = `${CSI}K`;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
 const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
-const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*:/i;
+const PASSWORD_INPUT_RE = /(?:\W|^)(?:pat|token|password|passphrase|passwd)(\W.*:|:)/i;
 const NOT_WORD_RE = /\W/;
 
 const statsBufferSize = 24;

@@ -237,14 +237,19 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('avoids predicting password input', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
-			expectProcessed('Your password: ', 'Your password: ');
 
-			t.onData('mellon\r\n');
-			t.expectWritten('');
-			expectProcessed('\r\n', '\r\n');
+			const tcases = ['Your password:', 'Password here:', 'PAT:', 'Access token:'];
+			for (const tcase of tcases) {
+				expectProcessed(tcase, tcase);
 
-			t.onData('o'); // back to normal mode
-			t.expectWritten(`${CSI}3mo${CSI}23m`);
+				t.onData('mellon\r\n');
+				t.expectWritten('');
+				expectProcessed('\r\n', '\r\n');
+
+				t.onData('o'); // back to normal mode
+				t.expectWritten(`${CSI}3mo${CSI}23m`);
+				onBeforeProcessData.fire({ data: 'o' });
+			}
 		});
 	});
 });
