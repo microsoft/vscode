@@ -98,6 +98,7 @@ export class SuggestWidget implements IDisposable {
 	private focusedItem?: CompletionItem;
 	private ignoreFocusEvents: boolean = false;
 	private completionModel?: CompletionModel;
+	private _cappedHeight?: { wanted: number, capped: number };
 
 	readonly element: ResizableHTMLElement;
 	private readonly messageElement: HTMLElement;
@@ -430,6 +431,7 @@ export class SuggestWidget implements IDisposable {
 				this.element.domNode.classList.remove('visible');
 				this.list.splice(0, this.list.length);
 				this.focusedItem = undefined;
+				this._cappedHeight = undefined;
 				this.explainMode = false;
 				break;
 			case State.Loading:
@@ -756,8 +758,13 @@ export class SuggestWidget implements IDisposable {
 			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
 			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
 			const maxHeightAbove = Math.min(editorBox.top + cursorBox.top - info.verticalPadding, fullHeight);
-			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) - info.borderHeight, fullHeight);
+			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
 
+			if (height && height === this._cappedHeight?.capped) {
+				// Restore the old (wanted) height when the current
+				// height is capped to fit
+				height = this._cappedHeight.wanted;
+			}
 
 			if (height === undefined) {
 				height = Math.min(preferredHeight, fullHeight);
@@ -782,8 +789,14 @@ export class SuggestWidget implements IDisposable {
 			this.element.preferredSize = new dom.Dimension(preferredWidth, preferredHeight);
 			this.element.maxSize = new dom.Dimension(maxWidth, maxHeight);
 			this.element.minSize = new dom.Dimension(220, minHeight);
-		}
 
+			// Know when the height was capped to fit and remember
+			// the wanted height for later. This is required when going
+			// left to widen suggestions.
+			this._cappedHeight = size && height === fullHeight
+				? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
+				: undefined;
+		}
 		this._resize(width, height);
 	}
 
