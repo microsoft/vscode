@@ -651,7 +651,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const authority: ResolvedAuthority = {
 				authority: remoteAuthority,
 				host: result.host,
-				port: result.port
+				port: result.port,
+				connectionToken: result.connectionToken
 			};
 			const options: ResolvedOptions = {
 				extensionHostEnv: result.extensionHostEnv
