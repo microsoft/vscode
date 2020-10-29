@@ -82,11 +82,11 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
-import { openExternal } from 'vs/platform/opener/electron-main/openExternal';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private dialogMainService: IDialogMainService | undefined;
+	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
 		private readonly mainIpcServer: Server,
@@ -214,7 +214,9 @@ export class CodeApplication extends Disposable {
 			contents.on('new-window', (event, url) => {
 				event.preventDefault(); // prevent code that wants to open links
 
-				openExternal(url);
+				if (this.nativeHostMainService) {
+					this.nativeHostMainService.openExternal(undefined, url);
+				}
 			});
 
 			session.defaultSession.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
@@ -543,8 +545,8 @@ export class CodeApplication extends Disposable {
 		const encryptionChannel = createChannelReceiver(encryptionMainService);
 		electronIpcServer.registerChannel('encryption', encryptionChannel);
 
-		const nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = createChannelReceiver(nativeHostMainService);
+		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);
 		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 

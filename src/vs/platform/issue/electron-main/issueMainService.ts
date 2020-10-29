@@ -21,7 +21,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { FileAccess } from 'vs/base/common/network';
-import { openExternal } from 'vs/platform/opener/electron-main/openExternal';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -43,7 +43,8 @@ export class IssueMainService implements ICommonIssueService {
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		this.registerListeners();
 	}
@@ -156,7 +157,7 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
-			openExternal(arg);
+			this.nativeHostMainService.openExternal(undefined, arg);
 		});
 
 		ipcMain.on('vscode:closeIssueReporter', (event: IpcMainEvent) => {

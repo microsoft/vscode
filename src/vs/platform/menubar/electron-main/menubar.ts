@@ -24,7 +24,6 @@ import { IStateService } from 'vs/platform/state/node/state';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { openExternal } from 'vs/platform/opener/electron-main/openExternal';
 
 const telemetryFrom = 'menu';
 
@@ -814,7 +813,7 @@ export class Menubar {
 	}
 
 	private openUrl(url: string, id: string): void {
-		openExternal(url);
+		this.nativeHostMainService.openExternal(undefined, url);
 		this.reportMenuActionTelemetry(id);
 	}
 
