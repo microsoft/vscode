@@ -209,12 +209,12 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.preview : false;
 	}
 
-	private isGalleryOutdated(): boolean {
-		return this.local && this.gallery ? semver.gt(this.local.manifest.version, this.gallery.version) : false;
-	}
-
 	getManifest(token: CancellationToken): Promise<IExtensionManifest | null> {
-		if (this.gallery && !this.isGalleryOutdated()) {
+		if (this.local && !this.outdated) {
+			return Promise.resolve(this.local.manifest);
+		}
+
+		if (this.gallery) {
 			if (this.gallery.assets.manifest) {
 				return this.galleryService.getManifest(this.gallery, token);
 			}
@@ -222,19 +222,15 @@ class Extension implements IExtension {
 			return Promise.resolve(null);
 		}
 
-		if (this.local) {
-			return Promise.resolve(this.local.manifest);
-		}
-
 		return Promise.resolve(null);
 	}
 
 	hasReadme(): boolean {
-		if (this.gallery && !this.isGalleryOutdated() && this.gallery.assets.readme) {
+		if (this.local && this.local.readmeUrl) {
 			return true;
 		}
 
-		if (this.local && this.local.readmeUrl) {
+		if (this.gallery && this.gallery.assets.readme) {
 			return true;
 		}
 
@@ -242,15 +238,15 @@ class Extension implements IExtension {
 	}
 
 	getReadme(token: CancellationToken): Promise<string> {
-		if (this.gallery && !this.isGalleryOutdated()) {
+		if (this.local && this.local.readmeUrl && !this.outdated) {
+			return this.fileService.readFile(this.local.readmeUrl).then(content => content.value.toString());
+		}
+
+		if (this.gallery) {
 			if (this.gallery.assets.readme) {
 				return this.galleryService.getReadme(this.gallery, token);
 			}
 			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData);
-		}
-
-		if (this.local && this.local.readmeUrl) {
-			return this.fileService.readFile(this.local.readmeUrl).then(content => content.value.toString());
 		}
 
 		if (this.type === ExtensionType.System) {
@@ -265,11 +261,11 @@ ${this.description}
 	}
 
 	hasChangelog(): boolean {
-		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
+		if (this.local && this.local.changelogUrl) {
 			return true;
 		}
 
-		if (this.local && this.local.changelogUrl) {
+		if (this.gallery && this.gallery.assets.changelog) {
 			return true;
 		}
 
@@ -277,41 +273,40 @@ ${this.description}
 	}
 
 	getChangelog(token: CancellationToken): Promise<string> {
-		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
+
+		if (this.local && this.local.changelogUrl && !this.outdated) {
+			return this.fileService.readFile(this.local.changelogUrl).then(content => content.value.toString());
+		}
+
+		if (this.gallery && this.gallery.assets.changelog) {
 			return this.galleryService.getChangelog(this.gallery, token);
 		}
 
-		const changelogUrl = this.local && this.local.changelogUrl;
-
-		if (!changelogUrl) {
-			if (this.type === ExtensionType.System) {
-				return Promise.resolve('Please check the [VS Code Release Notes](command:update.showCurrentReleaseNotes) for changes to the built-in extensions.');
-			}
-
-			return Promise.reject(new Error('not available'));
+		if (this.type === ExtensionType.System) {
+			return Promise.resolve('Please check the [VS Code Release Notes](command:update.showCurrentReleaseNotes) for changes to the built-in extensions.');
 		}
 
-		return this.fileService.readFile(changelogUrl).then(content => content.value.toString());
+		return Promise.reject(new Error('not available'));
 	}
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
-		if (gallery && !this.isGalleryOutdated()) {
-			return gallery.properties.dependencies || [];
-		}
-		if (local && local.manifest.extensionDependencies) {
+		if (local && local.manifest.extensionDependencies && !this.outdated) {
 			return local.manifest.extensionDependencies;
+		}
+		if (gallery) {
+			return gallery.properties.dependencies || [];
 		}
 		return [];
 	}
 
 	get extensionPack(): string[] {
 		const { local, gallery } = this;
-		if (gallery && !this.isGalleryOutdated()) {
-			return gallery.properties.extensionPack || [];
-		}
-		if (local && local.manifest.extensionPack) {
+		if (local && local.manifest.extensionPack && !this.outdated) {
 			return local.manifest.extensionPack;
+		}
+		if (gallery) {
+			return gallery.properties.extensionPack || [];
 		}
 		return [];
 	}
