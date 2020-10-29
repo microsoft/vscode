@@ -94,18 +94,6 @@ class SCMInput implements ISCMInput {
 		this.historyNavigator = new HistoryNavigator2(history, 50);
 
 		this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				if (this.historyNavigator.isAtEnd()) {
-					this.historyNavigator.replaceLast(this._value);
-				}
-
-				if (this.repository.provider.rootUri) {
-					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL);
-				}
-			}
-		});
-
-		this.contextService.onDidChangeWorkspaceFolders(e => {
 			if (this.historyNavigator.isAtEnd()) {
 				this.historyNavigator.replaceLast(this._value);
 			}
