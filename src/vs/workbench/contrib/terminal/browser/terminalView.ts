@@ -69,7 +69,7 @@ export class TerminalViewPane extends ViewPane {
 		});
 
 		this._register(this.onDidBlur(() => {
-			this._terminalService.getActiveTab()?.setWillFocus(false);
+			this._terminalService.willFocusNewTerminal = false;
 		}));
 	}
 
@@ -217,7 +217,11 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	public focus() {
-		this._terminalService.getActiveTab()?.setWillFocus(true);
+		if (this._terminalService.getActiveInstance()) {
+			this._terminalService.getActiveInstance()?.focusWhenReady();
+		} else {
+			this._terminalService.willFocusNewTerminal = true;
+		}
 	}
 
 	public focusFindWidget() {

@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
@@ -64,7 +64,8 @@ export class TerminalService implements ITerminalService {
 	private _terminalContainer: HTMLElement | undefined;
 	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
 	private _remoteTerminalsInitialized: Promise<void> | undefined;
-	private _tempEmptyTab: TerminalTab | undefined;
+	private _willFocusNewTerminal = false;
+	private _connectionState: TerminalConnectionState;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -98,6 +99,10 @@ export class TerminalService implements ITerminalService {
 	public get onRequestAvailableShells(): Event<IAvailableShellsRequest> { return this._onRequestAvailableShells.event; }
 	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
 	public get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
+	private readonly _onDidChangeConnectionState = new Emitter<void>();
+	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
+	public get connectionState(): TerminalConnectionState { return this._connectionState; }
+	public set willFocusNewTerminal(v: boolean) { this._willFocusNewTerminal = v; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -139,11 +144,16 @@ export class TerminalService implements ITerminalService {
 		const serverSpawn = this.configHelper.config.serverSpawn;
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
 			this._remoteTerminalsInitialized = this._reconnectToRemoteTerminals();
+			this._connectionState = TerminalConnectionState.Connecting;
+		} else {
+			this._connectionState = TerminalConnectionState.Connected;
 		}
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
 		const remoteTerms = await this._remoteTerminalService.listTerminals();
+		this._connectionState = TerminalConnectionState.Connected;
+		this._onDidChangeConnectionState.fire();
 		const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
 
 		/* __GDPR__
@@ -157,16 +167,8 @@ export class TerminalService implements ITerminalService {
 		this._telemetryService.publicLog('terminalReconnection', data);
 		if (unattachedRemoteTerms.length > 0) {
 			// Reattach to all remote terminals
-			if (this._tempEmptyTab) {
-				this.createTerminal({ remoteAttach: unattachedRemoteTerms[0] }, this._tempEmptyTab);
-				this._tempEmptyTab = undefined;
-				for (let term of unattachedRemoteTerms.slice(1)) {
-					this.createTerminal({ remoteAttach: term });
-				}
-			} else {
-				for (let term of unattachedRemoteTerms) {
-					this.createTerminal({ remoteAttach: term });
-				}
+			for (let term of unattachedRemoteTerms) {
+				this.createTerminal({ remoteAttach: term });
 			}
 		}
 	}
@@ -261,7 +263,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
 	}
 
 	public getFindState(): FindReplaceState {
@@ -385,18 +387,10 @@ export class TerminalService implements ITerminalService {
 
 	public async initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitialized) {
-			if (!this.terminalTabs.length) {
-				this._tempEmptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
-				this._terminalTabs.push(this._tempEmptyTab);
-				this._onInstanceTitleChanged.fire(undefined);
-			}
-
 			await this._remoteTerminalsInitialized;
 
 			if (!this.terminalTabs.length) {
-				this.createTerminal(undefined, this._tempEmptyTab);
-			} else if (this._tempEmptyTab) {
-				this._removeTab(this._tempEmptyTab);
+				this.createTerminal(undefined);
 			}
 		} else if (!this._environmentService.remoteAuthority && this.terminalTabs.length === 0) {
 			// Local, just create a terminal
@@ -675,7 +669,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	public createTerminal(shell: IShellLaunchConfig = {}, terminalTab?: TerminalTab): ITerminalInstance {
+	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		if (!this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
@@ -686,14 +680,15 @@ export class TerminalService implements ITerminalService {
 			return instance;
 		}
 
-		if (terminalTab) {
-			terminalTab.addInstance(shell);
-		} else {
-			terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
-			this._terminalTabs.push(terminalTab);
-		}
+		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
+		this._terminalTabs.push(terminalTab);
 
 		const instance = terminalTab.terminalInstances[0];
+		if (this._willFocusNewTerminal) {
+			instance.focusWhenReady();
+			this._willFocusNewTerminal = false;
+		}
+
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._initInstanceListeners(instance);
