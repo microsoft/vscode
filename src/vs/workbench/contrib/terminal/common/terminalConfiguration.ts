@@ -356,7 +356,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
-			default: 15,
+			default: 30,
 		},
 		'terminal.integrated.localEchoStyle': {
 			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
