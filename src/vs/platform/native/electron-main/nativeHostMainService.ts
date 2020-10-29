@@ -334,9 +334,25 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		shell.openExternal(url);
+		if (isLinux && process.env.SNAP && process.env.SNAP_REVISION) {
+			NativeHostMainService._safeSnapOpenExternal(url);
+		} else {
+			shell.openExternal(url);
+		}
 
 		return true;
+	}
+
+	private static _safeSnapOpenExternal(url: string): void {
+		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
+		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
+		delete process.env['GDK_PIXBUF_MODULE_FILE'];
+		delete process.env['GDK_PIXBUF_MODULEDIR'];
+
+		shell.openExternal(url);
+
+		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
+		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
 
 	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
