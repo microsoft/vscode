@@ -179,12 +179,14 @@ class BrowserMain extends Disposable {
 		const logService = new BufferLogService(getLogLevel(environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		const connectionToken = environmentService.options.connectionToken || this.getCookieValue('vscode-tkn');
+
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(this.configuration.resourceUriProvider);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(environmentService.options.connectionToken || this.getCookieValue('vscode-tkn'));
+		const signService = new SignService(connectionToken);
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
