@@ -709,6 +709,7 @@ export class PredictionTimeline {
 	 * Should be called when input is incoming to the temrinal.
 	 */
 	public beforeServerInput(input: string): string {
+		const originalInput = input;
 		if (this.inputBuffer) {
 			input = this.inputBuffer + input;
 			this.inputBuffer = undefined;
@@ -799,7 +800,7 @@ export class PredictionTimeline {
 		}
 
 		if (!this.showPredictions) {
-			return input;
+			return originalInput;
 		}
 
 		if (output.length === 0 || output === input) {
