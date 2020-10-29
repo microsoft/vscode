@@ -22,7 +22,7 @@ const DELETE_REST_OF_LINE = `${CSI}K`;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
 const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
 const PASSWORD_INPUT_RE = /(?:\W|^)(?:pat|token|password|passphrase|passwd)(\W.*:|:)/i;
-const NOT_WORD_RE = /\W/;
+const NOT_WORD_RE = /[^a-z0-9]/i;
 
 const statsBufferSize = 24;
 const statsSendTelemetryEvery = 1000 * 60 * 5; // how often to collect stats
@@ -554,17 +554,17 @@ class CursorMovePrediction implements IPrediction {
 		const { amount, rollForward } = this.applied;
 
 
-		// arg can be omitted to move one character
-		const r = input.eatGradually(`${CSI}${direction}`.repeat(amount));
-		if (r !== MatchResult.Failure) {
-			return r;
+		// arg can be omitted to move one character. We don't eatGradually() here
+		// or below moves that don't go as far as the cursor would be buffered
+		// indefinitely
+		if (input.eatStr(`${CSI}${direction}`.repeat(amount))) {
+			return MatchResult.Success;
 		}
 
 		// \b is the equivalent to moving one character back
 		if (direction === CursorMoveDirection.Back) {
-			const r = input.eatGradually(`\b`.repeat(amount));
-			if (r !== MatchResult.Failure) {
-				return r;
+			if (input.eatStr(`\b`.repeat(amount))) {
+				return MatchResult.Success;
 			}
 		}
 
