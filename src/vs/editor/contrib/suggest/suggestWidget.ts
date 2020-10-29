@@ -932,16 +932,16 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {
-		collector.addRule(`.monaco-editor .suggest-widget { color: ${foreground}; }`);
+		collector.addRule(`.monaco-editor .suggest-widget, .monaco-editor .suggest-details { color: ${foreground}; }`);
 	}
 
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-editor .suggest-widget a { color: ${link}; }`);
+		collector.addRule(`.monaco-editor .suggest-details a { color: ${link}; }`);
 	}
 
 	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {
-		collector.addRule(`.monaco-editor .suggest-widget code { background-color: ${codeBackground}; }`);
+		collector.addRule(`.monaco-editor .suggest-details code { background-color: ${codeBackground}; }`);
 	}
 });
