@@ -262,7 +262,7 @@ export class ExplorerView extends ViewPane {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this._register(this.editorService.onDidActiveEditorChange(() => {
-			this.selectActiveFile(true);
+			this.selectActiveFile();
 		}));
 
 		// Also handle configuration updates
@@ -276,7 +276,7 @@ export class ExplorerView extends ViewPane {
 					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
-				this.selectActiveFile(false, true);
+				this.selectActiveFile(true);
 			}
 		}));
 	}
@@ -335,7 +335,7 @@ export class ExplorerView extends ViewPane {
 		}
 	}
 
-	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
+	private selectActiveFile(reveal = this.autoReveal): void {
 		if (this.autoReveal) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
@@ -346,9 +346,6 @@ export class ExplorerView extends ViewPane {
 					return;
 				}
 				this.explorerService.select(activeFile, reveal);
-			} else if (deselect) {
-				this.tree.setSelection([]);
-				this.tree.setFocus([]);
 			}
 		}
 	}
@@ -589,7 +586,13 @@ export class ExplorerView extends ViewPane {
 
 	focusNeighbourIfItemFocused(item: ExplorerItem): void {
 		const focus = this.tree.getFocus();
-		if (focus.length === 1 && focus[0] === item) {
+		if (focus.length !== 1) {
+			return;
+		}
+		const compressedController = this.renderer.getCompressedNavigationController(focus[0]) || this.renderer.getCompressedNavigationController(item);
+		const itemsCompressedTogether = compressedController && (compressedController.items.indexOf(focus[0]) >= 0) && (compressedController.items.indexOf(item) >= 0);
+
+		if (focus[0] === item || itemsCompressedTogether) {
 			this.tree.focusNext();
 			const newFocus = this.tree.getFocus();
 			if (newFocus.length === 1 && newFocus[0] === item) {
