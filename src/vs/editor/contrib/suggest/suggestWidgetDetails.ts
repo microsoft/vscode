@@ -412,7 +412,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			height = maxHeight;
 		}
 		let maxSize: dom.Dimension;
-		if (height < maxSizeTop.height) {
+		if (height <= maxSizeTop.height) {
 			alignAtTop = true;
 			maxSize = maxSizeTop;
 		} else {
