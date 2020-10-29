@@ -3023,6 +3023,10 @@ export interface ISuggestOptions {
 	 */
 	showIcons?: boolean;
 	/**
+	 * Enable or disable the suggest status bar.
+	 */
+	showStatusBar?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -3130,15 +3134,6 @@ export interface ISuggestOptions {
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
-	/**
-	 * Status bar related settings.
-	 */
-	statusBar?: {
-		/**
-		 * Controls the visibility of the status bar at the bottom of the suggest widget.
-		 */
-		visible?: boolean;
-	};
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -3153,6 +3148,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
+			showStatusBar: false,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3180,9 +3176,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showSnippets: true,
 			showUsers: true,
 			showIssues: true,
-			statusBar: {
-				visible: false
-			}
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -3221,6 +3214,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.showIcons,
 					description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
+				},
+				'editor.suggest.showStatusBar': {
+					type: 'boolean',
+					default: defaults.showStatusBar,
+					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
@@ -3369,11 +3367,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
-				},
-				'editor.suggest.statusBar.visible': {
-					type: 'boolean',
-					default: false,
-					markdownDescription: nls.localize('editor.suggest.statusBar.visible', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				}
 			}
 		);
@@ -3391,6 +3384,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
+			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -3418,9 +3412,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
 			showUsers: EditorBooleanOption.boolean(input.showUsers, this.defaultValue.showUsers),
 			showIssues: EditorBooleanOption.boolean(input.showIssues, this.defaultValue.showIssues),
-			statusBar: {
-				visible: EditorBooleanOption.boolean(input.statusBar?.visible, !!this.defaultValue.statusBar.visible)
-			}
 		};
 	}
 }

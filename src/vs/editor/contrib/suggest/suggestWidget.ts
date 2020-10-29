@@ -225,7 +225,7 @@ export class SuggestWidget implements IDisposable {
 		});
 
 		this.status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode);
-		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
+		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 
 		this._disposables.add(attachListStyler(this.list, _themeService, {
@@ -824,7 +824,7 @@ export class SuggestWidget implements IDisposable {
 	getLayoutInfo() {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		const itemHeight = this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
-		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).statusBar.visible || this.state === State.Empty || this.state === State.Loading ? 0 : itemHeight;
+		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).showStatusBar || this.state === State.Empty || this.state === State.Loading ? 0 : itemHeight;
 		const borderWidth = this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
 
