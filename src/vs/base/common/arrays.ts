@@ -96,7 +96,7 @@ export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 		throw new TypeError('invalid index');
 	}
 
-	let pivotValue = data[Math.ceil(data.length * Math.random())];
+	let pivotValue = data[Math.floor(data.length * Math.random())];
 	let lower: T[] = [];
 	let higher: T[] = [];
 	let pivots: T[] = [];
