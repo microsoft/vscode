@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -67,10 +67,6 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._onDidChangeViewWelcomeState.fire();
 		});
-
-		this._register(this.onDidBlur(() => {
-			this._terminalService.willFocusNewTerminal = false;
-		}));
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -217,11 +213,24 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	public focus() {
-		if (this._terminalService.getActiveInstance()) {
-			this._terminalService.getActiveInstance()?.focusWhenReady();
-		} else {
-			this._terminalService.willFocusNewTerminal = true;
+		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
+			const activeElement = document.activeElement;
+			// Note that focus may be shifted unexpected here if this is called, then editor is focused manually, then connection happens
+			// Could verify document.activeElement is the same to avoid that?
+			this._register(this._terminalService.onDidChangeConnectionState(() => {
+				if (document.activeElement === activeElement) {
+					// Only focus the terminal if the activeElement has not changed since focus() was called
+					this._focus();
+				}
+			}));
+
+			return;
 		}
+		this._focus();
+	}
+
+	private _focus() {
+		this._terminalService.getActiveInstance()?.focusWhenReady();
 	}
 
 	public focusFindWidget() {

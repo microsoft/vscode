@@ -64,7 +64,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalContainer: HTMLElement | undefined;
 	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
 	private _remoteTerminalsInitialized: Promise<void> | undefined;
-	private _willFocusNewTerminal = false;
 	private _connectionState: TerminalConnectionState;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
@@ -102,7 +101,6 @@ export class TerminalService implements ITerminalService {
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
-	public set willFocusNewTerminal(v: boolean) { this._willFocusNewTerminal = v; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -684,10 +682,6 @@ export class TerminalService implements ITerminalService {
 		this._terminalTabs.push(terminalTab);
 
 		const instance = terminalTab.terminalInstances[0];
-		if (this._willFocusNewTerminal) {
-			instance.focusWhenReady();
-			this._willFocusNewTerminal = false;
-		}
 
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));

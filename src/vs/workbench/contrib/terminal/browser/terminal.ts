@@ -83,7 +83,6 @@ export interface ITerminalService {
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 	isProcessSupportRegistered: boolean;
-	willFocusNewTerminal: boolean;
 	readonly connectionState: TerminalConnectionState;
 
 	initializeTerminals(): Promise<void>;
