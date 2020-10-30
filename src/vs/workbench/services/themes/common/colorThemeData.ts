@@ -697,7 +697,7 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 						result.semanticTokenRules.push(rule);
 					}
 				} catch (e) {
-					return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.semanticTokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'semanticTokenColors' conatains a invalid selector", themeLocation.toString())));
+					return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.semanticTokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'semanticTokenColors' contains a invalid selector", themeLocation.toString())));
 				}
 			}
 		}
