@@ -158,8 +158,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue<boolean | undefined>('terminal.integrated.serverSpawn');
-				if (enableRemoteAgentTerminals !== false) {
+				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
+				if (enableRemoteAgentTerminals) {
 					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 				} else {
 					this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);

@@ -67,6 +67,10 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._onDidChangeViewWelcomeState.fire();
 		});
+
+		this._register(this.onDidBlur(() => {
+			this._terminalService.getActiveTab()?.setWillFocus(false);
+		}));
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -76,11 +80,11 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		this._parentDomElement = container;
-		dom.addClass(this._parentDomElement, 'integrated-terminal');
+		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
 
 		this._terminalContainer = document.createElement('div');
-		dom.addClass(this._terminalContainer, 'terminal-outer-container');
+		this._terminalContainer.classList.add('terminal-outer-container');
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
@@ -212,8 +216,8 @@ export class TerminalViewPane extends ViewPane {
 		return super.getActionViewItem(action);
 	}
 
-	public focus(): void {
-		this._terminalService.getActiveInstance()?.focusWhenReady(true);
+	public focus() {
+		this._terminalService.getActiveTab()?.setWillFocus(true);
 	}
 
 	public focusFindWidget() {

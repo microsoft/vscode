@@ -1263,20 +1263,20 @@ export class UpdateAllAction extends Action {
 	static readonly LABEL = localize('updateAll', "Update All Extensions");
 
 	constructor(
-		id = UpdateAllAction.ID,
-		label = UpdateAllAction.LABEL,
+		id: string, label: string, isPrimary: boolean,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, '', false);
 
-		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
-		this.update();
+		if (isPrimary) {
+			this._register(this.extensionsWorkbenchService.onChange(() => this._onDidChange.fire({ enabled: this.enabled })));
+		}
 	}
 
-	private update(): void {
-		this.enabled = this.extensionsWorkbenchService.outdated.length > 0;
+	get enabled(): boolean {
+		return this.extensionsWorkbenchService.outdated.length > 0;
 	}
 
 	run(): Promise<any> {
@@ -2974,21 +2974,22 @@ export class DisableAllAction extends Action {
 	static readonly LABEL = localize('disableAll', "Disable All Installed Extensions");
 
 	constructor(
-		id: string = DisableAllAction.ID, label: string = DisableAllAction.LABEL,
+		id: string, label: string, isPrimary: boolean,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super(id, label);
-		this.update();
-		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
+		if (isPrimary) {
+			this._register(this.extensionsWorkbenchService.onChange(() => this._onDidChange.fire({ enabled: this.enabled })));
+		}
 	}
 
 	private getExtensionsToDisable(): IExtension[] {
 		return this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
 	}
 
-	private update(): void {
-		this.enabled = this.getExtensionsToDisable().length > 0;
+	get enabled(): boolean {
+		return this.getExtensionsToDisable().length > 0;
 	}
 
 	run(): Promise<any> {
@@ -3002,23 +3003,23 @@ export class DisableAllWorkspaceAction extends Action {
 	static readonly LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
 
 	constructor(
-		id: string = DisableAllWorkspaceAction.ID, label: string = DisableAllWorkspaceAction.LABEL,
+		id: string, label: string, isPrimary: boolean,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super(id, label);
-		this.update();
-		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
-		this._register(this.extensionsWorkbenchService.onChange(() => this.update(), this));
+		if (isPrimary) {
+			this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.extensionsWorkbenchService.onChange)(() => this._onDidChange.fire({ enabled: this.enabled })));
+		}
 	}
 
 	private getExtensionsToDisable(): IExtension[] {
 		return this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
 	}
 
-	private update(): void {
-		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.getExtensionsToDisable().length > 0;
+	get enabled(): boolean {
+		return this.getExtensionsToDisable().length > 0;
 	}
 
 	run(): Promise<any> {
@@ -3032,21 +3033,22 @@ export class EnableAllAction extends Action {
 	static readonly LABEL = localize('enableAll', "Enable All Extensions");
 
 	constructor(
-		id: string = EnableAllAction.ID, label: string = EnableAllAction.LABEL,
+		id: string, label: string, isPrimary: boolean,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super(id, label);
-		this.update();
-		this._register(this.extensionsWorkbenchService.onChange(() => this.update()));
+		if (isPrimary) {
+			this._register(this.extensionsWorkbenchService.onChange(() => this._onDidChange.fire({ enabled: this.enabled })));
+		}
 	}
 
 	private getExtensionsToEnable(): IExtension[] {
 		return this.extensionsWorkbenchService.local.filter(e => !!e.local && this.extensionEnablementService.canChangeEnablement(e.local) && !this.extensionEnablementService.isEnabled(e.local));
 	}
 
-	private update(): void {
-		this.enabled = this.getExtensionsToEnable().length > 0;
+	get enabled(): boolean {
+		return this.getExtensionsToEnable().length > 0;
 	}
 
 	run(): Promise<any> {
@@ -3060,23 +3062,23 @@ export class EnableAllWorkspaceAction extends Action {
 	static readonly LABEL = localize('enableAllWorkspace', "Enable All Extensions for this Workspace");
 
 	constructor(
-		id: string = EnableAllWorkspaceAction.ID, label: string = EnableAllWorkspaceAction.LABEL,
+		id: string, label: string, isPrimary: boolean,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super(id, label);
-		this.update();
-		this._register(this.extensionsWorkbenchService.onChange(() => this.update(), this));
-		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this));
+		if (isPrimary) {
+			this._register(Event.any(this.workspaceContextService.onDidChangeWorkbenchState, this.extensionsWorkbenchService.onChange)(() => this._onDidChange.fire({ enabled: this.enabled })));
+		}
 	}
 
 	private getExtensionsToEnable(): IExtension[] {
 		return this.extensionsWorkbenchService.local.filter(e => !!e.local && this.extensionEnablementService.canChangeEnablement(e.local) && !this.extensionEnablementService.isEnabled(e.local));
 	}
 
-	private update(): void {
-		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.getExtensionsToEnable().length > 0;
+	get enabled(): boolean {
+		return this.getExtensionsToEnable().length > 0;
 	}
 
 	run(): Promise<any> {

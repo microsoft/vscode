@@ -8,7 +8,7 @@ import * as os from 'os';
 import product from 'vs/platform/product/common/product';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
+import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -21,6 +21,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { FileAccess } from 'vs/base/common/network';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -42,7 +43,8 @@ export class IssueMainService implements ICommonIssueService {
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		this.registerListeners();
 	}
@@ -155,7 +157,7 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
-			shell.openExternal(arg);
+			this.nativeHostMainService.openExternal(undefined, arg);
 		});
 
 		ipcMain.on('vscode:closeIssueReporter', (event: IpcMainEvent) => {

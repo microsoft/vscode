@@ -61,6 +61,7 @@ import { IExtensionService, toExtensionDescription } from 'vs/workbench/services
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { IAction } from 'vs/base/common/actions';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -83,7 +84,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'extensions',
 	command: {
 		id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
-		title: localize('installVSIX', "Install VSIX"),
+		title: localize('installVSIX', "Install Extension VSIX"),
 	},
 	when: ResourceContextKey.Extension.isEqualTo('.vsix')
 });
@@ -225,16 +226,8 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, resources: URI[] | URI) => {
 		const extensionService = accessor.get(IExtensionService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const hostService = accessor.get(IHostService);
 		const notificationService = accessor.get(INotificationService);
-
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
-
-		if (!viewlet) {
-			return;
-		}
 
 		const extensions = Array.isArray(resources) ? resources : [resources];
 		await Promise.all(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
@@ -254,7 +247,6 @@ CommandsRegistry.registerCommand({
 						{ sticky: true }
 					);
 				}
-				await instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
 			});
 	}
 });
@@ -394,6 +386,14 @@ export const CONTEXT_HAS_LOCAL_SERVER = new RawContextKey<boolean>('hasLocalServ
 export const CONTEXT_HAS_REMOTE_SERVER = new RawContextKey<boolean>('hasRemoteServer', false);
 export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer', false);
 
+async function runAction(action: IAction): Promise<void> {
+	try {
+		await action.run();
+	} finally {
+		action.dispose();
+	}
+}
+
 class ExtensionsContributions implements IWorkbenchContribution {
 
 	constructor(
@@ -458,7 +458,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(OpenExtensionsViewletAction, OpenExtensionsViewletAction.ID, OpenExtensionsViewletAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(OpenExtensionsViewletAction, OpenExtensionsViewletAction.ID, OpenExtensionsViewletAction.LABEL));
 			}
 		});
 
@@ -475,7 +475,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(InstallExtensionsAction, InstallExtensionsAction.ID, InstallExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(InstallExtensionsAction, InstallExtensionsAction.ID, InstallExtensionsAction.LABEL));
 			}
 		});
 
@@ -492,7 +492,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL));
 			}
 		});
 
@@ -509,7 +509,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL));
 			}
 		});
 
@@ -530,7 +530,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL));
 			}
 		});
 
@@ -547,7 +547,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowLanguageExtensionsAction, ShowLanguageExtensionsAction.ID, ShowLanguageExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowLanguageExtensionsAction, ShowLanguageExtensionsAction.ID, ShowLanguageExtensionsAction.LABEL));
 			}
 		});
 
@@ -564,7 +564,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL));
 			}
 		});
 
@@ -581,7 +581,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL));
 			}
 		});
 
@@ -598,7 +598,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL));
 			}
 		});
 
@@ -615,7 +615,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL));
 			}
 		});
 
@@ -632,7 +632,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL));
 			}
 		});
 
@@ -649,7 +649,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL, false));
 			}
 		});
 
@@ -666,7 +666,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL));
 			}
 		});
 
@@ -683,7 +683,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL, false));
 			}
 		});
 
@@ -700,7 +700,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(DisableAllWorkspaceAction, DisableAllWorkspaceAction.ID, DisableAllWorkspaceAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(DisableAllWorkspaceAction, DisableAllWorkspaceAction.ID, DisableAllWorkspaceAction.LABEL, false));
 			}
 		});
 
@@ -717,7 +717,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL, false));
 			}
 		});
 
@@ -734,7 +734,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(EnableAllWorkspaceAction, EnableAllWorkspaceAction.ID, EnableAllWorkspaceAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(EnableAllWorkspaceAction, EnableAllWorkspaceAction.ID, EnableAllWorkspaceAction.LABEL, false));
 			}
 		});
 
@@ -751,7 +751,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL));
 			}
 		});
 
@@ -767,7 +767,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ClearExtensionsSearchResultsAction, ClearExtensionsSearchResultsAction.ID, ClearExtensionsSearchResultsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ClearExtensionsSearchResultsAction, ClearExtensionsSearchResultsAction.ID, ClearExtensionsSearchResultsAction.LABEL));
 			}
 		});
 
@@ -783,7 +783,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
 			}
 		});
 
@@ -799,7 +799,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL));
 			}
 		});
 
@@ -816,7 +816,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(InstallSpecificVersionOfExtensionAction, InstallSpecificVersionOfExtensionAction.ID, InstallSpecificVersionOfExtensionAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(InstallSpecificVersionOfExtensionAction, InstallSpecificVersionOfExtensionAction.ID, InstallSpecificVersionOfExtensionAction.LABEL));
 			}
 		});
 
@@ -833,7 +833,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL));
 			}
 		});
 	}

@@ -407,12 +407,12 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'type': 'string',
 				'enum': ['always', 'keyboardOnly', 'never'],
 				'enumDescriptions': [
-					nls.localize('window.confirmBeforeClose.always', "Always ask for confirmation."),
-					nls.localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if the browser tab or window was closed by pressing a keybinding."),
+					nls.localize('window.confirmBeforeClose.always', "Always try to ask for confirmation. Note that browsers may still decide to close a tab or window without confirmation."),
+					nls.localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was detected. Note that detection may not be possible in some cases."),
 					nls.localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation unless data loss is imminent.")
 				],
 				'default': isWeb && !isStandalone ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
-				'description': nls.localize('confirmBeforeCloseWeb', "Controls whether to ask for confirmation before closing the browser tab or window. Independent of this setting, there will always be a confirmation to prevent data loss."),
+				'description': nls.localize('confirmBeforeCloseWeb', "Controls wether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases."),
 				'scope': ConfigurationScope.APPLICATION,
 				'included': isWeb
 			}

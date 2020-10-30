@@ -135,8 +135,10 @@ export interface ITerminalConfiguration {
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
-	typeaheadThreshold: number;
-	typeaheadStyle: number | string;
+	localEchoLatencyThreshold: number;
+	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
+	serverSpawn: boolean;
+	enablePersistentSessions: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -170,6 +172,8 @@ export interface IRemoteTerminalAttachTarget {
 	pid: number;
 	title: string;
 	cwd: string;
+	workspaceId: string;
+	workspaceName: string;
 }
 
 export interface IShellLaunchConfig {
@@ -539,7 +543,8 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
 	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation',
-	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace'
+	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace',
+	ATTACH_TO_REMOTE_TERMINAL = 'workbench.action.terminal.attachToSession'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

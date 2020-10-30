@@ -352,28 +352,20 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.typeaheadThreshold': {
-			description: localize('terminal.integrated.typeaheadThreshold', "Experimental: length of typing delay, in milliseconds, where typeahead will activate. If '0', typeahead will always be on, and if '-1' it will be disabled."),
+		'terminal.integrated.localEchoLatencyThreshold': {
+			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
 			minimum: -1,
-			default: 15,
+			default: 30,
 		},
-		'terminal.integrated.typeaheadStyle': {
-			description: localize('terminal.integrated.typeaheadStyle', "Experimental: terminal style of typeahead text, either a font style or an RGB color."),
-			default: 2,
+		'terminal.integrated.localEchoStyle': {
+			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
+			default: 'dim',
 			oneOf: [
 				{
-					type: 'integer',
-					default: 2,
-					enum: [0, 1, 2, 3, 4, 7],
-					enumDescriptions: [
-						localize('terminal.integrated.typeaheadStyle.0', 'Normal'),
-						localize('terminal.integrated.typeaheadStyle.1', 'Bold'),
-						localize('terminal.integrated.typeaheadStyle.2', 'Dim'),
-						localize('terminal.integrated.typeaheadStyle.3', 'Italic'),
-						localize('terminal.integrated.typeaheadStyle.4', 'Underlined'),
-						localize('terminal.integrated.typeaheadStyle.7', 'Inverted'),
-					]
+					type: 'string',
+					default: 'dim',
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
 				},
 				{
 					type: 'string',
@@ -381,6 +373,16 @@ export const terminalConfiguration: IConfigurationNode = {
 					default: '#ff0000',
 				}
 			]
+		},
+		'terminal.integrated.serverSpawn': {
+			description: localize('terminal.integrated.serverSpawn', "Experimental: spawn remote terminals from the remote agent process instead of the remote extension host"),
+			type: 'boolean',
+			default: true
+		},
+		'terminal.integrated.enablePersistentSessions': {
+			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
+			type: 'boolean',
+			default: true
 		}
 	}
 };

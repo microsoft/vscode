@@ -181,8 +181,9 @@ declare module 'vscode' {
 	export class ResolvedAuthority {
 		readonly host: string;
 		readonly port: number;
+		readonly connectionToken: string | undefined;
 
-		constructor(host: string, port: number);
+		constructor(host: string, port: number, connectionToken?: string);
 	}
 
 	export interface ResolvedOptions {
@@ -2159,16 +2160,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
-	export interface CommentThread {
-		/**
-		 * Whether the thread supports reply.
-		 * Defaults to true.
-		 */
-		canReply: boolean;
-	}
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
 	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
 
@@ -2176,20 +2167,6 @@ declare module 'vscode' {
 		 * An optional event to signal that the folding ranges from this provider have changed.
 		 */
 		onDidChangeFoldingRanges?: Event<void>;
-
-	}
-	//#endregion
-
-	//#region Syncing Extension's Global State https://github.com/microsoft/vscode/issues/95209 @sandy081
-	export interface ExtensionContext {
-
-		readonly syncedGlobalState: Memento & {
-			/**
-			 * List of keys whose values should be synced across devices when extensions synchronization is enabled .
-			 * Set synced keys to an empty array to unset the synced state.
-			 */
-			syncedKeys: ReadonlyArray<string>;
-		};
 
 	}
 	//#endregion

@@ -23,7 +23,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isLowSurrogate, isHighSurrogate } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface ICancelEvent {
@@ -288,7 +287,7 @@ export class SuggestModel implements IDisposable {
 		this._currentSelection = this._editor.getSelection();
 
 		if (!e.selection.isEmpty()
-			|| e.reason !== CursorChangeReason.NotSet
+			|| (e.reason !== CursorChangeReason.NotSet && e.reason !== CursorChangeReason.Explicit)
 			|| (e.source !== 'keyboard' && e.source !== 'deleteLeft')
 		) {
 			// Early exit if nothing needs to be done!
@@ -301,7 +300,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._state === State.Idle) {
+		if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
 
 			if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
 				// not enabled
@@ -357,6 +356,11 @@ export class SuggestModel implements IDisposable {
 
 			}, this._quickSuggestDelay);
 
+
+		} else if (this._state !== State.Idle && e.reason === CursorChangeReason.Explicit) {
+			// suggest is active and something like cursor keys are used to move
+			// the cursor. this means we can refilter at the new position
+			this._refilterCompletionItems();
 		}
 	}
 
@@ -484,31 +488,11 @@ export class SuggestModel implements IDisposable {
 
 	private _reportDurationsTelemetry(durations: CompletionDurations): void {
 
-		type DurationEntry = {
-			session: string;
-			providerName: string;
-			elapsedProvider: number;
-			elapsedOverall: number;
-		};
-
-		type Durations = {
-			session: string;
-			elapsedAll: number;
-		};
-
-		type PerformanceAndHealth<T> = { [P in keyof T]: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
-		type DurationEntryClassification = PerformanceAndHealth<DurationEntry>;
-		type DurationsClassification = PerformanceAndHealth<Durations>;
-
 		setTimeout(() => {
-
-			this._logService.trace('suggest.durations', durations);
-
-			const session = generateUuid();
-			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.all', { session, elapsedAll: durations.elapsed });
-			for (let item of durations.entries) {
-				this._telemetryService.publicLog2<DurationEntry, DurationEntryClassification>('suggest.durations.entry', { session, ...item });
-			}
+			type Durations = { data: string; };
+			type DurationsClassification = { data: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
+			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.json', { data: JSON.stringify(durations) });
+			this._logService.debug('suggest.durations.json', durations);
 		});
 	}
 

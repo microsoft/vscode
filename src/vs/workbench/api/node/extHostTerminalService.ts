@@ -204,7 +204,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
 		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
 
-		const terminalProcess = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService);
+		const terminalProcess = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, process.env as platform.IProcessEnvironment, enableConpty, this._logService);
 		this._setupExtHostProcessListeners(id, terminalProcess);
 		const error = await terminalProcess.start();
 		if (error) {

@@ -175,6 +175,17 @@ export class HistoryNavigator2<T> {
 		return this.cursor.value;
 	}
 
+	has(t: T): boolean {
+		let temp: HistoryNode<T> | undefined = this.head;
+		while (temp) {
+			if (temp.value === t) {
+				return true;
+			}
+			temp = temp.next;
+		}
+		return false;
+	}
+
 	resetCursor(): T {
 		this.cursor = this.tail;
 		return this.cursor.value;

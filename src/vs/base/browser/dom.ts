@@ -34,31 +34,6 @@ export function isInDOM(node: Node | null): boolean {
 	return false;
 }
 
-interface IDomClassList {
-	addClass(node: HTMLElement | SVGElement, className: string): void;
-	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
-}
-
-const _classList: IDomClassList = new class implements IDomClassList {
-
-	addClass(node: HTMLElement, className: string): void {
-		if (className && node.classList) {
-			node.classList.add(className);
-		}
-	}
-
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		if (node.classList) {
-			node.classList.toggle(className, shouldHaveIt);
-		}
-	}
-};
-
-/** @deprecated ES6 - use classList*/
-export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
-
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;

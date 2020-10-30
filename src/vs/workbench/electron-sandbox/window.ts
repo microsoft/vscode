@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/wo
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -208,7 +208,7 @@ export class NativeWindow extends Disposable {
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
 			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
-			const result = await this.dialogService.input('question', nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
+			const result = await this.dialogService.input(Severity.Warning, nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
 					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
 					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
@@ -226,20 +226,26 @@ export class NativeWindow extends Disposable {
 					}
 				});
 
+			// Reply back to the channel without result to indicate
+			// that the login dialog was cancelled
 			if (result.choice !== 0 || !result.values) {
-				return; // dialog canceled
+				ipcRenderer.send(payload.replyChannel);
 			}
 
-			// Update state based on checkbox
-			if (result.checkboxChecked) {
-				this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL);
-			} else {
-				this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
-			}
+			// Other reply back with the picked credentials
+			else {
 
-			// Reply back to main side with credentials
-			const [username, password] = result.values;
-			ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
+				// Update state based on checkbox
+				if (result.checkboxChecked) {
+					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL);
+				} else {
+					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+				}
+
+				// Reply back to main side with credentials
+				const [username, password] = result.values;
+				ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
+			}
 		});
 
 		// Accessibility support changed event

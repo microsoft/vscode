@@ -79,7 +79,7 @@ export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironme
 	return mainProcessParentEnv!;
 }
 
-export async function findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined> {
+export async function findExecutable(command: string, cwd?: string, paths?: string[], env: IProcessEnvironment = process.env as IProcessEnvironment): Promise<string | undefined> {
 	// If we have an absolute path then we take it.
 	if (path.isAbsolute(command)) {
 		return await exists(command) ? command : undefined;
@@ -94,8 +94,8 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 		const fullPath = path.join(cwd, command);
 		return await exists(fullPath) ? fullPath : undefined;
 	}
-	if (paths === undefined && isString(process.env.PATH)) {
-		paths = process.env.PATH.split(path.delimiter);
+	if (paths === undefined && isString(env.PATH)) {
+		paths = env.PATH.split(path.delimiter);
 	}
 	// No PATH environment. Make path absolute to the cwd.
 	if (paths === undefined || paths.length === 0) {
