@@ -38,10 +38,7 @@ export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFr
 	const selection = editor.getSelection();
 	// if selection spans multiple lines, default search string to empty
 
-	if (
-		(seedSearchStringFromSelection === 'single' && selection.startLineNumber === selection.endLineNumber)
-		|| seedSearchStringFromSelection === 'multiple'
-	) {
+	if (seedSearchStringFromSelection === 'single' && selection.startLineNumber === selection.endLineNumber) {
 		if (selection.isEmpty()) {
 			const wordAtPosition = editor.getConfiguredWordAtPosition(selection.getStartPosition());
 			if (wordAtPosition) {
@@ -51,6 +48,10 @@ export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFr
 			if (editor.getModel().getValueLengthInRange(selection) < SEARCH_STRING_MAX_LENGTH) {
 				return editor.getModel().getValueInRange(selection);
 			}
+		}
+	} else if (seedSearchStringFromSelection === 'multiple') {
+		if (editor.getModel().getValueLengthInRange(selection) < SEARCH_STRING_MAX_LENGTH) {
+			return editor.getModel().getValueInRange(selection);
 		}
 	}
 
