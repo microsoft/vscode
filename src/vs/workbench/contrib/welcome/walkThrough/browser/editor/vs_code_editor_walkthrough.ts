@@ -73,7 +73,7 @@ Since it's very common to work with the entire text in a line we provide a set o
 
 
 ### Rename Refactoring
-It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol |Book| to rename all instances - this will occur across all files in a project.  You can also see refactoring in the right-click context menu.
+It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol |Book| to rename all instances - this will occur across all files in a project. You also have |Rename Symbol| in the right-click context menu.
 
 |||js
 // Reference the function
