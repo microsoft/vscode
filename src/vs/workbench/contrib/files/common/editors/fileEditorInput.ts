@@ -123,12 +123,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		return this.decorateLabel(super.getTitle(verbosity));
+		// short-verbosity title from superclass already has a readonly suffix if applicable, so don't add it again
+		return this.decorateLabel(super.getTitle(verbosity), verbosity === Verbosity.SHORT);
 	}
 
-	private decorateLabel(label: string): string {
+	private decorateLabel(label: string, skipReadonly?: boolean): string {
 		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
-		const readonly = this.isReadonly();
+		const readonly = !skipReadonly && this.isReadonly();
 
 		if (orphaned && readonly) {
 			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
