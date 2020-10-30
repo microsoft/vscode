@@ -150,8 +150,6 @@ export class TerminalService implements ITerminalService {
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
 		const remoteTerms = await this._remoteTerminalService.listTerminals();
-		this._connectionState = TerminalConnectionState.Connected;
-		this._onDidChangeConnectionState.fire();
 		const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
 
 		/* __GDPR__
@@ -169,6 +167,9 @@ export class TerminalService implements ITerminalService {
 				this.createTerminal({ remoteAttach: term });
 			}
 		}
+
+		this._connectionState = TerminalConnectionState.Connected;
+		this._onDidChangeConnectionState.fire();
 	}
 
 	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {
