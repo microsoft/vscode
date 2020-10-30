@@ -219,7 +219,7 @@ export class NativeWindow extends Disposable {
 				],
 				{
 					cancelId: 1,
-					detail: nls.localize('proxyDetail', "The proxy {0} requires a userame and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					detail: nls.localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
 					checkbox: {
 						label: nls.localize('rememberCredentials', "Remember my credentials"),
 						checked: rememberCredentials
