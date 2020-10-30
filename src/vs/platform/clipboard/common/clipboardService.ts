@@ -13,6 +13,11 @@ export interface IClipboardService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Writes data to the system clipboard.
+	 */
+	write(data: any, type?: string): Promise<void>;
+
+	/**
 	 * Writes text to the system clipboard.
 	 */
 	writeText(text: string, type?: string): Promise<void>;

@@ -109,6 +109,7 @@ export interface ICommonNativeHostService {
 
 	// Clipboard
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
+	writeClipboardData(data: any, type?: 'selection' | 'clipboard'): Promise<void>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;
 	writeClipboardFindText(text: string): Promise<void>;

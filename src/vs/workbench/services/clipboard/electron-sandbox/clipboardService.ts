@@ -20,6 +20,10 @@ export class NativeClipboardService implements IClipboardService {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) { }
 
+	async write(data: any, type?: 'selection' | 'clipboard'): Promise<void> {
+		return this.nativeHostService.writeClipboardData(data, type);
+	}
+
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
 		return this.nativeHostService.writeClipboardText(text, type);
 	}

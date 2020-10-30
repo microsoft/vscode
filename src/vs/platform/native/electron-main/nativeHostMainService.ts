@@ -473,6 +473,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return clipboard.readText(type);
 	}
 
+	async writeClipboardData(windowId: number | undefined, data: any, type?: 'selection' | 'clipboard'): Promise<void> {
+		return clipboard.write(data, type);
+	}
+
 	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
 		return clipboard.writeText(text, type);
 	}

@@ -13,6 +13,10 @@ export class BrowserClipboardService implements IClipboardService {
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
+	async write(data: any, type?: string): Promise<void> {
+		throw new Error('Not Implemented');
+	}
+
 	async writeText(text: string, type?: string): Promise<void> {
 
 		// With type: only in-memory is supported
