@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator2 } from 'vs/base/common/history';
 
 class SCMInput implements ISCMInput {
@@ -92,14 +92,12 @@ class SCMInput implements ISCMInput {
 		this.historyNavigator = new HistoryNavigator2(history, 50);
 
 		this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				if (this.historyNavigator.isAtEnd()) {
-					this.historyNavigator.replaceLast(this._value);
-				}
+			if (this.historyNavigator.isAtEnd()) {
+				this.historyNavigator.replaceLast(this._value);
+			}
 
-				if (this.repository.provider.rootUri) {
-					this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL);
-				}
+			if (this.repository.provider.rootUri) {
+				this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL);
 			}
 		});
 	}

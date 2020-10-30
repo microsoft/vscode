@@ -198,7 +198,7 @@ export interface IDialogService {
 	 * option then promise with index `0` is returned. In addition, the values for the
 	 * inputs are returned as well.
 	 */
-	input(type: DialogType, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
 
 	/**
 	 * Present the about dialog to the user.

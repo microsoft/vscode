@@ -14,7 +14,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, app, WebContents } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -1638,6 +1638,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
 	}
 
+	getFocusedWindow(): ICodeWindow | undefined {
+		const win = BrowserWindow.getFocusedWindow();
+		if (win) {
+			return this.getWindowById(win.id);
+		}
+
+		return undefined;
+	}
+
 	getLastActiveWindow(): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsMainService.WINDOWS);
 	}
@@ -1664,28 +1673,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 	}
 
-	private getFocusedWindow(): ICodeWindow | undefined {
-		const win = BrowserWindow.getFocusedWindow();
-		if (win) {
-			return this.getWindowById(win.id);
-		}
-
-		return undefined;
-	}
-
 	getWindowById(windowId: number): ICodeWindow | undefined {
 		const res = WindowsMainService.WINDOWS.filter(window => window.id === windowId);
 
 		return arrays.firstOrDefault(res);
-	}
-
-	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {
-		const win = BrowserWindow.fromWebContents(webContents);
-		if (win) {
-			return this.getWindowById(win.id);
-		}
-
-		return undefined;
 	}
 
 	getWindows(): ICodeWindow[] {
