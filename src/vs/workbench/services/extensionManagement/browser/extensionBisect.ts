@@ -30,6 +30,7 @@ export interface IExtensionBisectService {
 
 	isDisabledByBisect(extension: IExtension): boolean;
 	isActive: boolean;
+	remainingSteps: number;
 	start(extensions: ILocalExtension[]): void;
 	next(seeingBad: boolean): { id: string, bad: boolean } | undefined;
 	reset(): void;
@@ -51,6 +52,7 @@ class BisectState {
 	}
 
 	readonly mid: number;
+	readonly roundsLeft: number;
 
 	constructor(
 		readonly extensions: string[],
@@ -59,6 +61,7 @@ class BisectState {
 		readonly round: number,
 	) {
 		this.mid = ((low + high) / 2) | 0;
+		this.roundsLeft = 1 + Math.round(Math.log2(extensions.length) - round);
 	}
 }
 
@@ -84,12 +87,16 @@ class ExtensionBisectService implements IExtensionBisectService {
 				const isDisabled = i >= mid && i < high;
 				this._disabled.set(this._state.extensions[i], isDisabled);
 			}
-			logService.warn('extension BISECT active', this._disabled);
+			logService.warn('extension BISECT active', [...this._disabled]);
 		}
 	}
 
 	get isActive() {
 		return !!this._state;
+	}
+
+	get remainingSteps() {
+		return this._state?.roundsLeft ?? 0;
 	}
 
 	isDisabledByBisect(extension: IExtension): boolean {
@@ -145,11 +152,11 @@ class ExtensionBisectUi {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionBisectService extensionBisectService: IExtensionBisectService,
+		@IExtensionBisectService private readonly _extensionBisectService: IExtensionBisectService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		if (extensionBisectService.isActive) {
+		if (_extensionBisectService.isActive) {
 			ExtensionBisectUi.ctxIsBisectActive.bindTo(contextKeyService).set(true);
 			this._showBisectPrompt();
 		}
@@ -172,7 +179,7 @@ class ExtensionBisectUi {
 
 		this._notificationService.prompt(
 			Severity.Info,
-			localize('bisect', "You are bisecting extensions.\nCheck if you can still reproduce your problem. To proceed select from the options below."),
+			localize('bisect', "You are bisecting extensions.\nCheck if you can still reproduce your problem and proceed by selecting from the options below. Approximately {0} steps remaining.", this._extensionBisectService.remainingSteps),
 			[goodPrompt, badPrompt, stop],
 			{ sticky: true }
 		);
@@ -203,7 +210,7 @@ registerAction2(class extends Action2 {
 
 		const res = await dialogService.confirm({
 			message: localize('msg.start', "Extension Bisect"),
-			detail: localize('detail.start', "This will repeatedly disable extensions and reload the window. Each time you must confirm if you are still seeing problems."),
+			detail: localize('detail.start', "Extension bisect will use binary search to find extensions that cause a problem. During the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems."),
 			primaryButton: localize('msg2', "Start Extension Bisect")
 		});
 
