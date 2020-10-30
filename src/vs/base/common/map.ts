@@ -351,10 +351,10 @@ export class TernarySearchTree<K, V> {
 	}
 
 	get(key: K): V | undefined {
-		return this.getNode(key)?.value;
+		return this._getNode(key)?.value;
 	}
 
-	private getNode(key: K) {
+	private _getNode(key: K) {
 		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -377,7 +377,7 @@ export class TernarySearchTree<K, V> {
 	}
 
 	has(key: K): boolean {
-		return !!this.getNode(key);
+		return !!this._getNode(key);
 	}
 
 	delete(key: K): void {
