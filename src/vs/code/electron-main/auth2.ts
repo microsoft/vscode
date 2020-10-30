@@ -20,7 +20,6 @@ interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDe
 
 type LoginEvent = {
 	event: ElectronEvent;
-	webContents: WebContents;
 	authInfo: AuthInfo;
 	req: ElectronAuthenticationResponseDetails;
 
@@ -80,7 +79,7 @@ export class ProxyAuthHandler2 extends Disposable {
 		this._register(onLogin(this.onLogin, this));
 	}
 
-	private async onLogin({ event, webContents, authInfo, req, callback }: LoginEvent): Promise<void> {
+	private async onLogin({ event, authInfo, req, callback }: LoginEvent): Promise<void> {
 		if (!authInfo.isProxy) {
 			return; // only for proxy
 		}
@@ -99,7 +98,7 @@ export class ProxyAuthHandler2 extends Disposable {
 		if (!this.pendingProxyResolve) {
 			this.logService.trace('auth#onLogin (proxy) - no pending proxy handling found, starting new');
 
-			this.pendingProxyResolve = this.resolveProxyCredentials(webContents, authInfo);
+			this.pendingProxyResolve = this.resolveProxyCredentials(authInfo);
 			try {
 				credentials = await this.pendingProxyResolve;
 			} finally {
@@ -121,11 +120,11 @@ export class ProxyAuthHandler2 extends Disposable {
 		callback(credentials?.username, credentials?.password);
 	}
 
-	private async resolveProxyCredentials(webContents: WebContents, authInfo: AuthInfo): Promise<Credentials | undefined> {
+	private async resolveProxyCredentials(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		this.logService.trace('auth#resolveProxyCredentials (proxy) - enter');
 
 		try {
-			const credentials = await this.doResolveProxyCredentials(webContents, authInfo);
+			const credentials = await this.doResolveProxyCredentials(authInfo);
 			if (credentials) {
 				this.logService.trace('auth#resolveProxyCredentials (proxy) - got credentials');
 
@@ -140,7 +139,7 @@ export class ProxyAuthHandler2 extends Disposable {
 		return undefined;
 	}
 
-	private async doResolveProxyCredentials(webContents: WebContents, authInfo: AuthInfo): Promise<Credentials | undefined> {
+	private async doResolveProxyCredentials(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		this.logService.trace('auth#doResolveProxyCredentials - enter', authInfo);
 
 		// Compute a hash over the authentication info to be used
@@ -174,8 +173,10 @@ export class ProxyAuthHandler2 extends Disposable {
 			return { username: storedUsername, password: storedPassword };
 		}
 
-		// Find suitable window to show dialog
-		const window = this.windowsMainService.getWindowByWebContents(webContents) || this.windowsMainService.getLastActiveWindow();
+		// Find suitable window to show dialog: prefer to show it in the
+		// active window because any other network request will wait on
+		// the credentials and we want the user to present the dialog.
+		const window = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 		if (!window) {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - no opened window found to show dialog in');
 
@@ -199,7 +200,7 @@ export class ProxyAuthHandler2 extends Disposable {
 			const proxyAuthResponseHandler = async (event: ElectronEvent, channel: string, reply: Credentials & { remember: boolean } | undefined /* canceled */) => {
 				if (channel === payload.replyChannel) {
 					this.logService.trace(`auth#doResolveProxyCredentials - exit - received credentials from window ${window.id}`);
-					webContents.off('ipc-message', proxyAuthResponseHandler);
+					window.win.webContents.off('ipc-message', proxyAuthResponseHandler);
 
 					// We got credentials from the window
 					if (reply) {
@@ -227,7 +228,7 @@ export class ProxyAuthHandler2 extends Disposable {
 				}
 			};
 
-			webContents.on('ipc-message', proxyAuthResponseHandler);
+			window.win.webContents.on('ipc-message', proxyAuthResponseHandler);
 		});
 
 		// Remember credentials for the session in case

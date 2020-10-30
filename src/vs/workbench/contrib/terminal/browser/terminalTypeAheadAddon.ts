@@ -9,6 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, ITerminalAddon, Terminal } from 'xterm';
 
@@ -20,8 +21,8 @@ const DELETE_CHAR = `${CSI}X`;
 const DELETE_REST_OF_LINE = `${CSI}K`;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
 const CSI_MOVE_RE = /^\x1b\[([0-9]*)(;[35])?O?([DC])/;
-const PASSWORD_INPUT_RE = /(password|passphrase|passwd).*:/i;
-const NOT_WORD_RE = /\W/;
+const PASSWORD_INPUT_RE = /(?:\W|^)(?:pat|token|password|passphrase|passwd)(\W.*:|:)/i;
+const NOT_WORD_RE = /[^a-z0-9]/i;
 
 const statsBufferSize = 24;
 const statsSendTelemetryEvery = 1000 * 60 * 5; // how often to collect stats
@@ -36,6 +37,9 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  *  - mode set/reset
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
+
+const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
+const flushOutput = (terminal: Terminal) => core(terminal).writeSync('');
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -156,6 +160,13 @@ const enum MatchResult {
 }
 
 export interface IPrediction {
+	/**
+	 * Whether applying this prediction can modify the style attributes of the
+	 * terminal. If so it means we need to reset the cursor style if it's
+	 * rolled back.
+	 */
+	readonly affectsStyle?: boolean;
+
 	/**
 	 * Returns a sequence to apply the prediction.
 	 * @param buffer to write to
@@ -329,22 +340,25 @@ class TentativeBoundary implements IPrediction {
  * Prediction for a single alphanumeric character.
  */
 class CharacterPrediction implements IPrediction {
+	public readonly affectsStyle = true;
+
 	protected appliedAt?: {
-		pos: ICoordinate,
+		pos: ICoordinate;
 		oldAttributes: string;
 		oldChar: string;
 	};
 
-	constructor(private readonly style: string, private readonly char: string) { }
+	constructor(private readonly style: TypeAheadStyle, private readonly char: string) { }
 
-	public apply(buffer: IBuffer, cursor: Cursor) {
+	public apply(_: IBuffer, cursor: Cursor) {
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { pos: cursor.coordinate, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
+			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
 			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
 
 		cursor.shift(1);
-		return this.style + this.char + this.appliedAt.oldAttributes;
+
+		return this.style.apply + this.char + this.style.undo;
 	}
 
 	public rollback(cursor: Cursor) {
@@ -362,7 +376,7 @@ class CharacterPrediction implements IPrediction {
 			return ''; // not applied
 		}
 
-		return cursor.clone().moveTo(this.appliedAt.pos) + this.appliedAt.oldAttributes + input;
+		return cursor.clone().moveTo(this.appliedAt.pos) + input;
 	}
 
 	public matches(input: StringReader) {
@@ -384,18 +398,30 @@ class CharacterPrediction implements IPrediction {
 	}
 }
 
-class BackspacePrediction extends CharacterPrediction {
-	constructor() {
-		super('', '\b');
-	}
+class BackspacePrediction implements IPrediction {
+	protected appliedAt?: {
+		pos: ICoordinate;
+		oldAttributes: string;
+		oldChar: string;
+	};
 
 	public apply(_: IBuffer, cursor: Cursor) {
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { pos: cursor.coordinate, oldAttributes: getBufferCellAttributes(cell), oldChar: cell.getChars() }
+			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
 			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
 
 		return cursor.shift(-1) + DELETE_CHAR;
+	}
+
+	public rollback(cursor: Cursor) {
+		if (!this.appliedAt) {
+			return ''; // not applied
+		}
+
+		const { oldAttributes, oldChar, pos } = this.appliedAt;
+		const r = cursor.moveTo(pos) + (oldChar ? `${oldAttributes}${oldChar}${cursor.moveTo(pos)}` : DELETE_CHAR);
+		return r;
 	}
 
 	public rollForwards() {
@@ -483,7 +509,7 @@ class CursorMovePrediction implements IPrediction {
 	public apply(buffer: IBuffer, cursor: Cursor) {
 		const prevPosition = cursor.x;
 		const currentCell = cursor.getCell();
-		const prevAttrs = currentCell ? getBufferCellAttributes(currentCell) : '';
+		const prevAttrs = currentCell ? attributesToSeq(currentCell) : '';
 
 		const { amount, direction, moveByWords } = this;
 		const delta = direction === CursorMoveDirection.Back ? -1 : 1;
@@ -528,17 +554,17 @@ class CursorMovePrediction implements IPrediction {
 		const { amount, rollForward } = this.applied;
 
 
-		// arg can be omitted to move one character
-		const r = input.eatGradually(`${CSI}${direction}`.repeat(amount));
-		if (r !== MatchResult.Failure) {
-			return r;
+		// arg can be omitted to move one character. We don't eatGradually() here
+		// or below moves that don't go as far as the cursor would be buffered
+		// indefinitely
+		if (input.eatStr(`${CSI}${direction}`.repeat(amount))) {
+			return MatchResult.Success;
 		}
 
 		// \b is the equivalent to moving one character back
 		if (direction === CursorMoveDirection.Back) {
-			const r = input.eatGradually(`\b`.repeat(amount));
-			if (r !== MatchResult.Failure) {
-				return r;
+			if (input.eatStr(`\b`.repeat(amount))) {
+				return MatchResult.Success;
 			}
 		}
 
@@ -650,7 +676,11 @@ export class PredictionTimeline {
 	private readonly succeededEmitter = new Emitter<IPrediction>();
 	public readonly onPredictionSucceeded = this.succeededEmitter.event;
 
-	constructor(public readonly terminal: Terminal) { }
+	public get isShowingPredictions() {
+		return this.showPredictions;
+	}
+
+	constructor(public readonly terminal: Terminal, private readonly style: TypeAheadStyle) { }
 
 	public setShowPredictions(show: boolean) {
 		if (show === this.showPredictions) {
@@ -668,6 +698,7 @@ export class PredictionTimeline {
 		const toApply = this.expected.filter(({ gen }) => gen === this.expected[0].gen).map(({ p }) => p);
 		if (show) {
 			this.cursor = undefined;
+			this.style.expectIncomingStyle(toApply.reduce((count, p) => p.affectsStyle ? count + 1 : count, 0));
 			this.terminal.write(toApply.map(p => p.apply(buffer, this.getCursor(buffer))).join(''));
 		} else {
 			this.terminal.write(toApply.reverse().map(p => p.rollback(this.getCursor(buffer))).join(''));
@@ -678,6 +709,7 @@ export class PredictionTimeline {
 	 * Should be called when input is incoming to the temrinal.
 	 */
 	public beforeServerInput(input: string): string {
+		const originalInput = input;
 		if (this.inputBuffer) {
 			input = this.inputBuffer + input;
 			this.inputBuffer = undefined;
@@ -729,10 +761,13 @@ export class PredictionTimeline {
 				case MatchResult.Failure:
 					// on a failure, roll back all remaining items in this generation
 					// and clear predictions, since they are no longer valid
-					output += this.expected.filter(p => p.gen === startingGen)
-						.reverse()
-						.map(({ p }) => p.rollback(this.getCursor(buffer)))
-						.join('');
+					const rollback = this.expected.filter(p => p.gen === startingGen).reverse();
+					output += rollback.map(({ p }) => p.rollback(this.getCursor(buffer))).join('');
+					if (rollback.some(r => r.p.affectsStyle)) {
+						// reading the current style should generally be safe, since predictions
+						// always restore the style if they modify it.
+						output += attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
+					}
 					this.expected = [];
 					this.cursor = undefined;
 					this.failedEmitter.fire(prediction);
@@ -756,13 +791,16 @@ export class PredictionTimeline {
 				if (gen !== this.expected[0].gen) {
 					break;
 				}
+				if (p.affectsStyle) {
+					this.style.expectIncomingStyle();
+				}
 
 				output += p.apply(buffer, this.getCursor(buffer));
 			}
 		}
 
 		if (!this.showPredictions) {
-			return input;
+			return originalInput;
 		}
 
 		if (output.length === 0 || output === input) {
@@ -788,7 +826,10 @@ export class PredictionTimeline {
 
 		if (this.currentGen === this.expected[0].gen) {
 			const text = prediction.apply(buffer, this.getCursor(buffer));
-			if (this.showPredictions) {
+			if (this.showPredictions && text) {
+				if (prediction.affectsStyle) {
+					this.style.expectIncomingStyle();
+				}
 				// console.log('predict:', JSON.stringify(text));
 				this.terminal.write(text);
 			}
@@ -804,13 +845,27 @@ export class PredictionTimeline {
 	 * after this one will only be displayed after the give prediction matches
 	 * pty output/
 	 */
-	public addBoundary(buffer: IBuffer, prediction: IPrediction) {
-		this.addPrediction(buffer, prediction);
+	public addBoundary(): void;
+	public addBoundary(buffer: IBuffer, prediction: IPrediction): void;
+	public addBoundary(buffer?: IBuffer, prediction?: IPrediction) {
+		if (buffer && prediction) {
+			this.addPrediction(buffer, prediction);
+		}
 		this.currentGen++;
+	}
+
+	/**
+	 * Peeks the last prediction written.
+	 */
+	public peekEnd() {
+		return this.expected[this.expected.length - 1]?.p;
 	}
 
 	public getCursor(buffer: IBuffer) {
 		if (!this.cursor) {
+			if (this.showPredictions) {
+				flushOutput(this.terminal);
+			}
 			this.cursor = new Cursor(this.terminal.rows, this.terminal.cols, buffer);
 		}
 
@@ -829,7 +884,7 @@ export class PredictionTimeline {
 /**
  * Gets the escape sequence to restore state/appearence in the cell.
  */
-const getBufferCellAttributes = (cell: IBufferCell) => cell.isAttributeDefault()
+const attributesToSeq = (cell: XTermAttributes) => cell.isAttributeDefault()
 	? `${CSI}0m`
 	: [
 		cell.isBold() && `${CSI}1m`,
@@ -849,27 +904,180 @@ const getBufferCellAttributes = (cell: IBufferCell) => cell.isAttributeDefault()
 		cell.isBgDefault() && `${CSI}49m`,
 	].filter(seq => !!seq).join('');
 
-const parseTypeheadStyle = (style: ITerminalConfiguration['typeaheadStyle']) => {
-	switch (style) {
-		case 'bold':
-			return `${CSI}1m`;
-		case 'dim':
-			return `${CSI}2m`;
-		case 'italic':
-			return `${CSI}3m`;
-		case 'underlined':
-			return `${CSI}4m`;
-		case 'inverted':
-			return `${CSI}7m`;
-		default:
-			const { r, g, b } = Color.fromHex(style).rgba;
-			return `${CSI}38;2;${r};${g};${b}m`;
+
+const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T>) => {
+	if (a.length - ai > b.length) {
+		return false;
 	}
+
+	for (let bi = 0; bi < b.length; bi++, ai++) {
+		if (b[ai] !== a[ai]) {
+			return false;
+		}
+	}
+
+	return true;
 };
 
+/**
+ * @see https://github.com/xtermjs/xterm.js/blob/065eb13a9d3145bea687239680ec9696d9112b8e/src/common/InputHandler.ts#L2127
+ */
+const getColorWidth = (params: (number | number[])[], pos: number) => {
+	const accu = [0, 0, -1, 0, 0, 0];
+	let cSpace = 0;
+	let advance = 0;
+
+	do {
+		const v = params[pos + advance];
+		accu[advance + cSpace] = typeof v === 'number' ? v : v[0];
+		if (typeof v !== 'number') {
+			let i = 0;
+			do {
+				if (accu[1] === 5) {
+					cSpace = 1;
+				}
+				accu[advance + i + 1 + cSpace] = v[i];
+			} while (++i < v.length && i + advance + 1 + cSpace < accu.length);
+			break;
+		}
+		// exit early if can decide color mode with semicolons
+		if ((accu[1] === 5 && advance + cSpace >= 2)
+			|| (accu[1] === 2 && advance + cSpace >= 5)) {
+			break;
+		}
+		// offset colorSpace slot for semicolon mode
+		if (accu[1]) {
+			cSpace = 1;
+		}
+	} while (++advance + pos < params.length && advance + cSpace < accu.length);
+
+	return advance;
+};
+
+class TypeAheadStyle {
+	private static compileArgs(args: ReadonlyArray<number>) {
+		return `${CSI}${args.join(';')}m`;
+	}
+
+	/**
+	 * Number of typeahead style arguments we expect to read. If this is 0 and
+	 * we see a style coming in, we know that the PTY actually wanted to update.
+	 */
+	private expectedIncomingStyles = 0;
+	private applyArgs!: ReadonlyArray<number>;
+	private originalUndoArgs!: ReadonlyArray<number>;
+	private undoArgs!: ReadonlyArray<number>;
+
+	public apply!: string;
+	public undo!: string;
+
+	constructor(value: ITerminalConfiguration['localEchoStyle']) {
+		this.onUpdate(value);
+	}
+
+	/**
+	 * Signals that a style was written to the terminal and we should watch
+	 * for it coming in.
+	 */
+	public expectIncomingStyle(n = 1) {
+		this.expectedIncomingStyles += n * 2;
+	}
+
+	/**
+	 * Should be called when an attribut eupdate happens in the terminal.
+	 */
+	public onDidWriteSGR(args: (number | number[])[]) {
+		const originalUndo = this.undoArgs;
+		for (let i = 0; i < args.length;) {
+			const px = args[i];
+			const p = typeof px === 'number' ? px : px[0];
+
+			if (this.expectedIncomingStyles) {
+				if (arrayHasPrefixAt(args, i, this.undoArgs)) {
+					this.expectedIncomingStyles--;
+					i += this.undoArgs.length;
+					continue;
+				}
+				if (arrayHasPrefixAt(args, i, this.applyArgs)) {
+					this.expectedIncomingStyles--;
+					i += this.applyArgs.length;
+					continue;
+				}
+			}
+
+			const width = p === 38 || p === 48 || p === 58 ? getColorWidth(args, i) : 1;
+			switch (this.applyArgs[0]) {
+				case 1:
+					if (p === 2) {
+						this.undoArgs = [22, 2];
+					} else if (p === 22 || p === 0) {
+						this.undoArgs = [22];
+					}
+					break;
+				case 2:
+					if (p === 1) {
+						this.undoArgs = [22, 1];
+					} else if (p === 22 || p === 0) {
+						this.undoArgs = [22];
+					}
+					break;
+				case 38:
+					if (p === 0 || p === 39 || p === 100) {
+						this.undoArgs = [39];
+					} else if ((p >= 30 && p <= 38) || (p >= 90 && p <= 97)) {
+						this.undoArgs = args.slice(i, i + width) as number[];
+					}
+					break;
+				default:
+					if (p === this.applyArgs[0]) {
+						this.undoArgs = this.applyArgs;
+					} else if (p === 0) {
+						this.undoArgs = this.originalUndoArgs;
+					}
+				// no-op
+			}
+
+			i += width;
+		}
+
+		if (originalUndo !== this.undoArgs) {
+			this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
+		}
+	}
+
+	/**
+	 * Updates the current typeahead style.
+	 */
+	public onUpdate(style: ITerminalConfiguration['localEchoStyle']) {
+		const { applyArgs, undoArgs } = this.getArgs(style);
+		this.applyArgs = applyArgs;
+		this.undoArgs = this.originalUndoArgs = undoArgs;
+		this.apply = TypeAheadStyle.compileArgs(this.applyArgs);
+		this.undo = TypeAheadStyle.compileArgs(this.undoArgs);
+	}
+
+	private getArgs(style: ITerminalConfiguration['localEchoStyle']) {
+		switch (style) {
+			case 'bold':
+				return { applyArgs: [1], undoArgs: [22] };
+			case 'dim':
+				return { applyArgs: [2], undoArgs: [22] };
+			case 'italic':
+				return { applyArgs: [3], undoArgs: [23] };
+			case 'underlined':
+				return { applyArgs: [4], undoArgs: [24] };
+			case 'inverted':
+				return { applyArgs: [7], undoArgs: [27] };
+			default:
+				const { r, g, b } = Color.fromHex(style).rgba;
+				return { applyArgs: [38, 2, r, g, b], undoArgs: [39] };
+		}
+	}
+}
+
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
-	private typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
-	private typeaheadThreshold = this.config.config.typeaheadThreshold;
+	private typeaheadStyle = new TypeAheadStyle(this.config.config.localEchoStyle);
+	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 	private lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
 	public stats?: PredictionStats;
@@ -883,10 +1091,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	public activate(terminal: Terminal): void {
-		const timeline = this.timeline = new PredictionTimeline(terminal);
+		const timeline = this.timeline = new PredictionTimeline(terminal, this.typeaheadStyle);
 		const stats = this.stats = this._register(new PredictionStats(this.timeline));
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
+		this._register(terminal.parser.registerCsiHandler({ final: 'm' }, args => {
+			this.typeaheadStyle.onDidWriteSGR(args);
+			return false;
+		}));
 		this._register(terminal.onData(e => this.onUserData(e)));
 		this._register(terminal.onResize(() => {
 			timeline.setShowPredictions(false);
@@ -894,8 +1106,8 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.config.onConfigChanged(() => {
-			this.typeheadStyle = parseTypeheadStyle(this.config.config.typeaheadStyle);
-			this.typeaheadThreshold = this.config.config.typeaheadThreshold;
+			this.typeaheadStyle.onUpdate(this.config.config.localEchoStyle);
+			this.typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
@@ -989,13 +1201,24 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const reader = new StringReader(data);
 		while (reader.remaining > 0) {
 			if (reader.eatCharCode(127)) { // backspace
+				const previous = this.timeline.peekEnd();
+				if (previous && previous instanceof CharacterPrediction) {
+					this.timeline.addBoundary();
+				}
+
+				// backspace must be able to read the previously-written character in
+				// the event that it needs to undo it
+				if (this.timeline.isShowingPredictions) {
+					flushOutput(this.timeline.terminal);
+				}
+
 				addLeftNavigating(new BackspacePrediction());
 				continue;
 			}
 
 			if (reader.eatCharCode(32, 126)) { // alphanum
 				const char = data[reader.index - 1];
-				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeheadStyle, char)) && this.timeline.getCursor(buffer).x === terminal.cols) {
+				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeaheadStyle, char)) && this.timeline.getCursor(buffer).x === terminal.cols) {
 					this.timeline.addBoundary(buffer, new TentativeBoundary(new LinewrapPrediction()));
 				}
 				continue;

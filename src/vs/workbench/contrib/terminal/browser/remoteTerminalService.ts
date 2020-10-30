@@ -56,14 +56,16 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return new RemoteTerminalProcess(terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
 	}
 
-	public async listTerminals(): Promise<IRemoteTerminalAttachTarget[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listTerminals() : [];
+	public async listTerminals(isInitialization = false): Promise<IRemoteTerminalAttachTarget[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listTerminals(isInitialization) : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
 				id: termDto.id,
 				pid: termDto.pid,
 				title: termDto.title,
-				cwd: termDto.cwd
+				cwd: termDto.cwd,
+				workspaceId: termDto.workspaceId,
+				workspaceName: termDto.workspaceName
 			};
 		});
 	}

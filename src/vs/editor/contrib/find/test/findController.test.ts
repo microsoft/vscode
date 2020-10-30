@@ -272,7 +272,7 @@ suite('FindController', async () => {
 			findController.setSearchString(testRegexString);
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: false,
@@ -298,7 +298,7 @@ suite('FindController', async () => {
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -524,9 +524,9 @@ suite('FindController query options persistence', async () => {
 		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, async (editor) => {
 			// clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const findConfig = {
+			const findConfig: IFindStartOptions = {
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -558,7 +558,7 @@ suite('FindController query options persistence', async () => {
 
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -582,7 +582,7 @@ suite('FindController query options persistence', async () => {
 
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -607,7 +607,7 @@ suite('FindController query options persistence', async () => {
 
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,

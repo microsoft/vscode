@@ -56,9 +56,18 @@ export class GitHubServer {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
 
-			const tokenScopes = await this.getScopes(token);
-			const scopesList = scopes.split(' ');
-			if (!scopesList.every(scope => tokenScopes.includes(scope))) {
+			const tokenScopes = await this.getScopes(token); // Example: ['repo', 'user']
+			const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
+			if (!scopesList.every(scope => {
+				const included = tokenScopes.includes(scope);
+				if (included || !scope.includes(':')) {
+					return included;
+				}
+
+				return scope.split(':').some(splitScopes => {
+					return tokenScopes.includes(splitScopes);
+				});
+			})) {
 				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
 			}
 

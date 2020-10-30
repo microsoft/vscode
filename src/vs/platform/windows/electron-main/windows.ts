@@ -12,7 +12,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { Rectangle, BrowserWindow, WebContents } from 'electron';
+import { Rectangle, BrowserWindow } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IWindowState {
@@ -109,10 +109,10 @@ export interface IWindowsMainService {
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
+	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
-	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
 }

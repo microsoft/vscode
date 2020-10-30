@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -86,6 +86,7 @@ import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private dialogMainService: IDialogMainService | undefined;
+	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
 		private readonly mainIpcServer: Server,
@@ -213,7 +214,9 @@ export class CodeApplication extends Disposable {
 			contents.on('new-window', (event, url) => {
 				event.preventDefault(); // prevent code that wants to open links
 
-				shell.openExternal(url);
+				if (this.nativeHostMainService) {
+					this.nativeHostMainService.openExternal(undefined, url);
+				}
 			});
 
 			session.defaultSession.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
@@ -542,8 +545,8 @@ export class CodeApplication extends Disposable {
 		const encryptionChannel = createChannelReceiver(encryptionMainService);
 		electronIpcServer.registerChannel('encryption', encryptionChannel);
 
-		const nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = createChannelReceiver(nativeHostMainService);
+		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);
 		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
