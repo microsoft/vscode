@@ -24,6 +24,9 @@ import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IAction, Action } from 'vs/base/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
@@ -83,6 +86,16 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	stopRecordingKeys(): void {
 		this._reset();
 		this.recordDisposables.clear();
+	}
+
+	startRecordEnter(): void {
+		const options = this.options as KeybindingsSearchOptions;
+		options.recordEnter = true;
+	}
+
+	stopRecordEnter(): void {
+		const options = this.options as KeybindingsSearchOptions;
+		options.recordEnter = false;
 	}
 
 	setInputValue(value: string): void {
@@ -151,6 +164,11 @@ export class DefineKeybindingWidget extends Widget {
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
 
+	private actionsContainer!: HTMLElement;
+	private searchContainer!: HTMLElement;
+	private readonly _disableEnterAction: Action;
+	private readonly _updateKeybindingAction: Action;
+
 	private _firstPart: ResolvedKeybinding | null = null;
 	private _chordPart: ResolvedKeybinding | null = null;
 	private _isVisible: boolean = false;
@@ -198,15 +216,54 @@ export class DefineKeybindingWidget extends Widget {
 			}
 		}));
 
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message }));
+		this.searchContainer = dom.append(this._domNode.domNode, dom.$('.search-container'));
+
+		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this.searchContainer, { ariaLabel: message }));
 		this._keybindingInputWidget.startRecordingKeys();
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
 		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
-
+		const trackFocus = dom.trackFocus(this._domNode.domNode);
+		this._register(trackFocus.onDidBlur(() => this.onCancel()));
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
+
+		this.actionsContainer = dom.append(this.searchContainer, dom.$('.keybindings-search-actions-container'));
+		this._register(dom.addDisposableListener(this.actionsContainer, dom.EventType.MOUSE_OVER, (e) => {
+			e.preventDefault();
+		}));
+		this._disableEnterAction = new Action('defineKeybindingWidget.DisableEnter', nls.localize('disableEnter', "Disable Enter"), 'codicon-no-newline');
+		this._disableEnterAction.checked = true;
+		this._updateKeybindingAction = new Action('defineKeybindingWidget.UpdateKeybinding', nls.localize('changeLabel', "Change Keybinding"), 'codicon-save');
+		const actionBar = this._register(new ActionBar(this.actionsContainer, {
+			animated: false,
+			actionViewItemProvider: (action: IAction) => {
+				if (action.id === this._disableEnterAction.id) {
+					return new CheckboxActionViewItem(null, action);
+				}
+				if (action.id === this._updateKeybindingAction.id) {
+					return new CheckboxActionViewItem(null, action);
+				}
+				return undefined;
+			}
+		}));
+		this._register(this._disableEnterAction.onDidChange(e => {
+			this._keybindingInputWidget.focus();
+			if (this._disableEnterAction.checked) {
+				this._keybindingInputWidget.stopRecordEnter();
+			} else {
+				this._keybindingInputWidget.startRecordEnter();
+			}
+		}));
+
+		this._register(this._updateKeybindingAction.onDidChange(e => {
+			if (this._updateKeybindingAction.checked) {
+				this.hide();
+			}
+		}));
+
+		actionBar.push([this._disableEnterAction, this._updateKeybindingAction], { label: false, icon: true });
+
 
 		if (parent) {
 			dom.append(parent, this._domNode.domNode);
@@ -226,10 +283,13 @@ export class DefineKeybindingWidget extends Widget {
 
 				this._firstPart = null;
 				this._chordPart = null;
+				this._disableEnterAction.checked = true;
+				this._updateKeybindingAction.checked = false;
 				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
 				dom.clearNode(this._showExistingKeybindingsNode);
 				this._keybindingInputWidget.focus();
+				this._layoutActionsContainer();
 			}
 			const disposable = this._onHide.event(() => {
 				c(this.getUserSettingsLabel());
@@ -241,9 +301,15 @@ export class DefineKeybindingWidget extends Widget {
 	layout(layout: dom.Dimension): void {
 		const top = Math.round((layout.height - DefineKeybindingWidget.HEIGHT) / 2);
 		this._domNode.setTop(top);
-
 		const left = Math.round((layout.width - DefineKeybindingWidget.WIDTH) / 2);
 		this._domNode.setLeft(left);
+	}
+
+	_layoutActionsContainer(): void {
+		const top = Math.round((this._keybindingInputWidget.domNode.clientHeight - this.actionsContainer.clientHeight) / 2);
+		this.actionsContainer.style.position = 'absolute';
+		this.actionsContainer.style.top = `${this.searchContainer.offsetTop + top}px`;
+		this.actionsContainer.style.right = '10px';
 	}
 
 	printExisting(numberOfExisting: number): void {
