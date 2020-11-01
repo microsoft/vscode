@@ -356,7 +356,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Setup Protocol Handler
-		this._register(new FileProtocolHandler(this.environmentService, this.logService));
+		const fileProtocolHandler = this._register(this.instantiationService.createInstance(FileProtocolHandler));
 
 		// Create Electron IPC Server
 		const electronIpcServer = new ElectronIPCServer();
@@ -403,7 +403,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
@@ -478,7 +478,7 @@ export class CodeApplication extends Disposable {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
-			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
+			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -529,7 +529,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
@@ -583,8 +583,10 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
-		// ExtensionHost Debug broadcast service
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		fileProtocolHandler.injectWindowsMainService(windowsMainService);
+
+		// ExtensionHost Debug broadcast service
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
@@ -670,11 +672,11 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager({
+		const activeWindowManager = this._register(new ActiveWindowManager({
 			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
 			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
 			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
-		});
+		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);

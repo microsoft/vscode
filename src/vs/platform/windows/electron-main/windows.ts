@@ -33,6 +33,11 @@ export const enum WindowMode {
 
 export interface ICodeWindow extends IDisposable {
 
+	readonly onLoad: Event<void>;
+	readonly onReady: Event<void>;
+	readonly onClose: Event<void>;
+	readonly onDestroy: Event<void>;
+
 	readonly whenClosedOrLoaded: Promise<void>;
 
 	readonly id: number;
