@@ -2566,16 +2566,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
-				let executeResult = this.getTaskSystem().rerun();
-				if (executeResult) {
-					return this.handleExecuteResult(executeResult);
-				} else {
-					this.doRunTaskCommand();
-					return Promise.resolve(undefined);
-				}
-			});
+		this.optionallySaveAllEditorsAndDoAction(async () => {
+			let executeResult = this.getTaskSystem().rerun();
+			if (executeResult) {
+				return this.handleExecuteResult(executeResult);
+			} else {
+				this.doRunTaskCommand();
+				return Promise.resolve(undefined);
+			}
 		});
 	}
 
