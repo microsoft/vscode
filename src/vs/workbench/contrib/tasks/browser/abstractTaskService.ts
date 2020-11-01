@@ -1480,7 +1480,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const saveBeforeRunTaskConfig: SaveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
 
 		const saveAllEditorsAndDoAction = async (): Promise<ReturnType> => {
-			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => {
+			const formatOnSaveBeforeRunTaskConfig = this.configurationService.getValue<boolean>('editor.formatOnSaveBeforeRun');
+			const saveReason = formatOnSaveBeforeRunTaskConfig ? SaveReason.EXPLICIT : SaveReason.AUTO;
+			return this.editorService.saveAll({ reason: saveReason }).then(() => {
 				return action();
 			});
 		};
