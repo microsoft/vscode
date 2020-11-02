@@ -25,14 +25,8 @@ import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backu
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
-import { IKeyboardLayoutInfo, IKeymapService, ILinuxKeyboardLayoutInfo, ILinuxKeyboardMapping, IMacKeyboardLayoutInfo, IMacKeyboardMapping, IWindowsKeyboardLayoutInfo, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { ChordKeybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { isWindows, OS } from 'vs/base/common/platform';
+import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
@@ -60,6 +54,9 @@ import { IExtensionHostDebugParams } from 'vs/platform/environment/common/enviro
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { BrowserKeymapService } from 'vs/workbench/services/keybinding/browser/keymapService';
+import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 
 //#region Environment
@@ -499,35 +496,9 @@ registerSingleton(ITelemetryService, SimpleTelemetryService);
 //#endregion
 
 
-//#region Keymap Service
+//#region Keymap Service (borrowed from browser for now to enable keyboard access)
 
-class SimpleKeyboardMapper implements IKeyboardMapper {
-	dumpDebugInfo(): string { return ''; }
-	resolveKeybinding(keybinding: ChordKeybinding): ResolvedKeybinding[] { return []; }
-	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		let keybinding = new SimpleKeybinding(
-			keyboardEvent.ctrlKey,
-			keyboardEvent.shiftKey,
-			keyboardEvent.altKey,
-			keyboardEvent.metaKey,
-			keyboardEvent.keyCode
-		).toChord();
-		return new USLayoutResolvedKeybinding(keybinding, OS);
-	}
-	resolveUserBinding(firstPart: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] { return []; }
-}
-
-class SimpleKeymapService implements IKeymapService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeKeyboardMapper = Event.None;
-	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper { return new SimpleKeyboardMapper(); }
-	getCurrentKeyboardLayout(): (IWindowsKeyboardLayoutInfo & { isUserKeyboardLayout?: boolean | undefined; isUSStandard?: true | undefined; }) | (ILinuxKeyboardLayoutInfo & { isUserKeyboardLayout?: boolean | undefined; isUSStandard?: true | undefined; }) | (IMacKeyboardLayoutInfo & { isUserKeyboardLayout?: boolean | undefined; isUSStandard?: true | undefined; }) | null { return null; }
-	getAllKeyboardLayouts(): IKeyboardLayoutInfo[] { return []; }
-	getRawKeyboardMapping(): IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping | null { return null; }
-	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void { }
-}
+class SimpleKeymapService extends BrowserKeymapService { }
 
 registerSingleton(IKeymapService, SimpleKeymapService);
 
@@ -683,7 +654,7 @@ registerSingleton(IUserDataAutoSyncService, SimpleUserDataAutoSyncAccountService
 
 //#region User Data Sync Store Management
 
-class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
+class SimpleUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -696,13 +667,13 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined> { return undefined; }
 }
 
-registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
+registerSingleton(IUserDataSyncStoreManagementService, SimpleUserDataSyncStoreManagementService);
 
 //#endregion
 
 //#region IStorageKeysSyncRegistryService
 
-class SimpleIStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
+class SimpleStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -721,7 +692,7 @@ class SimpleIStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryS
 	registerExtensionStorageKeys(): void { }
 }
 
-registerSingleton(IStorageKeysSyncRegistryService, SimpleIStorageKeysSyncRegistryService);
+registerSingleton(IStorageKeysSyncRegistryService, SimpleStorageKeysSyncRegistryService);
 
 //#endregion
 
@@ -832,3 +803,9 @@ class SimpleIntegrityService implements IIntegrityService {
 registerSingleton(IIntegrityService, SimpleIntegrityService);
 
 //#endregion
+
+//#region Terminal Instance
+
+class SimpleTerminalInstanceService extends TerminalInstanceService { }
+
+registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);
