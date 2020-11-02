@@ -91,6 +91,7 @@ export class TabsTitleControl extends TitleControl {
 		container: Dimension.None,
 		available: Dimension.None
 	};
+	private lastComputedHeight = this.getDimensions().height;
 
 	private readonly layoutScheduled = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean | undefined;
@@ -1275,6 +1276,11 @@ export class TabsTitleControl extends TitleControl {
 		// control
 		if (this.accessor.partOptions.multiLineTabs) {
 			this.layoutSync(dimensions);
+			const newHeight = this.getDimensions().height;
+			if (this.lastComputedHeight !== newHeight) {
+				this.lastComputedHeight = newHeight;
+				this.group.relayout();
+			}
 		} else {
 			this.layoutAsync();
 		}
