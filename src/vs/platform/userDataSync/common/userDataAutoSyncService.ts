@@ -11,7 +11,7 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { localize } from 'vs/nls';
@@ -76,12 +76,12 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL);
 	}
 
-	private onDidStorageChange(workspaceStorageChangeEvent: IWorkspaceStorageChangeEvent): void {
-		if (workspaceStorageChangeEvent.scope !== StorageScope.GLOBAL) {
+	private onDidStorageChange(storageChangeEvent: IStorageChangeEvent): void {
+		if (storageChangeEvent.scope !== StorageScope.GLOBAL) {
 			return;
 		}
 
-		if (enablementKey === workspaceStorageChangeEvent.key) {
+		if (enablementKey === storageChangeEvent.key) {
 			this._onDidChangeEnablement.fire(this.isEnabled());
 			return;
 		}

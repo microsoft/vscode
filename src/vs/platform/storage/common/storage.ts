@@ -29,7 +29,7 @@ export interface IStorageService {
 	/**
 	 * Emitted whenever data is updated or deleted.
 	 */
-	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent>;
+	readonly onDidChangeStorage: Event<IStorageChangeEvent>;
 
 	/**
 	 * Emitted when the storage is about to persist. This is the right time
@@ -133,7 +133,7 @@ export const enum StorageScope {
 	WORKSPACE
 }
 
-export interface IWorkspaceStorageChangeEvent {
+export interface IStorageChangeEvent {
 	readonly key: string;
 	readonly scope: StorageScope;
 }
@@ -142,7 +142,7 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	protected readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());

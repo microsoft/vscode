@@ -17,13 +17,14 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableShellsRequest, IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalLaunchError, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalLaunchError, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -116,7 +117,8 @@ export class TerminalService implements ITerminalService {
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -149,8 +151,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
-		const remoteTerms = await this._remoteTerminalService.listTerminals();
-		const unattachedRemoteTerms = remoteTerms.filter(term => !this.isAttachedToTerminalWithPid(term.pid));
+		const remoteTerms = await this._remoteTerminalService.listTerminals(true);
+		const workspace = this._workspaceContextService.getWorkspace();
+		const unattachedWorkspaceRemoteTerms = remoteTerms
+			.filter(term => term.workspaceId === workspace.id)
+			.filter(term => !this.isAttachedToTerminal(term));
 
 		/* __GDPR__
 			"terminalReconnection" : {
@@ -158,12 +163,12 @@ export class TerminalService implements ITerminalService {
 			}
 		 */
 		const data = {
-			count: unattachedRemoteTerms.length
+			count: unattachedWorkspaceRemoteTerms.length
 		};
 		this._telemetryService.publicLog('terminalReconnection', data);
-		if (unattachedRemoteTerms.length > 0) {
+		if (unattachedWorkspaceRemoteTerms.length > 0) {
 			// Reattach to all remote terminals
-			for (let term of unattachedRemoteTerms) {
+			for (let term of unattachedWorkspaceRemoteTerms) {
 				this.createTerminal({ remoteAttach: term });
 			}
 		}
@@ -380,8 +385,8 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private isAttachedToTerminalWithPid(pid: number): boolean {
-		return this.terminalInstances.some(term => term.processId === pid);
+	public isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
+		return this.terminalInstances.some(term => term.processId === remoteTerm.pid);
 	}
 
 	public async initializeTerminals(): Promise<void> {

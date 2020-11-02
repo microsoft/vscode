@@ -181,6 +181,7 @@ export interface ITerminalService {
 	extHostReady(remoteAuthority: string): void;
 	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
+	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 }
 
 export interface IRemoteTerminalService {
@@ -188,7 +189,7 @@ export interface IRemoteTerminalService {
 
 	dispose(): void;
 
-	listTerminals(): Promise<IRemoteTerminalAttachTarget[]>;
+	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
 	createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
 }
 

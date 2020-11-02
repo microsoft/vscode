@@ -6,7 +6,7 @@
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
+import { IStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
@@ -24,7 +24,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
 
-	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());

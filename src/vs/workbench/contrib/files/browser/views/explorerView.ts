@@ -590,14 +590,20 @@ export class ExplorerView extends ViewPane {
 			return;
 		}
 		const compressedController = this.renderer.getCompressedNavigationController(focus[0]) || this.renderer.getCompressedNavigationController(item);
-		const itemsCompressedTogether = compressedController && (compressedController.items.indexOf(focus[0]) >= 0) && (compressedController.items.indexOf(item) >= 0);
+		const indexOfItem = compressedController?.items.indexOf(item) || -1;
+		const itemsCompressedTogether = compressedController && (compressedController.items.indexOf(focus[0]) >= 0) && (indexOfItem >= 0);
 
 		if (focus[0] === item || itemsCompressedTogether) {
-			this.tree.focusNext();
-			const newFocus = this.tree.getFocus();
-			if (newFocus.length === 1 && newFocus[0] === item) {
-				// There was no next item to focus, focus the previous one
-				this.tree.focusPrevious();
+			if (itemsCompressedTogether && indexOfItem > 0 && item.parent) {
+				// In case of compact items just focus the parent if it is part of the compact item. So the focus stays
+				this.tree.setFocus([item.parent]);
+			} else {
+				this.tree.focusNext();
+				const newFocus = this.tree.getFocus();
+				if (newFocus.length === 1 && newFocus[0] === item) {
+					// There was no next item to focus, focus the previous one
+					this.tree.focusPrevious();
+				}
 			}
 		}
 	}

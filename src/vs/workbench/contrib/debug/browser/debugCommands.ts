@@ -564,7 +564,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService));
+					return openBreakpointSource(focus[0], true, false, true, accessor.get(IDebugService), accessor.get(IEditorService));
 				}
 			}
 

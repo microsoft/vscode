@@ -244,7 +244,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
 							leftResource: editors[0].resource,
-							rightResource: editors[1].resource
+							rightResource: editors[1].resource,
+							options: { pinned: true }
 						});
 					}
 

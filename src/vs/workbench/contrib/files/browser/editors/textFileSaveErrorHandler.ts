@@ -239,13 +239,9 @@ class ResolveSaveConflictAction extends Action {
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+		@IProductService private readonly productService: IProductService
 	) {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
-
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
 	}
 
 	async run(): Promise<void> {

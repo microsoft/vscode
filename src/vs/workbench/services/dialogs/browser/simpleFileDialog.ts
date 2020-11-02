@@ -221,6 +221,8 @@ export class SimpleFileDialog {
 				return defaultUri.scheme;
 			}
 			return available[0];
+		} else if (defaultUri) {
+			return defaultUri.scheme;
 		}
 		return Schemas.file;
 	}

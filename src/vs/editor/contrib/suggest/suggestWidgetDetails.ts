@@ -148,7 +148,7 @@ export class SuggestDetailsWidget {
 			this._type.textContent = cappedDetail;
 			this._type.title = cappedDetail;
 			dom.show(this._type);
-			this._type.classList.toggle('auto-wrap', !cappedDetail.includes('\n'));
+			this._type.classList.toggle('auto-wrap', !/\r?\n^\s+/gmi.test(cappedDetail));
 		} else {
 			dom.clearNode(this._type);
 			this._type.title = '';

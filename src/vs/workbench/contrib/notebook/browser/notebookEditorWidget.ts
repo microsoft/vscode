@@ -1868,7 +1868,7 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('notebook.cellToolbarSeparator', "The color of the seperator in the cell bottom toolbar"));
+}, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),
