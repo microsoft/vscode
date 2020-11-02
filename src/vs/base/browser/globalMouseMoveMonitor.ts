@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface IStandardMouseMoveEventData {
 	leftButton: boolean;
