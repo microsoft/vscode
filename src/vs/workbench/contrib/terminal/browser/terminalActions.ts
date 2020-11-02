@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
@@ -357,6 +357,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
 		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
 		this._register(_terminalService.onTabDisposed(this._updateItems, this));
+		this._register(_terminalService.onDidChangeConnectionState(this._updateItems, this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -374,7 +375,10 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 }
 
 function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
-	const items = terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
+	const items = terminalService.connectionState === TerminalConnectionState.Connected ?
+		terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }) :
+		[{ text: localize('terminalConnectingLabel', "Starting...") }];
+
 	items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
 
 	for (const contributed of contributions.terminalTypes) {
