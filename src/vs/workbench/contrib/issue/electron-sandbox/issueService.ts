@@ -11,7 +11,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -31,7 +31,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const extensions = await this.extensionManagementService.getInstalled();
-		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
+		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
 		const extensionData = enabledExtensions.map((extension): IssueReporterExtensionData => {
 			const { manifest } = extension;
 			const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
