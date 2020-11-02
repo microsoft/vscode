@@ -295,7 +295,7 @@ export class SearchWidget extends Widget {
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
 		this.toggleReplaceButton.element.classList.add(...searchHideReplaceIcon.classNamesArray);
 		this.toggleReplaceButton.icon = 'toggle-replace-button';
-		// TODO@joh need to dispose this listener eventually
+		// TODO@joao need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
 	}

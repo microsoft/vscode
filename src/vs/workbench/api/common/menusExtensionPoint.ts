@@ -586,6 +586,10 @@ submenusExtensionPoint.setHandler(extensions => {
 				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
 				return;
 			}
+			if (_submenus.has(entry.value.id)) {
+				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
+				return;
+			}
 			if (!entry.value.label) {
 				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
 				return;

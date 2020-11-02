@@ -94,7 +94,7 @@ export class OpenWindowSessionLogFileAction extends Action {
 					placeHolder: nls.localize('log placeholder', "Select Log file")
 				});
 			if (logFileResult) {
-				return this.editorService.openEditor({ resource: URI.parse(logFileResult.id!) }).then(() => undefined);
+				return this.editorService.openEditor({ resource: URI.parse(logFileResult.id!), options: { pinned: true } }).then(() => undefined);
 			}
 		}
 	}

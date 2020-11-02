@@ -19,7 +19,6 @@ suite('Processes', () => {
 			VSCODE_CLI: 'x',
 			VSCODE_DEV: 'x',
 			VSCODE_IPC_HOOK: 'x',
-			VSCODE_LOGS: 'x',
 			VSCODE_NLS_CONFIG: 'x',
 			VSCODE_PORTABLE: 'x',
 			VSCODE_PID: 'x',

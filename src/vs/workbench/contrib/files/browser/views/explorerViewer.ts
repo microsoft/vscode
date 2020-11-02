@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, BinarySize } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, ByteSize } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -1109,17 +1109,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Small file
 			let message: string;
-			if (fileSize < BinarySize.MB) {
+			if (fileSize < ByteSize.MB) {
 				if (operation.filesTotal === 1) {
 					message = `${entry.name}`;
 				} else {
-					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, BinarySize.formatSize(bytesUploadedPerSecond));
+					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, ByteSize.formatSize(bytesUploadedPerSecond));
 				}
 			}
 
 			// Large file
 			else {
-				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, BinarySize.formatSize(fileBytesUploaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesUploadedPerSecond));
+				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, ByteSize.formatSize(fileBytesUploaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesUploadedPerSecond));
 			}
 
 			// Report progress but limit to update only once per second
@@ -1137,12 +1137,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return undefined;
 			}
 
-			// Chrome/Edge/Firefox support stream method
-			if (typeof file.stream === 'function') {
+			// Chrome/Edge/Firefox support stream method, but only use it for
+			// larger files to reduce the overhead of the streaming approach
+			if (typeof file.stream === 'function' && file.size > ByteSize.MB) {
 				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress, token);
 			}
 
-			// Fallback to unbuffered upload for other browsers
+			// Fallback to unbuffered upload for other browsers or small files
 			else {
 				await this.doUploadWebFileEntryUnbuffered(resource, file, reportProgress);
 			}
