@@ -405,6 +405,8 @@ class BackspacePrediction implements IPrediction {
 		oldChar: string;
 	};
 
+	constructor(private readonly terminal: Terminal) { }
+
 	public apply(_: IBuffer, cursor: Cursor) {
 		const cell = cursor.getCell();
 		this.appliedAt = cell
@@ -420,8 +422,11 @@ class BackspacePrediction implements IPrediction {
 		}
 
 		const { oldAttributes, oldChar, pos } = this.appliedAt;
-		const r = cursor.moveTo(pos) + (oldChar ? `${oldAttributes}${oldChar}${cursor.moveTo(pos)}` : DELETE_CHAR);
-		return r;
+		if (!oldChar) {
+			return cursor.moveTo(pos) + DELETE_CHAR;
+		}
+
+		return oldAttributes + oldChar + cursor.moveTo(pos) + attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
 	}
 
 	public rollForwards() {
@@ -1212,7 +1217,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 					flushOutput(this.timeline.terminal);
 				}
 
-				addLeftNavigating(new BackspacePrediction());
+				addLeftNavigating(new BackspacePrediction(this.timeline.terminal));
 				continue;
 			}
 
