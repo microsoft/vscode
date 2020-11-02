@@ -1404,7 +1404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// maximize on Windows/Linux would fire an event saying that the terminal was not
 				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
-					this._xtermCore._renderService._onIntersectionChange({ intersectionRatio: 1 });
+					this._xtermCore._renderService?._onIntersectionChange({ intersectionRatio: 1 });
 					// HACK: Force a refresh of the screen to ensure links are refresh corrected.
 					// This can probably be removed when the above hack is fixed in Chromium.
 					this._xterm.refresh(0, this._xterm.rows - 1);
