@@ -5,7 +5,7 @@
 
 import { ILogService, LogLevel, AbstractLogService, ILoggerService, ILogger } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { dirname, joinPath, basename } from 'vs/base/common/resources';
@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
-const MAX_FILE_SIZE = 1024 * 1024 * 5;
+const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
 export class FileLogService extends AbstractLogService implements ILogService {
 
