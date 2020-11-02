@@ -112,6 +112,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'force-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
 	'__sandbox': { type: 'boolean' },
+	'logsPath': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
