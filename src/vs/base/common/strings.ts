@@ -208,6 +208,10 @@ export function regExpFlags(regexp: RegExp): string {
 		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
 }
 
+export function splitLines(str: string): string[] {
+	return str.split(/\r\n|\r|\n/);
+}
+
 /**
  * Returns first index of the string that is not whitespace.
  * If string is empty or contains only whitespaces, returns -1

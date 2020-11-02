@@ -5,7 +5,7 @@
 
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { getLeadingWhitespace } from 'vs/base/common/strings';
+import { getLeadingWhitespace, splitLines } from 'vs/base/common/strings';
 import 'vs/css!./snippetSession';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -341,7 +341,7 @@ export class SnippetSession {
 			if (marker instanceof Text && !(marker.parent instanceof Choice)) {
 				// adjust indentation of text markers, except for choise elements
 				// which get adjusted when being selected
-				const lines = marker.value.split(/\r\n|\r|\n/);
+				const lines = splitLines(marker.value);
 
 				if (adjustIndentation) {
 					for (let i = 1; i < lines.length; i++) {
