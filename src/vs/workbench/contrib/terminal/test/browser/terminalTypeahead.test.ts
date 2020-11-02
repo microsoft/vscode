@@ -219,7 +219,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			(addon as any).lastRow = { y: 1, startingX: 1 };
 			t.onData('\x7F');
 			t.expectWritten(`${CSI}2;4H${CSI}X`);
-			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;4H${CSI}0mx${CSI}?25h`);
+			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;5H${CSI}0mx${CSI}?25h`);
 			assert.strictEqual(addon.stats?.accuracy, 0);
 		});
 
