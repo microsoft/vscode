@@ -20,6 +20,7 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 // --- bisect service
 
@@ -242,6 +243,7 @@ registerAction2(class extends Action2 {
 		const bisectService = accessor.get(IExtensionBisectService);
 		const productService = accessor.get(IProductService);
 		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
+		const issueService = accessor.get(IWorkbenchIssueService);
 
 		if (!bisectService.isActive) {
 			return;
@@ -269,8 +271,8 @@ registerAction2(class extends Action2 {
 		} else {
 			// DONE and identified extension
 			const res = await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"),
-				// [localize('report', "Report Issue & Continue"), localize('done', "Continue")],
-				[],
+				[localize('report', "Report Issue & Continue"), localize('done', "Continue")],
+				// [],
 				{
 					detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
 					checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },
@@ -280,9 +282,9 @@ registerAction2(class extends Action2 {
 			if (res.checkboxChecked) {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
 			}
-			// if (res.choice === 0) {
-			// 	issueService.openReport({...});
-			// }
+			if (res.choice === 0) {
+				await issueService.openReporter({ extensionId: done.id });
+			}
 		}
 		bisectService.reset();
 		hostService.reload();
