@@ -8,7 +8,7 @@ import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase'
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 
-const global: any = self;
+var global: any = self;
 
 // Set defaults for standalone editor
 EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
