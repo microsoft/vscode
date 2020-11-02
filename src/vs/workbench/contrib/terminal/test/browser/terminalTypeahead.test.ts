@@ -73,7 +73,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		const onConfigChanged = new Emitter<void>();
 		let publicLog: SinonStub;
 		let config: ITerminalConfiguration;
-		let addon: TypeAheadAddon;
+		let addon: TestTypeAheadAddon;
 
 		const predictedHelloo = [
 			`${CSI}?25l`, // hide cursor
@@ -95,7 +95,7 @@ suite('Workbench - Terminal Typeahead', () => {
 				localEchoLatencyThreshold: 0
 			});
 			publicLog = stub();
-			addon = new TypeAheadAddon(
+			addon = new TestTypeAheadAddon(
 				upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event }),
 				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
 				upcastPartial<ITelemetryService>({ publicLog })
@@ -213,6 +213,16 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.strictEqual(addon.stats?.accuracy, 1);
 		});
 
+		test('restores old character after invalid backspace', () => {
+			const t = createMockTerminal({ lines: ['hel|lo'] });
+			addon.activate(t.terminal);
+			addon.unlockLeftNavigating();
+			t.onData('\x7F');
+			t.expectWritten(`${CSI}2;4H${CSI}X`);
+			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;5H${CSI}0mx${CSI}?25h`);
+			assert.strictEqual(addon.stats?.accuracy, 0);
+		});
+
 		test('waits for validation before deleting to left of cursor', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
@@ -253,6 +263,12 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 	});
 });
+
+class TestTypeAheadAddon extends TypeAheadAddon {
+	public unlockLeftNavigating() {
+		this.lastRow = { y: 1, startingX: 1 };
+	}
+}
 
 function upcastPartial<T>(v: Partial<T>): T {
 	return v as T;
@@ -332,6 +348,10 @@ function createMockTerminal({ lines, cursorAttrs }: {
 						return {
 							length: s.length,
 							getCell: (x: number) => mockCell(s[x - 1] || ''),
+							translateToString: (trim: boolean, start = 0, end = s.length) => {
+								const out = s.slice(start, end);
+								return trim ? out.trimRight() : out;
+							},
 						};
 					},
 				}
