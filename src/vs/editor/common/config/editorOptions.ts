@@ -3027,6 +3027,10 @@ export interface ISuggestOptions {
 	 */
 	showStatusBar?: boolean;
 	/**
+	 * Show details inline with the label. Defaults to true.
+	 */
+	showStatusDetailsInline?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -3149,6 +3153,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
+			showStatusDetailsInline: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3219,6 +3224,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.showStatusBar,
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+				},
+
+				'editor.suggest.showStatusDetailsInline': {
+					type: 'boolean',
+					default: defaults.showStatusDetailsInline,
+					description: nls.localize('suggest.showStatusDetailsInline', "Controls whether sugget details show inline with the label or only in the details widget")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
@@ -3385,6 +3396,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showStatusDetailsInline: EditorBooleanOption.boolean(input.showStatusDetailsInline, this.defaultValue.showStatusDetailsInline),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
