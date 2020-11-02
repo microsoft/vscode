@@ -954,6 +954,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly expandOnlyOnDoubleClick?: boolean;
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -961,7 +962,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
-	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly additionalScrollHeight?: number;
 }
 
