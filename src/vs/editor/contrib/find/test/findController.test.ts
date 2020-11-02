@@ -12,7 +12,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from 'vs/editor/contrib/find/findController';
 import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -272,7 +272,7 @@ suite('FindController', async () => {
 			findController.setSearchString(testRegexString);
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: false,
@@ -298,7 +298,7 @@ suite('FindController', async () => {
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -428,6 +428,59 @@ suite('FindController', async () => {
 			findController.dispose();
 		});
 	});
+
+	test('issue #47400, CMD+E supports feeding multiple line of text into the find widget', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'ABC',
+			'XYZ',
+			'ABC',
+			'ABC'
+		], { serviceCollection: serviceCollection }, async (editor) => {
+			clipboardState = '';
+			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			let startFindAction = new StartFindAction();
+
+			// change selection
+			editor.setSelection(new Selection(1, 1, 1, 1));
+
+			// cmd+f - open find widget
+			await startFindAction.run(null, editor);
+
+			editor.setSelection(new Selection(1, 1, 2, 4));
+			let startFindWithSelectionAction = new StartFindWithSelectionAction();
+			await startFindWithSelectionAction.run(null, editor);
+			let findState = findController.getState();
+
+			assert.deepEqual(findState.searchString.split(/\r\n|\r|\n/g), ['ABC', 'ABC']);
+
+			editor.setSelection(new Selection(3, 1, 3, 1));
+			await startFindWithSelectionAction.run(null, editor);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #109756, CMD+E with empty cursor should always work', async () => {
+		await withAsyncTestCodeEditor([
+			'ABC',
+			'ABC',
+			'XYZ',
+			'ABC',
+			'ABC'
+		], { serviceCollection: serviceCollection }, async (editor) => {
+			clipboardState = '';
+			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			editor.setSelection(new Selection(1, 2, 1, 2));
+
+			let startFindWithSelectionAction = new StartFindWithSelectionAction();
+			startFindWithSelectionAction.run(null, editor);
+
+			let findState = findController.getState();
+			assert.deepEqual(findState.searchString, 'ABC');
+			findController.dispose();
+		});
+	});
 });
 
 suite('FindController query options persistence', async () => {
@@ -524,9 +577,9 @@ suite('FindController query options persistence', async () => {
 		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, async (editor) => {
 			// clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const findConfig = {
+			const findConfig: IFindStartOptions = {
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -558,7 +611,7 @@ suite('FindController query options persistence', async () => {
 
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -582,7 +635,7 @@ suite('FindController query options persistence', async () => {
 
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
@@ -607,7 +660,7 @@ suite('FindController query options persistence', async () => {
 
 			await findController.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: 'none',
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false,
