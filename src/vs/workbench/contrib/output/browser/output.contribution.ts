@@ -200,7 +200,7 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const logFileOutputChannelDescriptor = this.getLogFileOutputChannelDescriptor(outputService);
 		if (logFileOutputChannelDescriptor) {
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor));
+			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor), { pinned: true });
 		}
 	}
 	private getLogFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
@@ -298,7 +298,7 @@ registerAction2(class extends Action2 {
 		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
 		if (entry) {
 			assertIsDefined(entry.channel.file);
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)));
+			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
 		}
 	}
 });

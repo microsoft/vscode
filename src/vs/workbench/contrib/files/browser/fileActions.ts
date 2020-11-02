@@ -472,7 +472,7 @@ export class GlobalCompareResourcesAction extends Action {
 							override: this.editorService.openEditor({
 								leftResource: activeResource,
 								rightResource: resource,
-								options: { override: false }
+								options: { override: false, pinned: true }
 							})
 						};
 					}
@@ -482,7 +482,7 @@ export class GlobalCompareResourcesAction extends Action {
 					return {
 						override: this.editorService.openEditor({
 							resource: activeResource,
-							options: { override: false }
+							options: { override: false, pinned: true }
 						})
 					};
 				}
@@ -828,7 +828,11 @@ export class CompareWithClipboardAction extends Action {
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			await this.editorService.openEditor({ leftResource: resource.with({ scheme }), rightResource: resource, label: editorLabel }).finally(() => {
+			await this.editorService.openEditor({
+				leftResource: resource.with({ scheme }),
+				rightResource: resource, label: editorLabel,
+				options: { pinned: true }
+			}).finally(() => {
 				dispose(this.registrationDisposal);
 				this.registrationDisposal = undefined;
 			});

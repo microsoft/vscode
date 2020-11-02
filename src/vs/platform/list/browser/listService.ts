@@ -444,7 +444,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 	private readonly openOnFocus: boolean;
 	private openOnSingleClick: boolean;
 
-	private readonly _onDidOpen = new Emitter<IOpenEvent<T | null>>();
+	private readonly _onDidOpen = this._register(new Emitter<IOpenEvent<T | null>>());
 	readonly onDidOpen: Event<IOpenEvent<T | null>> = this._onDidOpen.event;
 
 	constructor(
@@ -478,7 +478,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		this.widget.setSelection(focus, event.browserEvent);
 
 		const preserveFocus = typeof (event.browserEvent as SelectionKeyboardEvent).preserveFocus === 'boolean' ? (event.browserEvent as SelectionKeyboardEvent).preserveFocus! : true;
-		const pinned = false;
+		const pinned = !preserveFocus;
 		const sideBySide = false;
 
 		this._open(preserveFocus, pinned, sideBySide, event.browserEvent);
@@ -490,7 +490,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 
 		const preserveFocus = typeof (event.browserEvent as SelectionKeyboardEvent).preserveFocus === 'boolean' ? (event.browserEvent as SelectionKeyboardEvent).preserveFocus! : true;
-		const pinned = false;
+		const pinned = !preserveFocus;
 		const sideBySide = false;
 
 		this._open(preserveFocus, pinned, sideBySide, event.browserEvent);
