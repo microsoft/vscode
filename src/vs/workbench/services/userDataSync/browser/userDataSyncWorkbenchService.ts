@@ -14,7 +14,7 @@ import { flatten, equals } from 'vs/base/common/arrays';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -584,7 +584,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.update();
 	}
 
-	private onDidChangeStorage(e: IWorkspaceStorageChangeEvent): void {
+	private onDidChangeStorage(e: IStorageChangeEvent): void {
 		if (e.key === UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY && e.scope === StorageScope.GLOBAL
 			&& this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
 			this._cachedCurrentSessionId = null;
