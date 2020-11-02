@@ -1109,7 +1109,9 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
 		}
 
-		if (expandOnlyOnTwistieClick && !onTwistie) {
+		const clickedOnFocus = this.tree.getFocus()[0] === node.element;
+
+		if (expandOnlyOnTwistieClick && !onTwistie && e.browserEvent.detail !== 2 && !(clickedOnFocus && !node.collapsed)) {
 			return super.onViewPointer(e);
 		}
 
