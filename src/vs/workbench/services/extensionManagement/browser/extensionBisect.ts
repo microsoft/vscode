@@ -114,6 +114,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 		const extensionIds = extensions.map(ext => ext.identifier.id);
 		const newState = new BisectState(extensionIds, 0, extensionIds.length, 0);
 		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.GLOBAL);
+		this._storageService.flush();
 	}
 
 	next(seeingBad: boolean): { id: string, bad: boolean } | undefined {
@@ -134,11 +135,13 @@ class ExtensionBisectService implements IExtensionBisectService {
 			this._state.round + 1
 		);
 		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.GLOBAL);
+		this._storageService.flush();
 		return undefined;
 	}
 
 	reset(): void {
 		this._storageService.remove(ExtensionBisectService._storageKey, StorageScope.GLOBAL);
+		this._storageService.flush();
 	}
 }
 
@@ -152,11 +155,11 @@ class ExtensionBisectUi {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionBisectService private readonly _extensionBisectService: IExtensionBisectService,
+		@IExtensionBisectService extensionBisectService: IExtensionBisectService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		if (_extensionBisectService.isActive) {
+		if (extensionBisectService.isActive) {
 			ExtensionBisectUi.ctxIsBisectActive.bindTo(contextKeyService).set(true);
 			this._showBisectPrompt();
 		}
@@ -179,7 +182,7 @@ class ExtensionBisectUi {
 
 		this._notificationService.prompt(
 			Severity.Info,
-			localize('bisect', "You are bisecting extensions.\nCheck if you can still reproduce your problem and proceed by selecting from the options below. Approximately {0} steps remaining.", this._extensionBisectService.remainingSteps),
+			localize('bisect', "You are bisecting extensions.\nCheck if you can still reproduce your problem and proceed by selecting from the options below."),
 			[goodPrompt, badPrompt, stop],
 			{ sticky: true }
 		);
@@ -208,14 +211,15 @@ registerAction2(class extends Action2 {
 		const extensionManagement = accessor.get(IExtensionManagementService);
 		const extensionsBisect = accessor.get(IExtensionBisectService);
 
+		const extensions = await extensionManagement.getInstalled(ExtensionType.User);
+
 		const res = await dialogService.confirm({
 			message: localize('msg.start', "Extension Bisect"),
-			detail: localize('detail.start', "Extension bisect will use binary search to find extensions that cause a problem. During the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems."),
+			detail: localize('detail.start', "Extension Bisect will use binary search to find an extension that causes a problem. During the process the window reloads repeatedly (~{0} times). Each time you must confirm if you are still seeing problems.", 1 + Math.log2(extensions.length) | 0),
 			primaryButton: localize('msg2', "Start Extension Bisect")
 		});
 
 		if (res.confirmed) {
-			const extensions = await extensionManagement.getInstalled(ExtensionType.User);
 			extensionsBisect.start(extensions);
 			hostService.reload();
 		}
