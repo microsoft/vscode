@@ -73,7 +73,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		const onConfigChanged = new Emitter<void>();
 		let publicLog: SinonStub;
 		let config: ITerminalConfiguration;
-		let addon: TypeAheadAddon;
+		let addon: TestTypeAheadAddon;
 
 		const predictedHelloo = [
 			`${CSI}?25l`, // hide cursor
@@ -95,7 +95,7 @@ suite('Workbench - Terminal Typeahead', () => {
 				localEchoLatencyThreshold: 0
 			});
 			publicLog = stub();
-			addon = new TypeAheadAddon(
+			addon = new TestTypeAheadAddon(
 				upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event }),
 				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
 				upcastPartial<ITelemetryService>({ publicLog })
@@ -216,7 +216,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		test('restores old character after invalid backspace', () => {
 			const t = createMockTerminal({ lines: ['hel|lo'] });
 			addon.activate(t.terminal);
-			(addon as any).lastRow = { y: 1, startingX: 1 };
+			addon.unlockLeftNavigating();
 			t.onData('\x7F');
 			t.expectWritten(`${CSI}2;4H${CSI}X`);
 			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;5H${CSI}0mx${CSI}?25h`);
@@ -263,6 +263,12 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 	});
 });
+
+class TestTypeAheadAddon extends TypeAheadAddon {
+	public unlockLeftNavigating() {
+		this.lastRow = { y: 1, startingX: 1 };
+	}
+}
 
 function upcastPartial<T>(v: Partial<T>): T {
 	return v as T;
