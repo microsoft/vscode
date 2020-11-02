@@ -5,7 +5,7 @@
 
 import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState } from 'vs/workbench/common/views';
 import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { toDisposable, DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -505,7 +505,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return new Map<string, ViewContainerLocation>(JSON.parse(this.cachedViewContainerLocationsValue));
 	}
 
-	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
+	private onDidStorageChange(e: IStorageChangeEvent): void {
 		if (e.key === ViewDescriptorService.CACHED_VIEW_POSITIONS && e.scope === StorageScope.GLOBAL
 			&& this.cachedViewPositionsValue !== this.getStoredCachedViewPositionsValue() /* This checks if current window changed the value or not */) {
 			this._cachedViewPositionsValue = this.getStoredCachedViewPositionsValue();

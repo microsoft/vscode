@@ -6,7 +6,7 @@
 import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type SyncEnablementClassification = {
@@ -43,9 +43,9 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 		}
 	}
 
-	private onDidStorageChange(workspaceStorageChangeEvent: IWorkspaceStorageChangeEvent): void {
-		if (workspaceStorageChangeEvent.scope === StorageScope.GLOBAL) {
-			const resourceKey = ALL_SYNC_RESOURCES.filter(resourceKey => getEnablementKey(resourceKey) === workspaceStorageChangeEvent.key)[0];
+	private onDidStorageChange(storageChangeEvent: IStorageChangeEvent): void {
+		if (storageChangeEvent.scope === StorageScope.GLOBAL) {
+			const resourceKey = ALL_SYNC_RESOURCES.filter(resourceKey => getEnablementKey(resourceKey) === storageChangeEvent.key)[0];
 			if (resourceKey) {
 				this._onDidChangeResourceEnablement.fire([resourceKey, this.isResourceEnabled(resourceKey)]);
 				return;
