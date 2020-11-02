@@ -1092,7 +1092,7 @@ class TypeAheadStyle {
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private typeaheadStyle = new TypeAheadStyle(this.config.config.localEchoStyle);
 	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
-	private lastRow?: { y: number; startingX: number };
+	protected lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
 	public stats?: PredictionStats;
 
