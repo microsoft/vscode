@@ -55,6 +55,7 @@ steps:
 - script: |
     npx https://aka.ms/enablesecurefeed
   displayName: Switch to Terrapin packages
+  condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
 - script: |
     echo -n $VSCODE_ARCH > .build/arch
