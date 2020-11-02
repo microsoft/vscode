@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -19,6 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 // --- bisect service
 
@@ -30,7 +31,7 @@ export interface IExtensionBisectService {
 
 	isDisabledByBisect(extension: IExtension): boolean;
 	isActive: boolean;
-	remainingSteps: number;
+	disabledCount: number;
 	start(extensions: ILocalExtension[]): void;
 	next(seeingBad: boolean): { id: string, bad: boolean } | undefined;
 	reset(): void;
@@ -45,23 +46,20 @@ class BisectState {
 		try {
 			interface Raw extends BisectState { }
 			const data: Raw = JSON.parse(raw);
-			return new BisectState(data.extensions, data.low, data.high, data.round);
+			return new BisectState(data.extensions, data.low, data.high);
 		} catch {
 			return undefined;
 		}
 	}
 
 	readonly mid: number;
-	readonly roundsLeft: number;
 
 	constructor(
 		readonly extensions: string[],
 		readonly low: number,
 		readonly high: number,
-		readonly round: number,
 	) {
 		this.mid = ((low + high) / 2) | 0;
-		this.roundsLeft = 1 + Math.round(Math.log2(extensions.length) - round);
 	}
 }
 
@@ -95,8 +93,8 @@ class ExtensionBisectService implements IExtensionBisectService {
 		return !!this._state;
 	}
 
-	get remainingSteps() {
-		return this._state?.roundsLeft ?? 0;
+	get disabledCount() {
+		return this._state ? this._state.high - this._state.mid : -1;
 	}
 
 	isDisabledByBisect(extension: IExtension): boolean {
@@ -112,7 +110,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 			throw new Error('invalid state');
 		}
 		const extensionIds = extensions.map(ext => ext.identifier.id);
-		const newState = new BisectState(extensionIds, 0, extensionIds.length, 0);
+		const newState = new BisectState(extensionIds, 0, extensionIds.length);
 		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.GLOBAL);
 		this._storageService.flush();
 	}
@@ -132,7 +130,6 @@ class ExtensionBisectService implements IExtensionBisectService {
 			this._state.extensions,
 			seeingBad ? this._state.low : this._state.mid,
 			seeingBad ? this._state.mid : this._state.high,
-			this._state.round + 1
 		);
 		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.GLOBAL);
 		this._storageService.flush();
@@ -155,11 +152,11 @@ class ExtensionBisectUi {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionBisectService extensionBisectService: IExtensionBisectService,
+		@IExtensionBisectService private readonly _extensionBisectService: IExtensionBisectService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		if (extensionBisectService.isActive) {
+		if (_extensionBisectService.isActive) {
 			ExtensionBisectUi.ctxIsBisectActive.bindTo(contextKeyService).set(true);
 			this._showBisectPrompt();
 		}
@@ -182,7 +179,7 @@ class ExtensionBisectUi {
 
 		this._notificationService.prompt(
 			Severity.Info,
-			localize('bisect', "You are bisecting extensions.\nCheck if you can still reproduce your problem and proceed by selecting from the options below."),
+			localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", this._extensionBisectService.disabledCount),
 			[goodPrompt, badPrompt, stop],
 			{ sticky: true }
 		);
@@ -209,9 +206,11 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const hostService = accessor.get(IHostService);
 		const extensionManagement = accessor.get(IExtensionManagementService);
+		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
 		const extensionsBisect = accessor.get(IExtensionBisectService);
 
-		const extensions = await extensionManagement.getInstalled(ExtensionType.User);
+		const disabled = new Set(extensionEnablementService.getDisabledExtensions().map(id => id.id));
+		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => !disabled.has(ext.identifier.id));
 
 		const res = await dialogService.confirm({
 			message: localize('msg.start', "Extension Bisect"),
@@ -241,6 +240,9 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const hostService = accessor.get(IHostService);
 		const bisectService = accessor.get(IExtensionBisectService);
+		const productService = accessor.get(IProductService);
+		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
+
 		if (!bisectService.isActive) {
 			return;
 		}
@@ -257,48 +259,50 @@ registerAction2(class extends Action2 {
 			hostService.reload();
 			return;
 		}
-		await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect Done"), [], {
-			detail: !done.bad
-				? localize('done.detail', "Things are good when disabling extension: {0}. Please follow up with the extension authors.", done.id)
-				: localize('done.detail2', "No extension identified. This might be a problem with the editor")
-		});
+
+		if (done.bad) {
+			// DONE but nothing found
+			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), [], {
+				detail: localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}", productService.nameShort)
+			});
+
+		} else {
+			// DONE and identified extension
+			const res = await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"),
+				// [localize('report', "Report Issue & Continue"), localize('done', "Continue")],
+				[],
+				{
+					detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
+					checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },
+					cancelId: 1
+				}
+			);
+			if (res.checkboxChecked) {
+				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
+			}
+			// if (res.choice === 0) {
+			// 	issueService.openReport({...});
+			// }
+		}
 		bisectService.reset();
 		hostService.reload();
 	}
 
 	private async _checkForBad(dialogService: IDialogService) {
-		const res = await dialogService.show(Severity.Info,
+		const options = {
+			cancelId: 2,
+			detail: localize('detail.next', "Are you still seeing the problem for which you have started extension bisect?")
+		};
+		const res = await dialogService.show(
+			Severity.Info,
 			localize('msg.next', "Extension Bisect"),
-			[localize('next.stop', "Stop Bisect"), localize('next.good', "Good now"), localize('next.bad', "This is bad")],
-			{
-				cancelId: 0,
-				detail: localize('detail.next', "Are you still seeing the problem for which you have started extension bisect?")
-			}
+			[localize('next.good', "Good now"), localize('next.bad', "This is bad"), localize('next.stop', "Stop Bisect")],
+			options
 		);
-
-		if (res.choice === 0) {
+		if (res.choice === options.cancelId) {
 			return undefined;
-		} else {
-			return res.choice === 2;
 		}
-	}
-});
-
-
-registerAction2(class ExtBisectGood extends Action2 {
-	constructor() {
-		super({
-			id: 'extension.bisect.isGood',
-			title: localize('title.isGood', "Extension Bisect: GOOD"),
-			category: localize('help', "Help"),
-			f1: true,
-			precondition: ExtensionBisectUi.ctxIsBisectActive
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const extensionsBisect = accessor.get(IExtensionBisectService);
-		extensionsBisect.next(false);
+		return res.choice === 1;
 	}
 });
 
