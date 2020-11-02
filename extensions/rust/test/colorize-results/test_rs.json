@@ -143,7 +143,7 @@
 		}
 	},
 	{
-		"c": "println",
+		"c": "println!",
 		"t": "source.rust meta.macro.rust entity.name.function.macro.rust",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
@@ -151,17 +151,6 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
-		}
-	},
-	{
-		"c": "!",
-		"t": "source.rust meta.macro.rust keyword.operator.macro.not.rust",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
@@ -242,7 +231,7 @@
 		}
 	},
 	{
-		"c": "println",
+		"c": "println!",
 		"t": "source.rust meta.macro.rust entity.name.function.macro.rust",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
@@ -250,17 +239,6 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
-		}
-	},
-	{
-		"c": "!",
-		"t": "source.rust meta.macro.rust keyword.operator.macro.not.rust",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
@@ -342,13 +320,13 @@
 	},
 	{
 		"c": "let",
-		"t": "source.rust keyword.control.rust",
+		"t": "source.rust storage.type.rust",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
@@ -364,13 +342,13 @@
 	},
 	{
 		"c": "mut",
-		"t": "source.rust keyword.other.mut.rust",
+		"t": "source.rust storage.modifier.mut.rust",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
 		}
 	},
 	{
@@ -540,7 +518,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.rust meta.function.call.rust keyword.operator.access.dot.rust",
+		"t": "source.rust keyword.operator.access.dot.rust",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -584,13 +562,13 @@
 	},
 	{
 		"c": "mut",
-		"t": "source.rust meta.function.call.rust keyword.other.mut.rust",
+		"t": "source.rust meta.function.call.rust storage.modifier.mut.rust",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
-			"dark_vs": "keyword: #569CD6",
-			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6"
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
 		}
 	},
 	{
@@ -639,7 +617,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.rust meta.function.call.rust keyword.operator.access.dot.rust",
+		"t": "source.rust keyword.operator.access.dot.rust",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -683,7 +661,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.rust meta.function.call.rust keyword.operator.access.dot.rust",
+		"t": "source.rust keyword.operator.access.dot.rust",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -781,7 +759,7 @@
 		}
 	},
 	{
-		"c": "println",
+		"c": "println!",
 		"t": "source.rust meta.macro.rust entity.name.function.macro.rust",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
@@ -789,17 +767,6 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
-		}
-	},
-	{
-		"c": "!",
-		"t": "source.rust meta.macro.rust keyword.operator.macro.not.rust",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
