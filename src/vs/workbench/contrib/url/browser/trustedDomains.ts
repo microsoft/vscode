@@ -31,7 +31,7 @@ export const manageTrustedDomainSettingsCommand = {
 	},
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc' });
+		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc', options: { pinned: true } });
 		return;
 	}
 };
@@ -117,7 +117,8 @@ export async function configureOpenerTrustedDomainsHandler(
 			case 'manage':
 				await editorService.openEditor({
 					resource: TRUSTED_DOMAINS_URI,
-					mode: 'jsonc'
+					mode: 'jsonc',
+					options: { pinned: true }
 				});
 				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
 					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
