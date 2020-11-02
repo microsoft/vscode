@@ -213,6 +213,16 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.strictEqual(addon.stats?.accuracy, 1);
 		});
 
+		test('restores old character after invalid backspace', () => {
+			const t = createMockTerminal({ lines: ['hel|lo'] });
+			addon.activate(t.terminal);
+			(addon as any).lastRow = { y: 1, startingX: 1 };
+			t.onData('\x7F');
+			t.expectWritten(`${CSI}2;4H${CSI}X`);
+			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;4H${CSI}0mx${CSI}?25h`);
+			assert.strictEqual(addon.stats?.accuracy, 0);
+		});
+
 		test('waits for validation before deleting to left of cursor', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
@@ -332,6 +342,10 @@ function createMockTerminal({ lines, cursorAttrs }: {
 						return {
 							length: s.length,
 							getCell: (x: number) => mockCell(s[x - 1] || ''),
+							translateToString: (trim: boolean, start = 0, end = s.length) => {
+								const out = s.slice(start, end);
+								return trim ? out.trimRight() : out;
+							},
 						};
 					},
 				}

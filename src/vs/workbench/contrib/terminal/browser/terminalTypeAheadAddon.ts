@@ -79,8 +79,12 @@ class Cursor implements ICoordinate {
 		this._baseY = buffer.baseY;
 	}
 
+	public getLine() {
+		return this.buffer.getLine(this._y + this._baseY);
+	}
+
 	public getCell(loadInto?: IBufferCell) {
-		return this.buffer.getLine(this._y + this._baseY)?.getCell(this._x, loadInto);
+		return this.getLine()?.getCell(this._x, loadInto);
 	}
 
 	public moveTo(coordinate: ICoordinate) {
@@ -403,17 +407,22 @@ class BackspacePrediction implements IPrediction {
 		pos: ICoordinate;
 		oldAttributes: string;
 		oldChar: string;
+		eol: boolean;
 	};
 
 	constructor(private readonly terminal: Terminal) { }
 
 	public apply(_: IBuffer, cursor: Cursor) {
+		// at eol if everything to the right is whitespace (zsh will emit a "clear line" code in this case)
+		// todo: can be optimized if `getTrimmedLength` is exposed from xterm
+		const eol = !cursor.getLine()?.translateToString(true, cursor.x);
+		const move = cursor.shift(-1);
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
-			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
+			? { eol, pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
+			: { eol, pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
 
-		return cursor.shift(-1) + DELETE_CHAR;
+		return move + DELETE_CHAR;
 	}
 
 	public rollback(cursor: Cursor) {
@@ -434,8 +443,7 @@ class BackspacePrediction implements IPrediction {
 	}
 
 	public matches(input: StringReader) {
-		const isEOL = this.appliedAt?.oldChar === '';
-		if (isEOL) {
+		if (this.appliedAt?.eol) {
 			const r1 = input.eatGradually(`\b${CSI}K`);
 			if (r1 !== MatchResult.Failure) {
 				return r1;
