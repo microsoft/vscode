@@ -811,7 +811,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const onDragOver = (event: DragEvent) => {
 			event.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
 
-			const x = event.screenX - left;
+			const x = event.clientX - left;
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'none';
 			}
@@ -954,6 +954,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly expandOnlyOnDoubleClick?: boolean;
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -961,7 +962,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
-	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly additionalScrollHeight?: number;
 }
 
@@ -1109,7 +1109,9 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
 		}
 
-		if (expandOnlyOnTwistieClick && !onTwistie) {
+		const clickedOnFocus = this.tree.getFocus()[0] === node.element;
+
+		if (expandOnlyOnTwistieClick && !onTwistie && e.browserEvent.detail !== 2 && !(clickedOnFocus && !node.collapsed)) {
 			return super.onViewPointer(e);
 		}
 

@@ -371,6 +371,10 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	/**
+	 * Smart select opptions;
+	 */
+	smartSelect?: ISmartSelectOptions;
+	/**
 	 *
 	 */
 	gotoLocation?: IGotoLocationOptions;
@@ -3430,6 +3434,44 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 
 //#endregion
 
+//#region smart select
+
+export interface ISmartSelectOptions {
+	selectLeadingAndTrailingWhitespace?: boolean
+}
+
+export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
+
+class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelectOptions> {
+
+	constructor() {
+		super(
+			EditorOption.smartSelect, 'smartSelect',
+			{
+				selectLeadingAndTrailingWhitespace: true
+			},
+			{
+				'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
+					description: nls.localize('selectLeadingAndTrailingWhitespace', "Whether leading and trailing whitespace should always be selected."),
+					default: true,
+					type: 'boolean'
+				}
+			}
+		);
+	}
+
+	public validate(input: any): Readonly<Required<ISmartSelectOptions>> {
+		if (!input || typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			selectLeadingAndTrailingWhitespace: EditorBooleanOption.boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
+		};
+	}
+}
+
+//#endregion
+
 //#region tabFocusMode
 
 class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode, boolean> {
@@ -3646,6 +3688,7 @@ export const enum EditorOption {
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
+	smartSelect,
 	smoothScrolling,
 	stopRenderingLineAfter,
 	suggest,
@@ -4165,6 +4208,7 @@ export const EditorOptions = {
 			description: nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		}
 	)),
+	smartSelect: register(new SmartSelect()),
 	smoothScrolling: register(new EditorBooleanOption(
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }

@@ -204,12 +204,11 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
 
 	constructor(protected _args: NativeParsedArgs) {
-		if (!process.env['VSCODE_LOGS']) {
+		if (!_args.logsPath) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
-			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
+			_args.logsPath = path.join(this.userDataPath, 'logs', key);
 		}
-
-		this.logsPath = process.env['VSCODE_LOGS']!;
+		this.logsPath = _args.logsPath;
 	}
 }
 
