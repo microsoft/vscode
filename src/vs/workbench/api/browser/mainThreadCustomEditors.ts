@@ -581,7 +581,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 				backupId: '',
 				extension: primaryEditor.extension ? {
 					id: primaryEditor.extension.id.value,
-					location: primaryEditor.extension.location,
+					location: primaryEditor.extension.location!,
 				} : undefined,
 				webview: {
 					id: primaryEditor.id,

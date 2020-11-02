@@ -80,7 +80,7 @@ export class WebviewResourceRequestManager extends Disposable {
 
 		this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);
 		this._ready = this._webviewManagerService.registerWebview(this.id, nativeHostService.windowId, {
-			extensionLocation: this.extension?.location.toJSON(),
+			extensionLocation: this.extension?.location?.toJSON(),
 			localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
 			remoteConnectionData: remoteConnectionData,
 			portMappings: this._portMappings,

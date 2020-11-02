@@ -12,6 +12,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -23,7 +24,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentPurpose, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -47,6 +48,7 @@ export class WebviewViewPane extends ViewPane {
 
 	private readonly memento: Memento;
 	private readonly viewState: MementoObject;
+	private readonly extensionId?: ExtensionIdentifier;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -67,6 +69,7 @@ export class WebviewViewPane extends ViewPane {
 		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.extensionId = options.fromExtensionId;
 		this.defaultTitle = this.title;
 
 		this.memento = new Memento(`webviewView.${this.id}`, storageService);
@@ -157,7 +160,12 @@ export class WebviewViewPane extends ViewPane {
 			this._activated = true;
 
 			const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
-			const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
+			const webview = this.webviewService.createWebviewOverlay(
+				webviewId,
+				{ purpose: WebviewContentPurpose.CustomEditor },
+				{},
+				this.extensionId ? { id: this.extensionId } : undefined
+			);
 			webview.state = this.viewState[storageKeys.webviewState];
 			this._webview.value = webview;
 

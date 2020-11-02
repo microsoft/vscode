@@ -57,6 +57,7 @@ export interface IWebviewService {
 export const enum WebviewContentPurpose {
 	NotebookRenderer = 'notebookRenderer',
 	CustomEditor = 'customEditor',
+	WebviewView = 'webviewView',
 }
 
 export interface WebviewOptions {
@@ -77,7 +78,7 @@ export interface WebviewContentOptions {
 }
 
 export interface WebviewExtensionDescription {
-	readonly location: URI;
+	readonly location?: URI;
 	readonly id: ExtensionIdentifier;
 }
 
