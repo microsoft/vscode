@@ -23,9 +23,7 @@ import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSe
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class SelectionRanges {
 
@@ -56,18 +54,11 @@ class SmartSelectController implements IEditorContribution {
 		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-
 	private _state?: SelectionRanges[];
 	private _selectionListener?: IDisposable;
 	private _ignoreSelection: boolean = false;
 
-	constructor(
-		editor: ICodeEditor,
-		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
-	) {
-		this._editor = editor;
-	}
+	constructor(private readonly _editor: ICodeEditor) { }
 
 	dispose(): void {
 		this._selectionListener?.dispose();
@@ -90,9 +81,7 @@ class SmartSelectController implements IEditorContribution {
 
 		if (!this._state) {
 
-			const selectLeadingAndTrailingWhitespace = this._configService.getValue<boolean>(model.uri, 'editor.smartSelect.selectLeadingAndTrailingWhitespace') ?? true;
-
-			promise = provideSelectionRanges(model, selections.map(s => s.getPosition()), { selectLeadingAndTrailingWhitespace }, CancellationToken.None).then(ranges => {
+			promise = provideSelectionRanges(model, selections.map(s => s.getPosition()), this._editor.getOption(EditorOption.smartSelect), CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
 					// invalid result
 					return;
@@ -185,21 +174,6 @@ class GrowSelectionAction extends AbstractSmartSelect {
 		});
 	}
 }
-
-//todo@jrieken use proper editor config instead. however, to keep the number
-// of changes low use the quick config definition
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'editor',
-	properties: {
-		'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('selectLeadingAndTrailingWhitespace', "Weather leading and trailing whitespace should always be selected."),
-			default: true,
-			type: 'boolean'
-		}
-	}
-});
-
 
 // renamed command id
 CommandsRegistry.registerCommandAlias('editor.action.smartSelect.grow', 'editor.action.smartSelect.expand');
