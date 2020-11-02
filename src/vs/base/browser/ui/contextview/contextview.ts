@@ -157,11 +157,9 @@ export class ContextView extends Disposable {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
 				this.container.appendChild(this.shadowRootHostElement);
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
-				this.shadowRoot.innerHTML = `
-					<style>
-						${SHADOW_ROOT_CSS}
-					</style>
-				`;
+				const style = document.createElement('style');
+				style.textContent = SHADOW_ROOT_CSS;
+				this.shadowRoot.appendChild(style);
 				this.shadowRoot.appendChild(this.view);
 				this.shadowRoot.appendChild(DOM.$('slot'));
 			} else {

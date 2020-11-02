@@ -13,7 +13,6 @@ import * as iconv from 'iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken, Progress, Uri } from 'vscode';
-import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
@@ -351,6 +350,12 @@ function sanitizePath(path: string): string {
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
 
+export interface ICloneOptions {
+	readonly parentPath: string;
+	readonly progress: Progress<{ increment: number }>;
+	readonly recursive?: boolean;
+}
+
 export class Git {
 
 	readonly path: string;
@@ -373,18 +378,18 @@ export class Git {
 		return;
 	}
 
-	async clone(url: string, parentPath: string, progress: Progress<{ increment: number }>, cancellationToken?: CancellationToken): Promise<string> {
+	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
 		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
-		let folderPath = path.join(parentPath, folderName);
+		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
 
 		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
 			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(parentPath, folderName);
+			folderPath = path.join(options.parentPath, folderName);
 		}
 
-		await mkdirp(parentPath);
+		await mkdirp(options.parentPath);
 
 		const onSpawn = (child: cp.ChildProcess) => {
 			const decoder = new StringDecoder('utf8');
@@ -408,14 +413,18 @@ export class Git {
 				}
 
 				if (totalProgress !== previousProgress) {
-					progress.report({ increment: totalProgress - previousProgress });
+					options.progress.report({ increment: totalProgress - previousProgress });
 					previousProgress = totalProgress;
 				}
 			});
 		};
 
 		try {
-			await this.exec(parentPath, ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'], { cancellationToken, onSpawn });
+			let command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
+			if (options.recursive) {
+				command.push('--recursive');
+			}
+			await this.exec(options.parentPath, command, { cancellationToken, onSpawn });
 		} catch (err) {
 			if (err.stderr) {
 				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
@@ -679,7 +688,7 @@ export function parseGitmodules(raw: string): Submodule[] {
 			return;
 		}
 
-		const propertyMatch = /^\s*(\w+)\s+=\s+(.*)$/.exec(line);
+		const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(line);
 
 		if (!propertyMatch) {
 			return;
@@ -1155,7 +1164,7 @@ export class Repository {
 				break;
 			}
 
-			const originalUri = URI.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
+			const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
 			let status: Status = Status.UNTRACKED;
 
 			// Copy or Rename status comes with a number, e.g. 'R100'. We don't need the number, so we use only first character of the status.
@@ -1183,7 +1192,7 @@ export class Repository {
 						break;
 					}
 
-					const uri = URI.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
+					const uri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
 					result.push({
 						uri,
 						renameUri: uri,
@@ -1233,7 +1242,7 @@ export class Repository {
 		}
 
 		if (paths && paths.length) {
-			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 				await this.run([...args, '--', ...chunk]);
 			}
 		} else {
@@ -1455,7 +1464,7 @@ export class Repository {
 		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {
-			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 				promises.push(limiter.queue(() => this.run([...args, '--', ...chunk])));
 			}
 		}
@@ -1495,7 +1504,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
 					await this.run([...args, '--', ...chunk]);
 				}
 			} else {
@@ -1600,6 +1609,24 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 			} else if (/cannot lock ref|unable to update local ref/i.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.CantLockRef;
+			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
+			}
+
+			throw err;
+		}
+	}
+
+	async rebase(branch: string, options: PullOptions = {}): Promise<void> {
+		const args = ['rebase'];
+
+		args.push(branch);
+
+		try {
+			await this.run(args, options);
+		} catch (err) {
+			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
 			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
 			}

@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -82,6 +82,7 @@ interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
 
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
+	debugRenderer: boolean;
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
@@ -165,6 +166,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
+	@memoize
+	get extHostLogsPath(): URI { return joinPath(this.options.logsPath, 'exthost'); }
+
 	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 	get debugExtensionHost(): IExtensionHostDebugParams {
 		if (!this._extensionHostDebugEnvironment) {
@@ -206,6 +210,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
 	}
 
+	get debugRenderer(): boolean {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.debugRenderer;
+	}
+
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	private get webviewEndpoint(): string {
@@ -230,11 +242,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	@memoize
-	get filesToDiff(): IPath[] | undefined { return this.configuration.filesToDiff; }
-
-	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined { return this.configuration.filesToOpenOrCreate; }
-
+	get telemetryLogResource(): URI { return joinPath(this.options.logsPath, 'telemetry.log'); }
 	get disableTelemetry(): boolean { return false; }
 
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
@@ -263,6 +271,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				port: null,
 				break: false
 			},
+			debugRenderer: false,
 			isExtensionDevelopment: false,
 			extensionDevelopmentLocationURI: undefined
 		};
@@ -277,6 +286,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'extensionTestsPath':
 						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
+						break;
+					case 'debugRenderer':
+						extensionHostDebugEnvironment.debugRenderer = value === 'true';
 						break;
 					case 'debugId':
 						extensionHostDebugEnvironment.params.debugId = value;

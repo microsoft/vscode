@@ -7,7 +7,7 @@ This project incorporates components from the projects listed below. The origina
 
 1.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
-3.	atom/language-java version 0.31.5 (https://github.com/atom/language-java)
+3.	atom/language-java version 0.32.0 (https://github.com/atom/language-java)
 4.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
 5.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
 6.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
@@ -65,7 +65,7 @@ This project incorporates components from the projects listed below. The origina
 58.	vscode-codicons version 0.0.1 (https://github.com/microsoft/vscode-codicons)
 59.	vscode-logfile-highlighter version 2.8.0 (https://github.com/emilast/vscode-logfile-highlighter)
 60.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
-61.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
+61.	Web Background Synchronization (https://github.com/WICG/background-sync)
 
 
 %% atom/language-clojure NOTICES AND INFORMATION BEGIN HERE

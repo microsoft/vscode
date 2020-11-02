@@ -677,13 +677,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (capability) {
 			case ClientCapability.Semantic:
 				{
-					switch (resource.scheme) {
-						case fileSchemes.file:
-						case fileSchemes.untitled:
-							return true;
-						default:
-							return false;
-					}
+					return fileSchemes.semanticSupportedSchemes.includes(resource.scheme);
 				}
 			case ClientCapability.Syntax:
 			case ClientCapability.EnhancedSyntax:
@@ -851,6 +845,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					break;
 				}
 			case EventName.projectsUpdatedInBackground:
+				this.loadingIndicator.reset();
+
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);

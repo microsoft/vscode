@@ -169,7 +169,14 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	}
 }
 
+let _context: ExtensionContext;
+export function getExtensionContext(): ExtensionContext {
+	return _context;
+}
+
 export async function activate(context: ExtensionContext): Promise<GitExtension> {
+	_context = context;
+
 	const result = await _activate(context);
 	context.subscriptions.push(registerAPICommands(result));
 	return result;

@@ -274,7 +274,7 @@ export class CachedExtensionScanner {
 		}
 
 		const userExtensions = (
-			extensionEnablementService.allUserExtensionsDisabled || !environmentService.extensionsPath
+			!environmentService.extensionsPath
 				? Promise.resolve([])
 				: this._scanExtensionsWithCache(
 					hostService,

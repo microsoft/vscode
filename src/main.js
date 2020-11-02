@@ -79,7 +79,16 @@ if (crashReporterDirectory) {
 			submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 			// Send the id for child node process that are explicitly starting crash reporter.
 			// For vscode this is ExtensionHost process currently.
-			process.argv.push('--crash-reporter-id', crashReporterId);
+			const argv = process.argv;
+			const endOfArgsMarkerIndex = argv.indexOf('--');
+			if (endOfArgsMarkerIndex === -1) {
+				argv.push('--crash-reporter-id', crashReporterId);
+			} else {
+				// if the we have an argument "--" (end of argument marker)
+				// we cannot add arguments at the end. rather, we add
+				// arguments before the "--" marker.
+				argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
+			}
 		}
 	}
 }
@@ -131,12 +140,6 @@ registerListeners();
 
 // Cached data
 const nodeCachedDataDir = getNodeCachedDir();
-
-// Remove env set by snap https://github.com/microsoft/vscode/issues/85344
-if (process.env['SNAP']) {
-	delete process.env['GDK_PIXBUF_MODULE_FILE'];
-	delete process.env['GDK_PIXBUF_MODULEDIR'];
-}
 
 /**
  * Support user defined locale: load it early before app('ready')

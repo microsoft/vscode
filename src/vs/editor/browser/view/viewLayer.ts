@@ -530,6 +530,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
 		const hugeDomNode = document.createElement('div');
 
+		if (ViewLayerRenderer._ttPolicy) {
+			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML) as unknown as string;
+		}
 		hugeDomNode.innerHTML = invalidLinesHTML;
 
 		for (let i = 0; i < ctx.linesLength; i++) {

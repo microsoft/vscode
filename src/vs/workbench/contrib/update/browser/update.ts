@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as semver from 'vs/base/common/semver/semver';
 import severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -159,7 +160,6 @@ export class ProductContribution implements IWorkbenchContribution {
 			}
 
 			// should we show the new license?
-			const semver = await import('semver-umd');
 			if (productService.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(productService.version, '>=1.0.0')) {
 				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
 			}

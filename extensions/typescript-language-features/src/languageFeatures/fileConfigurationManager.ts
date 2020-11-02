@@ -18,6 +18,11 @@ namespace Experimental {
 	export interface UserPreferences extends Proto.UserPreferences {
 		readonly provideRefactorNotApplicableReason?: boolean;
 	}
+
+	// https://github.com/microsoft/TypeScript/issues/41208
+	export interface FormatCodeSettings extends Proto.FormatCodeSettings {
+		readonly insertSpaceAfterOpeningAndBeforeClosingEmptyBraces?: boolean;
+	}
 }
 
 interface FileConfiguration {
@@ -136,7 +141,7 @@ export default class FileConfigurationManager extends Disposable {
 	private getFormatOptions(
 		document: vscode.TextDocument,
 		options: vscode.FormattingOptions
-	): Proto.FormatCodeSettings {
+	): Experimental.FormatCodeSettings {
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
@@ -157,6 +162,7 @@ export default class FileConfigurationManager extends Disposable {
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis'),
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets'),
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces'),
+			insertSpaceAfterOpeningAndBeforeClosingEmptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingEmptyBraces'),
 			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces'),
 			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces'),
 			insertSpaceAfterTypeAssertion: config.get<boolean>('insertSpaceAfterTypeAssertion'),

@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 
 export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
@@ -32,12 +31,17 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
 	// Do NOT! memoize as `backupPath` can change in configuration
+	// via the `updateBackupPath` method below
 	get backupWorkspaceHome(): URI | undefined {
 		if (this.configuration.backupPath) {
 			return URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme });
 		}
 
 		return undefined;
+	}
+
+	updateBackupPath(newBackupPath: string | undefined): void {
+		this.configuration.backupPath = newBackupPath;
 	}
 
 	@memoize
@@ -58,18 +62,6 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 
 	@memoize
 	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
-
-	@memoize
-	get filesToDiff(): IPath[] | undefined { return this.configuration.filesToDiff; }
-
-	@memoize
-	get filesToOpenOrCreate(): IPath[] | undefined { return this.configuration.filesToOpenOrCreate; }
-
-	@memoize
-	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
-
-	@memoize
-	get windowMaximizedInitially(): boolean | undefined { return this.configuration.maximized; }
 
 	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }

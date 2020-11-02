@@ -16,13 +16,17 @@ import 'vs/workbench/workbench.common.main';
 
 //#endregion
 
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+
+registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
+
 
 //#region --- workbench services
 
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
 import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/storageKeysSyncRegistryService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/dialogs/electron-sandbox/dialogService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
@@ -42,16 +46,14 @@ import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
+import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
 
 registerSingleton(ITimerService, TimerService);
-registerSingleton(IUserDataSyncResourceEnablementService, UserDataSyncResourceEnablementService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 
 //#endregion

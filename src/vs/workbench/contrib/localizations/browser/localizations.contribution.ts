@@ -11,7 +11,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, DidInstallExtensionEvent, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -25,7 +25,6 @@ import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } fro
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 // Register action to configure locale and related settings
@@ -195,7 +194,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private isLanguageInstalled(language: string | undefined): Promise<boolean> {
-		return this.extensionManagementService.getInstalled(ExtensionType.User)
+		return this.extensionManagementService.getInstalled()
 			.then(installed => installed.some(i =>
 				!!(i.manifest
 					&& i.manifest.contributes

@@ -157,7 +157,7 @@ steps:
   inputs:
     testResultsFiles: '*-results.xml'
     searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
-  condition: succeededOrFailed()
+  condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e

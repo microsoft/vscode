@@ -5,13 +5,13 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { StorageKeysSyncRegistryChannelClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 
 class StorageKeysSyncRegistryService extends StorageKeysSyncRegistryChannelClient implements IStorageKeysSyncRegistryService {
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService
+		@ISharedProcessService mainProcessService: ISharedProcessService
 	) {
 		super(mainProcessService.getChannel('storageKeysSyncRegistryService'));
 	}

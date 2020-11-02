@@ -11,7 +11,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } 
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)

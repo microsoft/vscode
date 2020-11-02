@@ -433,16 +433,23 @@ export class Selection extends Range {
 export class ResolvedAuthority {
 	readonly host: string;
 	readonly port: number;
+	readonly connectionToken: string | undefined;
 
-	constructor(host: string, port: number) {
+	constructor(host: string, port: number, connectionToken?: string) {
 		if (typeof host !== 'string' || host.length === 0) {
 			throw illegalArgument('host');
 		}
 		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
 			throw illegalArgument('port');
 		}
+		if (typeof connectionToken !== 'undefined') {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+				throw illegalArgument('connectionToken');
+			}
+		}
 		this.host = host;
 		this.port = Math.round(port);
+		this.connectionToken = connectionToken;
 	}
 }
 
@@ -2181,11 +2188,11 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
-	readonly themeColor?: ThemeColor;
+	readonly color?: ThemeColor;
 
 	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
-		this.themeColor = color;
+		this.color = color;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2729,7 +2736,7 @@ export enum DebugConfigurationProviderTriggerKind {
 @es5ClassCompat
 export class QuickInputButtons {
 
-	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
 }
@@ -2743,7 +2750,7 @@ export class FileDecoration {
 
 	static validate(d: FileDecoration): void {
 		if (d.badge && d.badge.length !== 1) {
-			throw new Error(`The 'letter'-property must be undefined or a single character`);
+			throw new Error(`The 'badge'-property must be undefined or a single character`);
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);

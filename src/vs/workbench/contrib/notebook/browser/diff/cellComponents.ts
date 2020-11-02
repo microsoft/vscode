@@ -116,7 +116,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					return item;
 				}
 
@@ -237,6 +237,12 @@ abstract class AbstractCellRenderer extends Disposable {
 		protected readonly instantiationService: IInstantiationService,
 		protected readonly modeService: IModeService,
 		protected readonly modelService: IModelService,
+		protected readonly contextMenuService: IContextMenuService,
+		protected readonly keybindingService: IKeybindingService,
+		protected readonly notificationService: INotificationService,
+		protected readonly menuService: IMenuService,
+		protected readonly contextKeyService: IContextKeyService
+
 
 	) {
 		super();
@@ -716,8 +722,15 @@ export class DeletedCell extends AbstractCellRenderer {
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@INotificationService protected readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+
+
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	initData(): void {
@@ -805,8 +818,13 @@ export class InsertCell extends AbstractCellRenderer {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@INotificationService protected readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	initData(): void {
@@ -889,6 +907,10 @@ export class InsertCell extends AbstractCellRenderer {
 export class ModifiedCell extends AbstractCellRenderer {
 	private _editor?: DiffEditorWidget;
 	private _editorContainer!: HTMLElement;
+	private _inputToolbarContainer!: HTMLElement;
+	protected _toolbar!: ToolBar;
+	protected _menu!: IMenu;
+
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
@@ -896,8 +918,13 @@ export class ModifiedCell extends AbstractCellRenderer {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@INotificationService protected readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	initData(): void {
@@ -936,6 +963,42 @@ export class ModifiedCell extends AbstractCellRenderer {
 		}));
 
 		this._initializeSourceDiffEditor();
+
+		this._inputToolbarContainer = DOM.append(sourceContainer, DOM.$('.editor-input-toolbar-container'));
+		const cellToolbarContainer = DOM.append(this._inputToolbarContainer, DOM.$('div.property-toolbar'));
+		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					return item;
+				}
+
+				return undefined;
+			}
+		});
+
+		this._toolbar.context = {
+			cell: this.cell
+		};
+
+		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, this.contextKeyService);
+		const actions: IAction[] = [];
+		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+		this._toolbar.setActions(actions);
+
+		if (this.cell.modified!.getValue() !== this.cell.original!.getValue()) {
+			this._inputToolbarContainer.style.display = 'block';
+		} else {
+			this._inputToolbarContainer.style.display = 'none';
+		}
+
+		this._register(this.cell.modified!.onDidChangeContent(() => {
+			if (this.cell.modified!.getValue() !== this.cell.original!.getValue()) {
+				this._inputToolbarContainer.style.display = 'block';
+			} else {
+				this._inputToolbarContainer.style.display = 'none';
+			}
+		}));
 	}
 
 	private async _initializeSourceDiffEditor() {

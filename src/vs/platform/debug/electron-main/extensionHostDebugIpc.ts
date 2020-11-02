@@ -27,6 +27,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const pargs = parseArgs(args, OPTIONS);
+		pargs.debugRenderer = debugRenderer;
+
 		const extDevPaths = pargs.extensionDevelopmentPath;
 		if (!extDevPaths) {
 			return {};

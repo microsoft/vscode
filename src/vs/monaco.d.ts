@@ -3702,9 +3702,13 @@ declare namespace monaco.editor {
 		 */
 		showIcons?: boolean;
 		/**
-		 * Max suggestions to show in suggestions. Defaults to 12.
+		 * Enable or disable the suggest status bar.
 		 */
-		maxVisibleSuggestions?: number;
+		showStatusBar?: boolean;
+		/**
+		 * Show details inline with the label. Defaults to true.
+		 */
+		showStatusDetailsInline?: boolean;
 		/**
 		 * Show method-suggestions.
 		 */
@@ -3813,15 +3817,6 @@ declare namespace monaco.editor {
 		 * Show snippet-suggestions.
 		 */
 		showSnippets?: boolean;
-		/**
-		 * Status bar related settings.
-		 */
-		statusBar?: {
-			/**
-			 * Controls the visibility of the status bar at the bottom of the suggest widget.
-			 */
-			visible?: boolean;
-		};
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -4246,6 +4241,18 @@ declare namespace monaco.editor {
 		 * If null is returned, the content widget will be placed off screen.
 		 */
 		getPosition(): IContentWidgetPosition | null;
+		/**
+		 * Optional function that is invoked before rendering
+		 * the content widget. If a dimension is returned the editor will
+		 * attempt to use it.
+		 */
+		beforeRender?(): IDimension | null;
+		/**
+		 * Optional function that is invoked after rendering the content
+		 * widget. Is being invoked with the selected position preference
+		 * or `null` if not rendered.
+		 */
+		afterRender?(position: ContentWidgetPositionPreference | null): void;
 	}
 
 	/**
@@ -6138,6 +6145,10 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRangeProvider {
 		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChange?: IEvent<this>;
+		/**
 		 * Provides the folding ranges for a specific model.
 		 */
 		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
@@ -6188,12 +6199,6 @@ declare namespace monaco.languages {
 		needsConfirmation: boolean;
 		label: string;
 		description?: string;
-		iconPath?: {
-			id: string;
-		} | Uri | {
-			light: Uri;
-			dark: Uri;
-		};
 	}
 
 	export interface WorkspaceFileEditOptions {

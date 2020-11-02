@@ -14,7 +14,7 @@ import { IExtensionRecommendationsService } from 'vs/workbench/services/extensio
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
@@ -31,13 +31,12 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeymapExtensions } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/browser/extensionsActivationProgress';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { RemoteExtensionsInstaller } from 'vs/workbench/contrib/extensions/browser/remoteExtensionsInstaller';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -58,6 +57,11 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
+import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { IAction } from 'vs/base/common/actions';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -73,6 +77,16 @@ Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessPro
 	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
 	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
 	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions"), needsEditor: false }]
+});
+
+// Explorer
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: 'extensions',
+	command: {
+		id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
+		title: localize('installVSIX', "Install Extension VSIX"),
+	},
+	when: ResourceContextKey.Extension.isEqualTo('.vsix')
 });
 
 // Editor
@@ -208,6 +222,36 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
+	id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
+	handler: async (accessor: ServicesAccessor, resources: URI[] | URI) => {
+		const extensionService = accessor.get(IExtensionService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const hostService = accessor.get(IHostService);
+		const notificationService = accessor.get(INotificationService);
+
+		const extensions = Array.isArray(resources) ? resources : [resources];
+		await Promise.all(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
+			.then(async (extensions) => {
+				for (const extension of extensions) {
+					const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));
+					const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
+						: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.displayName || extension.name);
+					const actions = requireReload ? [{
+						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+						run: () => hostService.reload()
+					}] : [];
+					notificationService.prompt(
+						Severity.Info,
+						message,
+						actions,
+						{ sticky: true }
+					);
+				}
+			});
+	}
+});
+
+CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.uninstallExtension',
 	description: {
 		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
@@ -225,10 +269,13 @@ CommandsRegistry.registerCommand({
 			throw new Error(localize('id required', "Extension id required."));
 		}
 		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
+		const installed = await extensionManagementService.getInstalled();
 		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 		if (!extensionToUninstall) {
 			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
+		}
+		if (extensionToUninstall.isBuiltin) {
+			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
 		}
 
 		try {
@@ -339,6 +386,14 @@ export const CONTEXT_HAS_LOCAL_SERVER = new RawContextKey<boolean>('hasLocalServ
 export const CONTEXT_HAS_REMOTE_SERVER = new RawContextKey<boolean>('hasRemoteServer', false);
 export const CONTEXT_HAS_WEB_SERVER = new RawContextKey<boolean>('hasWebServer', false);
 
+async function runAction(action: IAction): Promise<void> {
+	try {
+		await action.run();
+	} finally {
+		action.dispose();
+	}
+}
+
 class ExtensionsContributions implements IWorkbenchContribution {
 
 	constructor(
@@ -403,7 +458,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(OpenExtensionsViewletAction, OpenExtensionsViewletAction.ID, OpenExtensionsViewletAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(OpenExtensionsViewletAction, OpenExtensionsViewletAction.ID, OpenExtensionsViewletAction.LABEL));
 			}
 		});
 
@@ -420,7 +475,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(InstallExtensionsAction, InstallExtensionsAction.ID, InstallExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(InstallExtensionsAction, InstallExtensionsAction.ID, InstallExtensionsAction.LABEL));
 			}
 		});
 
@@ -437,7 +492,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL));
 			}
 		});
 
@@ -454,7 +509,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL));
 			}
 		});
 
@@ -475,7 +530,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL));
 			}
 		});
 
@@ -492,7 +547,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowLanguageExtensionsAction, ShowLanguageExtensionsAction.ID, ShowLanguageExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowLanguageExtensionsAction, ShowLanguageExtensionsAction.ID, ShowLanguageExtensionsAction.LABEL));
 			}
 		});
 
@@ -509,7 +564,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL));
 			}
 		});
 
@@ -526,7 +581,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL));
 			}
 		});
 
@@ -543,7 +598,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL));
 			}
 		});
 
@@ -560,7 +615,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL));
 			}
 		});
 
@@ -577,7 +632,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL));
 			}
 		});
 
@@ -594,7 +649,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL, false));
 			}
 		});
 
@@ -611,7 +666,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL));
 			}
 		});
 
@@ -628,7 +683,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL, false));
 			}
 		});
 
@@ -645,7 +700,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(DisableAllWorkspaceAction, DisableAllWorkspaceAction.ID, DisableAllWorkspaceAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(DisableAllWorkspaceAction, DisableAllWorkspaceAction.ID, DisableAllWorkspaceAction.LABEL, false));
 			}
 		});
 
@@ -662,7 +717,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL, false));
 			}
 		});
 
@@ -679,7 +734,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(EnableAllWorkspaceAction, EnableAllWorkspaceAction.ID, EnableAllWorkspaceAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(EnableAllWorkspaceAction, EnableAllWorkspaceAction.ID, EnableAllWorkspaceAction.LABEL, false));
 			}
 		});
 
@@ -696,7 +751,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL));
 			}
 		});
 
@@ -712,7 +767,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ClearExtensionsSearchResultsAction, ClearExtensionsSearchResultsAction.ID, ClearExtensionsSearchResultsAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ClearExtensionsSearchResultsAction, ClearExtensionsSearchResultsAction.ID, ClearExtensionsSearchResultsAction.LABEL));
 			}
 		});
 
@@ -728,7 +783,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
 			}
 		});
 
@@ -744,7 +799,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL));
 			}
 		});
 
@@ -761,7 +816,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(InstallSpecificVersionOfExtensionAction, InstallSpecificVersionOfExtensionAction.ID, InstallSpecificVersionOfExtensionAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(InstallSpecificVersionOfExtensionAction, InstallSpecificVersionOfExtensionAction.ID, InstallSpecificVersionOfExtensionAction.LABEL));
 			}
 		});
 
@@ -778,7 +833,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IInstantiationService).createInstance(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL).run();
+				return runAction(accessor.get(IInstantiationService).createInstance(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL));
 			}
 		});
 	}

@@ -370,8 +370,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		while (container
 			&&
 			container !== this._body) {
-
-			if ((container as HTMLElement).classList.contains('output')) {
+			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('output')) {
 				return true;
 			}
 
@@ -1150,8 +1149,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._overlayContainer.style.visibility = 'visible';
 		this._overlayContainer.style.display = 'block';
 		this._overlayContainer.style.position = 'absolute';
-		this._overlayContainer.style.top = `${this._shadowElementViewInfo!.top}px`;
-		this._overlayContainer.style.left = `${this._shadowElementViewInfo!.left}px`;
+
+		const containerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
+		this._overlayContainer.style.top = `${this._shadowElementViewInfo!.top - (containerRect?.top || 0)}px`;
+		this._overlayContainer.style.left = `${this._shadowElementViewInfo!.left - (containerRect?.left || 0)}px`;
 		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo!.width}px`;
 		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo!.height}px`;
 
@@ -1867,7 +1868,7 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('notebook.cellToolbarSeparator', "The color of the seperator in the cell bottom toolbar"));
+}, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),
