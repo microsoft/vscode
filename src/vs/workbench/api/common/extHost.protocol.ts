@@ -1307,7 +1307,7 @@ export interface IWorkspaceCellEditDto {
 export interface IWorkspaceEditDto {
 	edits: Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto | IWorkspaceCellEditDto>;
 
-	// todo@joh reject should go into rename
+	// todo@jrieken reject should go into rename
 	rejectReason?: string;
 }
 

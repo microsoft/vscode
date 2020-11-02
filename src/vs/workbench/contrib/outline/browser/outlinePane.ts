@@ -425,7 +425,7 @@ export class OutlinePane extends ViewPane {
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
 		this._outlineViewState.persist(this._storageService);
 		if (e.followCursor) {
-			// todo@joh update immediately
+			// todo@jrieken update immediately
 		}
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;
