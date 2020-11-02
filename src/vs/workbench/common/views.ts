@@ -298,6 +298,18 @@ export interface IViewDescriptor {
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
 
+export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
+
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
 	index: number;
