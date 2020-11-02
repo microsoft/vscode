@@ -415,12 +415,13 @@ class BackspacePrediction implements IPrediction {
 	public apply(_: IBuffer, cursor: Cursor) {
 		// at eol if everything to the right is whitespace (zsh will emit a "clear line" code in this case)
 		// todo: can be optimized if `getTrimmedLength` is exposed from xterm
-		const eol = !cursor.getLine()?.translateToString(true, cursor.x);
+		const eol = !cursor.getLine()?.translateToString(undefined, cursor.x).trim();
+		const pos = cursor.coordinate;
 		const move = cursor.shift(-1);
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { eol, pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
-			: { eol, pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
+			? { eol, pos, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
+			: { eol, pos, oldAttributes: '', oldChar: '' };
 
 		return move + DELETE_CHAR;
 	}
