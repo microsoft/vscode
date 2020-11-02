@@ -6199,12 +6199,6 @@ declare namespace monaco.languages {
 		needsConfirmation: boolean;
 		label: string;
 		description?: string;
-		iconPath?: {
-			id: string;
-		} | Uri | {
-			light: Uri;
-			dark: Uri;
-		};
 	}
 
 	export interface WorkspaceFileEditOptions {
