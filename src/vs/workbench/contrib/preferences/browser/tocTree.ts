@@ -217,7 +217,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			hideTwistiesOfChildlessElements: true
 		};
 
 		super(
