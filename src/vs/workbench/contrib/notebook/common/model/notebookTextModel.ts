@@ -337,14 +337,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
 					break;
 				case CellEditType.Output:
-					//TODO@joh,@rebornix no event, no undo stop (?)
+					//TODO@jrieken,@rebornix no event, no undo stop (?)
 					this._assertIndex(edit.index);
 					const cell = this._cells[edit.index];
 					this._spliceNotebookCellOutputs2(cell.handle, edit.outputs, computeUndoRedo);
 					break;
 				case CellEditType.OutputsSplice:
 					{
-						//TODO@joh,@rebornix no event, no undo stop (?)
+						//TODO@jrieken,@rebornix no event, no undo stop (?)
 						this._assertIndex(edit.index);
 						const cell = this._cells[edit.index];
 						this._spliceNotebookCellOutputs(cell.handle, edit.splices, computeUndoRedo);

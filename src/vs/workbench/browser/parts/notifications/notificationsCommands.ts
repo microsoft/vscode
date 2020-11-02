@@ -159,12 +159,20 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	});
 
 	// Hide Toasts
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand(HIDE_NOTIFICATION_TOAST, accessor => toasts.hide());
+
+	KeybindingsRegistry.registerKeybindingRule({
 		id: HIDE_NOTIFICATION_TOAST,
-		weight: KeybindingWeight.WorkbenchContrib + 50,
+		weight: KeybindingWeight.WorkbenchContrib - 50, // lower when not focused (e.g. let editor suggest win over this command)
 		when: NotificationsToastsVisibleContext,
-		primary: KeyCode.Escape,
-		handler: accessor => toasts.hide()
+		primary: KeyCode.Escape
+	});
+
+	KeybindingsRegistry.registerKeybindingRule({
+		id: HIDE_NOTIFICATION_TOAST,
+		weight: KeybindingWeight.WorkbenchContrib + 100, // higher when focused
+		when: ContextKeyExpr.and(NotificationsToastsVisibleContext, NotificationFocusedContext),
+		primary: KeyCode.Escape
 	});
 
 	// Focus Toasts

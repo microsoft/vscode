@@ -79,8 +79,12 @@ class Cursor implements ICoordinate {
 		this._baseY = buffer.baseY;
 	}
 
+	public getLine() {
+		return this.buffer.getLine(this._y + this._baseY);
+	}
+
 	public getCell(loadInto?: IBufferCell) {
-		return this.buffer.getLine(this._y + this._baseY)?.getCell(this._x, loadInto);
+		return this.getLine()?.getCell(this._x, loadInto);
 	}
 
 	public moveTo(coordinate: ICoordinate) {
@@ -403,15 +407,23 @@ class BackspacePrediction implements IPrediction {
 		pos: ICoordinate;
 		oldAttributes: string;
 		oldChar: string;
+		eol: boolean;
 	};
 
+	constructor(private readonly terminal: Terminal) { }
+
 	public apply(_: IBuffer, cursor: Cursor) {
+		// at eol if everything to the right is whitespace (zsh will emit a "clear line" code in this case)
+		// todo: can be optimized if `getTrimmedLength` is exposed from xterm
+		const eol = !cursor.getLine()?.translateToString(undefined, cursor.x).trim();
+		const pos = cursor.coordinate;
+		const move = cursor.shift(-1);
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
-			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
+			? { eol, pos, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
+			: { eol, pos, oldAttributes: '', oldChar: '' };
 
-		return cursor.shift(-1) + DELETE_CHAR;
+		return move + DELETE_CHAR;
 	}
 
 	public rollback(cursor: Cursor) {
@@ -420,8 +432,11 @@ class BackspacePrediction implements IPrediction {
 		}
 
 		const { oldAttributes, oldChar, pos } = this.appliedAt;
-		const r = cursor.moveTo(pos) + (oldChar ? `${oldAttributes}${oldChar}${cursor.moveTo(pos)}` : DELETE_CHAR);
-		return r;
+		if (!oldChar) {
+			return cursor.moveTo(pos) + DELETE_CHAR;
+		}
+
+		return oldAttributes + oldChar + cursor.moveTo(pos) + attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
 	}
 
 	public rollForwards() {
@@ -429,8 +444,7 @@ class BackspacePrediction implements IPrediction {
 	}
 
 	public matches(input: StringReader) {
-		const isEOL = this.appliedAt?.oldChar === '';
-		if (isEOL) {
+		if (this.appliedAt?.eol) {
 			const r1 = input.eatGradually(`\b${CSI}K`);
 			if (r1 !== MatchResult.Failure) {
 				return r1;
@@ -1212,7 +1226,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 					flushOutput(this.timeline.terminal);
 				}
 
-				addLeftNavigating(new BackspacePrediction());
+				addLeftNavigating(new BackspacePrediction(this.timeline.terminal));
 				continue;
 			}
 

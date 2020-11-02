@@ -336,7 +336,7 @@ class GoToBreakpointAction extends EditorAction {
 			}
 
 			if (moveBreakpoint) {
-				return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
+				return openBreakpointSource(moveBreakpoint, false, true, false, debugService, editorService);
 			}
 		}
 	}

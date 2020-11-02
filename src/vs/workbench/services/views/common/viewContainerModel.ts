@@ -5,7 +5,7 @@
 
 import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState } from 'vs/workbench/common/views';
 import { IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -143,7 +143,7 @@ class ViewDescriptorsState extends Disposable {
 		this.setStoredGlobalState(storedGlobalState);
 	}
 
-	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
+	private onDidStorageChange(e: IStorageChangeEvent): void {
 		if (e.key === this.globalViewsStateStorageId && e.scope === StorageScope.GLOBAL
 			&& this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
 			this._globalViewsStatesValue = undefined;

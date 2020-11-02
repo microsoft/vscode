@@ -277,7 +277,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: e.element.item.uri,
-					options: { selection: e.element.item.selectionRange }
+					options: { selection: e.element.item.selectionRange, pinned: true }
 				});
 			}
 		}));
@@ -289,7 +289,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: element.item.uri,
-					options: { selection: element.item.selectionRange }
+					options: { selection: element.item.selectionRange, pinned: true }
 				});
 			}
 		}));

@@ -90,8 +90,8 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._onStopCallback = onStopCallback;
 
 		const windowChain = IframeUtils.getSameOriginWindowChain();
-		const mouseMove = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointermove' : 'mousemove';
-		const mouseUp = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointerup' : 'mouseup';
+		const mouseMove = 'mousemove';
+		const mouseUp = 'mouseup';
 
 		const listenTo: (Document | ShadowRoot)[] = windowChain.map(element => element.window.document);
 		const shadowRoot = dom.getShadowRoot(initialElement);

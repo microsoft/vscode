@@ -433,7 +433,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 	});
 
-	test('ExtensionRecommendationsService: Able to retrieve collection of all ignored recommendations', async () => {
+	test.skip('ExtensionRecommendationsService: Able to retrieve collection of all ignored recommendations', async () => {
 
 		const storageService = instantiationService.get(IStorageService);
 		const workspaceIgnoredRecommendations = ['ms-dotnettools.csharp']; // ignore a stored recommendation and a workspace recommendation.

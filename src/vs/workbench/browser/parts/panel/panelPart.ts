@@ -13,7 +13,7 @@ import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/
 import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -670,7 +670,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.toolBar.getItemsWidth();
 	}
 
-	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
+	private onDidStorageChange(e: IStorageChangeEvent): void {
 		if (e.key === PanelPart.PINNED_PANELS && e.scope === StorageScope.GLOBAL
 			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
 			this._cachedPanelsValue = undefined;

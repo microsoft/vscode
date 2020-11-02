@@ -410,10 +410,10 @@ vscode-proxy-agent@^0.5.2:
     https-proxy-agent "^2.2.3"
     socks-proxy-agent "^4.0.1"
 
-vscode-ripgrep@^1.9.0:
-  version "1.9.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.9.0.tgz#d6cdea4d290f3c2919472cdcfe2440d5fb1f99db"
-  integrity sha512-7jyAC/NNfvMPZgCVkyqIn0STYJ7wIk3PF2qA2cX1sEutx1g/e2VtgKAodXnfpreJq4993JT/BSIigOv/0lBSzg==
+vscode-ripgrep@1.10.0:
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.10.0.tgz#fc725f5eae22343ed47d32c615c0536cfecfde2b"
+  integrity sha512-lHM0MfFo7Fln7qHNpnCQzWhRsDPWmu6o6eO0xW9MD0qjUUiNYGLZ6zdHbIhNxj2I1bVA7bXIgHKcnrEPRn5Rnw==
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"

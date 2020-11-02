@@ -19,7 +19,7 @@ import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/qu
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
@@ -64,6 +64,8 @@ export class TerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
 	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
+	private _remoteTerminalsInitialized: Promise<void> | undefined;
+	private _connectionState: TerminalConnectionState;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -97,6 +99,9 @@ export class TerminalService implements ITerminalService {
 	public get onRequestAvailableShells(): Event<IAvailableShellsRequest> { return this._onRequestAvailableShells.event; }
 	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
 	public get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
+	private readonly _onDidChangeConnectionState = new Emitter<void>();
+	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
+	public get connectionState(): TerminalConnectionState { return this._connectionState; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -134,6 +139,42 @@ export class TerminalService implements ITerminalService {
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
+
+		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+		const serverSpawn = this.configHelper.config.serverSpawn;
+		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
+			this._remoteTerminalsInitialized = this._reconnectToRemoteTerminals();
+			this._connectionState = TerminalConnectionState.Connecting;
+		} else {
+			this._connectionState = TerminalConnectionState.Connected;
+		}
+	}
+
+	private async _reconnectToRemoteTerminals(): Promise<void> {
+		const remoteTerms = await this._remoteTerminalService.listTerminals(true);
+		const workspace = this._workspaceContextService.getWorkspace();
+		const unattachedWorkspaceRemoteTerms = remoteTerms
+			.filter(term => term.workspaceId === workspace.id)
+			.filter(term => !this.isAttachedToTerminal(term));
+
+		/* __GDPR__
+			"terminalReconnection" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		 */
+		const data = {
+			count: unattachedWorkspaceRemoteTerms.length
+		};
+		this._telemetryService.publicLog('terminalReconnection', data);
+		if (unattachedWorkspaceRemoteTerms.length > 0) {
+			// Reattach to all remote terminals
+			for (let term of unattachedWorkspaceRemoteTerms) {
+				this.createTerminal({ remoteAttach: term });
+			}
+		}
+
+		this._connectionState = TerminalConnectionState.Connected;
+		this._onDidChangeConnectionState.fire();
 	}
 
 	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {
@@ -226,7 +267,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
 	}
 
 	public getFindState(): FindReplaceState {
@@ -349,45 +390,13 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async initializeTerminals(): Promise<void> {
-		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
-		const serverSpawn = this.configHelper.config.serverSpawn;
-		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
-			let emptyTab: TerminalTab | undefined;
+		if (this._remoteTerminalsInitialized) {
+			await this._remoteTerminalsInitialized;
+
 			if (!this.terminalTabs.length) {
-				emptyTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, undefined);
-				this._terminalTabs.push(emptyTab);
-				this._onInstanceTitleChanged.fire(undefined);
+				this.createTerminal(undefined);
 			}
-
-			const remoteTerms = await this._remoteTerminalService.listTerminals(true);
-			const workspace = this._workspaceContextService.getWorkspace();
-			const unattachedWorkspaceRemoteTerms = remoteTerms
-				.filter(term => term.workspaceId === workspace.id)
-				.filter(term => !this.isAttachedToTerminal(term));
-
-			/* __GDPR__
-				"terminalReconnection" : {
-					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			 */
-			const data = {
-				count: unattachedWorkspaceRemoteTerms.length
-			};
-			this._telemetryService.publicLog('terminalReconnection', data);
-			if (unattachedWorkspaceRemoteTerms.length > 0) {
-				// Reattach to all remote terminals
-				this.createTerminal({ remoteAttach: unattachedWorkspaceRemoteTerms[0] }, emptyTab);
-				for (let term of unattachedWorkspaceRemoteTerms.slice(1)) {
-					this.createTerminal({ remoteAttach: term });
-				}
-			} else if (this.terminalTabs.length === 1 && this.terminalTabs[0] === emptyTab) {
-				// No terminals to reconnect to, and the only terminal tab is our placeholder
-				this.createTerminal(undefined, emptyTab);
-			} else if (emptyTab) {
-				// There is another tab, need to remove the empty tab
-				this._removeTab(emptyTab);
-			}
-		} else if (this.terminalTabs.length === 0) {
+		} else if (!this._environmentService.remoteAuthority && this.terminalTabs.length === 0) {
 			// Local, just create a terminal
 			this.createTerminal();
 		}
@@ -664,7 +673,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	public createTerminal(shell: IShellLaunchConfig = {}, terminalTab?: TerminalTab): ITerminalInstance {
+	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
 		if (!this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
@@ -675,14 +684,11 @@ export class TerminalService implements ITerminalService {
 			return instance;
 		}
 
-		if (terminalTab) {
-			terminalTab.addInstance(shell);
-		} else {
-			terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
-			this._terminalTabs.push(terminalTab);
-		}
+		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
+		this._terminalTabs.push(terminalTab);
 
 		const instance = terminalTab.terminalInstances[0];
+
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._initInstanceListeners(instance);

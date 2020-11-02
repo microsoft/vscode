@@ -30,15 +30,14 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
-export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFromSelection: 'single' | 'multiple' = 'single'): string | null {
+export function getSelectionSearchString(editor: ICodeEditor): string | null {
 	if (!editor.hasModel()) {
 		return null;
 	}
 
 	const selection = editor.getSelection();
 	// if selection spans multiple lines, default search string to empty
-
-	if (seedSearchStringFromSelection === 'single' && selection.startLineNumber === selection.endLineNumber) {
+	if (selection.startLineNumber === selection.endLineNumber) {
 		if (selection.isEmpty()) {
 			const wordAtPosition = editor.getConfiguredWordAtPosition(selection.getStartPosition());
 			if (wordAtPosition) {
@@ -48,10 +47,6 @@ export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFr
 			if (editor.getModel().getValueLengthInRange(selection) < SEARCH_STRING_MAX_LENGTH) {
 				return editor.getModel().getValueInRange(selection);
 			}
-		}
-	} else if (seedSearchStringFromSelection === 'multiple') {
-		if (editor.getModel().getValueLengthInRange(selection) < SEARCH_STRING_MAX_LENGTH) {
-			return editor.getModel().getValueInRange(selection);
 		}
 	}
 
@@ -66,7 +61,7 @@ export const enum FindStartFocusAction {
 
 export interface IFindStartOptions {
 	forceRevealReplace: boolean;
-	seedSearchStringFromSelection: 'none' | 'single' | 'multiple';
+	seedSearchStringFromSelection: boolean;
 	seedSearchStringFromGlobalClipboard: boolean;
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
@@ -127,7 +122,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			if (shouldRestartFind) {
 				this._start({
 					forceRevealReplace: false,
-					seedSearchStringFromSelection: 'none',
+					seedSearchStringFromSelection: false && this._editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 					seedSearchStringFromGlobalClipboard: false,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
 					shouldAnimate: false,
@@ -283,19 +278,14 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			isRevealed: true
 		};
 
-		if (opts.seedSearchStringFromSelection === 'single') {
-			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
+		if (opts.seedSearchStringFromSelection) {
+			let selectionSearchString = getSelectionSearchString(this._editor);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
 					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
 				} else {
 					stateChanges.searchString = selectionSearchString;
 				}
-			}
-		} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
-			let selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
-			if (selectionSearchString) {
-				stateChanges.searchString = selectionSearchString;
 			}
 		}
 
@@ -503,7 +493,7 @@ export class StartFindAction extends MultiEditorAction {
 		if (controller) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'none',
+				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
@@ -538,7 +528,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 		if (controller) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'multiple',
+				seedSearchStringFromSelection: true,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -556,7 +546,7 @@ export abstract class MatchFindAction extends EditorAction {
 		if (controller && !this._run(controller)) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'multiple',
+				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -669,7 +659,7 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 		if (!this._run(controller)) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection ? 'single' : 'none',
+				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -775,7 +765,7 @@ export class StartFindReplaceAction extends MultiEditorAction {
 		if (controller) {
 			await controller.start({
 				forceRevealReplace: true,
-				seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
+				seedSearchStringFromSelection: seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				shouldFocus: shouldFocus,
 				shouldAnimate: true,

@@ -136,8 +136,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			const resolved = await fileService.resolveAll(fileResources.map(resource => ({ resource })));
 			const editors = resolved.filter(r => r.stat && r.success && !r.stat.isDirectory).map(r => ({
-				resource: r.stat!.resource
-			})).concat(...untitledResources.map(untitledResource => ({ resource: untitledResource })));
+				resource: r.stat!.resource,
+				options: { pinned: true }
+			})).concat(...untitledResources.map(untitledResource => ({ resource: untitledResource, options: { pinned: true } })));
 
 			await editorService.openEditors(editors, SIDE_GROUP);
 		}
@@ -157,7 +158,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const resources = explorerService.getContext(true);
 
 		if (resources.length) {
-			await editorService.openEditors(resources.map(r => ({ resource: r.resource, options: { preserveFocus: false } })));
+			await editorService.openEditors(resources.map(r => ({ resource: r.resource, options: { preserveFocus: false, pinned: true } })));
 		}
 	}
 });
@@ -192,7 +193,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
 
 			try {
-				await TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService);
+				await TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService, { pinned: true });
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {
 					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
@@ -233,7 +234,8 @@ CommandsRegistry.registerCommand({
 		if (resources.length === 2) {
 			return editorService.openEditor({
 				leftResource: resources[0],
-				rightResource: resources[1]
+				rightResource: resources[1],
+				options: { pinned: true }
 			});
 		}
 
@@ -251,7 +253,8 @@ CommandsRegistry.registerCommand({
 		if (globalResourceToCompare && rightResource) {
 			editorService.openEditor({
 				leftResource: globalResourceToCompare,
-				rightResource
+				rightResource,
+				options: { pinned: true }
 			});
 		}
 	}

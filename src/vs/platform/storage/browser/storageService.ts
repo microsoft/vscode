@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
+import { IStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -20,7 +20,7 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());

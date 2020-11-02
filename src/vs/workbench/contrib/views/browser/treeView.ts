@@ -684,7 +684,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 }
 
-// todo@joh,sandy make this proper and contributable from extensions
+// todo@jrieken,sandy make this proper and contributable from extensions
 registerThemingParticipant((theme, collector) => {
 
 	const matchBackgroundColor = theme.getColor(listFilterMatchHighlight);

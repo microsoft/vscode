@@ -126,7 +126,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
 				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors are reused until they are explicitly set to be kept open (e.g. via double click or editing)."),
-				'default': true
+				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
 				'type': 'boolean',

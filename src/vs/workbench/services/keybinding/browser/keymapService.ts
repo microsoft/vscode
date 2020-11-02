@@ -502,7 +502,7 @@ class UserKeyboardLayout extends Disposable {
 
 }
 
-class BrowserKeymapService extends Disposable implements IKeymapService {
+export class BrowserKeymapService extends Disposable implements IKeymapService {
 	public _serviceBrand: undefined;
 
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();

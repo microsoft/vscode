@@ -371,6 +371,10 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	/**
+	 * Smart select opptions;
+	 */
+	smartSelect?: ISmartSelectOptions;
+	/**
 	 *
 	 */
 	gotoLocation?: IGotoLocationOptions;
@@ -3027,6 +3031,10 @@ export interface ISuggestOptions {
 	 */
 	showStatusBar?: boolean;
 	/**
+	 * Show details inline with the label. Defaults to true.
+	 */
+	showStatusDetailsInline?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -3149,6 +3157,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
+			showStatusDetailsInline: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3219,6 +3228,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.showStatusBar,
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+				},
+
+				'editor.suggest.showStatusDetailsInline': {
+					type: 'boolean',
+					default: defaults.showStatusDetailsInline,
+					description: nls.localize('suggest.showStatusDetailsInline', "Controls whether sugget details show inline with the label or only in the details widget")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
@@ -3385,6 +3400,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showStatusDetailsInline: EditorBooleanOption.boolean(input.showStatusDetailsInline, this.defaultValue.showStatusDetailsInline),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -3412,6 +3428,44 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
 			showUsers: EditorBooleanOption.boolean(input.showUsers, this.defaultValue.showUsers),
 			showIssues: EditorBooleanOption.boolean(input.showIssues, this.defaultValue.showIssues),
+		};
+	}
+}
+
+//#endregion
+
+//#region smart select
+
+export interface ISmartSelectOptions {
+	selectLeadingAndTrailingWhitespace?: boolean
+}
+
+export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
+
+class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelectOptions> {
+
+	constructor() {
+		super(
+			EditorOption.smartSelect, 'smartSelect',
+			{
+				selectLeadingAndTrailingWhitespace: true
+			},
+			{
+				'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
+					description: nls.localize('selectLeadingAndTrailingWhitespace', "Whether leading and trailing whitespace should always be selected."),
+					default: true,
+					type: 'boolean'
+				}
+			}
+		);
+	}
+
+	public validate(input: any): Readonly<Required<ISmartSelectOptions>> {
+		if (!input || typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			selectLeadingAndTrailingWhitespace: EditorBooleanOption.boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
 		};
 	}
 }
@@ -3634,6 +3688,7 @@ export const enum EditorOption {
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
+	smartSelect,
 	smoothScrolling,
 	stopRenderingLineAfter,
 	suggest,
@@ -4153,6 +4208,7 @@ export const EditorOptions = {
 			description: nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		}
 	)),
+	smartSelect: register(new SmartSelect()),
 	smoothScrolling: register(new EditorBooleanOption(
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
