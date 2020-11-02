@@ -407,7 +407,7 @@ class BackspacePrediction implements IPrediction {
 		pos: ICoordinate;
 		oldAttributes: string;
 		oldChar: string;
-		eol: boolean;
+		isLastChar: boolean;
 	};
 
 	constructor(private readonly terminal: Terminal) { }
@@ -415,13 +415,13 @@ class BackspacePrediction implements IPrediction {
 	public apply(_: IBuffer, cursor: Cursor) {
 		// at eol if everything to the right is whitespace (zsh will emit a "clear line" code in this case)
 		// todo: can be optimized if `getTrimmedLength` is exposed from xterm
-		const eol = !cursor.getLine()?.translateToString(undefined, cursor.x).trim();
+		const isLastChar = !cursor.getLine()?.translateToString(undefined, cursor.x).trim();
 		const pos = cursor.coordinate;
 		const move = cursor.shift(-1);
 		const cell = cursor.getCell();
 		this.appliedAt = cell
-			? { eol, pos, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
-			: { eol, pos, oldAttributes: '', oldChar: '' };
+			? { isLastChar, pos, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
+			: { isLastChar, pos, oldAttributes: '', oldChar: '' };
 
 		return move + DELETE_CHAR;
 	}
@@ -444,7 +444,7 @@ class BackspacePrediction implements IPrediction {
 	}
 
 	public matches(input: StringReader) {
-		if (this.appliedAt?.eol) {
+		if (this.appliedAt?.isLastChar) {
 			const r1 = input.eatGradually(`\b${CSI}K`);
 			if (r1 !== MatchResult.Failure) {
 				return r1;
