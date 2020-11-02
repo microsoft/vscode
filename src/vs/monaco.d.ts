@@ -3706,6 +3706,10 @@ declare namespace monaco.editor {
 		 */
 		showStatusBar?: boolean;
 		/**
+		 * Show details inline with the label. Defaults to true.
+		 */
+		showStatusDetailsInline?: boolean;
+		/**
 		 * Show method-suggestions.
 		 */
 		showMethods?: boolean;
