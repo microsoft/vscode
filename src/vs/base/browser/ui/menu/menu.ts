@@ -777,6 +777,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 	}
 
+	updateEnabled(): void {
+		// override on submenu entry
+		// native menus do not observe enablement on sumbenus
+		// we mimic that behavior
+	}
+
 	open(selectFirst?: boolean): void {
 		this.cleanupExistingSubmenu(false);
 		this.createSubmenu(selectFirst);
