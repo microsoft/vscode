@@ -35,7 +35,7 @@ export class MarkdownString implements IMarkdownString {
 			this.supportThemeIcons = false;
 		}
 		else {
-			this.isTrusted = isTrustedOrOptions.isTrusted ?? false;
+			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
 			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 		}
 	}
