@@ -14,6 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminal';
 import { FileAccess } from 'vs/base/common/network';
+import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -99,6 +100,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 
 		return new Promise<void>((c, e) => {
 			const env = cwd ? { cwd: cwd } : undefined;
+			if (env !== undefined) { sanitizeProcessEnvironment(env); }
 			const child = spawner.spawn(command, cmdArgs, env);
 			child.on('error', e);
 			child.on('exit', () => c());
