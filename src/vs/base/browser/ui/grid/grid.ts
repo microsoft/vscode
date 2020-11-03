@@ -175,7 +175,7 @@ function getGridLocation(element: HTMLElement): number[] {
 	}
 
 	const index = indexInParent(parentElement);
-	const ancestor = parentElement.parentElement!.parentElement!.parentElement!;
+	const ancestor = parentElement.parentElement!.parentElement!.parentElement!.parentElement!;
 	return [...getGridLocation(ancestor), index];
 }
 
