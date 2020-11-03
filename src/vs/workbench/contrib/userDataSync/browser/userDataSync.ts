@@ -482,9 +482,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							}
 						});
 						return;
+					case UserDataSyncErrorCode.Unauthorized:
+						this.notificationService.error(localize('auth failed', "Error while starting Settings Sync: Authentication failed."));
+						return;
 				}
 			}
-			this.notificationService.error(localize('turn on failed', "Error while starting Settings Sync: {0}", toErrorMessage(e)));
+			this.notificationService.error(localize('turn on failed', "Error while turning on Settings Sync. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
 		}
 	}
 
