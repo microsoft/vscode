@@ -864,6 +864,12 @@ export class Repository implements Disposable {
 			return;
 		}
 
+		const path = uri.path;
+
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
+			return undefined;
+		}
+
 		return toGitUri(uri, '', { replaceFileExtension: true });
 	}
 
