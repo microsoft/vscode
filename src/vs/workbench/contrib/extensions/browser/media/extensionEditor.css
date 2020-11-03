@@ -212,8 +212,7 @@
 .extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
 	margin-top: 4px;
 	margin-left: 4px;
-	padding-top: 0;
-	padding-bottom: 2px;
+	padding-bottom: 1px;
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
