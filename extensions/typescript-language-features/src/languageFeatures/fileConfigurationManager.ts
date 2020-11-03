@@ -13,18 +13,6 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
-namespace Experimental {
-	// https://github.com/microsoft/TypeScript/pull/37871/
-	export interface UserPreferences extends Proto.UserPreferences {
-		readonly provideRefactorNotApplicableReason?: boolean;
-	}
-
-	// https://github.com/microsoft/TypeScript/issues/41208
-	export interface FormatCodeSettings extends Proto.FormatCodeSettings {
-		readonly insertSpaceAfterOpeningAndBeforeClosingEmptyBraces?: boolean;
-	}
-}
-
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
@@ -141,7 +129,7 @@ export default class FileConfigurationManager extends Disposable {
 	private getFormatOptions(
 		document: vscode.TextDocument,
 		options: vscode.FormattingOptions
-	): Experimental.FormatCodeSettings {
+	): Proto.FormatCodeSettings {
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
 			document.uri);
@@ -185,7 +173,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: Experimental.UserPreferences = {
+		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
