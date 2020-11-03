@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [ $# -eq 0 ]; then
 	echo "Pass in a version like ./scripts/generate-vscode-dts.sh 1.30."

@@ -567,7 +567,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 	}
 
-	public async backup(): Promise<IWorkingCopyBackup> {
+	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();
 		if (!editors.length) {
 			throw new Error('No editors found for resource, cannot back up');

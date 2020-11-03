@@ -14,7 +14,12 @@ import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
 
-suite('Storage Library', () => {
+suite('Storage Library', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/108113
+	// we see random test failures when accessing the native file system.
+	this.retries(3);
+	this.timeout(1000 * 20);
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -278,7 +283,12 @@ suite('Storage Library', () => {
 	});
 });
 
-suite('SQLite Storage Library', () => {
+suite('SQLite Storage Library', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/108113
+	// we see random test failures when accessing the native file system.
+	this.retries(3);
+	this.timeout(1000 * 20);
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -540,8 +550,6 @@ suite('SQLite Storage Library', () => {
 	});
 
 	test('real world example', async function () {
-		this.timeout(20000);
-
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);

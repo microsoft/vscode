@@ -85,7 +85,7 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 1);
 			assert.deepEqual(result.suggestions[0].label, {
 				name: 'bar',
-				type: 'barTest ()'
+				type: 'barTest'
 			});
 			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
 			assert.equal(result.suggestions[0].insertText, 'barCodeSnippet');
@@ -120,13 +120,13 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 2);
 			assert.deepEqual(result.suggestions[0].label, {
 				name: 'bar',
-				type: 'barTest ()'
+				type: 'barTest'
 			});
 			assert.equal(result.suggestions[0].insertText, 's1');
 			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
 			assert.deepEqual(result.suggestions[1].label, {
 				name: 'bar-bar',
-				type: 'name ()'
+				type: 'name'
 			});
 			assert.equal(result.suggestions[1].insertText, 's2');
 			assert.equal((result.suggestions[1].range as any).insert.startColumn, 1);
@@ -137,7 +137,7 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 1);
 			assert.deepEqual(result.suggestions[0].label, {
 				name: 'bar-bar',
-				type: 'name ()'
+				type: 'name'
 			});
 			assert.equal(result.suggestions[0].insertText, 's2');
 			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
@@ -148,13 +148,13 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 2);
 			assert.deepEqual(result.suggestions[0].label, {
 				name: 'bar',
-				type: 'barTest ()'
+				type: 'barTest'
 			});
 			assert.equal(result.suggestions[0].insertText, 's1');
 			assert.equal((result.suggestions[0].range as any).insert.startColumn, 5);
 			assert.deepEqual(result.suggestions[1].label, {
 				name: 'bar-bar',
-				type: 'name ()'
+				type: 'name'
 			});
 			assert.equal(result.suggestions[1].insertText, 's2');
 			assert.equal((result.suggestions[1].range as any).insert.startColumn, 1);
@@ -245,11 +245,11 @@ suite('SnippetsService', function () {
 			let [first, second] = result.suggestions;
 			assert.deepEqual(first.label, {
 				name: 'first',
-				type: 'first ()'
+				type: 'first'
 			});
 			assert.deepEqual(second.label, {
 				name: 'second',
-				type: 'second ()'
+				type: 'second'
 			});
 		});
 	});
@@ -335,7 +335,7 @@ suite('SnippetsService', function () {
 		assert.equal(result.suggestions.length, 1);
 		assert.deepEqual(result.suggestions[0].label, {
 			name: 'mytemplate',
-			type: 'mytemplate ()'
+			type: 'mytemplate'
 		});
 	});
 
@@ -472,6 +472,29 @@ suite('SnippetsService', function () {
 		assert.equal(result.suggestions.length, 1);
 		[first] = result.suggestions;
 		assert.equal((first.range as any).insert.endColumn, 1);
+		assert.equal((first.range as any).replace.endColumn, 9);
+	});
+
+	test('Snippet replace-range incorrect #108894', async function () {
+
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'eng',
+			'eng',
+			'',
+			'<span></span>',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = createTextModel('filler e KEEP ng filler', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
+
+		assert.equal(result.suggestions.length, 1);
+		let [first] = result.suggestions;
+		assert.equal((first.range as any).insert.endColumn, 9);
 		assert.equal((first.range as any).replace.endColumn, 9);
 	});
 });

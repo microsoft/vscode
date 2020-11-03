@@ -83,7 +83,6 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _triggerKeybindingLabel: string,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
 		@IThemeService private readonly _themeService: IThemeService
@@ -118,7 +117,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
 		data.readMore = append(data.right, $('span.readMore' + suggestMoreInfoIcon.cssSelector));
-		data.readMore.title = nls.localize('readMore', "Read More ({0})", this._triggerKeybindingLabel);
+		data.readMore.title = nls.localize('readMore', "Read More");
 
 		const configureFont = () => {
 			const options = this._editor.getOptions();
@@ -213,6 +212,12 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			data.detailsLabel.textContent = (completion.label.type || '').replace(/\n.*$/m, '');
 			data.root.classList.remove('string-label');
 			data.root.title = `${textLabel}${completion.label.parameters ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
+		}
+
+		if (this._editor.getOption(EditorOption.suggest).showStatusDetailsInline) {
+			show(data.detailsLabel);
+		} else {
+			hide(data.detailsLabel);
 		}
 
 		if (canExpandCompletionItem(element)) {

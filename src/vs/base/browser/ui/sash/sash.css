@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+:root {
+	--sash-size: 4px;
+}
+
 .monaco-sash {
 	position: absolute;
 	z-index: 35;
@@ -41,6 +45,34 @@
 	cursor: default !important;
 	pointer-events: none !important;
 }
+
+.monaco-sash.vertical {
+	cursor: ew-resize;
+	top: 0;
+	width: var(--sash-size);
+	height: 100%;
+}
+
+.monaco-sash.horizontal {
+	cursor: ns-resize;
+	left: 0;
+	width: 100%;
+	height: var(--sash-size);
+}
+
+.monaco-sash:not(.disabled).orthogonal-start::before, .monaco-sash:not(.disabled).orthogonal-end::after {
+	content: ' ';
+	height: calc(var(--sash-size) * 2);
+	width: calc(var(--sash-size) * 2);
+	z-index: 100;
+	display: block;
+	cursor: all-scroll; position: absolute;
+}
+
+.monaco-sash.orthogonal-start.vertical::before { left: -calc(var(--sash-size) / 2); top: calc(var(--sash-size) * -1); }
+.monaco-sash.orthogonal-end.vertical::after { left: -calc(var(--sash-size) / 2); bottom: calc(var(--sash-size) * -1); }
+.monaco-sash.orthogonal-start.horizontal::before { top: -calc(var(--sash-size) / 2); left: calc(var(--sash-size) * -1); }
+.monaco-sash.orthogonal-end.horizontal::after { top: -calc(var(--sash-size) / 2); right: calc(var(--sash-size) * -1); }
 
 /** Debug **/
 

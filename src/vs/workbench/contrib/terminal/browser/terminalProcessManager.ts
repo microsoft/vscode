@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { env as processEnv } from 'vs/base/common/process';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -69,14 +69,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
 	public get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
-	private readonly _onProcessData = this._register(new Emitter<string>());
-	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
+	public get onProcessData(): Event<IProcessDataEvent> { return this._onProcessData.event; }
 	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	public get onProcessExit(): Event<number | undefined> { return this._onProcessExit.event; }
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
-	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
@@ -158,7 +158,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				const enableRemoteAgentTerminals = this._workspaceConfigurationService.getValue('terminal.integrated.serverSpawn');
+				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
 				if (enableRemoteAgentTerminals) {
 					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 				} else {
@@ -171,11 +171,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		this.processState = ProcessState.LAUNCHING;
 
-		this._process.onProcessData(data => {
+		this._process.onProcessData(ev => {
+			const data = (typeof ev === 'string' ? ev : ev.data);
+			const sync = (typeof ev === 'string' ? false : ev.sync);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire(beforeProcessDataEvent.data);
+				this._onProcessData.fire({ data: beforeProcessDataEvent.data, sync });
 			}
 		});
 

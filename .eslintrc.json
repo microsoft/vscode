@@ -523,7 +523,6 @@
                     "vscode-textmate",
                     "vscode-oniguruma",
                     "iconv-lite-umd",
-                    "semver-umd",
                     "tas-client-umd",
                     "jschardet"
                 ]
@@ -556,7 +555,6 @@
                     "vscode-textmate",
                     "vscode-oniguruma",
                     "iconv-lite-umd",
-                    "semver-umd",
                     "jschardet"
                 ]
             },
@@ -587,7 +585,6 @@
                     "vscode-textmate",
                     "vscode-oniguruma",
                     "iconv-lite-umd",
-                    "semver-umd",
                     "jschardet"
                 ]
             },
@@ -640,7 +637,6 @@
             {
                 "target": "**/vs/workbench/contrib/extensions/browser/**",
                 "restrictions": [
-                    "semver-umd",
                     "vs/nls",
                     "vs/css!./**/*",
                     "**/vs/base/**/{common,browser}/**",
@@ -654,7 +650,6 @@
             {
                 "target": "**/vs/workbench/contrib/update/browser/update.ts",
                 "restrictions": [
-                    "semver-umd",
                     "vs/nls",
                     "vs/css!./**/*",
                     "**/vs/base/**/{common,browser}/**",
@@ -708,7 +703,6 @@
                     "vscode-textmate",
                     "vscode-oniguruma",
                     "iconv-lite-umd",
-                    "semver-umd",
                     "jschardet"
                 ]
             },
@@ -742,7 +736,6 @@
                     "vscode-textmate",
                     "vscode-oniguruma",
                     "iconv-lite-umd",
-                    "semver-umd",
                     "jschardet"
                 ]
             },

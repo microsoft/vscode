@@ -11,7 +11,7 @@ import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, IS
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMStatusController } from './activity';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -26,6 +26,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -221,13 +223,62 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!repository || !repository.provider.acceptInputCommand) {
 			return Promise.resolve(null);
 		}
-
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
 
 		const commandService = accessor.get(ICommandService);
 		return commandService.executeCommand(id, ...(args || []));
 	}
+});
+
+const viewNextCommitCommand = {
+	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: (accessor: ServicesAccessor) => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showNextHistoryValue();
+	}
+};
+
+const viewPreviousCommitCommand = {
+	description: { description: localize('scm view previous commit', "SCM: View Previous Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: (accessor: ServicesAccessor) => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showPreviousHistoryValue();
+	}
+};
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewNextCommitCommand,
+	id: 'scm.viewNextCommit',
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.DownArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewPreviousCommitCommand,
+	id: 'scm.viewPreviousCommit',
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.UpArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewNextCommitCommand,
+	id: 'scm.forceViewNextCommit',
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.DownArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewPreviousCommitCommand,
+	id: 'scm.forceViewPreviousCommit',
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
 CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {

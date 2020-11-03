@@ -128,7 +128,7 @@ export class BulkEditPane extends ViewPane {
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
 			new BulkEditDelegate(),
-			[new TextEditElementRenderer(), this._instaService.createInstance(FileElementRenderer, resourceLabels), new CategoryElementRenderer()],
+			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
 			this._treeDataSource,
 			{
 				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
@@ -364,7 +364,7 @@ export class BulkEditPane extends ViewPane {
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
 		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
 		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions, this._contextMenuService);
+		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getActions: () => actions,

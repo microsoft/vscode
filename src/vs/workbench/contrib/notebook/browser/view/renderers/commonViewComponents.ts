@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { renderCodicons } from 'vs/base/browser/codicons';
@@ -16,9 +15,8 @@ export class CodiconActionViewItem extends MenuEntryActionViewItem {
 		readonly _action: MenuItemAction,
 		keybindingService: IKeybindingService,
 		notificationService: INotificationService,
-		contextMenuService: IContextMenuService
 	) {
-		super(_action, keybindingService, notificationService, contextMenuService);
+		super(_action, keybindingService, notificationService);
 	}
 	updateLabel(): void {
 		if (this.options.label && this.label) {

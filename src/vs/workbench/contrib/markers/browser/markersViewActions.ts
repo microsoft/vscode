@@ -183,7 +183,8 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			{
 				actionRunner,
 				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+				menuAsChild: true
 			}
 		);
 	}

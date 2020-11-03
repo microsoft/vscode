@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
@@ -124,5 +124,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					'pub.name': ['ui']
 				}
 			},
+			'remote.restoreForwardedPorts': {
+				type: 'boolean',
+				markdownDescription: localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
+				default: false
+			},
+			'remote.autoForwardPorts': {
+				type: 'boolean',
+				markdownDescription: localize('remote.autoForwardPorts', "When enabled, URLs with ports (ex. `http://127.0.0.1:3000`) that are printed to your terminals are automatically forwarded."),
+				default: true
+			}
 		}
 	});

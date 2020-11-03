@@ -35,6 +35,7 @@ import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKe
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { mock } from 'vs/base/test/common/mock';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
@@ -201,7 +202,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					readText() {
 						return Promise.resolve('CLIPPY');
 					}
-				}
+				},
+				NullTelemetryService,
+				new NullLogService()
 			);
 			disposables.push(oracle, editor);
 

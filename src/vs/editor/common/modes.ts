@@ -19,7 +19,7 @@ import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationReg
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { iconRegistry, Codicon } from 'vs/base/common/codicons';
-
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 /**
  * Open ended enum at runtime
  * @internal
@@ -553,6 +553,11 @@ export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
 	dispose?(): void;
+
+	/**
+	 * @internal
+	 */
+	duration?: number;
 }
 
 /**
@@ -1293,6 +1298,12 @@ export interface FoldingContext {
  * A provider of folding ranges for editor models.
  */
 export interface FoldingRangeProvider {
+
+	/**
+	 * An optional event to signal that the folding ranges from this provider have changed.
+	 */
+	onDidChange?: Event<this>;
+
 	/**
 	 * Provides the folding ranges for a specific model.
 	 */
@@ -1348,7 +1359,10 @@ export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | URI | { light: URI, dark: URI };
+	/**
+	 * @internal
+	 */
+	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {

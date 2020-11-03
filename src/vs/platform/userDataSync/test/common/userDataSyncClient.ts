@@ -6,7 +6,7 @@
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IUserData, IUserDataManifest, ALL_SYNC_RESOURCES, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncResourceEnablementService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService, SyncResource, ServerResource, IUserDataSyncStoreManagementService, registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataManifest, ALL_SYNC_RESOURCES, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncResourceEnablementService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService, SyncResource, ServerResource, IUserDataSyncStoreManagementService, registerConfiguration, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { generateUuid } from 'vs/base/common/uuid';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -38,6 +38,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -105,6 +107,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IStorageKeysSyncRegistryService, this.instantiationService.createInstance(StorageKeysSyncRegistryService));
 
 		this.instantiationService.stub(IGlobalExtensionEnablementService, this.instantiationService.createInstance(GlobalExtensionEnablementService));
+		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
 		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			async getInstalled() { return []; },
 			onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event,
@@ -115,6 +118,7 @@ export class UserDataSyncClient extends Disposable {
 			async getCompatibleExtension() { return null; }
 		});
 
+		this.instantiationService.stub(IUserDataAutoSyncEnablementService, this.instantiationService.createInstance(UserDataAutoSyncEnablementService));
 		this.instantiationService.stub(IUserDataSyncService, this.instantiationService.createInstance(UserDataSyncService));
 
 		if (!empty) {

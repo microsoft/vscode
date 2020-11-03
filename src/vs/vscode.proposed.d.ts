@@ -181,8 +181,9 @@ declare module 'vscode' {
 	export class ResolvedAuthority {
 		readonly host: string;
 		readonly port: number;
+		readonly connectionToken: string | undefined;
 
-		constructor(host: string, port: number);
+		constructor(host: string, port: number, connectionToken?: string);
 	}
 
 	export interface ResolvedOptions {
@@ -992,7 +993,7 @@ declare module 'vscode' {
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
-		exclusive?: boolean;
+		readonly exclusive?: boolean;
 	}
 
 	//#endregion
@@ -1529,7 +1530,7 @@ declare module 'vscode' {
 		 *
 		 * Messages are only delivered if the editor is live.
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -1731,7 +1732,7 @@ declare module 'vscode' {
 		 *
 		 * Messages are only delivered if the editor is live.
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -2159,35 +2160,14 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/103120 @alexr00
-	export class ThemeIcon2 extends ThemeIcon {
+	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
+	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
 
 		/**
-		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * An optional event to signal that the folding ranges from this provider have changed.
 		 */
-		readonly id: string;
+		onDidChangeFoldingRanges?: Event<void>;
 
-		/**
-		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
-		 */
-		readonly themeColor?: ThemeColor;
-
-		/**
-		 * Creates a reference to a theme icon.
-		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
-		 * @param color optional `ThemeColor` for the icon. The color is currently only used in [TreeItem](#TreeItem).
-		 */
-		constructor(id: string, color?: ThemeColor);
-	}
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
-	export interface CommentThread {
-		/**
-		 * Whether the thread supports reply.
-		 * Defaults to true.
-		 */
-		canReply: boolean;
 	}
 	//#endregion
 }

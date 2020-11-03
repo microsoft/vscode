@@ -2910,6 +2910,10 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		/**
+		 * Smart select opptions;
+		 */
+		smartSelect?: ISmartSelectOptions;
+		/**
 		 *
 		 */
 		gotoLocation?: IGotoLocationOptions;
@@ -3702,9 +3706,13 @@ declare namespace monaco.editor {
 		 */
 		showIcons?: boolean;
 		/**
-		 * Max suggestions to show in suggestions. Defaults to 12.
+		 * Enable or disable the suggest status bar.
 		 */
-		maxVisibleSuggestions?: number;
+		showStatusBar?: boolean;
+		/**
+		 * Show details inline with the label. Defaults to true.
+		 */
+		showStatusDetailsInline?: boolean;
 		/**
 		 * Show method-suggestions.
 		 */
@@ -3813,18 +3821,15 @@ declare namespace monaco.editor {
 		 * Show snippet-suggestions.
 		 */
 		showSnippets?: boolean;
-		/**
-		 * Status bar related settings.
-		 */
-		statusBar?: {
-			/**
-			 * Controls the visibility of the status bar at the bottom of the suggest widget.
-			 */
-			visible?: boolean;
-		};
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
+
+	export interface ISmartSelectOptions {
+		selectLeadingAndTrailingWhitespace?: boolean;
+	}
+
+	export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
 
 	/**
 	 * Describes how to indent wrapped lines.
@@ -3950,31 +3955,32 @@ declare namespace monaco.editor {
 		showFoldingControls = 91,
 		showUnused = 92,
 		snippetSuggestions = 93,
-		smoothScrolling = 94,
-		stopRenderingLineAfter = 95,
-		suggest = 96,
-		suggestFontSize = 97,
-		suggestLineHeight = 98,
-		suggestOnTriggerCharacters = 99,
-		suggestSelection = 100,
-		tabCompletion = 101,
-		tabIndex = 102,
-		unusualLineTerminators = 103,
-		useTabStops = 104,
-		wordSeparators = 105,
-		wordWrap = 106,
-		wordWrapBreakAfterCharacters = 107,
-		wordWrapBreakBeforeCharacters = 108,
-		wordWrapColumn = 109,
-		wordWrapMinified = 110,
-		wrappingIndent = 111,
-		wrappingStrategy = 112,
-		showDeprecated = 113,
-		editorClassName = 114,
-		pixelRatio = 115,
-		tabFocusMode = 116,
-		layoutInfo = 117,
-		wrappingInfo = 118
+		smartSelect = 94,
+		smoothScrolling = 95,
+		stopRenderingLineAfter = 96,
+		suggest = 97,
+		suggestFontSize = 98,
+		suggestLineHeight = 99,
+		suggestOnTriggerCharacters = 100,
+		suggestSelection = 101,
+		tabCompletion = 102,
+		tabIndex = 103,
+		unusualLineTerminators = 104,
+		useTabStops = 105,
+		wordSeparators = 106,
+		wordWrap = 107,
+		wordWrapBreakAfterCharacters = 108,
+		wordWrapBreakBeforeCharacters = 109,
+		wordWrapColumn = 110,
+		wordWrapMinified = 111,
+		wrappingIndent = 112,
+		wrappingStrategy = 113,
+		showDeprecated = 114,
+		editorClassName = 115,
+		pixelRatio = 116,
+		tabFocusMode = 117,
+		layoutInfo = 118,
+		wrappingInfo = 119
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4072,6 +4078,7 @@ declare namespace monaco.editor {
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
+		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, InternalSuggestOptions>;
@@ -4246,6 +4253,18 @@ declare namespace monaco.editor {
 		 * If null is returned, the content widget will be placed off screen.
 		 */
 		getPosition(): IContentWidgetPosition | null;
+		/**
+		 * Optional function that is invoked before rendering
+		 * the content widget. If a dimension is returned the editor will
+		 * attempt to use it.
+		 */
+		beforeRender?(): IDimension | null;
+		/**
+		 * Optional function that is invoked after rendering the content
+		 * widget. Is being invoked with the selected position preference
+		 * or `null` if not rendered.
+		 */
+		afterRender?(position: ContentWidgetPositionPreference | null): void;
 	}
 
 	/**
@@ -6138,6 +6157,10 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRangeProvider {
 		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChange?: IEvent<this>;
+		/**
 		 * Provides the folding ranges for a specific model.
 		 */
 		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
@@ -6188,12 +6211,6 @@ declare namespace monaco.languages {
 		needsConfirmation: boolean;
 		label: string;
 		description?: string;
-		iconPath?: {
-			id: string;
-		} | Uri | {
-			light: Uri;
-			dark: Uri;
-		};
 	}
 
 	export interface WorkspaceFileEditOptions {

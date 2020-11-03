@@ -17,7 +17,6 @@ import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
 import { hash } from 'vs/base/common/hash';
 
 class DecorationRule {
@@ -327,7 +326,6 @@ export class DecorationsService implements IDecorationsService {
 
 	constructor(
 		@IThemeService themeService: IThemeService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
 	}
@@ -369,7 +367,6 @@ export class DecorationsService implements IDecorationsService {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
 					containsChildren = isChild || containsChildren;
-					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', wrapper.provider.label, deco, isChild, uri);
 				}
 			});
 		}

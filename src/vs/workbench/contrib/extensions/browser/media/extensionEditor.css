@@ -153,14 +153,24 @@
 	justify-content: flex-start;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.action-label.dropdown,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .extension-action.action-label.empty-dropdown {
 	margin-right: 8px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
 	font-weight: 600;
-	padding: 1px 6px;
 	max-width: 300px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+	padding: 1px 6px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.dropdown.label {
+	padding: 1px 0px;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
