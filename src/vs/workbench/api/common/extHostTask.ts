@@ -705,6 +705,10 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
+		if (!task.execution) {
+			throw new Error('Tasks to execute must include an execution');
+		}
+
 		const dto = TaskDTO.from(task, extension);
 		if (dto === undefined) {
 			throw new Error('Task is not valid');
