@@ -72,7 +72,7 @@ suite('Multicursor selection', () => {
 		remove: (key) => undefined,
 		logStorage: () => undefined,
 		migrate: (toWorkspace) => Promise.resolve(undefined),
-		flush: () => undefined,
+		flush: () => Promise.resolve(undefined),
 		isNew: () => true,
 		keys: () => []
 	} as IStorageService);

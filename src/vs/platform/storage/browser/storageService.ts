@@ -145,6 +145,13 @@ export class BrowserStorageService extends AbstractStorageService {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
+	protected async doFlush(): Promise<void> {
+		await Promise.all([
+			this.getStorage(StorageScope.GLOBAL).whenFlushed(),
+			this.getStorage(StorageScope.WORKSPACE).whenFlushed()
+		]);
+	}
+
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner

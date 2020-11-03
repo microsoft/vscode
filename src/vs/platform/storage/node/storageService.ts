@@ -204,6 +204,13 @@ export class NativeStorageService extends AbstractStorageService {
 		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
 	}
 
+	protected async doFlush(): Promise<void> {
+		await Promise.all([
+			this.getStorage(StorageScope.GLOBAL).whenFlushed(),
+			this.getStorage(StorageScope.WORKSPACE).whenFlushed()
+		]);
+	}
+
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner

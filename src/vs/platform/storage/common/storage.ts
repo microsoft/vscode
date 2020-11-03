@@ -141,10 +141,13 @@ export interface IStorageService {
 
 	/**
 	 * Allows to flush state, e.g. in cases where a shutdown is
-	 * imminent. This will send out the onWillSaveState to ask
+	 * imminent. This will send out the `onWillSaveState` to ask
 	 * everyone for latest state.
+	 *
+	 * @returns a `Promise` that can be awaited on when all updates
+	 * to the underlying storage have been flushed.
 	 */
-	flush(): void;
+	flush(): Promise<void>;
 }
 
 export const enum StorageScope {
@@ -282,8 +285,13 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
-	flush(): void {
+	flush(): Promise<void> {
+
+		// Signal event to collect changes
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+
+		// Await flush
+		return this.doFlush();
 	}
 
 	// --- abstract
@@ -301,9 +309,11 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract doRemove(key: string, scope: StorageScope): void;
 
-	abstract logStorage(): void;
+	protected abstract doFlush(): Promise<void>;
 
 	abstract migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+
+	abstract logStorage(): void;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {
@@ -383,6 +393,8 @@ export class InMemoryStorageService extends AbstractStorageService {
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		// not supported
 	}
+
+	async doFlush(): Promise<void> { }
 
 	async close(): Promise<void> { }
 }
