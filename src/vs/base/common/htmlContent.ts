@@ -16,52 +16,52 @@ export interface IMarkdownString {
 }
 
 export class MarkdownString implements IMarkdownString {
-	private readonly _isTrusted: boolean;
-	private readonly _supportThemeIcons: boolean;
+
+	public value: string;
+	public isTrusted?: boolean;
+	public supportThemeIcons?: boolean;
 
 	constructor(
-		private _value: string = '',
+		value: string = '',
 		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean } = false,
 	) {
-		if (typeof this._value !== 'string') {
+		this.value = value;
+		if (typeof this.value !== 'string') {
 			throw illegalArgument('value');
 		}
 
 		if (typeof isTrustedOrOptions === 'boolean') {
-			this._isTrusted = isTrustedOrOptions;
-			this._supportThemeIcons = false;
+			this.isTrusted = isTrustedOrOptions;
+			this.supportThemeIcons = false;
 		}
 		else {
-			this._isTrusted = isTrustedOrOptions.isTrusted ?? false;
-			this._supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
+			this.isTrusted = isTrustedOrOptions.isTrusted ?? false;
+			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 		}
 	}
 
-	get value() { return this._value; }
-	get isTrusted() { return this._isTrusted; }
-	get supportThemeIcons() { return this._supportThemeIcons; }
-
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this._value += (this._supportThemeIcons ? escapeCodicons(value) : value)
+		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
+			.replace(/^([ \t]+)(.+)$/gm, (_match, g1, g2) => '&nbsp;'.repeat(g1.length) + g2)
+			.replace(/^>/gm, '\\>')
 			.replace(/\n/g, '\n\n');
 
 		return this;
 	}
 
 	appendMarkdown(value: string): MarkdownString {
-		this._value += value;
-
+		this.value += value;
 		return this;
 	}
 
 	appendCodeblock(langId: string, code: string): MarkdownString {
-		this._value += '\n```';
-		this._value += langId;
-		this._value += '\n';
-		this._value += code;
-		this._value += '\n```\n';
+		this.value += '\n```';
+		this.value += langId;
+		this.value += '\n';
+		this.value += code;
+		this.value += '\n```\n';
 		return this;
 	}
 }
