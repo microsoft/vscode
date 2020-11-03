@@ -21,7 +21,7 @@ export interface ISnippetsService {
 
 	isEnabled(snippet: Snippet): boolean;
 
-	updateEnablement(snippet: Snippet, enabled: string): void;
+	updateEnablement(snippet: Snippet, enabled: boolean): void;
 
 	getSnippets(languageId: LanguageId, includeDisabledSnippets?: boolean): Promise<Snippet[]>;
 

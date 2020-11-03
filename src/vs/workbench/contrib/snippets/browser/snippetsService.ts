@@ -207,7 +207,7 @@ class SnippetsService implements ISnippetsService {
 		return !snippet.snippetIdentifier || !this._enablement.isIgnored(snippet.snippetIdentifier);
 	}
 
-	updateEnablement(snippet: Snippet, enabled: string): void {
+	updateEnablement(snippet: Snippet, enabled: boolean): void {
 		if (snippet.snippetIdentifier) {
 			this._enablement.updateIgnored(snippet.snippetIdentifier, !enabled);
 		}
