@@ -215,6 +215,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 	get boundarySashes(): IBoundarySashes { return this.gridview.boundarySashes; }
 	set boundarySashes(boundarySashes: IBoundarySashes) { this.gridview.boundarySashes = boundarySashes; }
 
+	set edgeSnapping(edgeSnapping: boolean) { this.gridview.edgeSnapping = edgeSnapping; }
+
 	get element(): HTMLElement { return this.gridview.element; }
 
 	private didLayout = false;
