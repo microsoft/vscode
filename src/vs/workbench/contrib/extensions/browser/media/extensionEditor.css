@@ -165,6 +165,10 @@
 	max-width: 300px;
 }
 
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.icon {
+	padding-top: 1px;
+}
+
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
 	padding: 1px 6px;
 }
