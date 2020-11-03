@@ -268,28 +268,28 @@ class SnippetsService implements ISnippetsService {
 		updateWorkspaceSnippets();
 	}
 
-	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<any> {
-		let promises = workspace.folders.map(folder => {
+	private async _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<any> {
+		const promises = workspace.folders.map(async folder => {
 			const snippetFolder = folder.toResource('.vscode');
-			return this._fileService.exists(snippetFolder).then(value => {
-				if (value) {
-					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
-				} else {
-					// watch
-					bucket.add(this._fileService.onDidFilesChange(e => {
-						if (e.contains(snippetFolder, FileChangeType.ADDED)) {
-							this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
-						}
-					}));
-				}
-			});
+			const value = await this._fileService.exists(snippetFolder);
+			if (value) {
+				this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
+			} else {
+				// watch
+				bucket.add(this._fileService.onDidFilesChange(e => {
+					if (e.contains(snippetFolder, FileChangeType.ADDED)) {
+						this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
+					}
+				}));
+			}
 		});
-		return Promise.all(promises);
+		await Promise.all(promises);
 	}
 
-	private _initUserSnippets(): Promise<any> {
+	private async _initUserSnippets(): Promise<any> {
 		const userSnippetsFolder = this._environmentService.snippetsHome;
-		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
+		await this._fileService.createFolder(userSnippetsFolder);
+		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: DisposableStore): Promise<any> {
