@@ -13,7 +13,7 @@ import { equals } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isString } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 
@@ -211,7 +211,7 @@ export class IconLabel extends Disposable {
 						const resolvedTooltip = await tooltip;
 						if (resolvedTooltip) {
 							hoverOptions = {
-								text: typeof resolvedTooltip === 'string' ? new MarkdownString().appendText(resolvedTooltip, 'break') : resolvedTooltip,
+								text: resolvedTooltip,
 								target,
 								anchorPosition: AnchorPosition.BELOW
 							};
