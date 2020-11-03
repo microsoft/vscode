@@ -11,7 +11,7 @@ import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecyc
 import { or, matchesPrefix, matchesWords, matchesContiguousSubString } from 'vs/base/common/filters';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { LRUCache } from 'vs/base/common/map';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -279,8 +279,8 @@ export class CommandsHistory extends Disposable {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
-		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.GLOBAL);
+		storageService.store2(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store2(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
