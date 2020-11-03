@@ -25,6 +25,7 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { ResourceMap } from 'vs/base/common/map';
 
 namespace snippetExt {
 
@@ -125,11 +126,11 @@ function watch(service: IFileService, resource: URI, callback: () => any): IDisp
 
 class SnippetsService implements ISnippetsService {
 
-	readonly _serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _pendingWork: Promise<any>[] = [];
-	private readonly _files = new Map<string, SnippetFile>();
+	private readonly _files = new ResourceMap<SnippetFile>();
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -203,7 +204,7 @@ class SnippetsService implements ISnippetsService {
 	private _initExtensionSnippets(): void {
 		snippetExt.point.setHandler(extensions => {
 
-			for (let [key, value] of this._files) {
+			for (const [key, value] of this._files) {
 				if (value.source === SnippetSource.Extension) {
 					this._files.delete(key);
 				}
@@ -216,8 +217,7 @@ class SnippetsService implements ISnippetsService {
 						continue;
 					}
 
-					const resource = validContribution.location.toString();
-					const file = this._files.get(resource);
+					const file = this._files.get(validContribution.location);
 					if (file) {
 						if (file.defaultScopes) {
 							file.defaultScopes.push(validContribution.language);
@@ -226,7 +226,7 @@ class SnippetsService implements ISnippetsService {
 						}
 					} else {
 						const file = new SnippetFile(SnippetSource.Extension, validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService, this._extensionResourceLoaderService);
-						this._files.set(file.location.toString(), file);
+						this._files.set(file.location, file);
 
 						if (this._environmentService.isExtensionDevelopment) {
 							file.load().then(file => {
@@ -315,15 +315,14 @@ class SnippetsService implements ISnippetsService {
 
 	private _addSnippetFile(uri: URI, source: SnippetSource): IDisposable {
 		const ext = resources.extname(uri);
-		const key = uri.toString();
 		if (source === SnippetSource.User && ext === '.json') {
 			const langName = resources.basename(uri).replace(/\.json/, '');
-			this._files.set(key, new SnippetFile(source, uri, [langName], undefined, this._fileService, this._extensionResourceLoaderService));
+			this._files.set(uri, new SnippetFile(source, uri, [langName], undefined, this._fileService, this._extensionResourceLoaderService));
 		} else if (ext === '.code-snippets') {
-			this._files.set(key, new SnippetFile(source, uri, undefined, undefined, this._fileService, this._extensionResourceLoaderService));
+			this._files.set(uri, new SnippetFile(source, uri, undefined, undefined, this._fileService, this._extensionResourceLoaderService));
 		}
 		return {
-			dispose: () => this._files.delete(key)
+			dispose: () => this._files.delete(uri)
 		};
 	}
 }
