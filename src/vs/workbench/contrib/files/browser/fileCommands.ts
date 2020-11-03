@@ -134,9 +134,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const untitledResources = resources.filter(resource => resource.scheme === Schemas.untitled);
 			const fileResources = resources.filter(resource => resource.scheme !== Schemas.untitled);
 
-			const resolved = await fileService.resolveAll(fileResources.map(resource => ({ resource })));
-			const editors = resolved.filter(r => r.stat && r.success && !r.stat.isDirectory).map(r => ({
-				resource: r.stat!.resource,
+			const items = await Promise.all(fileResources.map(async resource => {
+				const item = explorerService.findClosest(resource);
+				if (item) {
+					// Explorer already resolved the item, no need to go to the file service #109780
+					return item;
+				}
+
+				return await fileService.resolve(resource);
+			}));
+			const files = items.filter(i => !i.isDirectory);
+			const editors = files.map(f => ({
+				resource: f.resource,
 				options: { pinned: true }
 			})).concat(...untitledResources.map(untitledResource => ({ resource: untitledResource, options: { pinned: true } })));
 
