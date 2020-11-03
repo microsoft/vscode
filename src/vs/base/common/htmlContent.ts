@@ -15,7 +15,7 @@ export interface IMarkdownString {
 	uris?: { [href: string]: UriComponents };
 }
 
-export enum MarkdownStringTextNewlineStyle {
+export const enum MarkdownStringTextNewlineStyle {
 	Paragraph = 0,
 	Break = 1,
 }
