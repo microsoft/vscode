@@ -367,7 +367,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
@@ -376,7 +376,7 @@ KeybindingsRegistry.registerKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'revealReference',
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyCode.Enter,

@@ -1983,7 +1983,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	static readonly ID = 'extensions.ignore';
 
-	private static readonly Class = 'extension-action ignore';
+	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} ignore`;
 
 	constructor(
 		private readonly extension: IExtension,
@@ -2006,7 +2006,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	static readonly ID = 'extensions.ignore';
 
-	private static readonly Class = 'extension-action undo-ignore';
+	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} undo-ignore`;
 
 	constructor(
 		private readonly extension: IExtension,

@@ -357,6 +357,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
+		// Change edge snapping accordingly
+		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
+
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Propagate to grid
@@ -1310,6 +1313,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.container.prepend(workbenchGrid.element);
 		this.container.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
+		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
 
 		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
 			this._register(part.onDidVisibilityChange((visible) => {
