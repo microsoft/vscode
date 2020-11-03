@@ -95,8 +95,8 @@ steps:
 
 - script: |
     set -e
-    export SDKROOT=/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
-    ls /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
+    export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+    ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
     yarn electron-rebuild
   displayName: Rebuild native modules for ARM64
   condition: eq(variables['VSCODE_ARCH'], 'arm64')
@@ -161,7 +161,7 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests (Electron)
-  condition: and(succeeded(),  eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(),  eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -187,7 +187,7 @@ steps:
     yarn smoketest --build "$APP_ROOT/$APP_NAME"
   continueOnError: true
   displayName: Run smoke tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -282,6 +282,7 @@ steps:
     APP_NAME="`ls $APP_ROOT | head -n 1`"
     "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
   displayName: Verify start after signing (export configuration)
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
 - script: |
     set -e
@@ -297,6 +298,7 @@ steps:
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     yarn gulp upload-vscode-configuration
   displayName: Upload configuration (for Bing settings search)
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
   continueOnError: true
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0

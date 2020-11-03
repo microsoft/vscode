@@ -142,7 +142,7 @@ stages:
   - Compile
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
   pool:
-    name: Apple Silicon DTK
+    vmImage: macOS-latest
   jobs:
   - job: macOSARM64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
