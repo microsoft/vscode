@@ -40,13 +40,13 @@ export class MarkdownString implements IMarkdownString {
 		}
 	}
 
-	appendText(value: string): MarkdownString {
+	appendText(value: string, newlineStyle: 'break' | 'paragraph' = 'paragraph'): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace(/^([ \t]+)(.+)$/gm, (_match, g1, g2) => '&nbsp;'.repeat(g1.length) + g2)
 			.replace(/^>/gm, '\\>')
-			.replace(/\n/g, '\n\n');
+			.replace(/\n/g, newlineStyle === 'break' ? '\\\n' : '\n\n');
 
 		return this;
 	}
