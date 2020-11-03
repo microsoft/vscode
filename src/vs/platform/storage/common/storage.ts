@@ -10,6 +10,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
+const TARGET_KEY = '__$__targetStorageMarker';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -48,44 +49,54 @@ export interface IStorageService {
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided defaultValue if the element is null or undefined.
+	 * the provided `defaultValue` if the element is `null` or `undefined`.
 	 *
-	 * The scope argument allows to define the scope of the storage
-	 * operation to either the current workspace only or all workspaces.
+	 * @param scope allows to define the scope of the storage operation
+	 * to either the current workspace only or all workspaces.
 	 */
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
 	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided defaultValue if the element is null or undefined. The element
-	 * will be converted to a boolean.
+	 * the provided `defaultValue` if the element is `null` or `undefined`.
+	 * The element will be converted to a `boolean`.
 	 *
-	 * The scope argument allows to define the scope of the storage
-	 * operation to either the current workspace only or all workspaces.
+	 * @param scope allows to define the scope of the storage operation
+	 * to either the current workspace only or all workspaces.
 	 */
 	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
 	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided defaultValue if the element is null or undefined. The element
-	 * will be converted to a number using parseInt with a base of 10.
+	 * the provided `defaultValue` if the element is `null` or `undefined`.
+	 * The element will be converted to a `number` using `parseInt` with a
+	 * base of `10`.
 	 *
-	 * The scope argument allows to define the scope of the storage
-	 * operation to either the current workspace only or all workspaces.
+	 * @param scope allows to define the scope of the storage operation
+	 * to either the current workspace only or all workspaces.
 	 */
 	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
 	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
-	 * Store a value under the given key to storage. The value will be converted to a string.
-	 * Storing either undefined or null will remove the entry under the key.
-	 *
-	 * The scope argument allows to define the scope of the storage
-	 * operation to either the current workspace only or all workspaces.
+	 * @deprecated use store2 instead
 	 */
 	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void;
+
+	/**
+	 * Store a value under the given key to storage. The value will be
+	 * converted to a `string`. Storing either `undefined` or `null` will
+	 * remove the entry under the key.
+	 *
+	 * @param scope allows to define the scope of the storage operation
+	 * to either the current workspace only or all workspaces.
+	 *
+	 * @param target allows to define the target of the storage operation
+	 * to either the current machine or user.
+	 */
+	store2(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -94,6 +105,18 @@ export interface IStorageService {
 	 * operation to either the current workspace only or all workspaces.
 	 */
 	remove(key: string, scope: StorageScope): void;
+
+	/**
+	 * Returns all the keys used in the storage for the provided `scope`
+	 * and `target`.
+	 *
+	 * @param scope allows to define the scope for the keys
+	 * to either the current workspace only or all workspaces.
+	 *
+	 * @param target allows to define the target for the keys
+	 * to either the current machine or user.
+	 */
+	keys(scope: StorageScope, target: StorageTarget): string[];
 
 	/**
 	 * Log the contents of the storage to the console.
@@ -108,7 +131,6 @@ export interface IStorageService {
 	/**
 	 * Whether the storage for the given scope was created during this session or
 	 * existed before.
-	 *
 	 */
 	isNew(scope: StorageScope): boolean;
 
@@ -133,20 +155,135 @@ export const enum StorageScope {
 	WORKSPACE
 }
 
+export const enum StorageTarget {
+
+	/**
+	 * The stored data is user specific.
+	 */
+	USER,
+
+	/**
+	 * The stored data is machine specific.
+	 */
+	MACHINE
+}
+
 export interface IStorageChangeEvent {
 	readonly key: string;
 	readonly scope: StorageScope;
 }
 
-export class InMemoryStorageService extends Disposable implements IStorageService {
+export abstract class AbstractStorageService extends Disposable implements IStorageService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	protected readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState = this._onWillSaveState.event;
+
+	store2(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
+
+		// We remove the key for undefined/null values
+		if (isUndefinedOrNull(value)) {
+			this.remove(key, scope);
+			return;
+		}
+
+		// Store actual value
+		this.doStore(key, value, scope);
+
+		// Update key-target map
+		this.updateKeyTarget(key, scope, target);
+	}
+
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
+		this.store2(key, value, scope, StorageTarget.MACHINE);
+	}
+
+	remove(key: string, scope: StorageScope): void {
+
+		// Remove actual key
+		this.doRemove(key, scope);
+
+		// Update key-target map
+		this.updateKeyTarget(key, scope, undefined);
+	}
+
+	keys(scope: StorageScope, target: StorageTarget): string[] {
+		const keys: string[] = [];
+		for (const [key, keyTarget] of Object.entries(this.getKeyTargets(scope))) {
+			if (keyTarget === target) {
+				keys.push(key);
+			}
+		}
+
+		return keys;
+	}
+
+	private getKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
+		const keysRaw = this.get(TARGET_KEY, scope);
+		if (keysRaw) {
+			try {
+				return JSON.parse(keysRaw);
+			} catch (error) {
+				// Fail gracefully
+			}
+		}
+
+		return Object.create(null);
+	}
+
+	private updateKeyTarget(key: string, scope: StorageScope, target: StorageTarget | undefined): void {
+
+		// Add
+		const keyTargets = this.getKeyTargets(scope);
+		if (typeof target === 'number') {
+			if (keyTargets[key] !== target) {
+				keyTargets[key] = target;
+				this.doStore(TARGET_KEY, JSON.stringify(keyTargets), scope);
+			}
+		}
+
+		// Remove
+		else {
+			if (typeof keyTargets[key] === 'number') {
+				delete keyTargets[key];
+				this.doStore(TARGET_KEY, JSON.stringify(keyTargets), scope);
+			}
+		}
+	}
+
+	isNew(scope: StorageScope): boolean {
+		return this.getBoolean(IS_NEW_KEY, scope) === true;
+	}
+
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+	}
+
+	// --- abstract
+
+	abstract get(key: string, scope: StorageScope, fallbackValue: string): string;
+	abstract get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined;
+
+	abstract getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
+	abstract getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
+
+	abstract getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	abstract getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
+
+	protected abstract doStore(key: string, value: string | boolean | number, scope: StorageScope): void;
+
+	protected abstract doRemove(key: string, scope: StorageScope): void;
+
+	abstract logStorage(): void;
+
+	abstract migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+}
+
+export class InMemoryStorageService extends AbstractStorageService {
 
 	private readonly globalCache = new Map<string, string>();
 	private readonly workspaceCache = new Map<string, string>();
@@ -188,12 +325,7 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 		return parseInt(value, 10);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): Promise<void> {
-
-		// We remove the key for undefined/null values
-		if (isUndefinedOrNull(value)) {
-			return this.remove(key, scope);
-		}
+	protected doStore(key: string, value: string | boolean | number, scope: StorageScope): void {
 
 		// Otherwise, convert to String and store
 		const valueStr = String(value);
@@ -201,7 +333,7 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 		// Return early if value already set
 		const currentValue = this.getCache(scope).get(key);
 		if (currentValue === valueStr) {
-			return Promise.resolve();
+			return;
 		}
 
 		// Update in cache
@@ -209,20 +341,16 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 		// Events
 		this._onDidChangeStorage.fire({ scope, key });
-
-		return Promise.resolve();
 	}
 
-	remove(key: string, scope: StorageScope): Promise<void> {
+	protected doRemove(key: string, scope: StorageScope): void {
 		const wasDeleted = this.getCache(scope).delete(key);
 		if (!wasDeleted) {
-			return Promise.resolve(); // Return early if value already deleted
+			return; // Return early if value already deleted
 		}
 
 		// Events
 		this._onDidChangeStorage.fire({ scope, key });
-
-		return Promise.resolve();
 	}
 
 	logStorage(): void {
@@ -231,14 +359,6 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		// not supported
-	}
-
-	flush(): void {
-		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
-	}
-
-	isNew(): boolean {
-		return true; // always new when in-memory
 	}
 
 	async close(): Promise<void> { }

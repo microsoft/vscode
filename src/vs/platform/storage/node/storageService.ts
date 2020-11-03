@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
+import { StorageScope, WillSaveStateReason, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
@@ -17,18 +16,10 @@ import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderW
 import { assertIsDefined } from 'vs/base/common/types';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
-export class NativeStorageService extends Disposable implements IStorageService {
-
-	declare readonly _serviceBrand: undefined;
+export class NativeStorageService extends AbstractStorageService {
 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
-
-	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
-	readonly onDidChangeStorage = this._onDidChangeStorage.event;
-
-	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState = this._onWillSaveState.event;
 
 	private readonly globalStorage = new Storage(this.globalStorageDatabase);
 
@@ -201,11 +192,11 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		return this.getStorage(scope).getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
+	protected doStore(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
 		this.getStorage(scope).set(key, value);
 	}
 
-	remove(key: string, scope: StorageScope): void {
+	protected doRemove(key: string, scope: StorageScope): void {
 		this.getStorage(scope).delete(key);
 	}
 
@@ -227,10 +218,6 @@ export class NativeStorageService extends Disposable implements IStorageService 
 			// repeat
 			this.periodicFlushScheduler.schedule();
 		});
-	}
-
-	flush(): void {
-		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
 	}
 
 	async close(): Promise<void> {
@@ -276,9 +263,5 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();
-	}
-
-	isNew(scope: StorageScope): boolean {
-		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 }
