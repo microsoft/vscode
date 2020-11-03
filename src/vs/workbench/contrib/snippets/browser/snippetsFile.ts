@@ -15,6 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { relativePath } from 'vs/base/common/resources';
 
 class SnippetBodyInsights {
 
@@ -86,6 +87,7 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
+		readonly snippetIdentifier?: string
 	) {
 		//
 		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
@@ -289,7 +291,8 @@ export class SnippetFile {
 				description,
 				body,
 				source,
-				this.source
+				this.source,
+				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
 			));
 		});
 	}

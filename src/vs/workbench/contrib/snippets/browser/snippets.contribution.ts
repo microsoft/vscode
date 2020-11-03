@@ -19,9 +19,13 @@ export interface ISnippetsService {
 
 	getSnippetFiles(): Promise<Iterable<SnippetFile>>;
 
-	getSnippets(languageId: LanguageId): Promise<Snippet[]>;
+	isEnabled(snippet: Snippet): boolean;
 
-	getSnippetsSync(languageId: LanguageId): Snippet[];
+	updateEnablement(snippet: Snippet, enabled: string): void;
+
+	getSnippets(languageId: LanguageId, includeDisabledSnippets?: boolean): Promise<Snippet[]>;
+
+	getSnippetsSync(languageId: LanguageId, includeDisabledSnippets?: boolean): Snippet[];
 }
 
 const languageScopeSchemaId = 'vscode://schemas/snippets';

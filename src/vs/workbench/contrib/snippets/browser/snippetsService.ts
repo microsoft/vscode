@@ -26,6 +26,10 @@ import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchMo
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { ResourceMap } from 'vs/base/common/map';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { isStringArray } from 'vs/base/common/types';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 namespace snippetExt {
 
@@ -124,6 +128,47 @@ function watch(service: IFileService, resource: URI, callback: () => any): IDisp
 	);
 }
 
+class SnippetEnablement {
+
+	private static _key = 'snippets.ignoredSnippets';
+
+	private readonly _ignored: Set<string>;
+
+	constructor(
+		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncService: IStorageKeysSyncRegistryService,
+	) {
+
+		storageKeysSyncService.registerStorageKey({ key: SnippetEnablement._key, version: 1 });
+
+		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
+		let data: string[] | undefined;
+		try {
+			data = JSON.parse(raw);
+		} catch { }
+
+		this._ignored = isStringArray(data) ? new Set(data) : new Set();
+	}
+
+	isIgnored(id: string): boolean {
+		return this._ignored.has(id);
+	}
+
+	updateIgnored(id: string, value: boolean): void {
+		let changed = false;
+		if (this._ignored.has(id) && !value) {
+			this._ignored.delete(id);
+			changed = true;
+		} else if (!this._ignored.has(id) && value) {
+			this._ignored.add(id);
+			changed = true;
+		}
+		if (changed) {
+			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL);
+		}
+	}
+}
+
 class SnippetsService implements ISnippetsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -131,6 +176,7 @@ class SnippetsService implements ISnippetsService {
 	private readonly _disposables = new DisposableStore();
 	private readonly _pendingWork: Promise<any>[] = [];
 	private readonly _files = new ResourceMap<SnippetFile>();
+	private readonly _enablement: SnippetEnablement;
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -140,6 +186,7 @@ class SnippetsService implements ISnippetsService {
 		@IFileService private readonly _fileService: IFileService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
@@ -148,10 +195,22 @@ class SnippetsService implements ISnippetsService {
 		})));
 
 		setSnippetSuggestSupport(new SnippetCompletionProvider(this._modeService, this));
+
+		this._enablement = instantiationService.createInstance(SnippetEnablement);
 	}
 
 	dispose(): void {
 		this._disposables.dispose();
+	}
+
+	isEnabled(snippet: Snippet): boolean {
+		return !snippet.snippetIdentifier || !this._enablement.isIgnored(snippet.snippetIdentifier);
+	}
+
+	updateEnablement(snippet: Snippet, enabled: string): void {
+		if (snippet.snippetIdentifier) {
+			this._enablement.updateIgnored(snippet.snippetIdentifier, !enabled);
+		}
 	}
 
 	private _joinSnippets(): Promise<any> {
@@ -165,7 +224,7 @@ class SnippetsService implements ISnippetsService {
 		return this._files.values();
 	}
 
-	async getSnippets(languageId: LanguageId): Promise<Snippet[]> {
+	async getSnippets(languageId: LanguageId, includeIgnored?: boolean): Promise<Snippet[]> {
 		await this._joinSnippets();
 
 		const result: Snippet[] = [];
@@ -182,10 +241,10 @@ class SnippetsService implements ISnippetsService {
 			}
 		}
 		await Promise.all(promises);
-		return result;
+		return includeIgnored ? result : result.filter(this.isEnabled, this);
 	}
 
-	getSnippetsSync(languageId: LanguageId): Snippet[] {
+	getSnippetsSync(languageId: LanguageId, includeIgnored?: boolean): Snippet[] {
 		const result: Snippet[] = [];
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
@@ -197,7 +256,7 @@ class SnippetsService implements ISnippetsService {
 				file.select(langName, result);
 			}
 		}
-		return result;
+		return includeIgnored ? result : result.filter(this.isEnabled, this);
 	}
 
 	// --- loading, watching
