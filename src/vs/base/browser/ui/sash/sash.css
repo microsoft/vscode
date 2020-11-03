@@ -88,6 +88,11 @@
 	right: calc(var(--sash-size) * -1);
 }
 
+.monaco-sash {
+	transition: background-color 0.1s ease-out;
+	background: transparent;
+}
+
 /** Debug **/
 
 .monaco-sash.debug {
