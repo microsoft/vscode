@@ -13,7 +13,10 @@
 .monaco-action-bar .action-item > .action-label.extension-action.label,
 .monaco-action-bar .action-dropdown-item > .action-label.extension-action.label {
 	padding: 0 5px;
-	outline-offset: 2px;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label {
+	outline-offset: 1px;
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.text,
