@@ -33,6 +33,11 @@ export interface IStorageService {
 	readonly onDidChangeStorage: Event<IStorageChangeEvent>;
 
 	/**
+	 * Emitted whenever target of a storage entry changes.
+	 */
+	readonly onDidChangeTarget: Event<IStorageTargetChangeEvent>;
+
+	/**
 	 * Emitted when the storage is about to persist. This is the right time
 	 * to persist data to ensure it is stored before the application shuts
 	 * down.
@@ -173,6 +178,10 @@ export interface IStorageChangeEvent {
 	readonly scope: StorageScope;
 }
 
+export interface IStorageTargetChangeEvent {
+	readonly scope: StorageScope;
+}
+
 export abstract class AbstractStorageService extends Disposable implements IStorageService {
 
 	declare readonly _serviceBrand: undefined;
@@ -180,8 +189,22 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
+	protected readonly _onDidChangeTarget = this._register(new Emitter<IStorageTargetChangeEvent>());
+	readonly onDidChangeTarget = this._onDidChangeTarget.event;
+
 	protected readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState = this._onWillSaveState.event;
+
+	constructor() {
+		super();
+
+		// Detect changes to `TARGET_KEY` to emit as event
+		this._register(this.onDidChangeStorage(e => {
+			if (e.key === TARGET_KEY) {
+				this._onDidChangeTarget.fire({ scope: e.scope });
+			}
+		}));
+	}
 
 	store2(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
 
