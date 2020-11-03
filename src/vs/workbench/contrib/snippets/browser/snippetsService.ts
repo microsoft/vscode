@@ -165,23 +165,24 @@ class SnippetsService implements ISnippetsService {
 		return this._files.values();
 	}
 
-	getSnippets(languageId: LanguageId): Promise<Snippet[]> {
-		return this._joinSnippets().then(() => {
-			const result: Snippet[] = [];
-			const promises: Promise<any>[] = [];
+	async getSnippets(languageId: LanguageId): Promise<Snippet[]> {
+		await this._joinSnippets();
 
-			const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-			if (languageIdentifier) {
-				const langName = languageIdentifier.language;
-				for (const file of this._files.values()) {
-					promises.push(file.load()
-						.then(file => file.select(langName, result))
-						.catch(err => this._logService.error(err, file.location.toString()))
-					);
-				}
+		const result: Snippet[] = [];
+		const promises: Promise<any>[] = [];
+
+		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
+		if (languageIdentifier) {
+			const langName = languageIdentifier.language;
+			for (const file of this._files.values()) {
+				promises.push(file.load()
+					.then(file => file.select(langName, result))
+					.catch(err => this._logService.error(err, file.location.toString()))
+				);
 			}
-			return Promise.all(promises).then(() => result);
-		});
+		}
+		await Promise.all(promises);
+		return result;
 	}
 
 	getSnippetsSync(languageId: LanguageId): Snippet[] {
@@ -192,7 +193,7 @@ class SnippetsService implements ISnippetsService {
 			for (const file of this._files.values()) {
 				// kick off loading (which is a noop in case it's already loaded)
 				// and optimistically collect snippets
-				file.load().catch(err => { /*ignore*/ });
+				file.load().catch(_err => { /*ignore*/ });
 				file.select(langName, result);
 			}
 		}
