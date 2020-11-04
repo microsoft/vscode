@@ -946,29 +946,37 @@ export class PredictionTimeline {
 		return buffer.type === 'normal' ? buffer : undefined;
 	}
 }
+
+/**
+ * Gets the escape sequence args to restore state/appearence in the cell.
+ */
+const attributesToArgs = (cell: XTermAttributes) => {
+	if (cell.isAttributeDefault()) { return [0]; }
+
+	const args = [];
+	if (cell.isBold()) { args.push(1); }
+	if (cell.isDim()) { args.push(2); }
+	if (cell.isItalic()) { args.push(3); }
+	if (cell.isUnderline()) { args.push(4); }
+	if (cell.isBlink()) { args.push(5); }
+	if (cell.isInverse()) { args.push(7); }
+	if (cell.isInvisible()) { args.push(8); }
+
+	if (cell.isFgRGB()) { args.push(38, 2, cell.getFgColor() >>> 24, (cell.getFgColor() >>> 16) & 0xFF, cell.getFgColor() & 0xFF); }
+	if (cell.isFgPalette()) { args.push(38, 5, cell.getFgColor()); }
+	if (cell.isFgDefault()) { args.push(39); }
+
+	if (cell.isBgRGB()) { args.push(48, 2, cell.getBgColor() >>> 24, (cell.getBgColor() >>> 16) & 0xFF, cell.getBgColor() & 0xFF); }
+	if (cell.isBgPalette()) { args.push(48, 5, cell.getBgColor()); }
+	if (cell.isBgDefault()) { args.push(49); }
+
+	return args;
+};
+
 /**
  * Gets the escape sequence to restore state/appearence in the cell.
  */
-const attributesToSeq = (cell: XTermAttributes) => cell.isAttributeDefault()
-	? `${CSI}0m`
-	: [
-		cell.isBold() && `${CSI}1m`,
-		cell.isDim() && `${CSI}2m`,
-		cell.isItalic() && `${CSI}3m`,
-		cell.isUnderline() && `${CSI}4m`,
-		cell.isBlink() && `${CSI}5m`,
-		cell.isInverse() && `${CSI}7m`,
-		cell.isInvisible() && `${CSI}8m`,
-
-		cell.isFgRGB() && `${CSI}38;2;${cell.getFgColor() >>> 24};${(cell.getFgColor() >>> 16) & 0xFF};${cell.getFgColor() & 0xFF}m`,
-		cell.isFgPalette() && `${CSI}38;5;${cell.getFgColor()}m`,
-		cell.isFgDefault() && `${CSI}39m`,
-
-		cell.isBgRGB() && `${CSI}48;2;${cell.getBgColor() >>> 24};${(cell.getBgColor() >>> 16) & 0xFF};${cell.getBgColor() & 0xFF}m`,
-		cell.isBgPalette() && `${CSI}48;5;${cell.getBgColor()}m`,
-		cell.isBgDefault() && `${CSI}49m`,
-	].filter(seq => !!seq).join('');
-
+const attributesToSeq = (cell: XTermAttributes) => `${CSI}${attributesToArgs(cell).join(';')}m`;
 
 const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T>) => {
 	if (a.length - ai > b.length) {
@@ -1019,7 +1027,7 @@ const getColorWidth = (params: (number | number[])[], pos: number) => {
 	return advance;
 };
 
-class TypeAheadStyle {
+class TypeAheadStyle implements IDisposable {
 	private static compileArgs(args: ReadonlyArray<number>) {
 		return `${CSI}${args.join(';')}m`;
 	}
@@ -1035,8 +1043,9 @@ class TypeAheadStyle {
 
 	public apply!: string;
 	public undo!: string;
+	private csiHandler?: IDisposable;
 
-	constructor(value: ITerminalConfiguration['localEchoStyle']) {
+	constructor(value: ITerminalConfiguration['localEchoStyle'], private readonly terminal: Terminal) {
 		this.onUpdate(value);
 	}
 
@@ -1049,9 +1058,38 @@ class TypeAheadStyle {
 	}
 
 	/**
-	 * Should be called when an attribut eupdate happens in the terminal.
+	 * Starts tracking for CSI changes in the terminal.
 	 */
-	public onDidWriteSGR(args: (number | number[])[]) {
+	public startTracking() {
+		this.expectedIncomingStyles = 0;
+		this.onDidWriteSGR(attributesToArgs(core(this.terminal)._inputHandler._curAttrData));
+		this.csiHandler = this.terminal.parser.registerCsiHandler({ final: 'm' }, args => {
+			this.onDidWriteSGR(args);
+			return false;
+		});
+	}
+
+	/**
+	 * Stops tracking terminal CSI changes.
+	 */
+	@debounce(2000)
+	public debounceStopTracking() {
+		this.stopTracking();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public dispose() {
+		this.stopTracking();
+	}
+
+	private stopTracking() {
+		this.csiHandler?.dispose();
+		this.csiHandler = undefined;
+	}
+
+	private onDidWriteSGR(args: (number | number[])[]) {
 		const originalUndo = this.undoArgs;
 		for (let i = 0; i < args.length;) {
 			const px = args[i];
@@ -1141,7 +1179,7 @@ class TypeAheadStyle {
 }
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
-	private typeaheadStyle = new TypeAheadStyle(this.config.config.localEchoStyle);
+	private typeaheadStyle?: TypeAheadStyle;
 	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 	protected lastRow?: { y: number; startingX: number };
 	private timeline?: PredictionTimeline;
@@ -1162,14 +1200,11 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	public activate(terminal: Terminal): void {
+		const style = this.typeaheadStyle = this._register(new TypeAheadStyle(this.config.config.localEchoStyle, terminal));
 		const timeline = this.timeline = new PredictionTimeline(terminal, this.typeaheadStyle);
 		const stats = this.stats = this._register(new PredictionStats(this.timeline));
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
-		this._register(terminal.parser.registerCsiHandler({ final: 'm' }, args => {
-			this.typeaheadStyle.onDidWriteSGR(args);
-			return false;
-		}));
 		this._register(terminal.onData(e => this.onUserData(e)));
 		this._register(terminal.onResize(() => {
 			timeline.setShowPredictions(false);
@@ -1177,7 +1212,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.config.onConfigChanged(() => {
-			this.typeaheadStyle.onUpdate(this.config.config.localEchoStyle);
+			style.onUpdate(this.config.config.localEchoStyle);
 			this.typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 			this.reevaluatePredictorState(stats, timeline);
 		}));
@@ -1190,6 +1225,10 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 					this.sendLatencyStats(stats);
 					nextStatsSend = undefined;
 				}, statsSendTelemetryEvery);
+			}
+
+			if (timeline.length === 0) {
+				style.debounceStopTracking();
 			}
 
 			this.reevaluatePredictorState(stats, timeline);
@@ -1306,7 +1345,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 			if (reader.eatCharCode(32, 126)) { // alphanum
 				const char = data[reader.index - 1];
-				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeaheadStyle, char)) && this.timeline.getCursor(buffer).x === terminal.cols) {
+				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeaheadStyle!, char)) && this.timeline.getCursor(buffer).x === terminal.cols) {
 					this.timeline.addBoundary(buffer, new TentativeBoundary(new LinewrapPrediction()));
 				}
 				continue;
@@ -1346,6 +1385,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		if (this.timeline.length === 1) {
 			this.deferClearingPredictions();
+			this.typeaheadStyle!.startTracking();
 		}
 	}
 
