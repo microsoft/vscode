@@ -154,14 +154,14 @@ class InsertSnippetAction extends EditorAction {
 			snippet: Snippet;
 		}
 
-		const snippets = (await snippetService.getSnippets(languageId, true)).sort(Snippet.compare);
+		const snippets = (await snippetService.getSnippets(languageId, { includeDisabledSnippets: true, includeNoPrefixSnippets: true })).sort(Snippet.compare);
 
 		const makeSnippetPicks = () => {
 			const result: QuickPickInput<ISnippetPick>[] = [];
 			let prevSnippet: Snippet | undefined;
 			for (const snippet of snippets) {
 				const pick: ISnippetPick = {
-					label: snippet.prefix,
+					label: snippet.prefix || snippet.name,
 					detail: snippet.description,
 					snippet
 				};
