@@ -149,8 +149,7 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
 				`${CSI}X`, // delete character
-				`${CSI}1m`, // reset style
-				`${CSI}38;5;1m`, // reset style
+				`${CSI}1;38;5;1m`, // reset style
 				'q', // new character
 				`${CSI}?25h`, // show cursor
 			].join(''));
