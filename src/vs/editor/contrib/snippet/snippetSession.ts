@@ -39,10 +39,6 @@ registerThemingParticipant((theme, collector) => {
 
 export class OneSnippet {
 
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _snippet: TextmateSnippet;
-	private readonly _offset: number;
-
 	private _placeholderDecorations?: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
 	_placeholderGroupsIdx: number;
@@ -55,12 +51,11 @@ export class OneSnippet {
 		inactiveFinal: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
 	};
 
-	constructor(editor: IActiveCodeEditor, snippet: TextmateSnippet, offset: number) {
-		this._editor = editor;
-		this._snippet = snippet;
-		this._offset = offset;
-
-		this._placeholderGroups = groupBy(snippet.placeholders, Placeholder.compareByIndex);
+	constructor(
+		private readonly _editor: IActiveCodeEditor, private readonly _snippet: TextmateSnippet,
+		private readonly _offset: number, private readonly _snippetLineLeadingWhitespace: string
+	) {
+		this._placeholderGroups = groupBy(_snippet.placeholders, Placeholder.compareByIndex);
 		this._placeholderGroupsIdx = -1;
 	}
 
@@ -114,8 +109,12 @@ export class OneSnippet {
 					const id = this._placeholderDecorations!.get(placeholder)!;
 					const range = this._editor.getModel().getDecorationRange(id)!;
 					const currentValue = this._editor.getModel().getValueInRange(range);
-
-					operations.push(EditOperation.replace(range, placeholder.transform.resolve(currentValue)));
+					const transformedValueLines = placeholder.transform.resolve(currentValue).split(/\r\n|\r|\n/);
+					// fix indentation for transformed lines
+					for (let i = 1; i < transformedValueLines.length; i++) {
+						transformedValueLines[i] = this._editor.getModel().normalizeIndentation(this._snippetLineLeadingWhitespace + transformedValueLines[i]);
+					}
+					operations.push(EditOperation.replace(range, transformedValueLines.join(this._editor.getModel().getEOL())));
 				}
 			}
 			if (operations.length > 0) {
@@ -301,7 +300,7 @@ export class OneSnippet {
 		});
 	}
 
-	public getEnclosingRange(): Range | undefined {
+	getEnclosingRange(): Range | undefined {
 		let result: Range | undefined;
 		const model = this._editor.getModel();
 		for (const decorationId of this._placeholderDecorations!.values()) {
@@ -334,7 +333,7 @@ const _defaultOptions: ISnippetSessionInsertOptions = {
 
 export class SnippetSession {
 
-	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean, adjustNewlines: boolean): void {
+	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean, adjustNewlines: boolean): string {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 
@@ -379,6 +378,8 @@ export class SnippetSession {
 			}
 			return true;
 		});
+
+		return lineLeadingWhitespace;
 	}
 
 	static adjustSelection(model: ITextModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
@@ -463,7 +464,7 @@ export class SnippetSession {
 			// happens when being asked for (default) or when this is a secondary
 			// cursor and the leading whitespace is different
 			const start = snippetSelection.getStartPosition();
-			SnippetSession.adjustWhitespace(
+			const snippetLineLeadingWhitespace = SnippetSession.adjustWhitespace(
 				model, start, snippet,
 				adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber)),
 				true
@@ -487,7 +488,7 @@ export class SnippetSession {
 			// the one with lowest start position
 			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
 			edits[idx].identifier = { major: idx, minor: 0 }; // mark the edit so only our undo edits will be used to generate end cursors
-			snippets[idx] = new OneSnippet(editor, snippet, offset);
+			snippets[idx] = new OneSnippet(editor, snippet, offset, snippetLineLeadingWhitespace);
 		}
 
 		return { edits, snippets };
