@@ -5,7 +5,7 @@
 
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { getLeadingWhitespace, splitLines } from 'vs/base/common/strings';
+import { getLeadingWhitespace } from 'vs/base/common/strings';
 import 'vs/css!./snippetSession';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
