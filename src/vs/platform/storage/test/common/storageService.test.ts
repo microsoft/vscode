@@ -180,5 +180,19 @@ suite('StorageService', function () {
 				strictEqual(storage.keys(scope, target).length, 0);
 			}
 		}
+
+		// Target change
+		storageTargetEvent = undefined;
+		storage.store2('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		ok(storageTargetEvent);
+		storageTargetEvent = undefined;
+		storage.store2('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.USER);
+		ok(storageTargetEvent);
+		storageTargetEvent = undefined;
+		storage.store2('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		ok(storageTargetEvent);
+		storageTargetEvent = undefined;
+		storage.store2('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		ok(!storageTargetEvent); // no change in target
 	});
 });

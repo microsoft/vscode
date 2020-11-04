@@ -115,6 +115,10 @@ export interface IStorageService {
 	 * Returns all the keys used in the storage for the provided `scope`
 	 * and `target`.
 	 *
+	 * Note: this will NOT return all keys stored in the storage layer.
+	 * Some keys may not have an associated `StorageTarget` and thus
+	 * will be excluded from the results.
+	 *
 	 * @param scope allows to define the scope for the keys
 	 * to either the current workspace only or all workspaces.
 	 *
@@ -166,7 +170,7 @@ export const enum StorageScope {
 export const enum StorageTarget {
 
 	/**
-	 * The stored data is user specific.
+	 * The stored data is user specific and applies across machines.
 	 */
 	USER,
 
@@ -177,8 +181,23 @@ export const enum StorageTarget {
 }
 
 export interface IStorageChangeEvent {
-	readonly key: string;
+
+	/**
+	 * The scope for the storage entry that changed
+	 * or was removed.
+	 */
 	readonly scope: StorageScope;
+
+	/**
+	 * The `key` of the storage entry that was changed
+	 * or was removed.
+	 */
+	readonly key: string;
+
+	/**
+	 * The `target` can be `undefined` if a key is being
+	 * removed.
+	 */
 	readonly target: StorageTarget | undefined;
 }
 
@@ -313,7 +332,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	private _workspaceKeyTargets: IKeyTargets | undefined = undefined;
-	private get workspaceKeyTargets() {
+	private get workspaceKeyTargets(): IKeyTargets {
 		if (!this._workspaceKeyTargets) {
 			this._workspaceKeyTargets = this.loadKeyTargets(StorageScope.WORKSPACE);
 		}
@@ -322,7 +341,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	private _globalKeyTargets: IKeyTargets | undefined = undefined;
-	private get globalKeyTargets() {
+	private get globalKeyTargets(): IKeyTargets {
 		if (!this._globalKeyTargets) {
 			this._globalKeyTargets = this.loadKeyTargets(StorageScope.GLOBAL);
 		}
