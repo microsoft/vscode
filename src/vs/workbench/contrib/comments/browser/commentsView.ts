@@ -34,7 +34,6 @@ export class CommentsPanel extends ViewPane {
 	private tree!: CommentsList;
 	private treeContainer!: HTMLElement;
 	private messageBoxContainer!: HTMLElement;
-	private messageBox!: HTMLElement;
 	private commentsModel!: CommentsModel;
 	private collapseAllAction?: IAction;
 
