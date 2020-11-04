@@ -128,7 +128,7 @@ export class TypeOperations {
 			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
 				text = text.substr(0, text.length - 1);
 			}
-			let lines = text.split(/\r\n|\r|\n/);
+			let lines = strings.splitLines(text);
 			if (lines.length === selections.length) {
 				return lines;
 			}
