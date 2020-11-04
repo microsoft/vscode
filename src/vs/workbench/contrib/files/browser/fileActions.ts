@@ -22,7 +22,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -879,8 +879,18 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
 	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
+	const commandService = accessor.get(ICommandService);
 
-	await viewsService.openView(VIEW_ID, true);
+	const view = await viewsService.openView(VIEW_ID, true);
+	if (!view) {
+		// Can happen in empty workspace case (https://github.com/microsoft/vscode/issues/100604)
+
+		if (isFolder) {
+			throw new Error('Open a folder or workspace first.');
+		}
+
+		return commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+	}
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;

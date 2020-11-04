@@ -478,6 +478,9 @@ const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
 export function validateProperty(property: string): string | null {
+	if (!property.trim()) {
+		return nls.localize('config.property.empty', "Cannot register an empty property");
+	}
 	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
 		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}

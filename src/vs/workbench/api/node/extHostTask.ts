@@ -50,6 +50,10 @@ export class ExtHostTask extends ExtHostTaskBase {
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
+		if (!task.execution) {
+			throw new Error('Tasks to execute must include an execution');
+		}
+
 		const tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {

@@ -386,6 +386,10 @@ async function handleRoot(req, res) {
 	if (args['wrap-iframe']) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;
 	}
+	if (req.headers['x-forwarded-host']) {
+		// support for running in codespace => no iframe wrapping
+		delete webConfigJSON.webWorkerExtensionHostIframeSrc;
+	}
 
 	const authSessionInfo = args['github-auth'] ? {
 		id: uuid.v4(),
