@@ -83,11 +83,14 @@ suite('StorageService', function () {
 		equal(storageEvent?.key, 'test.remove');
 	}
 
-	test('Keys (in-memory)', () => {
+	test('pasero Keys (in-memory)', () => {
 		const storage = new InMemoryStorageService();
 
 		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
 		storage.onDidChangeTarget(e => storageTargetEvent = e);
+
+		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
+		storage.onDidChangeStorage(e => storageChangeEvent = e);
 
 		// Empty
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
@@ -100,13 +103,24 @@ suite('StorageService', function () {
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				storageTargetEvent = Object.create(null);
+				storageChangeEvent = Object.create(null);
 
 				storage.store2('test.target1', 'value1', scope, target);
 				strictEqual(storage.keys(scope, target).length, 1);
 				equal(storageTargetEvent?.scope, scope);
+				equal(storageChangeEvent?.key, 'test.target1');
+				equal(storageChangeEvent?.scope, scope);
+				equal(storageChangeEvent?.target, target);
+
+				storageTargetEvent = undefined;
+				storageChangeEvent = Object.create(null);
 
 				storage.store2('test.target1', 'otherValue1', scope, target);
 				strictEqual(storage.keys(scope, target).length, 1);
+				equal(storageTargetEvent, undefined);
+				equal(storageChangeEvent?.key, 'test.target1');
+				equal(storageChangeEvent?.scope, scope);
+				equal(storageChangeEvent?.target, target);
 
 				storage.store2('test.target2', 'value2', scope, target);
 				storage.store2('test.target3', 'value3', scope, target);
@@ -124,10 +138,13 @@ suite('StorageService', function () {
 				strictEqual(storage.keys(scope, target).length, keysLength + 1);
 
 				storageTargetEvent = Object.create(null);
+				storageChangeEvent = Object.create(null);
 
 				storage.remove('test.target4', scope);
 				strictEqual(storage.keys(scope, target).length, keysLength);
 				equal(storageTargetEvent?.scope, scope);
+				equal(storageChangeEvent?.key, 'test.target4');
+				equal(storageChangeEvent?.scope, scope);
 			}
 		}
 

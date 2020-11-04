@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
@@ -179,34 +179,54 @@ export const enum StorageTarget {
 export interface IStorageChangeEvent {
 	readonly key: string;
 	readonly scope: StorageScope;
+	readonly target: StorageTarget | undefined;
 }
 
 export interface IStorageTargetChangeEvent {
 	readonly scope: StorageScope;
 }
 
+interface IKeyTargets {
+	[key: string]: StorageTarget
+}
+
 export abstract class AbstractStorageService extends Disposable implements IStorageService {
 
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	private readonly _onDidChangeStorage = this._register(new PauseableEmitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	protected readonly _onDidChangeTarget = this._register(new Emitter<IStorageTargetChangeEvent>());
+	private readonly _onDidChangeTarget = this._register(new PauseableEmitter<IStorageTargetChangeEvent>());
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 
-	protected readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState = this._onWillSaveState.event;
 
-	constructor() {
-		super();
+	protected emitDidChangeStorage(scope: StorageScope, key: string): void {
 
-		// Detect changes to `TARGET_KEY` to emit as event
-		this._register(this.onDidChangeStorage(e => {
-			if (e.key === TARGET_KEY) {
-				this._onDidChangeTarget.fire({ scope: e.scope });
+		// Specially handle `TARGET_KEY`
+		if (key === TARGET_KEY) {
+
+			// Clear our cached version which is now out of date
+			if (scope === StorageScope.GLOBAL) {
+				this._globalKeyTargets = undefined;
+			} else if (scope === StorageScope.WORKSPACE) {
+				this._workspaceKeyTargets = undefined;
 			}
-		}));
+
+			// Emit as `didChangeTarget` event
+			this._onDidChangeTarget.fire({ scope });
+		}
+
+		// Emit any other key to outside
+		else {
+			this._onDidChangeStorage.fire({ scope, key, target: this.getKeyTargets(scope)[key] });
+		}
+	}
+
+	protected emitWillSaveState(reason: WillSaveStateReason): void {
+		this._onWillSaveState.fire({ reason });
 	}
 
 	store2(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
@@ -217,11 +237,15 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			return;
 		}
 
-		// Store actual value
-		this.doStore(key, value, scope);
+		// Update our datastructures but send events only after
+		this.withPausedEmitters(() => {
 
-		// Update key-target map
-		this.updateKeyTarget(key, scope, target);
+			// Update key-target map
+			this.updateKeyTarget(key, scope, target);
+
+			// Store actual value
+			this.doStore(key, value, scope);
+		});
 	}
 
 	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
@@ -230,11 +254,31 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	remove(key: string, scope: StorageScope): void {
 
-		// Remove actual key
-		this.doRemove(key, scope);
+		// Update our datastructures but send events only after
+		this.withPausedEmitters(() => {
 
-		// Update key-target map
-		this.updateKeyTarget(key, scope, undefined);
+			// Update key-target map
+			this.updateKeyTarget(key, scope, undefined);
+
+			// Remove actual key
+			this.doRemove(key, scope);
+		});
+	}
+
+	private withPausedEmitters(fn: Function): void {
+
+		// Pause emitters
+		this._onDidChangeStorage.pause();
+		this._onDidChangeTarget.pause();
+
+		try {
+			fn();
+		} finally {
+
+			// Resume emitters
+			this._onDidChangeStorage.resume();
+			this._onDidChangeTarget.resume();
+		}
 	}
 
 	keys(scope: StorageScope, target: StorageTarget): string[] {
@@ -246,19 +290,6 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		}
 
 		return keys;
-	}
-
-	private getKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
-		const keysRaw = this.get(TARGET_KEY, scope);
-		if (keysRaw) {
-			try {
-				return JSON.parse(keysRaw);
-			} catch (error) {
-				// Fail gracefully
-			}
-		}
-
-		return Object.create(null);
 	}
 
 	private updateKeyTarget(key: string, scope: StorageScope, target: StorageTarget | undefined): void {
@@ -279,6 +310,41 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 				this.doStore(TARGET_KEY, JSON.stringify(keyTargets), scope);
 			}
 		}
+	}
+
+	private _workspaceKeyTargets: IKeyTargets | undefined = undefined;
+	private get workspaceKeyTargets() {
+		if (!this._workspaceKeyTargets) {
+			this._workspaceKeyTargets = this.loadKeyTargets(StorageScope.WORKSPACE);
+		}
+
+		return this._workspaceKeyTargets;
+	}
+
+	private _globalKeyTargets: IKeyTargets | undefined = undefined;
+	private get globalKeyTargets() {
+		if (!this._globalKeyTargets) {
+			this._globalKeyTargets = this.loadKeyTargets(StorageScope.GLOBAL);
+		}
+
+		return this._globalKeyTargets;
+	}
+
+	private getKeyTargets(scope: StorageScope): IKeyTargets {
+		return scope === StorageScope.GLOBAL ? this.globalKeyTargets : this.workspaceKeyTargets;
+	}
+
+	private loadKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
+		const keysRaw = this.get(TARGET_KEY, scope);
+		if (keysRaw) {
+			try {
+				return JSON.parse(keysRaw);
+			} catch (error) {
+				// Fail gracefully
+			}
+		}
+
+		return Object.create(null);
 	}
 
 	isNew(scope: StorageScope): boolean {
@@ -373,7 +439,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 		this.getCache(scope).set(key, valueStr);
 
 		// Events
-		this._onDidChangeStorage.fire({ scope, key });
+		this.emitDidChangeStorage(scope, key);
 	}
 
 	protected doRemove(key: string, scope: StorageScope): void {
@@ -383,7 +449,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 		}
 
 		// Events
-		this._onDidChangeStorage.fire({ scope, key });
+		this.emitDidChangeStorage(scope, key);
 	}
 
 	logStorage(): void {

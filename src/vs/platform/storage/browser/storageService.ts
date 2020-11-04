@@ -62,13 +62,13 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
-		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
+		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeStorage(StorageScope.WORKSPACE, key)));
 
 		// Global Storage
 		this.globalStorageFile = joinPath(stateRoot, 'global.json');
 		this.globalStorageDatabase = this._register(new FileStorageDatabase(this.globalStorageFile, true /* watch for external changes */, this.fileService));
 		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
-		this._register(this.globalStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL })));
+		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeStorage(StorageScope.GLOBAL, key)));
 
 		// Init both
 		await Promise.all([

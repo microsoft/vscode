@@ -45,11 +45,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private registerListeners(): void {
 
 		// Global Storage change events
-		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
-	}
-
-	private handleDidChangeStorage(key: string, scope: StorageScope): void {
-		this._onDidChangeStorage.fire({ key, scope });
+		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeStorage(StorageScope.GLOBAL, key)));
 	}
 
 	initialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
@@ -125,7 +121,7 @@ export class NativeStorageService extends AbstractStorageService {
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;
 		this.workspaceStorage = new Storage(new SQLiteStorageDatabase(workspaceStoragePath, { logging: workspaceLoggingOptions }), { hint });
-		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
+		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeStorage(StorageScope.WORKSPACE, key));
 
 		return this.workspaceStorage;
 	}
@@ -235,7 +231,7 @@ export class NativeStorageService extends AbstractStorageService {
 		this.runWhenIdleDisposable = undefined;
 
 		// Signal as event so that clients can still store data
-		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		// Do it
 		await Promise.all([
