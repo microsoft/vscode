@@ -746,14 +746,11 @@ export class Repository implements Disposable {
 		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
 		updateIndexGroupVisibility();
 
-		const onConfigListenerForBranchSortOrder = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchSortOrder', root));
-		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
-
-		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.untrackedChanges', root));
-		onConfigListenerForUntracked(this.updateModelState, this, this.disposables);
-
-		const onConfigListenerForIgnoreSubmodules = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.ignoreSubmodules', root));
-		onConfigListenerForIgnoreSubmodules(this.updateModelState, this, this.disposables);
+		filterEvent(workspace.onDidChangeConfiguration, e =>
+			e.affectsConfiguration('git.branchSortOrder', root)
+			|| e.affectsConfiguration('git.untrackedChanges', root)
+			|| e.affectsConfiguration('git.ignoreSubmodules', root)
+		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -1527,9 +1524,12 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateModelState(): Promise<void> {
-		const { status, didHitLimit } = await this.repository.getStatus();
-		const config = workspace.getConfiguration('git');
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
+
+		const { status, didHitLimit } = await this.repository.getStatus({ ignoreSubmodules });
+
+		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
 		this.isRepositoryHuge = didHitLimit;
