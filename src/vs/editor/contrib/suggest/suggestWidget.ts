@@ -169,13 +169,13 @@ export class SuggestWidget implements IDisposable {
 			if (e.done) {
 				// only store width or height value that have changed and also
 				// only store changes that are above a certain threshold
-				const threshold = Math.floor(this.getLayoutInfo().itemHeight / 3);
+				const threshold = Math.floor(this.getLayoutInfo().itemHeight / 2);
 				let { width, height } = this.element.size;
 				if (persistedSize && currentSize) {
-					if (!persistHeight || Math.abs(currentSize.height - height) > threshold) {
+					if (!persistHeight || Math.abs(currentSize.height - height) <= threshold) {
 						height = persistedSize.height;
 					}
-					if (!persistWidth || Math.abs(currentSize.width - width) > threshold) {
+					if (!persistWidth || Math.abs(currentSize.width - width) <= threshold) {
 						width = persistedSize.width;
 					}
 				}
