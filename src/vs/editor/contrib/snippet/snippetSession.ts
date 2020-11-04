@@ -24,6 +24,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
+import { CharCode } from 'vs/base/common/charCode';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -337,25 +338,44 @@ export class SnippetSession {
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 
+		// the snippet as inserted
+		let snippetTextString: string | undefined;
+
 		snippet.walk(marker => {
-			if (marker instanceof Text && !(marker.parent instanceof Choice)) {
-				// adjust indentation of text markers, except for choise elements
-				// which get adjusted when being selected
-				const lines = marker.value.split(/\r\n|\r|\n/);
+			// all text elements that are not inside choice
+			if (!(marker instanceof Text) || marker.parent instanceof Choice) {
+				return true;
+			}
 
-				if (adjustIndentation) {
-					for (let i = 1; i < lines.length; i++) {
-						let templateLeadingWhitespace = getLeadingWhitespace(lines[i]);
-						lines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + lines[i].substr(templateLeadingWhitespace.length);
+			const lines = marker.value.split(/\r\n|\r|\n/);
+
+			if (adjustIndentation) {
+				// adjust indentation of snippet test
+				// -the snippet-start doesn't get extra-indented (lineLeadingWhitespace), only normalized
+				// -all N+1 lines get extra-indented and normalized
+				// -the text start get extra-indented and normalized when following a linebreak
+				const offset = snippet.offset(marker);
+				if (offset === 0) {
+					// snippet start
+					lines[0] = model.normalizeIndentation(lines[0]);
+
+				} else {
+					// check if text start is after a linebreak
+					snippetTextString = snippetTextString ?? snippet.toString();
+					let prevChar = snippetTextString.charCodeAt(offset - 1);
+					if (prevChar === CharCode.LineFeed || prevChar === CharCode.CarriageReturn) {
+						lines[0] = model.normalizeIndentation(lineLeadingWhitespace + lines[0]);
 					}
 				}
-
-				if (adjustNewlines) {
-					const newValue = lines.join(model.getEOL());
-					if (newValue !== marker.value) {
-						marker.parent.replace(marker, [new Text(newValue)]);
-					}
+				for (let i = 1; i < lines.length; i++) {
+					lines[i] = model.normalizeIndentation(lineLeadingWhitespace + lines[i]);
 				}
+			}
+
+			const newValue = lines.join(model.getEOL());
+			if (newValue !== marker.value) {
+				marker.parent.replace(marker, [new Text(newValue)]);
+				snippetTextString = undefined;
 			}
 			return true;
 		});

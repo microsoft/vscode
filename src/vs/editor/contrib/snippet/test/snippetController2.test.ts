@@ -441,7 +441,6 @@ suite('SnippetController2', function () {
 	});
 
 	test('leading TAB by snippets won\'t replace by spaces #101870', function () {
-		this.skip();
 		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		model.setValue('');
 		model.updateOptions({ insertSpaces: true, tabSize: 4 });
@@ -450,7 +449,6 @@ suite('SnippetController2', function () {
 	});
 
 	test('leading TAB by snippets won\'t replace by spaces #101870 (part 2)', function () {
-		this.skip();
 		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		model.setValue('');
 		model.updateOptions({ insertSpaces: true, tabSize: 4 });
