@@ -38,8 +38,8 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 	const elements = [element.element];
 	const incompressible = element.incompressible || false;
 
-	let childrenIterator: Iterable<ITreeElement<T>>;
-	let children: ITreeElement<T>[];
+	let childrenIterator: Iterable<ICompressedTreeElement<T>>;
+	let children: ICompressedTreeElement<T>[];
 
 	while (true) {
 		[children, childrenIterator] = Iterable.consume(Iterable.from(element.children), 2);
@@ -48,12 +48,11 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 			break;
 		}
 
-		let childElement: ICompressedTreeElement<T> = children[0];
-		if (childElement.incompressible) {
+		if (children[0].incompressible) {
 			break;
 		}
-		element = childElement;
 
+		element = children[0];
 		elements.push(element.element);
 	}
 
