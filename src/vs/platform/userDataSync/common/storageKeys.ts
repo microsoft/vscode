@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -44,21 +44,6 @@ export interface IStorageKeysSyncRegistryService {
 	_serviceBrand: any;
 
 	/**
-	 * All registered storage keys
-	 */
-	readonly storageKeys: ReadonlyArray<IStorageKey>;
-
-	/**
-	 * Event that is triggered when storage keys are changed
-	 */
-	readonly onDidChangeStorageKeys: Event<ReadonlyArray<IStorageKey>>;
-
-	/**
-	 * Register a storage key that has to be synchronized during sync.
-	 */
-	registerStorageKey(key: IStorageKey): void;
-
-	/**
 	 * All registered extensions storage keys
 	 */
 	readonly extensionsStorageKeys: ReadonlyArray<[IExtensionIdentifierWithVersion, ReadonlyArray<string>]>;
@@ -83,12 +68,6 @@ export abstract class AbstractStorageKeysSyncRegistryService extends Disposable 
 
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly _storageKeys = new Map<string, IStorageKey>();
-	get storageKeys(): ReadonlyArray<IStorageKey> { return [...this._storageKeys.values()]; }
-
-	protected readonly _onDidChangeStorageKeys: Emitter<ReadonlyArray<IStorageKey>> = this._register(new Emitter<ReadonlyArray<IStorageKey>>());
-	readonly onDidChangeStorageKeys = this._onDidChangeStorageKeys.event;
-
 	protected readonly _extensionsStorageKeys = new Map<string, string[]>();
 	get extensionsStorageKeys() {
 		const result: [IExtensionIdWithVersion, ReadonlyArray<string>][] = [];
@@ -97,11 +76,6 @@ export abstract class AbstractStorageKeysSyncRegistryService extends Disposable 
 	}
 	protected readonly _onDidChangeExtensionStorageKeys = this._register(new Emitter<[IExtensionIdWithVersion, ReadonlyArray<string>]>());
 	readonly onDidChangeExtensionStorageKeys = this._onDidChangeExtensionStorageKeys.event;
-
-	constructor() {
-		super();
-		this._register(toDisposable(() => this._storageKeys.clear()));
-	}
 
 	getExtensioStorageKeys(extension: IExtensionIdWithVersion): ReadonlyArray<string> | undefined {
 		return this._extensionsStorageKeys.get(ExtensionIdWithVersion.toKey(extension));
@@ -112,20 +86,12 @@ export abstract class AbstractStorageKeysSyncRegistryService extends Disposable 
 		this._onDidChangeExtensionStorageKeys.fire([extension, keys]);
 	}
 
-	abstract registerStorageKey(key: IStorageKey): void;
 	abstract registerExtensionStorageKeys(extension: IExtensionIdWithVersion, keys: string[]): void;
 }
 
 export class StorageKeysSyncRegistryService extends AbstractStorageKeysSyncRegistryService {
 
 	_serviceBrand: any;
-
-	registerStorageKey(storageKey: IStorageKey): void {
-		if (!this._storageKeys.has(storageKey.key)) {
-			this._storageKeys.set(storageKey.key, storageKey);
-			this._onDidChangeStorageKeys.fire(this.storageKeys);
-		}
-	}
 
 	registerExtensionStorageKeys(extension: IExtensionIdWithVersion, keys: string[]): void {
 		this.updateExtensionStorageKeys(extension, keys);
