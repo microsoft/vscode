@@ -298,7 +298,7 @@ suite('EditorsObserver', function () {
 		assert.equal(observer.hasEditor(input2.resource), true);
 		assert.equal(observer.hasEditor(input3.resource), true);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = new EditorsObserver(part, storage);
 		await part.whenRestored;
@@ -350,7 +350,7 @@ suite('EditorsObserver', function () {
 		assert.equal(observer.hasEditor(input2.resource), true);
 		assert.equal(observer.hasEditor(input3.resource), true);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = new EditorsObserver(part, storage);
 		await part.whenRestored;
@@ -390,7 +390,7 @@ suite('EditorsObserver', function () {
 		assert.equal(currentEditorsMRU[0].editor, input1);
 		assert.equal(observer.hasEditor(input1.resource), true);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = new EditorsObserver(part, storage);
 		await part.whenRestored;
