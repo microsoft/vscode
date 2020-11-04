@@ -31,7 +31,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -1253,7 +1253,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private set ignoredAutoUpdateExtensions(extensionIds: string[]) {
 		this._ignoredAutoUpdateExtensions = distinct(extensionIds.map(id => id.toLowerCase()));
-		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL);
+		this.storageService.store2('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void {
