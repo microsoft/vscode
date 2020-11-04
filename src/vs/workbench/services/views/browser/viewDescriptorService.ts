@@ -5,7 +5,7 @@
 
 import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState } from 'vs/workbench/common/views';
 import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { toDisposable, DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -13,7 +13,6 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -98,12 +97,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super();
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: ViewDescriptorService.CACHED_VIEW_POSITIONS, version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, version: 1 });
 		this.viewContainerModels = new Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable; }>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
@@ -600,7 +596,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private setStoredCachedViewPositionsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_POSITIONS, value, StorageScope.GLOBAL);
+		this.storageService.store2(ViewDescriptorService.CACHED_VIEW_POSITIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private getStoredCachedViewContainerLocationsValue(): string {
@@ -608,7 +604,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private setStoredCachedViewContainerLocationsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, value, StorageScope.GLOBAL);
+		this.storageService.store2(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private saveViewPositionsToCache(): void {
