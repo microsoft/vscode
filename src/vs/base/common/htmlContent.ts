@@ -15,6 +15,11 @@ export interface IMarkdownString {
 	uris?: { [href: string]: UriComponents };
 }
 
+export const enum MarkdownStringTextNewlineStyle {
+	Paragraph = 0,
+	Break = 1,
+}
+
 export class MarkdownString implements IMarkdownString {
 
 	public value: string;
@@ -35,18 +40,18 @@ export class MarkdownString implements IMarkdownString {
 			this.supportThemeIcons = false;
 		}
 		else {
-			this.isTrusted = isTrustedOrOptions.isTrusted ?? false;
+			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
 			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 		}
 	}
 
-	appendText(value: string): MarkdownString {
+	appendText(value: string, newlineStyle: MarkdownStringTextNewlineStyle = MarkdownStringTextNewlineStyle.Paragraph): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace(/^([ \t]+)(.+)$/gm, (_match, g1, g2) => '&nbsp;'.repeat(g1.length) + g2)
 			.replace(/^>/gm, '\\>')
-			.replace(/\n/g, '\n\n');
+			.replace(/\n/g, newlineStyle === MarkdownStringTextNewlineStyle.Break ? '\\\n' : '\n\n');
 
 		return this;
 	}

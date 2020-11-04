@@ -210,7 +210,11 @@ export class IconLabel extends Disposable {
 						};
 						const resolvedTooltip = await tooltip;
 						if (resolvedTooltip) {
-							hoverOptions = { text: resolvedTooltip, target, anchorPosition: AnchorPosition.BELOW };
+							hoverOptions = {
+								text: resolvedTooltip,
+								target,
+								anchorPosition: AnchorPosition.BELOW
+							};
 						}
 					}
 					if (hoverOptions) {

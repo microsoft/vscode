@@ -2776,30 +2776,43 @@ export class MaliciousStatusLabelAction extends ExtensionAction {
 	}
 }
 
-export class SyncIgnoredIconAction extends ExtensionAction {
+export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 
-	private static readonly ENABLE_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} codicon-sync-ignored`;
-	private static readonly DISABLE_CLASS = `${SyncIgnoredIconAction.ENABLE_CLASS} hide`;
+	private static readonly IGNORED_SYNC_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-sync codicon-sync-ignored`;
+	private static readonly SYNC_CLASS = `${ToggleSyncExtensionAction.ICON_ACTION_CLASS} extension-sync codicon-sync`;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super('extensions.syncignore', '', SyncIgnoredIconAction.DISABLE_CLASS, false);
+		super('extensions.sync', '', ToggleSyncExtensionAction.SYNC_CLASS, false, true, instantiationService);
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.update()));
+		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
 		this.update();
-		this.tooltip = localize('syncingore.label', "This extension is ignored during sync.");
 	}
 
 	update(): void {
-		this.class = SyncIgnoredIconAction.DISABLE_CLASS;
-		if (this.extension && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
-			this.class = SyncIgnoredIconAction.ENABLE_CLASS;
+		this.enabled = !!this.extension && this.userDataAutoSyncEnablementService.isEnabled() && this.extension.state === ExtensionState.Installed;
+		if (this.extension) {
+			const isIgnored = this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
+			this.class = isIgnored ? ToggleSyncExtensionAction.IGNORED_SYNC_CLASS : ToggleSyncExtensionAction.SYNC_CLASS;
+			this.tooltip = isIgnored ? localize('ignored', "This extension is ignored during sync") : localize('synced', "This extension is synced");
 		}
 	}
 
-	run(): Promise<any> {
-		return Promise.resolve();
+	async run(): Promise<any> {
+		return super.run({
+			actionGroups: [
+				[
+					new Action(
+						'extensions.syncignore',
+						this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "Sync this extension") : localize('do not sync', "Do not sync this extension")
+						, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
+				]
+			], disposeActionsOnHide: true
+		});
 	}
 }
 
