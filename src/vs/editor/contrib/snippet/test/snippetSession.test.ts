@@ -682,4 +682,52 @@ suite('SnippetSession', function () {
 		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined, overtypingCapturer: undefined }).insert();
 		assert.equal(model.getValue(), 'console.far');
 	});
+
+	test('Tabs don\'t get replaced with spaces in snippet transformations #103818', function () {
+		const model = editor.getModel()!;
+		model.setValue('\n{\n  \n}');
+		model.updateOptions({ insertSpaces: true, tabSize: 2 });
+		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(3, 6, 3, 6)]);
+		const session = new SnippetSession(editor, [
+			'function animate () {',
+			'\tvar ${1:a} = 12;',
+			'\tconsole.log(${1/(.*)/\n\t\t$1\n\t/})',
+			'}'
+		].join('\n'));
+
+		session.insert();
+
+		assert.strictEqual(model.getValue(), [
+			'function animate () {',
+			'  var a = 12;',
+			'  console.log(a)',
+			'}',
+			'{',
+			'  function animate () {',
+			'    var a = 12;',
+			'    console.log(a)',
+			'  }',
+			'}',
+		].join('\n'));
+
+		editor.trigger('test', 'type', { text: 'bbb' });
+		session.next();
+
+		assert.strictEqual(model.getValue(), [
+			'function animate () {',
+			'  var bbb = 12;',
+			'  console.log(',
+			'    bbb',
+			'  )',
+			'}',
+			'{',
+			'  function animate () {',
+			'    var bbb = 12;',
+			'    console.log(',
+			'      bbb',
+			'    )',
+			'  }',
+			'}',
+		].join('\n'));
+	});
 });
