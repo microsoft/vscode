@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
 import * as env from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
@@ -49,6 +49,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		switch (adapter.type) {
 			case 'server':
 				return new SocketDebugAdapter(adapter);
+			case 'pipeServer':
+				return new NamedPipeDebugAdapter(adapter);
 			case 'executable':
 				return new ExecutableDebugAdapter(adapter, session.type);
 		}
@@ -88,6 +90,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			const configProvider = await this._configurationService.getConfigProvider();
 			const shell = this._terminalService.getDefaultShell(true, configProvider);
+			let cwdForPrepareCommand: string | undefined;
 
 			if (needNewTerminal || !this._integratedTerminalInstance) {
 
@@ -96,11 +99,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
-					env: args.env
 				};
-				delete args.cwd;
-				delete args.env;
-				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
+				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options, true);
+			} else {
+				cwdForPrepareCommand = args.cwd;
 			}
 
 			const terminal = this._integratedTerminalInstance;
@@ -108,14 +110,14 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			terminal.show();
 
 			const shellProcessId = await this._integratedTerminalInstance.processId;
-			const command = prepareCommand(args, shell);
+			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
 			terminal.sendText(command, true);
 
 			return shellProcessId;
 
 		} else if (args.kind === 'external') {
 
-			runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
 		return super.$runInTerminal(args);
 	}
@@ -123,5 +125,4 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
 		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment);
 	}
-
 }

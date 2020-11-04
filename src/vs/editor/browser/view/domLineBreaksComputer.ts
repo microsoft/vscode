@@ -111,6 +111,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 
 	containerDomNode.style.position = 'absolute';
 	containerDomNode.style.top = '10000';
+	containerDomNode.style.wordWrap = 'break-word';
 	document.body.appendChild(containerDomNode);
 
 	let range = document.createRange();
@@ -148,6 +149,10 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 	return result;
 }
 
+const enum Constants {
+	SPAN_MODULO_LIMIT = 16384
+}
+
 function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: IStringBuilder): [number[], number[]] {
 	sb.appendASCIIString('<div style="width:');
 	sb.appendASCIIString(String(width));
@@ -163,7 +168,11 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	let visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 
+	sb.appendASCIIString('<span>');
 	for (let charIndex = 0; charIndex < len; charIndex++) {
+		if (charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
+			sb.appendASCIIString('</span><span>');
+		}
 		charOffsets[charIndex] = charOffset;
 		visibleColumns[charIndex] = visibleColumn;
 		const charCode = nextCharCode;
@@ -208,7 +217,9 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				break;
 
 			case CharCode.UTF8_BOM:
-			case CharCode.LINE_SEPARATOR_2028:
+			case CharCode.LINE_SEPARATOR:
+			case CharCode.PARAGRAPH_SEPARATOR:
+			case CharCode.NEXT_LINE:
 				sb.write1(0xFFFD);
 				break;
 
@@ -226,6 +237,7 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 		charOffset += producedCharacters;
 		visibleColumn += charWidth;
 	}
+	sb.appendASCIIString('</span>');
 
 	charOffsets[lineContent.length] = charOffset;
 	visibleColumns[lineContent.length] = visibleColumn;
@@ -239,10 +251,15 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 	if (lineContent.length <= 1) {
 		return null;
 	}
-	const textContentNode = lineDomNode.firstChild!;
+	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(lineDomNode.children, 0);
 
 	const breakOffsets: number[] = [];
-	discoverBreaks(range, textContentNode, charOffsets, 0, null, lineContent.length - 1, null, breakOffsets);
+	try {
+		discoverBreaks(range, spans, charOffsets, 0, null, lineContent.length - 1, null, breakOffsets);
+	} catch (err) {
+		console.log(err);
+		return null;
+	}
 
 	if (breakOffsets.length === 0) {
 		return null;
@@ -254,13 +271,13 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 
 type MaybeRects = ClientRectList | DOMRectList | null;
 
-function discoverBreaks(range: Range, textContentNode: Node, charOffsets: number[], low: number, lowRects: MaybeRects, high: number, highRects: MaybeRects, result: number[]): void {
+function discoverBreaks(range: Range, spans: HTMLSpanElement[], charOffsets: number[], low: number, lowRects: MaybeRects, high: number, highRects: MaybeRects, result: number[]): void {
 	if (low === high) {
 		return;
 	}
 
-	lowRects = lowRects || readClientRect(range, textContentNode, charOffsets[low], charOffsets[low + 1]);
-	highRects = highRects || readClientRect(range, textContentNode, charOffsets[high], charOffsets[high + 1]);
+	lowRects = lowRects || readClientRect(range, spans, charOffsets[low], charOffsets[low + 1]);
+	highRects = highRects || readClientRect(range, spans, charOffsets[high], charOffsets[high + 1]);
 
 	if (Math.abs(lowRects[0].top - highRects[0].top) <= 0.1) {
 		// same line
@@ -275,13 +292,13 @@ function discoverBreaks(range: Range, textContentNode: Node, charOffsets: number
 	}
 
 	const mid = low + ((high - low) / 2) | 0;
-	const midRects = readClientRect(range, textContentNode, charOffsets[mid], charOffsets[mid + 1]);
-	discoverBreaks(range, textContentNode, charOffsets, low, lowRects, mid, midRects, result);
-	discoverBreaks(range, textContentNode, charOffsets, mid, midRects, high, highRects, result);
+	const midRects = readClientRect(range, spans, charOffsets[mid], charOffsets[mid + 1]);
+	discoverBreaks(range, spans, charOffsets, low, lowRects, mid, midRects, result);
+	discoverBreaks(range, spans, charOffsets, mid, midRects, high, highRects, result);
 }
 
-function readClientRect(range: Range, textContentNode: Node, startOffset: number, endOffset: number): ClientRectList | DOMRectList {
-	range.setStart(textContentNode, startOffset);
-	range.setEnd(textContentNode, endOffset);
+function readClientRect(range: Range, spans: HTMLSpanElement[], startOffset: number, endOffset: number): ClientRectList | DOMRectList {
+	range.setStart(spans[(startOffset / Constants.SPAN_MODULO_LIMIT) | 0].firstChild!, startOffset % Constants.SPAN_MODULO_LIMIT);
+	range.setEnd(spans[(endOffset / Constants.SPAN_MODULO_LIMIT) | 0].firstChild!, endOffset % Constants.SPAN_MODULO_LIMIT);
 	return range.getClientRects();
 }

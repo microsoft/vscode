@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { first } from 'vs/base/common/arrays';
 
 export class URLHandlerChannel implements IServerChannel {
 
@@ -54,7 +53,7 @@ export class URLHandlerRouter implements IClientRouter<string> {
 				if (match) {
 					const windowId = match[1];
 					const regex = new RegExp(`window:${windowId}`);
-					const connection = first(hub.connections, c => regex.test(c.ctx));
+					const connection = hub.connections.find(c => regex.test(c.ctx));
 
 					if (connection) {
 						return connection;

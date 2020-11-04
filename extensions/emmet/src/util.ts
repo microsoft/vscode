@@ -8,9 +8,19 @@ import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
+import * as EmmetHelper from 'vscode-emmet-helper';
+import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
 
-let _emmetHelper: any;
+let _emmetHelper: typeof EmmetHelper;
 let _currentExtensionsPath: string | undefined = undefined;
+
+let _homeDir: vscode.Uri | undefined;
+
+
+export function setHomeDir(homeDir: vscode.Uri) {
+	_homeDir = homeDir;
+}
+
 
 export function getEmmetHelper() {
 	// Lazy load vscode-emmet-helper instead of importing it
@@ -25,14 +35,20 @@ export function getEmmetHelper() {
 /**
  * Update Emmet Helper to use user snippets from the extensionsPath setting
  */
-export function updateEmmetExtensionsPath() {
+export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	if (!_emmetHelper) {
 		return;
 	}
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-	if (_currentExtensionsPath !== extensionsPath) {
+	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		_emmetHelper.updateExtensionsPath(extensionsPath, vscode.workspace.rootPath).then(null, (err: string) => vscode.window.showErrorMessage(err));
+		if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+			return;
+		} else {
+			const rootPath = vscode.workspace.workspaceFolders[0].uri;
+			const fileSystem = vscode.workspace.fs;
+			_emmetHelper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).then(null, (err: string) => vscode.window.showErrorMessage(err));
+		}
 	}
 }
 
@@ -622,4 +638,18 @@ export function trimQuotes(s: string) {
 	}
 
 	return s;
+}
+
+export function isNumber(obj: any): obj is number {
+	return typeof obj === 'number';
+}
+
+export function toLSTextDocument(doc: vscode.TextDocument): LSTextDocument {
+	return LSTextDocument.create(doc.uri.toString(), doc.languageId, doc.version, doc.getText());
+}
+
+export function getPathBaseName(path: string): string {
+	const pathAfterSlashSplit = path.split('/').pop();
+	const pathAfterBackslashSplit = pathAfterSlashSplit ? pathAfterSlashSplit.split('\\').pop() : '';
+	return pathAfterBackslashSplit ?? '';
 }

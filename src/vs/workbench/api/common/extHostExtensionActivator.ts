@@ -252,7 +252,15 @@ export class ExtensionsActivator {
 			return;
 		}
 
-		const currentExtension = this._registry.getExtensionDescription(currentActivation.id)!;
+		const currentExtension = this._registry.getExtensionDescription(currentActivation.id);
+		if (!currentExtension) {
+			// Error condition 0: unknown extension
+			this._host.onExtensionActivationError(currentActivation.id, new MissingDependencyError(currentActivation.id.value));
+			const error = new Error(`Unknown dependency '${currentActivation.id.value}'`);
+			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentActivation.id), new FailedExtension(error));
+			return;
+		}
+
 		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
 		let currentExtensionGetsGreenLight = true;
 

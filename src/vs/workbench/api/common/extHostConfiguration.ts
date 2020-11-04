@@ -20,7 +20,6 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -42,7 +41,7 @@ type ConfigurationInspect<T> = {
 	workspaceFolderValue?: T,
 
 	defaultLanguageValue?: T;
-	userLanguageValue?: T;
+	globalLanguageValue?: T;
 	workspaceLanguageValue?: T;
 	workspaceFolderLanguageValue?: T;
 
@@ -157,9 +156,6 @@ export class ExtHostConfigProvider {
 
 	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionDescription?: IExtensionDescription): vscode.WorkspaceConfiguration {
 		const overrides = scopeToOverrides(scope) || {};
-		if (overrides.overrideIdentifier && extensionDescription) {
-			checkProposedApiEnabled(extensionDescription);
-		}
 		const config = this._toReadonlyValue(section
 			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
 			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
@@ -202,7 +198,7 @@ export class ExtHostConfigProvider {
 						};
 						return isObject(target) ?
 							new Proxy(target, {
-								get: (target: any, property: string) => {
+								get: (target: any, property: PropertyKey) => {
 									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
 										cloneTarget();
 										return () => clonedTarget;
@@ -217,21 +213,21 @@ export class ExtHostConfigProvider {
 									}
 									return result;
 								},
-								set: (_target: any, property: string, value: any) => {
+								set: (_target: any, property: PropertyKey, value: any) => {
 									cloneTarget();
 									if (clonedTarget) {
 										clonedTarget[property] = value;
 									}
 									return true;
 								},
-								deleteProperty: (_target: any, property: string) => {
+								deleteProperty: (_target: any, property: PropertyKey) => {
 									cloneTarget();
 									if (clonedTarget) {
 										delete clonedTarget[property];
 									}
 									return true;
 								},
-								defineProperty: (_target: any, property: string, descriptor: any) => {
+								defineProperty: (_target: any, property: PropertyKey, descriptor: any) => {
 									cloneTarget();
 									if (clonedTarget) {
 										Object.defineProperty(clonedTarget, property, descriptor);
@@ -260,13 +256,13 @@ export class ExtHostConfigProvider {
 					return {
 						key,
 
-						defaultValue: config.defaultValue,
-						globalValue: config.userValue,
-						workspaceValue: config.workspaceValue,
-						workspaceFolderValue: config.workspaceFolderValue,
+						defaultValue: config.default?.value,
+						globalValue: config.user?.value,
+						workspaceValue: config.workspace?.value,
+						workspaceFolderValue: config.workspaceFolder?.value,
 
 						defaultLanguageValue: config.default?.override,
-						userLanguageValue: config.user?.override,
+						globalLanguageValue: config.user?.override,
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
 
@@ -288,10 +284,10 @@ export class ExtHostConfigProvider {
 		const readonlyProxy = (target: any): any => {
 			return isObject(target) ?
 				new Proxy(target, {
-					get: (target: any, property: string) => readonlyProxy(target[property]),
-					set: (_target: any, property: string, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
-					deleteProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
-					defineProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
+					get: (target: any, property: PropertyKey) => readonlyProxy(target[property]),
+					set: (_target: any, property: PropertyKey, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${String(property)}' of object`); },
+					deleteProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot delete read only property '${String(property)}' of object`); },
+					defineProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot define property '${String(property)}' for a readonly object`); },
 					setPrototypeOf: (_target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
 					isExtensible: () => false,
 					preventExtensions: () => true

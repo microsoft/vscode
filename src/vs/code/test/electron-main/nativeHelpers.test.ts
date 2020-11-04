@@ -28,9 +28,8 @@ suite('Windows Native Helpers', () => {
 	});
 
 	test('vscode-windows-ca-certs', async () => {
-		const windowsCerts = await new Promise<any>((resolve, reject) => {
-			require(['vscode-windows-ca-certs'], resolve, reject);
-		});
+		// @ts-ignore Windows only
+		const windowsCerts = await import('vscode-windows-ca-certs');
 		assert.ok(windowsCerts, 'Unable to load vscode-windows-ca-certs dependency.');
 	});
 

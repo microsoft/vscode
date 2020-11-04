@@ -5,93 +5,10 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IUserHomeProvider } from 'vs/base/common/labels';
-
-export interface ParsedArgs {
-	_: string[];
-	'folder-uri'?: string[]; // undefined or array of 1 or more
-	'file-uri'?: string[]; // undefined or array of 1 or more
-	_urls?: string[];
-	help?: boolean;
-	version?: boolean;
-	telemetry?: boolean;
-	status?: boolean;
-	wait?: boolean;
-	waitMarkerFilePath?: string;
-	diff?: boolean;
-	add?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	'prof-startup'?: boolean;
-	'prof-startup-prefix'?: string;
-	'prof-append-timers'?: string;
-	verbose?: boolean;
-	trace?: boolean;
-	'trace-category-filter'?: string;
-	'trace-options'?: string;
-	log?: string;
-	logExtensionHostCommunication?: boolean;
-	'extensions-dir'?: string;
-	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
-	extensionTestsPath?: string; // either a local path or a URI
-	'extension-development-confirm-save'?: boolean;
-	'inspect-extensions'?: string;
-	'inspect-brk-extensions'?: string;
-	debugId?: string;
-	'inspect-search'?: string;
-	'inspect-brk-search'?: string;
-	'disable-extensions'?: boolean;
-	'disable-extension'?: string[]; // undefined or array of 1 or more
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'category'?: string;
-	'install-extension'?: string[]; // undefined or array of 1 or more
-	'uninstall-extension'?: string[]; // undefined or array of 1 or more
-	'locate-extension'?: string[]; // undefined or array of 1 or more
-	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
-	'open-url'?: boolean;
-	'skip-getting-started'?: boolean;
-	'skip-release-notes'?: boolean;
-	'sticky-quickopen'?: boolean;
-	'disable-restore-windows'?: boolean;
-	'disable-telemetry'?: boolean;
-	'export-default-configuration'?: string;
-	'install-source'?: string;
-	'disable-updates'?: boolean;
-	'disable-crash-reporter'?: boolean;
-	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
-	'file-write'?: boolean;
-	'file-chmod'?: boolean;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
-	remote?: string;
-	'disable-user-env-probe'?: boolean;
-	'force'?: boolean;
-	'force-user-env'?: boolean;
-
-	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
-	'no-proxy-server'?: boolean;
-	'proxy-server'?: string;
-	'proxy-bypass-list'?: string;
-	'proxy-pac-url'?: string;
-	'inspect'?: string;
-	'inspect-brk'?: string;
-	'js-flags'?: string;
-	'disable-gpu'?: boolean;
-	'nolazy'?: boolean;
-	'force-device-scale-factor'?: string;
-	'force-renderer-accessibility'?: boolean;
-	'ignore-certificate-error'?: boolean;
-	'allow-insecure-localhost'?: boolean;
-}
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+export const INativeEnvironmentService = createDecorator<INativeEnvironmentService>('nativeEnvironmentService');
 
 export interface IDebugParams {
 	port: number | null;
@@ -102,76 +19,121 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 }
 
-export const BACKUPS = 'Backups';
+/**
+ * A basic environment service that can be used in various processes,
+ * such as main, renderer and shared process. Use subclasses of this
+ * service for specific environment.
+ */
+export interface IEnvironmentService {
 
-export interface IEnvironmentService extends IUserHomeProvider {
+	readonly _serviceBrand: undefined;
 
-	_serviceBrand: undefined;
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	args: ParsedArgs;
-
-	execPath: string;
-	cliPath: string;
-	appRoot: string;
-
-	userHome: string;
-	userDataPath: string;
-
-	appSettingsHome: URI;
-
-	// user roaming data
+	// --- user roaming data
 	userRoamingDataHome: URI;
 	settingsResource: URI;
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
+	snippetsHome: URI;
 
-	// sync resources
-	userDataSyncLogResource: URI;
-	userDataSyncHome: URI;
-	settingsSyncPreviewResource: URI;
-	keybindingsSyncPreviewResource: URI;
-
-	machineSettingsHome: URI;
-	machineSettingsResource: URI;
-
-	globalStorageHome: string;
-	workspaceStorageHome: string;
-
-	backupHome: URI;
-	backupWorkspacesPath: string;
-
+	// --- data paths
 	untitledWorkspacesHome: URI;
+	globalStorageHome: URI;
+	workspaceStorageHome: URI;
 
+	// --- settings sync
+	userDataSyncHome: URI;
+	userDataSyncLogResource: URI;
+	sync: 'on' | 'off' | undefined;
+
+	// --- extension development
+	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
-	extensionsPath?: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
-	logExtensionHostCommunication?: boolean;
 
-	debugExtensionHost: IExtensionHostDebugParams;
-
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
-
-	log?: string;
+	// --- logging
 	logsPath: string;
+	logLevel?: string;
 	verbose: boolean;
+	isBuilt: boolean;
 
-	mainIPCHandle: string;
+	// --- telemetry
+	disableTelemetry: boolean;
+	telemetryLogResource: URI;
+	serviceMachineIdResource: URI;
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+}
+
+/**
+ * A subclass of the `IEnvironmentService` to be used only in native
+ * environments (Windows, Linux, macOS) but not e.g. web.
+ */
+export interface INativeEnvironmentService extends IEnvironmentService {
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	// --- CLI Arguments
+	args: NativeParsedArgs;
+
+	// --- paths
+	appRoot: string;
+	userHome: URI;
+	appSettingsHome: URI;
+	tmpDir: URI;
+	userDataPath: string;
+	machineSettingsResource: URI;
+	installSourcePath: string;
+
+	// --- IPC Handles
 	sharedIPCHandle: string;
 
-	nodeCachedDataDir?: string;
+	// --- Extensions
+	extensionsPath?: string;
+	extensionsDownloadPath: string;
+	builtinExtensionsPath: string;
 
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
-
+	// --- Smoke test support
 	driverHandle?: string;
-	driverVerbose: boolean;
 
-	galleryMachineIdResource?: URI;
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }

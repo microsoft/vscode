@@ -36,42 +36,25 @@ export namespace InspectTokensNLS {
 }
 
 export namespace GoToLineNLS {
-	export const gotoLineLabelValidLineAndColumn = nls.localize('gotoLineLabelValidLineAndColumn', "Go to line {0} and character {1}");
-	export const gotoLineLabelValidLine = nls.localize('gotoLineLabelValidLine', "Go to line {0}");
-	export const gotoLineLabelEmptyWithLineLimit = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to");
-	export const gotoLineLabelEmptyWithLineAndColumnLimit = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to");
-	export const gotoLineAriaLabel = nls.localize('gotoLineAriaLabel', "Current Line: {0}. Go to line {1}.");
-	export const gotoLineActionInput = nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a character number to navigate to");
-	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line...");
+	export const gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line/Column...");
+}
+
+export namespace QuickHelpNLS {
+	export const helpQuickAccessActionLabel = nls.localize('helpQuickAccess', "Show all Quick Access Providers");
 }
 
 export namespace QuickCommandNLS {
-	export const ariaLabelEntryWithKey = nls.localize('ariaLabelEntryWithKey', "{0}, {1}, commands");
-	export const ariaLabelEntry = nls.localize('ariaLabelEntry', "{0}, commands");
-	export const quickCommandActionInput = nls.localize('quickCommandActionInput', "Type the name of an action you want to execute");
 	export const quickCommandActionLabel = nls.localize('quickCommandActionLabel', "Command Palette");
+	export const quickCommandHelp = nls.localize('quickCommandActionHelp', "Show And Run Commands");
 }
 
 export namespace QuickOutlineNLS {
-	export const entryAriaLabel = nls.localize('entryAriaLabel', "{0}, symbols");
-	export const quickOutlineActionInput = nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to");
 	export const quickOutlineActionLabel = nls.localize('quickOutlineActionLabel', "Go to Symbol...");
-	export const _symbols_ = nls.localize('symbols', "symbols ({0})");
-	export const _modules_ = nls.localize('modules', "modules ({0})");
-	export const _class_ = nls.localize('class', "classes ({0})");
-	export const _interface_ = nls.localize('interface', "interfaces ({0})");
-	export const _method_ = nls.localize('method', "methods ({0})");
-	export const _function_ = nls.localize('function', "functions ({0})");
-	export const _property_ = nls.localize('property', "properties ({0})");
-	export const _variable_ = nls.localize('variable', "variables ({0})");
-	export const _variable2_ = nls.localize('variable2', "variables ({0})");
-	export const _constructor_ = nls.localize('_constructor', "constructors ({0})");
-	export const _call_ = nls.localize('call', "calls ({0})");
+	export const quickOutlineByCategoryActionLabel = nls.localize('quickOutlineByCategoryActionLabel', "Go to Symbol by Category...");
 }
 
 export namespace StandaloneCodeEditorNLS {
 	export const editorViewAccessibleLabel = nls.localize('editorViewAccessibleLabel', "Editor content");
-	export const accessibilityHelpMessageIE = nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.");
 	export const accessibilityHelpMessage = nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.");
 }
 

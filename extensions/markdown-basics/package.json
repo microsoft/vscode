@@ -85,7 +85,7 @@
 		"snippets": [
 			{
 				"language": "markdown",
-				"path": "./snippets/markdown.json"
+				"path": "./snippets/markdown.code-snippets"
 			}
 		]
 	},

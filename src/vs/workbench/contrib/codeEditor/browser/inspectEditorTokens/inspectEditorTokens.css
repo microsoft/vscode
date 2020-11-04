@@ -31,7 +31,35 @@
 
 .tiw-metadata-value {
 	font-family: var(--monaco-monospace-font);
-	text-align: right;
+	word-break: break-word;
+}
+
+.tiw-metadata-values {
+	list-style: none;
+	max-height: 300px;
+	overflow-y: auto;
+	margin-right: -10px;
+	padding-left: 0;
+}
+
+.tiw-metadata-values > .tiw-metadata-value {
+	margin-right: 10px;
+}
+
+.tiw-metadata-key {
+	width: 1px;
+	min-width: 150px;
+	padding-right: 10px;
+	white-space: nowrap;
+	vertical-align: top;
+}
+
+.tiw-metadata-semantic {
+	font-style: italic;
+}
+
+.tiw-metadata-scopes {
+	line-height: normal;
 }
 
 .tiw-theme-selector {

@@ -13,6 +13,8 @@ import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadSer
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -42,6 +44,8 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
+	readonly extensionRuntime = ExtensionRuntime.Node;
+
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// initialize API and register actors
 		const extensionApiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
@@ -61,19 +65,23 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// Do this when extension service exists, but extensions are not being activated yet.
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy);
+		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
 
 		// Use IPC messages to forward console-calls, note that the console is
 		// already patched to use`process.send()`
 		const nativeProcessSend = process.send!;
 		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		process.send = (...args: any[]) => {
-			if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
+		process.send = (...args) => {
+			if ((args as unknown[]).length === 0 || !args[0] || args[0].type !== '__$console') {
 				return nativeProcessSend.apply(process, args);
 			}
 			mainThreadConsole.$logExtensionHostMessage(args[0]);
 			return false;
 		};
+	}
+
+	protected _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined {
+		return extensionDescription.main;
 	}
 
 	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {

@@ -12,7 +12,7 @@ import { isNative } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -24,6 +24,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -138,7 +139,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 
 		const query = this._queryBuilder.file(
-			includeFolder ? [includeFolder] : workspace.folders.map(f => f.uri),
+			includeFolder ? [toWorkspaceFolder(includeFolder)] : workspace.folders,
 			{
 				maxResults: withNullAsUndefined(maxResults),
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
@@ -188,26 +189,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$checkExists(folders: UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
-		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
-		const query = queryBuilder.file(folders.map(folder => URI.revive(folder)), {
-			_reason: 'checkExists',
-			includePattern: includes.join(', '),
-			expandPatterns: true,
-			exists: true
-		});
-
-		return this._searchService.fileSearch(query, token).then(
-			result => {
-				return !!result.limitHit;
-			},
-			err => {
-				if (!isPromiseCanceledError(err)) {
-					return Promise.reject(err);
-				}
-
-				return false;
-			});
+	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
+		return this._instantiationService.invokeFunction((accessor) => checkGlobFileExists(accessor, folders, includes, token));
 	}
 
 	// --- save & edit resources ---

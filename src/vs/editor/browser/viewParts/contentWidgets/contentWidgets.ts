@@ -14,6 +14,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/editorCommon';
 
 
 class Coordinate {
@@ -171,6 +172,11 @@ interface IBoxLayoutResult {
 	belowLeft: number;
 }
 
+interface IRenderData {
+	coordinate: Coordinate,
+	position: ContentWidgetPositionPreference
+}
+
 class Widget {
 	private readonly _context: ViewContext;
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
@@ -194,7 +200,7 @@ class Widget {
 	private _maxWidth: number;
 	private _isVisible: boolean;
 
-	private _renderData: Coordinate | null;
+	private _renderData: IRenderData | null;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>, actual: IContentWidget) {
 		this._context = context;
@@ -316,8 +322,9 @@ class Widget {
 	}
 
 	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
-		const MIN_LIMIT = (width <= domNodePosition.width - 20 ? domNodePosition.left : 0);
-		const MAX_LIMIT = (width <= domNodePosition.width - 20 ? domNodePosition.left + domNodePosition.width - 20 : windowSize.width - 20);
+		// Initially, the limits are defined as the dom node limits
+		const MIN_LIMIT = Math.max(0, domNodePosition.left - width);
+		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width);
 
 		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
 
@@ -368,7 +375,7 @@ class Widget {
 
 		return {
 			fitsAbove,
-			aboveTop: Math.max(aboveTop, TOP_PADDING),
+			aboveTop: aboveTop,
 			aboveLeft,
 			fitsBelow,
 			belowTop,
@@ -427,16 +434,26 @@ class Widget {
 		return [topLeft, bottomLeft];
 	}
 
-	private _prepareRenderWidget(ctx: RenderingContext): Coordinate | null {
+	private _prepareRenderWidget(ctx: RenderingContext): IRenderData | null {
 		const [topLeft, bottomLeft] = this._getTopAndBottomLeft(ctx);
 		if (!topLeft || !bottomLeft) {
 			return null;
 		}
 
 		if (this._cachedDomNodeClientWidth === -1 || this._cachedDomNodeClientHeight === -1) {
-			const domNode = this.domNode.domNode;
-			this._cachedDomNodeClientWidth = domNode.clientWidth;
-			this._cachedDomNodeClientHeight = domNode.clientHeight;
+
+			let preferredDimensions: IDimension | null = null;
+			if (typeof this._actual.beforeRender === 'function') {
+				preferredDimensions = safeInvoke(this._actual.beforeRender, this._actual);
+			}
+			if (preferredDimensions) {
+				this._cachedDomNodeClientWidth = preferredDimensions.width;
+				this._cachedDomNodeClientHeight = preferredDimensions.height;
+			} else {
+				const domNode = this.domNode.domNode;
+				this._cachedDomNodeClientWidth = domNode.clientWidth;
+				this._cachedDomNodeClientHeight = domNode.clientHeight;
+			}
 		}
 
 		let placement: IBoxLayoutResult | null;
@@ -457,7 +474,7 @@ class Widget {
 							return null;
 						}
 						if (pass === 2 || placement.fitsAbove) {
-							return new Coordinate(placement.aboveTop, placement.aboveLeft);
+							return { coordinate: new Coordinate(placement.aboveTop, placement.aboveLeft), position: ContentWidgetPositionPreference.ABOVE };
 						}
 					} else if (pref === ContentWidgetPositionPreference.BELOW) {
 						if (!placement) {
@@ -465,13 +482,13 @@ class Widget {
 							return null;
 						}
 						if (pass === 2 || placement.fitsBelow) {
-							return new Coordinate(placement.belowTop, placement.belowLeft);
+							return { coordinate: new Coordinate(placement.belowTop, placement.belowLeft), position: ContentWidgetPositionPreference.BELOW };
 						}
 					} else {
 						if (this.allowEditorOverflow) {
-							return this._prepareRenderWidgetAtExactPositionOverflowing(topLeft);
+							return { coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(topLeft), position: ContentWidgetPositionPreference.EXACT };
 						} else {
-							return topLeft;
+							return { coordinate: topLeft, position: ContentWidgetPositionPreference.EXACT };
 						}
 					}
 				}
@@ -508,16 +525,20 @@ class Widget {
 				this._isVisible = false;
 				this.domNode.setVisibility('hidden');
 			}
+
+			if (typeof this._actual.afterRender === 'function') {
+				safeInvoke(this._actual.afterRender, this._actual, null);
+			}
 			return;
 		}
 
 		// This widget should be visible
 		if (this.allowEditorOverflow) {
-			this.domNode.setTop(this._renderData.top);
-			this.domNode.setLeft(this._renderData.left);
+			this.domNode.setTop(this._renderData.coordinate.top);
+			this.domNode.setLeft(this._renderData.coordinate.left);
 		} else {
-			this.domNode.setTop(this._renderData.top + ctx.scrollTop - ctx.bigNumbersDelta);
-			this.domNode.setLeft(this._renderData.left);
+			this.domNode.setTop(this._renderData.coordinate.top + ctx.scrollTop - ctx.bigNumbersDelta);
+			this.domNode.setLeft(this._renderData.coordinate.left);
 		}
 
 		if (!this._isVisible) {
@@ -525,5 +546,18 @@ class Widget {
 			this.domNode.setAttribute('monaco-visible-content-widget', 'true');
 			this._isVisible = true;
 		}
+
+		if (typeof this._actual.afterRender === 'function') {
+			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position);
+		}
+	}
+}
+
+function safeInvoke<T extends (...args: any[]) => any>(fn: T, thisArg: ThisParameterType<T>, ...args: Parameters<T>): ReturnType<T> | null {
+	try {
+		return fn.call(thisArg, ...args);
+	} catch {
+		// ignore
+		return null;
 	}
 }

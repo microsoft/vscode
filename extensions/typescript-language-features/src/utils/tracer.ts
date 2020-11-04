@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
-import Logger from './logger';
+import type * as Proto from '../protocol';
+import { Logger } from './logger';
 
 enum Trace {
 	Off,

@@ -12,13 +12,12 @@ import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymb
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
-// import './outlineNavigation';
-
 export const PANEL_ID = 'panel.view.outline';
 
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
+	containerIcon: 'codicon-symbol-class',
 	ctorDescriptor: new SyncDescriptor(OutlinePane),
 	canToggleVisibility: true,
 	canMoveView: true,

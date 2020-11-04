@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWindows } from 'vs/base/common/platform';
-import { startsWithIgnoreCase, equalsIgnoreCase, endsWith, rtrim } from 'vs/base/common/strings';
+import { startsWithIgnoreCase, equalsIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { sep, posix, isAbsolute, join, normalize } from 'vs/base/common/path';
+import { isNumber } from 'vs/base/common/types';
 
 export function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;
@@ -141,7 +142,7 @@ export function isUNC(path: string): boolean {
 // Reference: https://en.wikipedia.org/wiki/Filename
 const WINDOWS_INVALID_FILE_CHARS = /[\\/:\*\?"<>\|]/g;
 const UNIX_INVALID_FILE_CHARS = /[\\/]/g;
-const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
+const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])(\.(.*?))?$/i;
 export function isValidBasename(name: string | null | undefined, isWindowsOS: boolean = isWindows): boolean {
 	const invalidFileChars = isWindowsOS ? WINDOWS_INVALID_FILE_CHARS : UNIX_INVALID_FILE_CHARS;
 
@@ -190,42 +191,42 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = sep): boolean {
-	if (path === candidate) {
+export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
+	if (base === parentCandidate) {
 		return true;
 	}
 
-	if (!path || !candidate) {
+	if (!base || !parentCandidate) {
 		return false;
 	}
 
-	if (candidate.length > path.length) {
+	if (parentCandidate.length > base.length) {
 		return false;
 	}
 
 	if (ignoreCase) {
-		const beginsWith = startsWithIgnoreCase(path, candidate);
+		const beginsWith = startsWithIgnoreCase(base, parentCandidate);
 		if (!beginsWith) {
 			return false;
 		}
 
-		if (candidate.length === path.length) {
+		if (parentCandidate.length === base.length) {
 			return true; // same path, different casing
 		}
 
-		let sepOffset = candidate.length;
-		if (candidate.charAt(candidate.length - 1) === separator) {
+		let sepOffset = parentCandidate.length;
+		if (parentCandidate.charAt(parentCandidate.length - 1) === separator) {
 			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
 		}
 
-		return path.charAt(sepOffset) === separator;
+		return base.charAt(sepOffset) === separator;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== separator) {
-		candidate += separator;
+	if (parentCandidate.charAt(parentCandidate.length - 1) !== separator) {
+		parentCandidate += separator;
 	}
 
-	return path.indexOf(candidate) === 0;
+	return base.indexOf(parentCandidate) === 0;
 }
 
 export function isWindowsDriveLetter(char0: number): boolean {
@@ -235,7 +236,7 @@ export function isWindowsDriveLetter(char0: number): boolean {
 export function sanitizeFilePath(candidate: string, cwd: string): string {
 
 	// Special case: allow to open a drive letter without trailing backslash
-	if (isWindows && endsWith(candidate, ':')) {
+	if (isWindows && candidate.endsWith(':')) {
 		candidate += sep;
 	}
 
@@ -252,7 +253,7 @@ export function sanitizeFilePath(candidate: string, cwd: string): string {
 		candidate = rtrim(candidate, sep);
 
 		// Special case: allow to open drive root ('C:\')
-		if (endsWith(candidate, ':')) {
+		if (candidate.endsWith(':')) {
 			candidate += sep;
 		}
 
@@ -282,4 +283,56 @@ export function isRootOrDriveLetter(path: string): boolean {
 	}
 
 	return pathNormalized === posix.sep;
+}
+
+export function indexOfPath(path: string, candidate: string, ignoreCase?: boolean): number {
+	if (candidate.length > path.length) {
+		return -1;
+	}
+
+	if (path === candidate) {
+		return 0;
+	}
+
+	if (ignoreCase) {
+		path = path.toLowerCase();
+		candidate = candidate.toLowerCase();
+	}
+
+	return path.indexOf(candidate);
+}
+
+export interface IPathWithLineAndColumn {
+	path: string;
+	line?: number;
+	column?: number;
+}
+
+export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn {
+	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
+
+	let path: string | undefined = undefined;
+	let line: number | undefined = undefined;
+	let column: number | undefined = undefined;
+
+	segments.forEach(segment => {
+		const segmentAsNumber = Number(segment);
+		if (!isNumber(segmentAsNumber)) {
+			path = !!path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
+		} else if (line === undefined) {
+			line = segmentAsNumber;
+		} else if (column === undefined) {
+			column = segmentAsNumber;
+		}
+	});
+
+	if (!path) {
+		throw new Error('Format for `--goto` should be: `FILE:LINE(:COLUMN)`');
+	}
+
+	return {
+		path,
+		line: line !== undefined ? line : undefined,
+		column: column !== undefined ? column : line !== undefined ? 1 : undefined // if we have a line, make sure column is also set
+	};
 }

@@ -8,8 +8,9 @@ import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { append, $, hide } from 'vs/base/browser/dom';
-import { TestStorageService, TestLayoutService } from 'vs/workbench/test/workbenchTestServices';
+import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { StorageScope } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class SimplePart extends Part {
 
@@ -62,7 +63,7 @@ class MyPart2 extends SimplePart {
 		const titleContainer = append(parent, $('div'));
 		const titleLabel = append(titleContainer, $('span'));
 		titleLabel.id = 'myPart.title';
-		titleLabel.innerHTML = 'Title';
+		titleLabel.innerText = 'Title';
 
 		return titleContainer;
 	}
@@ -71,7 +72,7 @@ class MyPart2 extends SimplePart {
 		const contentContainer = append(parent, $('div'));
 		const contentSpan = append(contentContainer, $('span'));
 		contentSpan.id = 'myPart.content';
-		contentSpan.innerHTML = 'Content';
+		contentSpan.innerText = 'Content';
 
 		return contentContainer;
 	}
@@ -91,7 +92,7 @@ class MyPart3 extends SimplePart {
 		const contentContainer = append(parent, $('div'));
 		const contentSpan = append(contentContainer, $('span'));
 		contentSpan.id = 'myPart.content';
-		contentSpan.innerHTML = 'Content';
+		contentSpan.innerText = 'Content';
 
 		return contentContainer;
 	}

@@ -15,6 +15,7 @@ import { IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 // --------- utils
 
@@ -35,7 +36,7 @@ suite('Editor Model - Model', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = TextModel.createFromString(text);
+		thisModel = createTextModel(text);
 	});
 
 	teardown(() => {
@@ -329,7 +330,7 @@ suite('Editor Model - Model', () => {
 		let res = thisModel.applyEdits([
 			{ range: new Range(2, 1, 2, 1), text: 'a' },
 			{ range: new Range(1, 1, 1, 1), text: 'b' },
-		]);
+		], true);
 
 		assert.deepEqual(res[0].range, new Range(2, 1, 2, 2));
 		assert.deepEqual(res[1].range, new Range(1, 1, 1, 2));
@@ -349,7 +350,7 @@ suite('Editor Model - Model Line Separators', () => {
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = TextModel.createFromString(text);
+		thisModel = createTextModel(text);
 	});
 
 	teardown(() => {
@@ -365,7 +366,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		let model = TextModel.createFromString('Hello\rWorld!\r\nAnother line');
+		let model = createTextModel('Hello\rWorld!\r\nAnother line');
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
@@ -430,7 +431,7 @@ suite('Editor Model - Words', () => {
 
 	test('Get word at position', () => {
 		const text = ['This text has some  words. '];
-		const thisModel = TextModel.createFromString(text.join('\n'));
+		const thisModel = createTextModel(text.join('\n'));
 		disposables.push(thisModel);
 
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: 'This', startColumn: 1, endColumn: 5 });
@@ -451,7 +452,7 @@ suite('Editor Model - Words', () => {
 		const innerMode = new InnerMode();
 		disposables.push(outerMode, innerMode);
 
-		const model = TextModel.createFromString('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
+		const model = createTextModel('ab<xx>ab<x>', undefined, outerMode.getLanguageIdentifier());
 		disposables.push(model);
 
 		assert.deepEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
@@ -476,7 +477,7 @@ suite('Editor Model - Words', () => {
 		};
 		disposables.push(mode);
 
-		const thisModel = TextModel.createFromString('.🐷-a-b', undefined, MODE_ID);
+		const thisModel = createTextModel('.🐷-a-b', undefined, MODE_ID);
 		disposables.push(thisModel);
 
 		assert.deepEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });

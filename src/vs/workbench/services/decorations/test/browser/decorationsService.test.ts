@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ConsoleLogService } from 'vs/platform/log/common/log';
 
 suite('DecorationsService', function () {
 
@@ -20,7 +19,7 @@ suite('DecorationsService', function () {
 		if (service) {
 			service.dispose();
 		}
-		service = new DecorationsService(new TestThemeService(), new ConsoleLogService());
+		service = new DecorationsService(new TestThemeService());
 	});
 
 	test('Async provider, async/evented result', function () {
@@ -94,7 +93,7 @@ suite('DecorationsService', function () {
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
-		let p = new Promise(resolve => {
+		let p = new Promise<void>(resolve => {
 			service.onDidChangeDecorations(e => {
 				assert.equal(e.affectsResource(uri), true);
 				assert.deepEqual(service.getDecoration(uri, false), undefined);
@@ -275,7 +274,7 @@ suite('DecorationsService', function () {
 		data = service.getDecoration(uri2, true)!;
 		assert.ok(data.tooltip); // emphazied items...
 
-		return new Promise((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			let l = service.onDidChangeDecorations(e => {
 				l.dispose();
 				try {

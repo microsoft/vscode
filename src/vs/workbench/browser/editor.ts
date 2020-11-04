@@ -6,16 +6,17 @@
 import { EditorInput } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { find } from 'vs/base/common/arrays';
+import { insert } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorDescriptor {
-	instantiate(instantiationService: IInstantiationService): BaseEditor;
 
 	getId(): string;
 	getName(): string;
+
+	instantiate(instantiationService: IInstantiationService): EditorPane;
 
 	describes(obj: unknown): boolean;
 }
@@ -56,20 +57,20 @@ export interface IEditorRegistry {
 export class EditorDescriptor implements IEditorDescriptor {
 
 	static create<Services extends BrandedService[]>(
-		ctor: { new(...services: Services): BaseEditor },
+		ctor: { new(...services: Services): EditorPane },
 		id: string,
 		name: string
 	): EditorDescriptor {
-		return new EditorDescriptor(ctor as IConstructorSignature0<BaseEditor>, id, name);
+		return new EditorDescriptor(ctor as IConstructorSignature0<EditorPane>, id, name);
 	}
 
 	constructor(
-		private readonly ctor: IConstructorSignature0<BaseEditor>,
+		private readonly ctor: IConstructorSignature0<EditorPane>,
 		private readonly id: string,
 		private readonly name: string
 	) { }
 
-	instantiate(instantiationService: IInstantiationService): BaseEditor {
+	instantiate(instantiationService: IInstantiationService): EditorPane {
 		return instantiationService.createInstance(this.ctor);
 	}
 
@@ -82,7 +83,7 @@ export class EditorDescriptor implements IEditorDescriptor {
 	}
 
 	describes(obj: unknown): boolean {
-		return obj instanceof BaseEditor && obj.getId() === this.id;
+		return obj instanceof EditorPane && obj.getId() === this.id;
 	}
 }
 
@@ -94,15 +95,11 @@ class EditorRegistry implements IEditorRegistry {
 	registerEditor(descriptor: EditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
 		this.mapEditorToInputs.set(descriptor, inputDescriptors);
 
-		this.editors.push(descriptor);
+		const remove = insert(this.editors, descriptor);
 
 		return toDisposable(() => {
 			this.mapEditorToInputs.delete(descriptor);
-
-			const index = this.editors.indexOf(descriptor);
-			if (index !== -1) {
-				this.editors.splice(index, 1);
-			}
+			remove();
 		});
 	}
 
@@ -158,7 +155,7 @@ class EditorRegistry implements IEditorRegistry {
 	}
 
 	getEditorById(editorId: string): EditorDescriptor | undefined {
-		return find(this.editors, editor => editor.getId() === editorId);
+		return this.editors.find(editor => editor.getId() === editorId);
 	}
 
 	getEditors(): readonly EditorDescriptor[] {

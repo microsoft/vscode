@@ -3,9 +3,9 @@
 **/vs/css.build.js
 **/vs/css.js
 **/vs/loader.js
-**/promise-polyfill/**
 **/insane/**
 **/marked/**
+**/semver/**
 **/test/**/*.js
 **/node_modules/**
 **/vscode-api-tests/testWorkspace/**

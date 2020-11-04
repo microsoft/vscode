@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { Command } from '../utils/commandManager';
 import { Lazy } from '../utils/lazy';
+import { Command } from './commandManager';
 
 export class SelectTypeScriptVersionCommand implements Command {
 	public readonly id = 'typescript.selectTypeScriptVersion';
@@ -15,6 +15,6 @@ export class SelectTypeScriptVersionCommand implements Command {
 	) { }
 
 	public execute() {
-		this.lazyClientHost.value.serviceClient.onVersionStatusClicked();
+		this.lazyClientHost.value.serviceClient.showVersionPicker();
 	}
 }

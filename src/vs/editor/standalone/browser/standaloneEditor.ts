@@ -39,6 +39,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -122,7 +124,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IConfigurationService),
 			services.get(IContextMenuService),
 			services.get(IEditorProgressService),
-			null
+			services.get(IClipboardService)
 		);
 	});
 }
@@ -240,13 +242,17 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
-	return Colorizer.colorizeElement(StaticServices.standaloneThemeService.get(), StaticServices.modeService.get(), domNode, options);
+	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
+	themeService.registerEditorContainer(domNode);
+	return Colorizer.colorizeElement(themeService, StaticServices.modeService.get(), domNode, options);
 }
 
 /**
  * Colorize `text` using language `languageId`.
  */
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
+	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
+	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
 }
 
@@ -254,6 +260,8 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
  * Colorize a line in a model.
  */
 export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
+	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
+	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 

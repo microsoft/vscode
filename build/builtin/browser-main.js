@@ -6,11 +6,10 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-// @ts-ignore review
 const { remote } = require('electron');
 const dialog = remote.dialog;
 
-const builtInExtensionsPath = path.join(__dirname, '..', 'builtInExtensions.json');
+const builtInExtensionsPath = path.join(__dirname, '..', '..', 'product.json');
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
 function readJson(filePath) {
@@ -111,7 +110,7 @@ function render(el, state) {
 
 function main() {
 	const el = document.getElementById('extensions');
-	const builtin = readJson(builtInExtensionsPath);
+	const builtin = readJson(builtInExtensionsPath).builtInExtensions;
 	let control;
 
 	try {

@@ -19,7 +19,6 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -272,16 +271,12 @@ registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController
 
 registerEditorAction(ToggleWordWrapAction);
 
-const WORD_WRAP_DARK_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/codeEditor/browser/word-wrap-dark.svg'));
-const WORD_WRAP_LIGHT_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/codeEditor/browser/word-wrap-light.svg'));
-
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
 		icon: {
-			dark: WORD_WRAP_DARK_ICON,
-			light: WORD_WRAP_LIGHT_ICON
+			id: 'codicon/word-wrap'
 		}
 	},
 	group: 'navigation',
@@ -297,8 +292,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
 		icon: {
-			dark: WORD_WRAP_DARK_ICON,
-			light: WORD_WRAP_LIGHT_ICON
+			id: 'codicon/word-wrap'
 		}
 	},
 	group: 'navigation',

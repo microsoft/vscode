@@ -11,7 +11,7 @@ import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/modelService.test';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 
@@ -56,6 +56,7 @@ suite('Debug - Debugger', () => {
 		publisher: 'vscode',
 		extensionLocation: URI.file(extensionFolderPath),
 		isBuiltin: false,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		engines: null!,
 		contributes: {
@@ -73,6 +74,7 @@ suite('Debug - Debugger', () => {
 		publisher: 'vscode',
 		extensionLocation: URI.file('/e1/b/c/'),
 		isBuiltin: false,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		engines: null!,
 		contributes: {
@@ -96,6 +98,7 @@ suite('Debug - Debugger', () => {
 		publisher: 'vscode',
 		extensionLocation: URI.file('/e2/b/c/'),
 		isBuiltin: false,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		engines: null!,
 		contributes: {

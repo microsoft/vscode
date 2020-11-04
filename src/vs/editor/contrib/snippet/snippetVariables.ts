@@ -10,12 +10,13 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { URI } from 'vs/base/common/uri';
+import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -71,7 +72,9 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _selection: Selection,
+		private readonly _selectionIdx: number,
+		private readonly _overtypingCapturer: OvertypingCapturer | undefined
 	) {
 		//
 	}
@@ -82,7 +85,18 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
+			let isMultiline = this._selection.startLineNumber !== this._selection.endLineNumber;
+
+			// If there was no selected text, try to get last overtyped text
+			if (!value && this._overtypingCapturer) {
+				const info = this._overtypingCapturer.getLastOvertypedInfo(this._selectionIdx);
+				if (info) {
+					value = info.value;
+					isMultiline = info.multiline;
+				}
+			}
+
+			if (value && isMultiline && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
@@ -208,14 +222,15 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 }
 export class CommentBasedVariableResolver implements VariableResolver {
 	constructor(
-		private readonly _model: ITextModel
+		private readonly _model: ITextModel,
+		private readonly _selection: Selection
 	) {
 		//
 	}
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
-		const language = this._model.getLanguageIdentifier();
-		const config = LanguageConfigurationRegistry.getComments(language.id);
+		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
+		const config = LanguageConfigurationRegistry.getComments(langId);
 		if (!config) {
 			return undefined;
 		}
@@ -244,15 +259,15 @@ export class TimeBasedVariableResolver implements VariableResolver {
 		} else if (name === 'CURRENT_YEAR_SHORT') {
 			return String(new Date().getFullYear()).slice(-2);
 		} else if (name === 'CURRENT_MONTH') {
-			return pad((new Date().getMonth().valueOf() + 1), 2);
+			return String(new Date().getMonth().valueOf() + 1).padStart(2, '0');
 		} else if (name === 'CURRENT_DATE') {
-			return pad(new Date().getDate().valueOf(), 2);
+			return String(new Date().getDate().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_HOUR') {
-			return pad(new Date().getHours().valueOf(), 2);
+			return String(new Date().getHours().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_MINUTE') {
-			return pad(new Date().getMinutes().valueOf(), 2);
+			return String(new Date().getMinutes().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_SECOND') {
-			return pad(new Date().getSeconds().valueOf(), 2);
+			return String(new Date().getSeconds().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_DAY_NAME') {
 			return TimeBasedVariableResolver.dayNames[new Date().getDay()];
 		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
@@ -300,7 +315,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
-		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+		if (filename.endsWith(WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 		return filename;
@@ -312,7 +327,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
 		let folderpath = workspaceIdentifier.configPath.fsPath;
-		if (endsWith(folderpath, filename)) {
+		if (folderpath.endsWith(filename)) {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
 		}
 		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
