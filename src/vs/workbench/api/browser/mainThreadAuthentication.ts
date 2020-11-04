@@ -98,9 +98,15 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	public manageTrustedExtensions(accountName: string) {
+		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
+
+		if (!allowedExtensions.length) {
+			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."), []);
+			return;
+		}
+
 		const quickPick = this.quickInputService.createQuickPick<{ label: string, description: string, extension: AllowedExtension }>();
 		quickPick.canSelectMany = true;
-		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
 		const usages = readAccountUsages(this.storageService, this.id, accountName);
 		const items = allowedExtensions.map(extension => {
 			const usage = usages.find(usage => extension.id === usage.extensionId);
