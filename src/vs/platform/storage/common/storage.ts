@@ -210,6 +210,12 @@ export interface IStorageValueChangeEvent {
 }
 
 export interface IStorageTargetChangeEvent {
+
+	/**
+	 * The scope for the target that changed. Listeners
+	 * should use `keys(scope, target)` to get an updated
+	 * list of keys for the given `scope` and `target`.
+	 */
 	readonly scope: StorageScope;
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equal } from 'assert';
-import { StorageScope } from 'vs/platform/storage/common/storage';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
@@ -52,9 +52,9 @@ suite('NativeStorageService', function () {
 		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(storageDir), storageDir));
 		await storage.initialize({ id: String(Date.now()) });
 
-		storage.store('bar', 'foo', StorageScope.WORKSPACE);
-		storage.store('barNumber', 55, StorageScope.WORKSPACE);
-		storage.store('barBoolean', true, StorageScope.GLOBAL);
+		storage.store2('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storage.store2('barNumber', 55, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storage.store2('barBoolean', true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 		equal(storage.get('bar', StorageScope.WORKSPACE), 'foo');
 		equal(storage.getNumber('barNumber', StorageScope.WORKSPACE), 55);
