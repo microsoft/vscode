@@ -316,7 +316,10 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	keys(scope: StorageScope, target: StorageTarget): string[] {
 		const keys: string[] = [];
-		for (const [key, keyTarget] of Object.entries(this.getKeyTargets(scope))) {
+
+		const keyTargets = this.getKeyTargets(scope);
+		for (const key of Object.keys(keyTargets)) {
+			const keyTarget = keyTargets[key];
 			if (keyTarget === target) {
 				keys.push(key);
 			}
