@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -532,7 +532,7 @@ interface CachedParsedExpression {
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
-	private hiddenUris = new Set<URI>();
+	private uriVisibilityMap = new Map<URI, boolean>();
 	private editorsAffectingFilter = new Set<IEditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -554,13 +554,15 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
 			const editors = this.editorService.visibleEditors;
 			let shouldFire = false;
-			this.hiddenUris.forEach(u => {
-				editors.forEach(e => {
-					if (e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, u)) {
-						// A filtered resource suddenly became visible since user opened an editor
-						shouldFire = true;
-					}
-				});
+			this.uriVisibilityMap.forEach((visible, uri) => {
+				if (!visible) {
+					editors.forEach(e => {
+						if (e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, uri)) {
+							// A filtered resource suddenly became visible since user opened an editor
+							shouldFire = true;
+						}
+					});
+				}
 			});
 
 			this.editorsAffectingFilter.forEach(e => {
@@ -571,7 +573,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			});
 			if (shouldFire) {
 				this.editorsAffectingFilter.clear();
-				this.hiddenUris.clear();
+				this.uriVisibilityMap.clear();
 				this._onDidChange.fire();
 			}
 		}));
@@ -600,18 +602,19 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		if (shouldFire) {
 			this.editorsAffectingFilter.clear();
-			this.hiddenUris.clear();
+			this.uriVisibilityMap.clear();
 			this._onDidChange.fire();
 		}
 	}
 
-	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
-		const isVisible = this.isVisible(stat, parentVisibility);
-		if (isVisible) {
-			this.hiddenUris.delete(stat.resource);
-		} else {
-			this.hiddenUris.add(stat.resource);
+	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		const cachedVisibility = this.uriVisibilityMap.get(stat.resource);
+		if (typeof cachedVisibility === 'boolean') {
+			return cachedVisibility;
 		}
+
+		const isVisible = this.isVisible(stat, parentVisibility);
+		this.uriVisibilityMap.set(stat.resource, isVisible);
 
 		return isVisible;
 	}
