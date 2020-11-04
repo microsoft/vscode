@@ -183,7 +183,6 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onDidChangeStorageKeys': return this.service.onDidChangeStorageKeys;
 			case 'onDidChangeExtensionStorageKeys': return this.service.onDidChangeExtensionStorageKeys;
 		}
 		throw new Error(`Event not found: ${event}`);
@@ -191,7 +190,7 @@ export class StorageKeysSyncRegistryChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case '_getInitialData': return Promise.resolve<StorageKeysSyncRegistryServiceInitData>({ storageKeys: this.service.storageKeys, extensionsStorageKeys: this.service.extensionsStorageKeys });
+			case '_getInitialData': return Promise.resolve<StorageKeysSyncRegistryServiceInitData>({ storageKeys: [], extensionsStorageKeys: this.service.extensionsStorageKeys });
 			case 'registerStorageKey': return Promise.resolve(this.service.registerStorageKey(args[0]));
 			case 'registerExtensionStorageKeys': return Promise.resolve(this.service.registerExtensionStorageKeys(args[0], args[1]));
 		}
@@ -218,7 +217,6 @@ export class StorageKeysSyncRegistryChannelClient extends AbstractStorageKeysSyn
 		for (const storageKey of storageKeys) {
 			this._storageKeys.set(storageKey.key, storageKey);
 		}
-		this._onDidChangeStorageKeys.fire(this.storageKeys);
 	}
 
 	private async updateExtensionsStorageKeys(extensionStorageKeys: ReadonlyArray<[IExtensionIdentifierWithVersion, ReadonlyArray<string>]>): Promise<void> {

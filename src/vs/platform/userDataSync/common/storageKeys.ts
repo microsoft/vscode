@@ -44,16 +44,6 @@ export interface IStorageKeysSyncRegistryService {
 	_serviceBrand: any;
 
 	/**
-	 * All registered storage keys
-	 */
-	readonly storageKeys: ReadonlyArray<IStorageKey>;
-
-	/**
-	 * Event that is triggered when storage keys are changed
-	 */
-	readonly onDidChangeStorageKeys: Event<ReadonlyArray<IStorageKey>>;
-
-	/**
 	 * Register a storage key that has to be synchronized during sync.
 	 */
 	registerStorageKey(key: IStorageKey): void;
@@ -84,10 +74,6 @@ export abstract class AbstractStorageKeysSyncRegistryService extends Disposable 
 	declare readonly _serviceBrand: undefined;
 
 	protected readonly _storageKeys = new Map<string, IStorageKey>();
-	get storageKeys(): ReadonlyArray<IStorageKey> { return [...this._storageKeys.values()]; }
-
-	protected readonly _onDidChangeStorageKeys: Emitter<ReadonlyArray<IStorageKey>> = this._register(new Emitter<ReadonlyArray<IStorageKey>>());
-	readonly onDidChangeStorageKeys = this._onDidChangeStorageKeys.event;
 
 	protected readonly _extensionsStorageKeys = new Map<string, string[]>();
 	get extensionsStorageKeys() {
@@ -123,7 +109,6 @@ export class StorageKeysSyncRegistryService extends AbstractStorageKeysSyncRegis
 	registerStorageKey(storageKey: IStorageKey): void {
 		if (!this._storageKeys.has(storageKey.key)) {
 			this._storageKeys.set(storageKey.key, storageKey);
-			this._onDidChangeStorageKeys.fire(this.storageKeys);
 		}
 	}
 
