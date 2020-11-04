@@ -746,11 +746,11 @@ export class Repository implements Disposable {
 		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
 		updateIndexGroupVisibility();
 
-		const onConfigListenerForBranchSortOrder = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchSortOrder', root));
-		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
-
-		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.untrackedChanges', root));
-		onConfigListenerForUntracked(this.updateModelState, this, this.disposables);
+		filterEvent(workspace.onDidChangeConfiguration, e =>
+			e.affectsConfiguration('git.branchSortOrder', root)
+			|| e.affectsConfiguration('git.untrackedChanges', root)
+			|| e.affectsConfiguration('git.ignoreSubmodules', root)
+		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -862,6 +862,12 @@ export class Repository implements Disposable {
 	provideOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;
+		}
+
+		const path = uri.path;
+
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
+			return undefined;
 		}
 
 		return toGitUri(uri, '', { replaceFileExtension: true });
@@ -1119,21 +1125,31 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch(options));
+		await this._fetch({ silent: options.silent });
 	}
 
 	@throttle
 	async fetchPrune(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }));
+		await this._fetch({ prune: true });
 	}
 
 	@throttle
 	async fetchAll(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
+		await this._fetch({ all: true });
 	}
 
 	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref, depth }));
+		await this._fetch({ remote, ref, depth });
+	}
+
+	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
+		if (!options.prune) {
+			const config = workspace.getConfiguration('git', Uri.file(this.root));
+			const prune = config.get<boolean>('pruneOnFetch');
+			options.prune = prune;
+		}
+
+		await this.run(Operation.Fetch, async () => this.repository.fetch(options));
 	}
 
 	@throttle
@@ -1518,9 +1534,12 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateModelState(): Promise<void> {
-		const { status, didHitLimit } = await this.repository.getStatus();
-		const config = workspace.getConfiguration('git');
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
+
+		const { status, didHitLimit } = await this.repository.getStatus({ ignoreSubmodules });
+
+		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
 		this.isRepositoryHuge = didHitLimit;

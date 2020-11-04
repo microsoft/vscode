@@ -115,15 +115,15 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
 					this.extensionEnablementService.onDidChangeEnablement,
 					this.storageKeysSyncRegistryService.onDidChangeExtensionStorageKeys,
-					Event.filter(this.storageService.onDidChangeStorage, e => e.scope === StorageScope.GLOBAL
+					Event.filter(this.storageService.onDidChangeValue, e => e.scope === StorageScope.GLOBAL
 						&& this.storageKeysSyncRegistryService.extensionsStorageKeys.some(([extensionIdentifier]) => areSameExtensions(extensionIdentifier, { id: e.key })))),
 				() => undefined, 500)(() => this.triggerLocalChange()));
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionResourcePreview[]> {
 		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await parseAndMigrateExtensions(remoteUserData.syncData, this.extensionManagementService) : null;
-		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
-		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? await parseAndMigrateExtensions(lastSyncUserData.syncData!, this.extensionManagementService) : null;
+		const skippedExtensions: ISyncExtension[] = lastSyncUserData?.skippedExtensions || [];
+		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
 
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const localExtensions = this.getLocalExtensions(installedExtensions);

@@ -13,7 +13,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbe
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -60,7 +60,7 @@ class ConfirmedExtensionIdStorage {
 	}
 
 	set(ids: string[]): void {
-		this.storageService.store(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL);
+		this.storageService.store2(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -293,7 +293,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
+		this.storageService.store2(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		await this.hostService.reload();
 	}
 

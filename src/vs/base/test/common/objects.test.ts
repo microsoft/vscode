@@ -212,4 +212,17 @@ suite('Objects', () => {
 		diff = objects.distinct(base, obj);
 		assert.deepEqual(diff, obj);
 	});
+
+	test('getCaseInsensitive', () => {
+		const obj1 = {
+			lowercase: 123,
+			mIxEdCaSe: 456
+		};
+
+		assert.equal(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lowercase'));
+		assert.equal(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lOwErCaSe'));
+
+		assert.equal(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
+		assert.equal(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
+	});
 });

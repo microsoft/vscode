@@ -379,6 +379,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly logMessage?: string;
 	readonly verified: boolean;
 	readonly supported: boolean;
+	readonly sessionsThatVerified: string[];
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
 

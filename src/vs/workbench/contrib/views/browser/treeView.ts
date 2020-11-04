@@ -399,7 +399,18 @@ export class TreeView extends Disposable implements ITreeView {
 						return element.accessibilityInformation.label;
 					}
 
-					return isString(element.tooltip) ? element.tooltip : element.label ? element.label.label : '';
+					if (isString(element.tooltip)) {
+						return element.tooltip;
+					} else {
+						let buildAriaLabel: string = '';
+						if (element.label) {
+							buildAriaLabel += element.label.label + ' ';
+						}
+						if (element.description) {
+							buildAriaLabel += element.description;
+						}
+						return buildAriaLabel;
+					}
 				},
 				getRole(element: ITreeItem): string | undefined {
 					return element.accessibilityInformation?.role ?? 'treeitem';

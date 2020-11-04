@@ -27,7 +27,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._storageKeysSyncRegistryService = storageKeysSyncRegistryService;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
-		this._storageListener = this._storageService.onDidChangeStorage(e => {
+		this._storageListener = this._storageService.onDidChangeValue(e => {
 			const shared = e.scope === StorageScope.GLOBAL;
 			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
 				try {

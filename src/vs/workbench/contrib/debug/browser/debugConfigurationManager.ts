@@ -14,7 +14,7 @@ import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -536,7 +536,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.selectedLaunch = launch;
 
 		if (this.selectedLaunch) {
-			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
+			this.storageService.store2(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		}
@@ -566,7 +566,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.selectedConfig = config;
 		this.selectedType = type || this.selectedConfig?.type;
-		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE);
+		this.storageService.store2(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
 		if (configForType) {
 			this.debugConfigurationTypeContext.set(configForType.type);
@@ -654,7 +654,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.selectedName = selectedName;
 
 		if (this.selectedName) {
-			this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
+			this.storageService.store2(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
 		}

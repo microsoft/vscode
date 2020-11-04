@@ -27,7 +27,6 @@
 		"editorGroup.dropBackground": "#25375daa",
 		"peekViewResult.background": "#001c40",
 		"tab.inactiveBackground": "#001c40",
-		"tab.modifiedBorder": "#FFEEAD",
 		"tab.lastPinnedBorder": "#007acc80",
 		"debugToolBar.background": "#001c40",
 		"titleBar.activeBackground": "#001126",
@@ -67,7 +66,7 @@
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#002451",
+				//"background": "#002451",
 				"foreground": "#FFFFFF"
 			}
 		},
@@ -144,16 +143,16 @@
 			"name": "Invalid",
 			"scope": "invalid",
 			"settings": {
-				"background": "#F99DA5",
+				//"background": "#F99DA5",
 				"fontStyle": "",
-				"foreground": "#FFFFFF"
+				"foreground": "#a92049"
 			}
 		},
 		{
 			"name": "Separator",
 			"scope": "meta.separator",
 			"settings": {
-				"background": "#BBDAFE",
+				//"background": "#BBDAFE",
 				"foreground": "#FFFFFF"
 			}
 		},
@@ -161,9 +160,9 @@
 			"name": "Deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"background": "#EBBBFF",
+				//"background": "#EBBBFF",
 				"fontStyle": "",
-				"foreground": "#FFFFFF"
+				"foreground": "#cd9731"
 			}
 		},
 		{
@@ -191,8 +190,7 @@
 			"name": "Diff header",
 			"scope": "meta.diff.header.from-file, meta.diff.header.to-file",
 			"settings": {
-				"foreground": "#FFFFFF",
-				"background": "#4271ae"
+				"foreground": "#4271ae"
 			}
 		},
 		{

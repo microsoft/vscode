@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel, OneReference } from '../referencesModel';
@@ -101,7 +101,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._disposables.add(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {
-				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
+				this._storageService.store2(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this._widget = undefined;
 			}
 			this.closeWidget();
@@ -367,7 +367,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
@@ -376,7 +376,7 @@ KeybindingsRegistry.registerKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'revealReference',
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyCode.Enter,

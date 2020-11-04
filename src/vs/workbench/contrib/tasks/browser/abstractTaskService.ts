@@ -19,8 +19,6 @@ import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LRUCache, Touch } from 'vs/base/common/map';
-
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -34,7 +32,7 @@ import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platfor
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -238,7 +236,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IModelService protected readonly modelService: IModelService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -248,7 +245,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IHostService private readonly _hostService: IHostService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IDialogService protected readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -308,7 +305,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
-		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
 		this.configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
@@ -518,7 +514,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private disposeTaskSystemListeners(): void {
+	protected disposeTaskSystemListeners(): void {
 		if (this._taskSystemListener) {
 			this._taskSystemListener.dispose();
 		}
@@ -2127,64 +2123,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, () => { thisCapture.runConfigureTasks(); return Promise.resolve(undefined); });
 			}
 		};
-	}
-
-	public beforeShutdown(): boolean | Promise<boolean> {
-		if (!this._taskSystem) {
-			return false;
-		}
-		if (!this._taskSystem.isActiveSync()) {
-			return false;
-		}
-		// The terminal service kills all terminal on shutdown. So there
-		// is nothing we can do to prevent this here.
-		if (this._taskSystem instanceof TerminalTaskSystem) {
-			return false;
-		}
-
-		let terminatePromise: Promise<IConfirmationResult>;
-		if (this._taskSystem.canAutoTerminate()) {
-			terminatePromise = Promise.resolve({ confirmed: true });
-		} else {
-			terminatePromise = this.dialogService.confirm({
-				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-				type: 'question'
-			});
-		}
-
-		return terminatePromise.then(res => {
-			if (res.confirmed) {
-				return this._taskSystem!.terminateAll().then((responses) => {
-					let success = true;
-					let code: number | undefined = undefined;
-					for (let response of responses) {
-						success = success && response.success;
-						// We only have a code in the old output runner which only has one task
-						// So we can use the first code.
-						if (code === undefined && response.code !== undefined) {
-							code = response.code;
-						}
-					}
-					if (success) {
-						this._taskSystem = undefined;
-						this.disposeTaskSystemListeners();
-						return false; // no veto
-					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-						return this.dialogService.confirm({
-							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
-							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
-							type: 'info'
-						}).then(res => !res.confirmed);
-					}
-					return true; // veto
-				}, (err) => {
-					return true; // veto
-				});
-			}
-
-			return true; // veto
-		});
 	}
 
 	private handleError(err: any): void {

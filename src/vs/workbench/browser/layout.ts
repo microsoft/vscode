@@ -16,7 +16,7 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -357,6 +357,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
+		// Change edge snapping accordingly
+		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
+
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
 			// Propagate to grid
@@ -670,7 +673,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				if (sidebarState.length) {
-					storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, JSON.stringify(sidebarState), StorageScope.GLOBAL);
+					storageService.store2(ActivitybarPart.PINNED_VIEW_CONTAINERS, JSON.stringify(sidebarState), StorageScope.GLOBAL, StorageTarget.USER);
 				}
 			}
 		}
@@ -740,7 +743,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				if (panelState.length) {
-					storageService.store(PanelPart.PINNED_PANELS, JSON.stringify(panelState), StorageScope.GLOBAL);
+					storageService.store2(PanelPart.PINNED_PANELS, JSON.stringify(panelState), StorageScope.GLOBAL, StorageTarget.USER);
 				}
 			}
 		}
@@ -1310,6 +1313,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.container.prepend(workbenchGrid.element);
 		this.container.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
+		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
 
 		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
 			this._register(part.onDidVisibilityChange((visible) => {

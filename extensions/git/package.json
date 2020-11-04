@@ -1840,6 +1840,12 @@
           "default": false,
           "description": "%config.alwaysSignOff%"
         },
+        "git.ignoreSubmodules": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.ignoreSubmodules%"
+        },
         "git.ignoredRepositories": {
           "type": "array",
           "items": {
@@ -1875,6 +1881,12 @@
           "scope": "resource",
           "default": false,
           "description": "%config.fetchOnPull%"
+        },
+        "git.pruneOnFetch": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.pruneOnFetch%"
         },
         "git.pullTags": {
           "type": "boolean",

@@ -15,20 +15,20 @@ import { IListService, WorkbenchList } from 'vs/platform/list/browser/listServic
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
 export const HIDE_NOTIFICATIONS_CENTER = 'notifications.hideList';
-export const TOGGLE_NOTIFICATIONS_CENTER = 'notifications.toggleList';
+const TOGGLE_NOTIFICATIONS_CENTER = 'notifications.toggleList';
 
 // Toasts
-export const HIDE_NOTIFICATION_TOAST = 'notifications.hideToasts';
-export const FOCUS_NOTIFICATION_TOAST = 'notifications.focusToasts';
-export const FOCUS_NEXT_NOTIFICATION_TOAST = 'notifications.focusNextToast';
-export const FOCUS_PREVIOUS_NOTIFICATION_TOAST = 'notifications.focusPreviousToast';
-export const FOCUS_FIRST_NOTIFICATION_TOAST = 'notifications.focusFirstToast';
-export const FOCUS_LAST_NOTIFICATION_TOAST = 'notifications.focusLastToast';
+const HIDE_NOTIFICATION_TOAST = 'notifications.hideToasts';
+const FOCUS_NOTIFICATION_TOAST = 'notifications.focusToasts';
+const FOCUS_NEXT_NOTIFICATION_TOAST = 'notifications.focusNextToast';
+const FOCUS_PREVIOUS_NOTIFICATION_TOAST = 'notifications.focusPreviousToast';
+const FOCUS_FIRST_NOTIFICATION_TOAST = 'notifications.focusFirstToast';
+const FOCUS_LAST_NOTIFICATION_TOAST = 'notifications.focusLastToast';
 
 // Notification
 export const COLLAPSE_NOTIFICATION = 'notification.collapse';
 export const EXPAND_NOTIFICATION = 'notification.expand';
-export const TOGGLE_NOTIFICATION = 'notification.toggle';
+const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTIFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
 
