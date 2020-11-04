@@ -1302,9 +1302,11 @@ export class SettingsEditor2 extends EditorPane {
 				this.tocTreeModel.update();
 			}
 
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
-			this.tocTree.expandAll();
+			if (type === SearchResultIdx.Local) {
+				this.tocTree.setFocus([]);
+				this.viewState.filterToCategory = undefined;
+				this.tocTree.expandAll();
+			}
 
 			this.refreshTOCTree();
 			this.renderTree(undefined, true);
