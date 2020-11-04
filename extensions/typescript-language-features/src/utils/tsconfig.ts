@@ -43,6 +43,14 @@ export function inferredProjectCompilerOptions(
 		projectConfig.experimentalDecorators = true;
 	}
 
+	if (serviceConfig.implicitStrictNullChecks) {
+		projectConfig.strictNullChecks = true;
+	}
+
+	if (serviceConfig.implicitStrictFunctionTypes) {
+		projectConfig.strictFunctionTypes = true;
+	}
+
 	if (projectType === ProjectType.TypeScript) {
 		projectConfig.sourceMap = true;
 	}
