@@ -561,8 +561,7 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
-	// Refer to issue #96545.
-	test('snippets, transform adjacent to previous placeholder', function () {
+	test('Snippet tab stop selection issue #96545, snippets, transform adjacent to previous placeholder', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/{/}/}');
@@ -579,6 +578,17 @@ suite('SnippetSession', function () {
 		assert.equal(model.getValue(), '{ggg}');
 		assert.equal(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 6, 1, 6));
+	});
+
+	test('Snippet tab stop selection issue #96545', function () {
+		editor.getModel().setValue('');
+		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/[\\{]/}/}$0');
+		session.insert();
+		assert.equal(editor.getModel().getValue(), '{fff{');
+
+		assertSelections(editor, new Selection(1, 1, 1, 2), new Selection(1, 5, 1, 6));
+		session.next();
+		assertSelections(editor, new Selection(1, 2, 1, 5));
 	});
 
 	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
