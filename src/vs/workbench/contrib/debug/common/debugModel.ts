@@ -613,6 +613,17 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 		return this.data ? this.data.verified : true;
 	}
 
+	get sessionsThatVerified() {
+		const sessionIds: string[] = [];
+		for (const [sessionId, data] of this.sessionData) {
+			if (data.verified) {
+				sessionIds.push(sessionId);
+			}
+		}
+
+		return sessionIds;
+	}
+
 	abstract get supported(): boolean;
 
 	getIdFromAdapter(sessionId: string): number | undefined {
