@@ -185,13 +185,13 @@ class InsertSnippetAction extends EditorAction {
 					const isEnabled = snippetService.isEnabled(snippet);
 					if (isEnabled) {
 						pick.buttons = [{
-							iconClass: Codicon.eye.classNames,
+							iconClass: Codicon.eyeClosed.classNames,
 							tooltip: nls.localize('disableSnippet', 'Hide from IntelliSense')
 						}];
 					} else {
 						pick.description = nls.localize('isDisabled', "(hidden from IntelliSense)");
 						pick.buttons = [{
-							iconClass: Codicon.eyeClosed.classNames,
+							iconClass: Codicon.eye.classNames,
 							tooltip: nls.localize('enable.snippet', 'Show in IntelliSense')
 						}];
 					}

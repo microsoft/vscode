@@ -29,29 +29,29 @@ suite('StorageService', function () {
 		strictEqual(storage.getBoolean('test.getBoolean', scope, true), true);
 		strictEqual(storage.getBoolean('test.getBoolean', scope, false), false);
 
-		storage.store('test.get', 'foobar', scope);
+		storage.store2('test.get', 'foobar', scope, StorageTarget.MACHINE);
 		strictEqual(storage.get('test.get', scope, (undefined)!), 'foobar');
 		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
 		equal(storageValueChangeEvent?.scope, scope);
 		equal(storageValueChangeEvent?.key, 'test.get');
 		storageValueChangeEvents = [];
 
-		storage.store('test.get', '', scope);
+		storage.store2('test.get', '', scope, StorageTarget.MACHINE);
 		strictEqual(storage.get('test.get', scope, (undefined)!), '');
 		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
 		equal(storageValueChangeEvent!.scope, scope);
 		equal(storageValueChangeEvent!.key, 'test.get');
 
-		storage.store('test.getNumber', 5, scope);
+		storage.store2('test.getNumber', 5, scope, StorageTarget.MACHINE);
 		strictEqual(storage.getNumber('test.getNumber', scope, (undefined)!), 5);
 
-		storage.store('test.getNumber', 0, scope);
+		storage.store2('test.getNumber', 0, scope, StorageTarget.MACHINE);
 		strictEqual(storage.getNumber('test.getNumber', scope, (undefined)!), 0);
 
-		storage.store('test.getBoolean', true, scope);
+		storage.store2('test.getBoolean', true, scope, StorageTarget.MACHINE);
 		strictEqual(storage.getBoolean('test.getBoolean', scope, (undefined)!), true);
 
-		storage.store('test.getBoolean', false, scope);
+		storage.store2('test.getBoolean', false, scope, StorageTarget.MACHINE);
 		strictEqual(storage.getBoolean('test.getBoolean', scope, (undefined)!), false);
 
 		strictEqual(storage.get('test.getDefault', scope, 'getDefault'), 'getDefault');
@@ -73,7 +73,7 @@ suite('StorageService', function () {
 		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
 		storage.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
-		storage.store('test.remove', 'foobar', scope);
+		storage.store2('test.remove', 'foobar', scope, StorageTarget.MACHINE);
 		strictEqual('foobar', storage.get('test.remove', scope, (undefined)!));
 
 		storage.remove('test.remove', scope);

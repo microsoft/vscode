@@ -210,6 +210,12 @@ export interface IStorageValueChangeEvent {
 }
 
 export interface IStorageTargetChangeEvent {
+
+	/**
+	 * The scope for the target that changed. Listeners
+	 * should use `keys(scope, target)` to get an updated
+	 * list of keys for the given `scope` and `target`.
+	 */
 	readonly scope: StorageScope;
 }
 
@@ -310,7 +316,10 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	keys(scope: StorageScope, target: StorageTarget): string[] {
 		const keys: string[] = [];
-		for (const [key, keyTarget] of Object.entries(this.getKeyTargets(scope))) {
+
+		const keyTargets = this.getKeyTargets(scope);
+		for (const key of Object.keys(keyTargets)) {
+			const keyTarget = keyTargets[key];
 			if (keyTarget === target) {
 				keys.push(key);
 			}
