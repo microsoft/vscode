@@ -100,7 +100,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
 import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -1234,9 +1234,17 @@ export class TestEditorPart extends EditorPart {
 }
 
 export class TestListService implements IListService {
+
 	declare readonly _serviceBrand: undefined;
 
 	lastFocusedList: any | undefined = undefined;
+	lastOpenContext: IOpenEvent<unknown> | undefined = undefined;
+
+	setOpenContext(context: IOpenEvent<unknown>): IDisposable {
+		this.lastOpenContext = context;
+
+		return Disposable.None;
+	}
 
 	register(): IDisposable {
 		return Disposable.None;

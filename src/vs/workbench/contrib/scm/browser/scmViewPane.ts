@@ -25,7 +25,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchCompressibleObjectTree, IOpenEvent, IListService } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -1650,6 +1650,7 @@ export class SCMViewPane extends ViewPane {
 		@IStorageService private storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IListService private readonly listService: IListService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
@@ -1878,14 +1879,11 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		// ISCMResource
-		await e.element.open(!!e.editorOptions.preserveFocus);
-
-		if (e.editorOptions.pinned) {
-			const activeEditorPane = this.editorService.activeEditorPane;
-
-			if (activeEditorPane) {
-				activeEditorPane.group.pinEditor(activeEditorPane.input);
-			}
+		const disposable = this.listService.setOpenContext(e);
+		try {
+			await e.element.open(!!e.editorOptions.preserveFocus);
+		} finally {
+			disposable.dispose();
 		}
 
 		const provider = e.element.resourceGroup.provider;

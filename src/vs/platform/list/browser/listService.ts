@@ -40,6 +40,16 @@ export interface IListService {
 	 * Returns the currently focused list widget if any.
 	 */
 	readonly lastFocusedList: WorkbenchListWidget | undefined;
+
+	/**
+	 * Returns the last `IOpenEvent` that occured if known.
+	 */
+	readonly lastOpenContext: IOpenEvent<unknown> | undefined;
+
+	/**
+	 * Remember the last `IOpenEvent` that occured.
+	 */
+	setOpenContext(context: IOpenEvent<unknown>): IDisposable;
 }
 
 interface IRegisteredList {
@@ -56,11 +66,25 @@ export class ListService implements IListService {
 	private _lastFocusedWidget: WorkbenchListWidget | undefined = undefined;
 	private _hasCreatedStyleController: boolean = false;
 
-	get lastFocusedList(): WorkbenchListWidget | undefined {
-		return this._lastFocusedWidget;
-	}
+	get lastFocusedList(): WorkbenchListWidget | undefined { return this._lastFocusedWidget; }
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) {
+	private lastOpenContextCorrelationId = 0;
+
+	private _lastOpenContext: IOpenEvent<unknown> | undefined = undefined;
+	get lastOpenContext(): IOpenEvent<unknown> | undefined { return this._lastOpenContext; }
+
+	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+
+	setOpenContext(context: IOpenEvent<unknown>): IDisposable {
+		this._lastOpenContext = context;
+
+		const currentCorrelationId = this.lastOpenContextCorrelationId++;
+
+		return toDisposable(() => {
+			if (this.lastOpenContextCorrelationId === currentCorrelationId) {
+				this._lastOpenContext = undefined;
+			}
+		});
 	}
 
 	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {

@@ -14,14 +14,14 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, EditorActivation } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, IResourceEditorInput, EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContext, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -30,6 +30,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { revive } from 'vs/base/common/marshalling';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -297,16 +298,32 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', async function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
+function mixinEnforcedEditorOptions(listService: IListService, options: ITextEditorOptions | undefined, group: number | undefined): [ITextEditorOptions | undefined, number | undefined] {
+	const lastOpenContext = listService.lastOpenContext;
+	if (!lastOpenContext) {
+		return [options, group];
+	}
+
+	return [
+		{ ...options, ...{ pinned: lastOpenContext.editorOptions.pinned, preserveFocus: lastOpenContext.editorOptions.preserveFocus } },
+		lastOpenContext.sideBySide ? SIDE_GROUP : group
+	];
+}
+
+CommandsRegistry.registerCommand('_workbench.open', async function (accessor: ServicesAccessor, args: [URI, ITextEditorOptions | undefined, EditorViewColumn | undefined, string | undefined]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
+	const listService = accessor.get(IListService);
 
 	const [resource, options, position, label] = args;
 
 	if (options || typeof position === 'number') {
+		// massage options and group based on enforced editor open options
+		const [enforcedOptions, enforcedGroup] = mixinEnforcedEditorOptions(listService, options, viewColumnToEditorGroup(editorGroupService, position));
+
 		// use editor options or editor view column as a hint to use the editor service for opening
-		await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position));
+		await editorService.openEditor({ resource, options: enforcedOptions, label }, enforcedGroup);
 		return;
 	}
 
@@ -334,20 +351,17 @@ CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAcces
 	return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
 });
 
-
-CommandsRegistry.registerCommand('_workbench.diff', async function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorViewColumn]) {
+CommandsRegistry.registerCommand('_workbench.diff', async function (accessor: ServicesAccessor, args: [URI, URI, string, string, ITextEditorOptions | undefined, EditorViewColumn | undefined]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
+	const listService = accessor.get(IListService);
 
-	let [leftResource, rightResource, label, description, options, position] = args;
+	const [leftResource, rightResource, label, description, options, position] = args;
 
-	if (!options || typeof options !== 'object') {
-		options = {
-			preserveFocus: false
-		};
-	}
+	// massage options and group based on enforced editor open options
+	const [enforcedOptions, enforcedGroup] = mixinEnforcedEditorOptions(listService, options, viewColumnToEditorGroup(editorGroupService, position));
 
-	await editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position));
+	await editorService.openEditor({ leftResource, rightResource, label, description, options: enforcedOptions }, enforcedGroup);
 });
 
 CommandsRegistry.registerCommand('_workbench.revertAllDirty', async function (accessor: ServicesAccessor) {
