@@ -30,7 +30,7 @@ export interface IStorageService {
 	/**
 	 * Emitted whenever data is updated or deleted.
 	 */
-	readonly onDidChangeStorage: Event<IStorageChangeEvent>;
+	readonly onDidChangeValue: Event<IStorageValueChangeEvent>;
 
 	/**
 	 * Emitted whenever target of a storage entry changes.
@@ -180,7 +180,7 @@ export const enum StorageTarget {
 	MACHINE
 }
 
-export interface IStorageChangeEvent {
+export interface IStorageValueChangeEvent {
 
 	/**
 	 * The scope for the storage entry that changed
@@ -213,8 +213,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage = this._register(new PauseableEmitter<IStorageChangeEvent>());
-	readonly onDidChangeStorage = this._onDidChangeStorage.event;
+	private readonly _onDidChangeValue = this._register(new PauseableEmitter<IStorageValueChangeEvent>());
+	readonly onDidChangeValue = this._onDidChangeValue.event;
 
 	private readonly _onDidChangeTarget = this._register(new PauseableEmitter<IStorageTargetChangeEvent>());
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
@@ -222,7 +222,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState = this._onWillSaveState.event;
 
-	protected emitDidChangeStorage(scope: StorageScope, key: string): void {
+	protected emitDidChangeValue(scope: StorageScope, key: string): void {
 
 		// Specially handle `TARGET_KEY`
 		if (key === TARGET_KEY) {
@@ -240,7 +240,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 		// Emit any other key to outside
 		else {
-			this._onDidChangeStorage.fire({ scope, key, target: this.getKeyTargets(scope)[key] });
+			this._onDidChangeValue.fire({ scope, key, target: this.getKeyTargets(scope)[key] });
 		}
 	}
 
@@ -287,7 +287,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	private withPausedEmitters(fn: Function): void {
 
 		// Pause emitters
-		this._onDidChangeStorage.pause();
+		this._onDidChangeValue.pause();
 		this._onDidChangeTarget.pause();
 
 		try {
@@ -295,7 +295,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		} finally {
 
 			// Resume emitters
-			this._onDidChangeStorage.resume();
+			this._onDidChangeValue.resume();
 			this._onDidChangeTarget.resume();
 		}
 	}
@@ -458,7 +458,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 		this.getCache(scope).set(key, valueStr);
 
 		// Events
-		this.emitDidChangeStorage(scope, key);
+		this.emitDidChangeValue(scope, key);
 	}
 
 	protected doRemove(key: string, scope: StorageScope): void {
@@ -468,7 +468,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 		}
 
 		// Events
-		this.emitDidChangeStorage(scope, key);
+		this.emitDidChangeValue(scope, key);
 	}
 
 	logStorage(): void {

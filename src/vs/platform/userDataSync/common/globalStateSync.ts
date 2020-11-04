@@ -73,7 +73,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				/* Locale change */
 				Event.filter(fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
 				/* Global storage with user target has changed */
-				Event.filter(storageService.onDidChangeStorage, e => e.scope === StorageScope.GLOBAL && e.target !== undefined ? e.target === StorageTarget.USER : storageService.keys(StorageScope.GLOBAL, StorageTarget.USER).includes(e.key)),
+				Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.GLOBAL && e.target !== undefined ? e.target === StorageTarget.USER : storageService.keys(StorageScope.GLOBAL, StorageTarget.USER).includes(e.key)),
 				/* Storage key target has changed */
 				this.storageService.onDidChangeTarget
 			)((() => this.triggerLocalChange()))
