@@ -615,8 +615,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private recentlyClosedEditors: IRecentlyClosedEditor[] = [];
+	private ignoreEditorCloseEvent = false;
 
 	private onEditorClosed(event: IEditorCloseEvent): void {
+		if (this.ignoreEditorCloseEvent) {
+			return; // blocked
+		}
+
 		const { editor, replaced } = event;
 		if (replaced) {
 			return; // ignore if editor was replaced
@@ -695,7 +700,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const restoredEditor = this.editorInputFactory.getEditorInputFactory(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
 		let editorPane: IEditorPane | undefined = undefined;
 		if (restoredEditor && !this.editorGroupService.activeGroup.isOpened(restoredEditor)) {
-			editorPane = await this.editorService.openEditor(restoredEditor, options);
+			// Fix for https://github.com/microsoft/vscode/issues/107850
+			// If opening an editor fails, it is possible that we get
+			// another editor-close event as a result. But we really do
+			// want to ignore that in our list of recently closed editors
+			//  to prevent endless loops.
+			this.ignoreEditorCloseEvent = true;
+			try {
+				editorPane = await this.editorService.openEditor(restoredEditor, options);
+			} finally {
+				this.ignoreEditorCloseEvent = false;
+			}
 		}
 
 		// If no editor was opened, try with the next one
@@ -705,6 +720,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// but make sure to remove this one from the list to prevent
 			// endless loops.
 			remove(this.recentlyClosedEditors, lastClosedEditor);
+
+			// Try with next one
 			this.reopenLastClosedEditor();
 		}
 	}

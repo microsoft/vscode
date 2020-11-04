@@ -117,17 +117,17 @@ export abstract class ReferencesController implements IEditorContribution {
 					if (event.source !== 'editor' || !this._configurationService.getValue('editor.stablePeek')) {
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
-						this.openReference(element, false);
+						this.openReference(element, false, false);
 					}
 					break;
 				case 'side':
-					this.openReference(element, true);
+					this.openReference(element, true, false);
 					break;
 				case 'goto':
 					if (peekMode) {
 						this._gotoReference(element);
 					} else {
-						this.openReference(element, false);
+						this.openReference(element, false, true);
 					}
 					break;
 			}
@@ -285,7 +285,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		});
 	}
 
-	openReference(ref: Location, sideBySide: boolean): void {
+	openReference(ref: Location, sideBySide: boolean, pinned: boolean): void {
 		// clear stage
 		if (!sideBySide) {
 			this.closeWidget();
@@ -294,7 +294,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		const { uri, range } = ref;
 		this._editorService.openCodeEditor({
 			resource: uri,
-			options: { selection: range }
+			options: { selection: range, pinned }
 		}, this._editor, sideBySide);
 	}
 }
@@ -367,7 +367,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
@@ -376,7 +376,7 @@ KeybindingsRegistry.registerKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'revealReference',
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyCode.Enter,
@@ -404,7 +404,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const listService = accessor.get(IListService);
 		const focus = <any[]>listService.lastFocusedList?.getFocus();
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-			withController(accessor, controller => controller.openReference(focus[0], true));
+			withController(accessor, controller => controller.openReference(focus[0], true, true));
 		}
 	}
 });
@@ -413,6 +413,6 @@ CommandsRegistry.registerCommand('openReference', (accessor) => {
 	const listService = accessor.get(IListService);
 	const focus = <any[]>listService.lastFocusedList?.getFocus();
 	if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-		withController(accessor, controller => controller.openReference(focus[0], false));
+		withController(accessor, controller => controller.openReference(focus[0], false, true));
 	}
 });

@@ -225,7 +225,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 
 	renderTemplate(container: HTMLElement): IMatchTemplate {
-		DOM.addClass(container, 'linematch');
+		container.classList.add('linematch');
 
 		const parent = DOM.append(container, DOM.$('a.plain.match'));
 		const before = DOM.append(parent, DOM.$('span'));
@@ -254,7 +254,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
-		DOM.toggleClass(templateData.match, 'replace', replace);
+		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
@@ -264,7 +264,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
 		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
-		DOM.toggleClass(templateData.lineNumber, 'show', (numLines > 0) || showLineNumbers);
+		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
 		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));

@@ -18,6 +18,7 @@ import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnectio
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
 const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
+export const TUNNEL_VIEW_ID = '~remote.forwardedPorts';
 
 export enum TunnelType {
 	Candidate = 'Candidate',
@@ -74,6 +75,7 @@ export function mapHasTunnelLocalhostOrAllInterfaces(map: Map<string, Tunnel>, h
 		if (otherHost) {
 			return mapHasTunnel(map, otherHost, port);
 		}
+		return false;
 	}
 	return true;
 }
@@ -81,8 +83,8 @@ export function mapHasTunnelLocalhostOrAllInterfaces(map: Map<string, Tunnel>, h
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<string, Tunnel>;
 	readonly detected: Map<string, Tunnel>;
-	private _onForwardPort: Emitter<Tunnel> = new Emitter();
-	public onForwardPort: Event<Tunnel> = this._onForwardPort.event;
+	private _onForwardPort: Emitter<Tunnel | void> = new Emitter();
+	public onForwardPort: Event<Tunnel | void> = this._onForwardPort.event;
 	private _onClosePort: Emitter<{ host: string, port: number }> = new Emitter();
 	public onClosePort: Event<{ host: string, port: number }> = this._onClosePort.event;
 	private _onPortName: Emitter<{ host: string, port: number }> = new Emitter();
@@ -160,7 +162,7 @@ export class TunnelModel extends Disposable {
 	async forward(remote: { host: string, port: number }, local?: number, name?: string): Promise<RemoteTunnel | void> {
 		const key = MakeAddress(remote.host, remote.port);
 		if (!this.forwarded.has(key)) {
-			const authority = this.environmentService.configuration.remoteAuthority;
+			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
@@ -212,6 +214,7 @@ export class TunnelModel extends Disposable {
 				closeable: false
 			});
 		});
+		this._onForwardPort.fire();
 	}
 
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void {

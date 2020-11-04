@@ -371,6 +371,10 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	/**
+	 * Smart select opptions;
+	 */
+	smartSelect?: ISmartSelectOptions;
+	/**
 	 *
 	 */
 	gotoLocation?: IGotoLocationOptions;
@@ -3023,9 +3027,13 @@ export interface ISuggestOptions {
 	 */
 	showIcons?: boolean;
 	/**
-	 * Max suggestions to show in suggestions. Defaults to 12.
+	 * Enable or disable the suggest status bar.
 	 */
-	maxVisibleSuggestions?: number;
+	showStatusBar?: boolean;
+	/**
+	 * Show details inline with the label. Defaults to true.
+	 */
+	showStatusDetailsInline?: boolean;
 	/**
 	 * Show method-suggestions.
 	 */
@@ -3134,15 +3142,6 @@ export interface ISuggestOptions {
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
-	/**
-	 * Status bar related settings.
-	 */
-	statusBar?: {
-		/**
-		 * Controls the visibility of the status bar at the bottom of the suggest widget.
-		 */
-		visible?: boolean;
-	};
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -3157,7 +3156,8 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
-			maxVisibleSuggestions: 12,
+			showStatusBar: false,
+			showStatusDetailsInline: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3185,9 +3185,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showSnippets: true,
 			showUsers: true,
 			showIssues: true,
-			statusBar: {
-				visible: false
-			}
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -3227,12 +3224,20 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showIcons,
 					description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
 				},
+				'editor.suggest.showStatusBar': {
+					type: 'boolean',
+					default: defaults.showStatusBar,
+					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+				},
+
+				'editor.suggest.showStatusDetailsInline': {
+					type: 'boolean',
+					default: defaults.showStatusDetailsInline,
+					description: nls.localize('suggest.showStatusDetailsInline', "Controls whether sugget details show inline with the label or only in the details widget")
+				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
-					default: defaults.maxVisibleSuggestions,
-					minimum: 1,
-					maximum: 15,
-					description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
+					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -3377,11 +3382,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
-				},
-				'editor.suggest.statusBar.visible': {
-					type: 'boolean',
-					default: false,
-					markdownDescription: nls.localize('editor.suggest.statusBar.visible', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				}
 			}
 		);
@@ -3399,7 +3399,8 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
-			maxVisibleSuggestions: EditorIntOption.clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
+			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showStatusDetailsInline: EditorBooleanOption.boolean(input.showStatusDetailsInline, this.defaultValue.showStatusDetailsInline),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -3427,9 +3428,44 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
 			showUsers: EditorBooleanOption.boolean(input.showUsers, this.defaultValue.showUsers),
 			showIssues: EditorBooleanOption.boolean(input.showIssues, this.defaultValue.showIssues),
-			statusBar: {
-				visible: EditorBooleanOption.boolean(input.statusBar?.visible, !!this.defaultValue.statusBar.visible)
+		};
+	}
+}
+
+//#endregion
+
+//#region smart select
+
+export interface ISmartSelectOptions {
+	selectLeadingAndTrailingWhitespace?: boolean
+}
+
+export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
+
+class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelectOptions> {
+
+	constructor() {
+		super(
+			EditorOption.smartSelect, 'smartSelect',
+			{
+				selectLeadingAndTrailingWhitespace: true
+			},
+			{
+				'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
+					description: nls.localize('selectLeadingAndTrailingWhitespace', "Whether leading and trailing whitespace should always be selected."),
+					default: true,
+					type: 'boolean'
+				}
 			}
+		);
+	}
+
+	public validate(input: any): Readonly<Required<ISmartSelectOptions>> {
+		if (!input || typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			selectLeadingAndTrailingWhitespace: EditorBooleanOption.boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
 		};
 	}
 }
@@ -3652,6 +3688,7 @@ export const enum EditorOption {
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
+	smartSelect,
 	smoothScrolling,
 	stopRenderingLineAfter,
 	suggest,
@@ -4171,6 +4208,7 @@ export const EditorOptions = {
 			description: nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		}
 	)),
+	smartSelect: register(new SmartSelect()),
 	smoothScrolling: register(new EditorBooleanOption(
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
@@ -4230,9 +4268,9 @@ export const EditorOptions = {
 		['auto', 'off', 'prompt'] as const,
 		{
 			enumDescriptions: [
+				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
 				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),
 				nls.localize('unusualLineTerminators.prompt', "Unusual line terminators prompt to be removed."),
-				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
 			],
 			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}

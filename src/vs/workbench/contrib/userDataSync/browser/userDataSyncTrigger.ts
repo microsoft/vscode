@@ -21,7 +21,7 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IViewsService viewsService: IViewsService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@IHostService hostService: IHostService,
@@ -58,10 +58,10 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 			return 'keybindingsEditor';
 		}
 		const resource = editorInput.resource;
-		if (isEqual(resource, this.workbenchEnvironmentService.settingsResource)) {
+		if (isEqual(resource, this.environmentService.settingsResource)) {
 			return 'settingsEditor';
 		}
-		if (isEqual(resource, this.workbenchEnvironmentService.keybindingsResource)) {
+		if (isEqual(resource, this.environmentService.keybindingsResource)) {
 			return 'keybindingsEditor';
 		}
 		return undefined;

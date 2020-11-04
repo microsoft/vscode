@@ -926,10 +926,7 @@ suite('vscode API - workspace', () => {
 			assert.ok(await vscode.workspace.applyEdit(we));
 
 			const document = await vscode.workspace.openTextDocument(newUri);
-			// See https://github.com/microsoft/vscode/issues/107739
-			// RenameOperation currently saves the file before applying the rename
-			// so that is why the document is not dirty here
-			assert.equal(document.isDirty, false);
+			assert.equal(document.isDirty, true);
 
 			await document.save();
 			assert.equal(document.isDirty, false);
@@ -976,5 +973,45 @@ suite('vscode API - workspace', () => {
 		const expected = 'import1;import2;';
 		// const expected2 = 'import2;import1;';
 		assert.equal(document.getText(), expected);
+	});
+
+	test('issue #107739 - Redo of rename Java Class name has no effect', async () => {
+		const file = await createRandomFile('hello');
+		const fileName = basename(file.fsPath);
+		const newFile = vscode.Uri.parse(file.toString().replace(fileName, `${fileName}2`));
+
+		// apply edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.insert(file, new vscode.Position(0, 5), '2');
+			we.renameFile(file, newFile);
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// show the new document
+		{
+			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
+		}
+
+		// undo and show the old document
+		{
+			await vscode.commands.executeCommand('undo');
+			const document = await vscode.workspace.openTextDocument(file);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello');
+		}
+
+		// redo and show the new document
+		{
+			await vscode.commands.executeCommand('redo');
+			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
+		}
+
 	});
 });

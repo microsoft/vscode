@@ -351,6 +351,38 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.localEchoLatencyThreshold': {
+			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
+			type: 'integer',
+			minimum: -1,
+			default: 30,
+		},
+		'terminal.integrated.localEchoStyle': {
+			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
+			default: 'dim',
+			oneOf: [
+				{
+					type: 'string',
+					default: 'dim',
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
+				},
+				{
+					type: 'string',
+					format: 'color-hex',
+					default: '#ff0000',
+				}
+			]
+		},
+		'terminal.integrated.serverSpawn': {
+			description: localize('terminal.integrated.serverSpawn', "Experimental: spawn remote terminals from the remote agent process instead of the remote extension host"),
+			type: 'boolean',
+			default: true
+		},
+		'terminal.integrated.enablePersistentSessions': {
+			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
+			type: 'boolean',
+			default: true
 		}
 	}
 };

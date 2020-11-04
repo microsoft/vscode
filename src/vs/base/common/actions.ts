@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -234,15 +235,20 @@ export class Separator extends Action {
 	}
 }
 
-export type SubmenuActions = IAction[] | (() => IAction[]);
-
 export class SubmenuAction extends Action {
 
 	get actions(): IAction[] {
-		return Array.isArray(this._actions) ? this._actions : this._actions();
+		return this._actions;
 	}
 
-	constructor(id: string, label: string, private _actions: SubmenuActions, cssClass?: string) {
+	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
 		super(id, label, cssClass, true);
+	}
+}
+
+export class EmptySubmenuAction extends Action {
+	static readonly ID = 'vs.actions.empty';
+	constructor() {
+		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
 	}
 }

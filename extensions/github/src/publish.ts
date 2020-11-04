@@ -32,6 +32,9 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 
 	if (repository) {
 		folder = repository.rootUri;
+	} else if (gitAPI.repositories.length === 1) {
+		repository = gitAPI.repositories[0];
+		folder = repository.rootUri;
 	} else if (vscode.workspace.workspaceFolders.length === 1) {
 		folder = vscode.workspace.workspaceFolders[0].uri;
 	} else {

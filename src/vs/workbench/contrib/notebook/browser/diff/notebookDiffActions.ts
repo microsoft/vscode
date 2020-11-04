@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -107,5 +108,38 @@ registerAction2(class extends Action2 {
 		}
 
 		modified.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.cell.revertInput',
+				title: localize('notebook.diff.cell.revertInput', "Revert Input"),
+				icon: { id: 'codicon/discard' },
+				f1: false,
+				menu: {
+					id: MenuId.NotebookDiffCellInputTitle
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModel }) {
+		if (!context) {
+			return;
+		}
+
+		const original = context.cell.original;
+		const modified = context.cell.modified;
+
+		if (!original || !modified) {
+			return;
+		}
+
+		const bulkEditService = accessor.get(IBulkEditService);
+		return bulkEditService.apply([
+			new ResourceTextEdit(modified.uri, { range: modified.getFullModelRange(), text: original.getValue() }),
+		], { quotableLabel: 'Split Notebook Cell' });
 	}
 });

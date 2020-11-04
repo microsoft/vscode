@@ -89,7 +89,7 @@ export class TOCTreeModel {
 			}
 
 			// Check everything that the SettingsFilter checks except whether it's filtered by a category
-			const isRemote = !!this.environmentService.configuration.remoteAuthority;
+			const isRemote = !!this.environmentService.remoteAuthority;
 			return child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAllTags(this._viewState.tagFilters) && child.matchesAnyExtension(this._viewState.extensionFilters);
 		}).length;
 	}
@@ -217,7 +217,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			hideTwistiesOfChildlessElements: true
 		};
 
 		super(

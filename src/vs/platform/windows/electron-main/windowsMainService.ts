@@ -10,7 +10,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
@@ -177,7 +177,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -395,7 +395,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const emptyToRestore: IEmptyWindowBackupInfo[] = []; // empty windows with backupPath
 
 		let emptyToOpen: number = 0;
-		let fileInputs: IFileInputs | undefined; 		// collect all file inputs
+		let fileInputs: IFileInputs | undefined; // collect all file inputs
 		for (const path of pathsToOpen) {
 			if (isFolderPathToOpen(path)) {
 				if (openConfig.addMode) {
@@ -453,7 +453,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
-			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -504,6 +504,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri });
 				}
 			}
+
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
@@ -767,7 +768,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.focus(); // make sure window has focus
 
 		const request: IAddFoldersRequest = { foldersToAdd };
-
 		window.sendWhenReady('vscode:addFolders', request);
 
 		return window;
@@ -1098,7 +1098,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return undefined;
 		}
 
-		let lineNumber, columnNumber: number | undefined;
+		let lineNumber: number | undefined;
+		let columnNumber: number | undefined;
 
 		if (options.gotoLineMode) {
 			const parsedPath = parseLineAndColumnAware(anyPath);
@@ -1110,7 +1111,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// open remote if either specified in the cli even if it is a local file.
 		const remoteAuthority = options.remoteAuthority;
-
 		if (remoteAuthority) {
 			const first = anyPath.charCodeAt(0);
 
@@ -1119,7 +1119,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				if (isWindowsDriveLetter(first) && anyPath.charCodeAt(anyPath.charCodeAt(1)) === CharCode.Colon) {
 					anyPath = toSlashes(anyPath);
 				}
-				anyPath = '/' + anyPath;
+
+				anyPath = `/${anyPath}`;
 			}
 
 			const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: anyPath });
@@ -1134,13 +1135,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					return { fileUri: uri, remoteAuthority };
 				}
 			}
+
 			return { folderUri: uri, remoteAuthority };
 		}
 
 		let candidate = normalize(anyPath);
 
 		try {
-
 			const candidateStat = fs.statSync(candidate);
 			if (candidateStat.isFile()) {
 
@@ -1247,6 +1248,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			return [existingWindow];
 		}
+
 		let folderUris = openConfig.cli['folder-uri'] || [];
 		let fileUris = openConfig.cli['file-uri'] || [];
 		let cliArgs = openConfig.cli._;
@@ -1297,23 +1299,26 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, uri)) {
 				return false;
 			}
+
 			return uri.authority === authority;
 		});
 
-		folderUris = folderUris.filter(uri => {
-			const u = this.argToUri(uri);
-			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, u)) {
+		folderUris = folderUris.filter(folderUriStr => {
+			const folderUri = this.argToUri(folderUriStr);
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, folderUri)) {
 				return false;
 			}
-			return u ? u.authority === authority : false;
+
+			return folderUri ? folderUri.authority === authority : false;
 		});
 
-		fileUris = fileUris.filter(uri => {
-			const u = this.argToUri(uri);
-			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, u)) {
+		fileUris = fileUris.filter(fileUriStr => {
+			const fileUri = this.argToUri(fileUriStr);
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, fileUri)) {
 				return false;
 			}
-			return u ? u.authority === authority : false;
+
+			return fileUri ? fileUri.authority === authority : false;
 		});
 
 		openConfig.cli._ = cliArgs;
@@ -1623,6 +1628,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return state;
 	}
 
+	private onWindowClosed(win: ICodeWindow): void {
+
+		// Remove from our list so that Electron can clean it up
+		const index = WindowsMainService.WINDOWS.indexOf(win);
+		WindowsMainService.WINDOWS.splice(index, 1);
+
+		// Emit
+		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
+	}
+
+	getFocusedWindow(): ICodeWindow | undefined {
+		const win = BrowserWindow.getFocusedWindow();
+		if (win) {
+			return this.getWindowById(win.id);
+		}
+
+		return undefined;
+	}
+
 	getLastActiveWindow(): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsMainService.WINDOWS);
 	}
@@ -1649,15 +1673,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 	}
 
-	private getFocusedWindow(): ICodeWindow | undefined {
-		const win = BrowserWindow.getFocusedWindow();
-		if (win) {
-			return this.getWindowById(win.id);
-		}
-
-		return undefined;
-	}
-
 	getWindowById(windowId: number): ICodeWindow | undefined {
 		const res = WindowsMainService.WINDOWS.filter(window => window.id === windowId);
 
@@ -1670,15 +1685,5 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	getWindowCount(): number {
 		return WindowsMainService.WINDOWS.length;
-	}
-
-	private onWindowClosed(win: ICodeWindow): void {
-
-		// Remove from our list so that Electron can clean it up
-		const index = WindowsMainService.WINDOWS.indexOf(win);
-		WindowsMainService.WINDOWS.splice(index, 1);
-
-		// Emit
-		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
 	}
 }

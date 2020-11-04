@@ -19,7 +19,7 @@ import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : undefined;
@@ -47,10 +47,11 @@ export class ExplorerService implements IExplorerService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IEditorService private editorService: IEditorService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 
-		this.model = new ExplorerModel(this.contextService, this.fileService);
+		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService);
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 		this.disposables.add(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
@@ -170,7 +171,7 @@ export class ExplorerService implements IExplorerService {
 		}
 		const rootUri = workspaceFolder.uri;
 
-		const root = this.roots.find(r => r.resource.toString() === rootUri.toString())!;
+		const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, rootUri))!;
 
 		try {
 			const stat = await this.fileService.resolve(rootUri, options);
@@ -194,7 +195,7 @@ export class ExplorerService implements IExplorerService {
 		this.model.roots.forEach(r => r.forgetChildren());
 		if (this.view) {
 			await this.view.refresh(true);
-			const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			const resource = this.editorService.activeEditor?.resource;
 			const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
 			if (reveal && resource && autoReveal) {
@@ -245,7 +246,7 @@ export class ExplorerService implements IExplorerService {
 			const newParentResource = dirname(newElement.resource);
 
 			// Handle Rename
-			if (oldParentResource.toString() === newParentResource.toString()) {
+			if (this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource)) {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(async modelElement => {
 					// Rename File (Model)

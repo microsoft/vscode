@@ -18,9 +18,9 @@ This repository includes configuration for a development container for working w
 
     > Note that the Remote - Containers extension requires the Visual Studio Code distribution of Code - OSS. See the [FAQ](https://aka.ms/vscode-remote/faq/license) for details.
 
-4. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and select **Remote - Containers: Open Repository in Container...**.
+4. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and select **Remote-Containers: Clone Repository in Container Volume...**.
 
-    > **Tip:** While you can use your local source tree instead, operations like `yarn install` can be slow on macOS or using the Hyper-V engine on Windows. We recommend the "open repository" approach instead since it uses "named volume" rather than the local filesystem.
+    > **Tip:** While you can use your local source tree instead, operations like `yarn install` can be slow on macOS or using the Hyper-V engine on Windows. We recommend the "clone repository in container" approach instead since it uses "named volume" rather than the local filesystem.
 
 5. Type `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box and press <kbd>Enter</kbd>.
 
@@ -32,7 +32,7 @@ Next: **[Try it out!](#try-it)**
 
 ## Quick start - GitHub Codespaces
 
-> **IMPORTANT:** The current user beta for GitHub Codespaces uses a "Basic" sized codespace which is too small to run a full build of VS Code. You'll soon be able to use a "Standard" sized codespace (4-core, 8GB) that will be better suited for this purpose.
+> **IMPORTANT:** The current free user beta for GitHub Codespaces uses a "Basic" sized codespace which does not have enough RAM to run a full build of VS Code and will be considerably slower during codespace start and running VS Code. You'll soon be able to use a "Standard" sized codespace (4-core, 8GB) that will be better suited for this purpose (along with even larger sizes should you need it).
 
 1. From the [microsoft/vscode GitHub repository](https://github.com/microsoft/vscode), click on the **Code** dropdown, select **Open with Codespaces**, and the **New codespace**
 
@@ -81,7 +81,9 @@ To start working with Code - OSS, follow these steps:
     bash scripts/code.sh
     ```
 
-2. After the build is complete, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.
+    Note that a previous run of `yarn install`  will already be cached, so this step should simply pick up any recent differences.
+
+2. After the build is complete, open a web browser or a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to the desktop environnement as described in the quick start and enter `vscode` as the password.
 
 3. You should now see Code - OSS!
 

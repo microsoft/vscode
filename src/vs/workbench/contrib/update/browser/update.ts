@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as semver from 'vs/base/common/semver/semver';
 import severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -27,7 +28,6 @@ import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
@@ -159,7 +159,6 @@ export class ProductContribution implements IWorkbenchContribution {
 			}
 
 			// should we show the new license?
-			const semver = await import('semver-umd');
 			if (productService.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(productService.version, '>=1.0.0')) {
 				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
 			}
@@ -185,14 +184,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this.state = updateService.state;
 		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
-
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'neverShowAgain:update/win32-fast-updates', version: 1 });
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -224,7 +219,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			case StateType.Idle:
 				if (state.error) {
 					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.environmentService.configuration.sessionId) {
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context === this.environmentService.sessionId) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -409,7 +404,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.environmentService.configuration.sessionId));
+		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(this.environmentService.sessionId));
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '6_update',
 			command: {
@@ -536,14 +531,14 @@ export class CheckForVSCodeUpdateAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
-		return this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId);
+		return this.updateService.checkForUpdates(this.environmentService.sessionId);
 	}
 }
 

@@ -34,9 +34,8 @@ import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatch
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection);
@@ -164,7 +163,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
-		storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -176,7 +174,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._storageService = storageService;
 		this._notificationService = notificationService;
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: ctrlEnterReplaceAllWarningPromptedKey, version: 1 });
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
 
 		this._isVisible = false;
@@ -352,6 +349,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 		if (e.matchCase) {
 			this._findInput.setCaseSensitive(this._state.matchCase);
+		}
+		if (e.preserveCase) {
+			this._replaceInput.setPreserveCase(this._state.preserveCase);
 		}
 		if (e.searchScope) {
 			if (this._state.searchScope) {
@@ -877,7 +877,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				);
 
 				this._ctrlEnterReplaceAllWarningPrompted = true;
-				this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL);
+				this._storageService.store2(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 			}
 
@@ -1087,6 +1087,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
+			appendPreserveCaseLabel: this._keybindingLabelFor(FIND_IDS.TogglePreserveCaseCommand),
 			history: [],
 			flexibleHeight,
 			flexibleWidth,

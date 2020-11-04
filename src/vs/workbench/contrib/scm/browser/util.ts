@@ -10,7 +10,6 @@ import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/ba
 import { Action, IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { renderCodicons } from 'vs/base/browser/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,7 +19,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { reset } from 'vs/base/browser/dom';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
-	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
+	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
 
 export function isSCMInput(element: any): element is ISCMInput {
@@ -75,10 +74,10 @@ export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: Acti
 	}, g => /^inline/.test(g));
 }
 
-export function collectContextMenuActions(menu: IMenu, contextMenuService: IContextMenuService): [IAction[], IDisposable] {
+export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable] {
 	const primary: IAction[] = [];
 	const actions: IAction[] = [];
-	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, contextMenuService, g => /^inline/.test(g));
+	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, g => /^inline/.test(g));
 	return [actions, disposable];
 }
 

@@ -795,74 +795,128 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetFocusedViewLocat
 
 // --- Resize View
 
-export abstract class BaseResizeViewAction extends Action {
+export abstract class BaseResizeViewAction extends Action2 {
 
 	protected static readonly RESIZE_INCREMENT = 6.5; // This is a media-size percentage
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-	}
-
-	protected resizePart(sizeChange: number): void {
-		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
-		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
-		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
+	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
 
 		let part: Parts | undefined;
-		if (isSidebarFocus) {
-			part = Parts.SIDEBAR_PART;
-		} else if (isPanelFocus) {
-			part = Parts.PANEL_PART;
-		} else if (isEditorFocus) {
-			part = Parts.EDITOR_PART;
+		if (partToResize === undefined) {
+			const isEditorFocus = layoutService.hasFocus(Parts.EDITOR_PART);
+			const isSidebarFocus = layoutService.hasFocus(Parts.SIDEBAR_PART);
+			const isPanelFocus = layoutService.hasFocus(Parts.PANEL_PART);
+
+			if (isSidebarFocus) {
+				part = Parts.SIDEBAR_PART;
+			} else if (isPanelFocus) {
+				part = Parts.PANEL_PART;
+			} else if (isEditorFocus) {
+				part = Parts.EDITOR_PART;
+			}
+		} else {
+			part = partToResize;
 		}
 
 		if (part) {
-			this.layoutService.resizePart(part, sizeChange);
+			layoutService.resizePart(part, widthChange, heightChange);
 		}
 	}
 }
 
 export class IncreaseViewSizeAction extends BaseResizeViewAction {
 
-	static readonly ID = 'workbench.action.increaseViewSize';
-	static readonly LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label, layoutService);
+	constructor() {
+		super({
+			id: 'workbench.action.increaseViewSize',
+			title: { value: nls.localize('increaseViewSize', "Increase Current View Size"), original: 'Increase Current View Size' },
+			f1: true
+		});
 	}
 
-	async run(): Promise<void> {
-		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService));
+	}
+}
+
+export class IncreaseViewWidthAction extends BaseResizeViewAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.increaseViewWidth',
+			title: { value: nls.localize('increaseEditorWidth', "Increase Editor Width"), original: 'Increase Editor Width' },
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+	}
+}
+
+export class IncreaseViewHeightAction extends BaseResizeViewAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.increaseViewHeight',
+			title: { value: nls.localize('increaseEditorHeight', "Increase Editor Height"), original: 'Increase Editor Height' },
+			f1: true
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		this.resizePart(0, BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
 	}
 }
 
 export class DecreaseViewSizeAction extends BaseResizeViewAction {
 
-	static readonly ID = 'workbench.action.decreaseViewSize';
-	static readonly LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
-
-	) {
-		super(id, label, layoutService);
+	constructor() {
+		super({
+			id: 'workbench.action.decreaseViewSize',
+			title: { value: nls.localize('decreaseViewSize', "Decrease Current View Size"), original: 'Decrease Current View Size' },
+			f1: true
+		});
 	}
 
-	async run(): Promise<void> {
-		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, -BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService));
 	}
 }
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(IncreaseViewSizeAction, undefined), 'View: Increase Current View Size', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DecreaseViewSizeAction, undefined), 'View: Decrease Current View Size', CATEGORIES.View.value);
+export class DecreaseViewWidthAction extends BaseResizeViewAction {
+	constructor() {
+		super({
+			id: 'workbench.action.decreaseViewWidth',
+			title: { value: nls.localize('decreaseEditorWidth', "Decrease Editor Width"), original: 'Decrease Editor Width' },
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+	}
+}
+
+
+export class DecreaseViewHeightAction extends BaseResizeViewAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.decreaseViewHeight',
+			title: { value: nls.localize('decreaseEditorHeight', "Decrease Editor Height"), original: 'Decrease Editor Height' },
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		this.resizePart(0, -BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+	}
+}
+
+registerAction2(IncreaseViewSizeAction);
+registerAction2(IncreaseViewWidthAction);
+registerAction2(IncreaseViewHeightAction);
+
+registerAction2(DecreaseViewSizeAction);
+registerAction2(DecreaseViewWidthAction);
+registerAction2(DecreaseViewHeightAction);

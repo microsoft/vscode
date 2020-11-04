@@ -46,7 +46,7 @@ import { OpenWorkspaceButtonContribution } from 'vs/workbench/browser/parts/edit
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource } from 'vs/base/common/resources';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -132,7 +132,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
-			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
+			resource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
 		}
 
 		// Mode: only remember mode if it is either specific (not text)
@@ -573,7 +573,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
 		title: nls.localize('unpin', "Unpin"),
-		icon: { id: 'codicon/close-dirty' }
+		icon: { id: 'codicon/pinned-dirty' }
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
 	1000000, // towards the far end

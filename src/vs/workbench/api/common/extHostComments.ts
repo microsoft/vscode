@@ -219,7 +219,7 @@ type CommentThreadModification = Partial<{
 	contextValue: string | undefined,
 	comments: vscode.Comment[],
 	collapsibleState: vscode.CommentThreadCollapsibleState
-	readOnly: boolean;
+	canReply: boolean;
 }>;
 
 export class ExtHostCommentThread implements vscode.CommentThread {
@@ -264,17 +264,17 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		return this._range;
 	}
 
-	private _readonly: boolean = false;
+	private _canReply: boolean = true;
 
-	set readOnly(state: boolean) {
-		if (this._readonly !== state) {
-			this._readonly = state;
-			this.modifications.readOnly = state;
+	set canReply(state: boolean) {
+		if (this._canReply !== state) {
+			this._canReply = state;
+			this.modifications.canReply = state;
 			this._onDidUpdateCommentThread.fire();
 		}
 	}
-	get readOnly() {
-		return this._readonly;
+	get canReply() {
+		return this._canReply;
 	}
 
 	private _label: string | undefined;
@@ -401,8 +401,8 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		if (modified('collapsibleState')) {
 			formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
 		}
-		if (modified('readOnly')) {
-			formattedModifications.readOnly = this.readOnly;
+		if (modified('canReply')) {
+			formattedModifications.canReply = this.canReply;
 		}
 		this.modifications = {};
 

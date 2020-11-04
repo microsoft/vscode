@@ -9,7 +9,7 @@ import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } fr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -23,9 +23,11 @@ import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browse
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -77,6 +79,20 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	dispose(): void {
 		this._disposables.dispose();
 		super.dispose();
+	}
+
+	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
+		super._onExtensionHostCrashed(extensionHost, code, signal);
+		if (extensionHost.kind === ExtensionHostKind.LocalWebWorker) {
+			if (code === ExtensionHostExitCode.StartTimeout10s) {
+				this._notificationService.prompt(
+					Severity.Error,
+					nls.localize('extensionService.startTimeout', "The Web Worker Extension Host did not start in 10s."),
+					[]
+				);
+				return;
+			}
+		}
 	}
 
 	protected async _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {

@@ -23,6 +23,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
+		|| !!argv['install-builtin-extension']
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
@@ -138,7 +139,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				await new Promise<void>(c => child.once('exit', () => c()));
+				await new Promise<void>(resolve => child.once('exit', () => resolve()));
 			});
 		}
 
@@ -332,13 +333,13 @@ export async function main(argv: string[]): Promise<any> {
 		const child = spawn(process.execPath, argv.slice(2), options);
 
 		if (args.wait && waitMarkerFilePath) {
-			return new Promise<void>(c => {
+			return new Promise<void>(resolve => {
 
 				// Complete when process exits
-				child.once('exit', () => c(undefined));
+				child.once('exit', () => resolve(undefined));
 
 				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath!).then(c, c);
+				whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
 			}).then(() => {
 
 				// Make sure to delete the tmp stdin file if we have any

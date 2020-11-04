@@ -119,7 +119,6 @@
 				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
 				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
 				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-				'semver-umd': `../node_modules/semver-umd/lib/semver-umd.js`,
 				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
 				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
 			};

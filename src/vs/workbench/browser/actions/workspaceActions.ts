@@ -118,7 +118,7 @@ export class CloseWorkspaceAction extends Action {
 			return;
 		}
 
-		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.configuration.remoteAuthority });
+		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.remoteAuthority });
 	}
 }
 
@@ -141,7 +141,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	async run(): Promise<void> {
 		const configuration = this.workspaceContextService.getWorkspace().configuration;
 		if (configuration) {
-			await this.editorService.openEditor({ resource: configuration });
+			await this.editorService.openEditor({ resource: configuration, options: { pinned: true } });
 		}
 	}
 }
@@ -241,7 +241,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 	async run(): Promise<void> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this.environmentService.remoteAuthority;
 
 		const newWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
 		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
