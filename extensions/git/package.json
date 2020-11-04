@@ -1840,6 +1840,12 @@
           "default": false,
           "description": "%config.alwaysSignOff%"
         },
+        "git.ignoreSubmodules": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.ignoreSubmodules%"
+        },
         "git.ignoredRepositories": {
           "type": "array",
           "items": {
