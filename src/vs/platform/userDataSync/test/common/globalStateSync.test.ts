@@ -85,6 +85,7 @@ suite('GlobalStateSync', () => {
 
 	test('first time sync - outgoing to server (no state)', async () => {
 		updateUserStorage('a', 'value1', testClient);
+		updateMachineStorage('b', 'value1', testClient);
 		await updateLocale(testClient);
 
 		await testObject.sync(await testClient.manifest());
@@ -214,6 +215,11 @@ suite('GlobalStateSync', () => {
 	function updateUserStorage(key: string, value: string, client: UserDataSyncClient): void {
 		const storageService = client.instantiationService.get(IStorageService);
 		storageService.store2(key, value, StorageScope.GLOBAL, StorageTarget.USER);
+	}
+
+	function updateMachineStorage(key: string, value: string, client: UserDataSyncClient): void {
+		const storageService = client.instantiationService.get(IStorageService);
+		storageService.store2(key, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	function removeStorage(key: string, client: UserDataSyncClient): void {
