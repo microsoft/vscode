@@ -83,7 +83,7 @@ suite('StorageService', function () {
 		equal(storageEvent?.key, 'test.remove');
 	}
 
-	test('pasero Keys (in-memory)', () => {
+	test('Keys (in-memory)', () => {
 		const storage = new InMemoryStorageService();
 
 		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
