@@ -12,7 +12,7 @@ import { EventEmitter } from 'events';
 import * as iconv from 'iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
-import { CancellationToken, Progress, Uri, workspace } from 'vscode';
+import { CancellationToken, Progress, Uri } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
