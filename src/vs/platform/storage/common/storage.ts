@@ -15,8 +15,16 @@ const TARGET_KEY = '__$__targetStorageMarker';
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
 export enum WillSaveStateReason {
-	NONE = 0,
-	SHUTDOWN = 1
+
+	/**
+	 * No specific reason to save state.
+	 */
+	NONE,
+
+	/**
+	 * A hint that the workbench is about to shutdown.
+	 */
+	SHUTDOWN
 }
 
 export interface IWillSaveStateEvent {
