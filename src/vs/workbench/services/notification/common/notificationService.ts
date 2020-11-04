@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -83,7 +83,7 @@ export class NotificationService extends Disposable implements INotificationServ
 					handle.close();
 
 					// Remember choice
-					this.storageService.store(id, true, scope);
+					this.storageService.store2(id, true, scope, StorageTarget.USER);
 
 					return Promise.resolve();
 				}));
@@ -127,7 +127,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 			const neverShowAgainChoice = {
 				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => this.storageService.store(id, true, scope),
+				run: () => this.storageService.store2(id, true, scope, StorageTarget.USER),
 				isSecondary: options.neverShowAgain.isSecondary
 			};
 
