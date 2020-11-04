@@ -45,7 +45,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private registerListeners(): void {
 
 		// Global Storage change events
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeStorage(StorageScope.GLOBAL, key)));
+		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 	}
 
 	initialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
@@ -121,7 +121,7 @@ export class NativeStorageService extends AbstractStorageService {
 		// Create new
 		this.workspaceStoragePath = workspaceStoragePath;
 		this.workspaceStorage = new Storage(new SQLiteStorageDatabase(workspaceStoragePath, { logging: workspaceLoggingOptions }), { hint });
-		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeStorage(StorageScope.WORKSPACE, key));
+		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key));
 
 		return this.workspaceStorage;
 	}

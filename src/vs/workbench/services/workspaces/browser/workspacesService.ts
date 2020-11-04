@@ -43,7 +43,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeStorage(event => {
+		this._register(this.storageService.onDidChangeValue(event => {
 			if (event.key === BrowserWorkspacesService.RECENTLY_OPENED_KEY && event.scope === StorageScope.GLOBAL) {
 				this._onRecentlyOpenedChange.fire();
 			}

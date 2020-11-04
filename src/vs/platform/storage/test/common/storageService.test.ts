@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual, ok, equal } from 'assert';
-import { StorageScope, InMemoryStorageService, StorageTarget, IStorageChangeEvent, IStorageTargetChangeEvent } from 'vs/platform/storage/common/storage';
+import { StorageScope, InMemoryStorageService, StorageTarget, IStorageValueChangeEvent, IStorageTargetChangeEvent } from 'vs/platform/storage/common/storage';
 
 suite('StorageService', function () {
 
@@ -19,8 +19,8 @@ suite('StorageService', function () {
 	function storeData(scope: StorageScope): void {
 		const storage = new InMemoryStorageService();
 
-		let storageEvents: IStorageChangeEvent[] = [];
-		storage.onDidChangeStorage(e => storageEvents.push(e));
+		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		storage.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
 		strictEqual(storage.get('test.get', scope, 'foobar'), 'foobar');
 		strictEqual(storage.get('test.get', scope, ''), '');
@@ -31,16 +31,16 @@ suite('StorageService', function () {
 
 		storage.store('test.get', 'foobar', scope);
 		strictEqual(storage.get('test.get', scope, (undefined)!), 'foobar');
-		let storageEvent = storageEvents.find(e => e.key === 'test.get');
-		equal(storageEvent?.scope, scope);
-		equal(storageEvent?.key, 'test.get');
-		storageEvents = [];
+		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
+		equal(storageValueChangeEvent?.scope, scope);
+		equal(storageValueChangeEvent?.key, 'test.get');
+		storageValueChangeEvents = [];
 
 		storage.store('test.get', '', scope);
 		strictEqual(storage.get('test.get', scope, (undefined)!), '');
-		storageEvent = storageEvents.find(e => e.key === 'test.get');
-		equal(storageEvent!.scope, scope);
-		equal(storageEvent!.key, 'test.get');
+		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
+		equal(storageValueChangeEvent!.scope, scope);
+		equal(storageValueChangeEvent!.key, 'test.get');
 
 		storage.store('test.getNumber', 5, scope);
 		strictEqual(storage.getNumber('test.getNumber', scope, (undefined)!), 5);
@@ -70,17 +70,17 @@ suite('StorageService', function () {
 	function removeData(scope: StorageScope): void {
 		const storage = new InMemoryStorageService();
 
-		let storageEvents: IStorageChangeEvent[] = [];
-		storage.onDidChangeStorage(e => storageEvents.push(e));
+		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
+		storage.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
 		storage.store('test.remove', 'foobar', scope);
 		strictEqual('foobar', storage.get('test.remove', scope, (undefined)!));
 
 		storage.remove('test.remove', scope);
 		ok(!storage.get('test.remove', scope, (undefined)!));
-		let storageEvent = storageEvents.find(e => e.key === 'test.remove');
-		equal(storageEvent?.scope, scope);
-		equal(storageEvent?.key, 'test.remove');
+		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.remove');
+		equal(storageValueChangeEvent?.scope, scope);
+		equal(storageValueChangeEvent?.key, 'test.remove');
 	}
 
 	test('Keys (in-memory)', () => {
@@ -89,8 +89,8 @@ suite('StorageService', function () {
 		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
 		storage.onDidChangeTarget(e => storageTargetEvent = e);
 
-		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
-		storage.onDidChangeStorage(e => storageChangeEvent = e);
+		let storageValueChangeEvent: IStorageValueChangeEvent | undefined = undefined;
+		storage.onDidChangeValue(e => storageValueChangeEvent = e);
 
 		// Empty
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
@@ -103,24 +103,24 @@ suite('StorageService', function () {
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				storageTargetEvent = Object.create(null);
-				storageChangeEvent = Object.create(null);
+				storageValueChangeEvent = Object.create(null);
 
 				storage.store2('test.target1', 'value1', scope, target);
 				strictEqual(storage.keys(scope, target).length, 1);
 				equal(storageTargetEvent?.scope, scope);
-				equal(storageChangeEvent?.key, 'test.target1');
-				equal(storageChangeEvent?.scope, scope);
-				equal(storageChangeEvent?.target, target);
+				equal(storageValueChangeEvent?.key, 'test.target1');
+				equal(storageValueChangeEvent?.scope, scope);
+				equal(storageValueChangeEvent?.target, target);
 
 				storageTargetEvent = undefined;
-				storageChangeEvent = Object.create(null);
+				storageValueChangeEvent = Object.create(null);
 
 				storage.store2('test.target1', 'otherValue1', scope, target);
 				strictEqual(storage.keys(scope, target).length, 1);
 				equal(storageTargetEvent, undefined);
-				equal(storageChangeEvent?.key, 'test.target1');
-				equal(storageChangeEvent?.scope, scope);
-				equal(storageChangeEvent?.target, target);
+				equal(storageValueChangeEvent?.key, 'test.target1');
+				equal(storageValueChangeEvent?.scope, scope);
+				equal(storageValueChangeEvent?.target, target);
 
 				storage.store2('test.target2', 'value2', scope, target);
 				storage.store2('test.target3', 'value3', scope, target);
@@ -138,13 +138,13 @@ suite('StorageService', function () {
 				strictEqual(storage.keys(scope, target).length, keysLength + 1);
 
 				storageTargetEvent = Object.create(null);
-				storageChangeEvent = Object.create(null);
+				storageValueChangeEvent = Object.create(null);
 
 				storage.remove('test.target4', scope);
 				strictEqual(storage.keys(scope, target).length, keysLength);
 				equal(storageTargetEvent?.scope, scope);
-				equal(storageChangeEvent?.key, 'test.target4');
-				equal(storageChangeEvent?.scope, scope);
+				equal(storageValueChangeEvent?.key, 'test.target4');
+				equal(storageValueChangeEvent?.scope, scope);
 			}
 		}
 

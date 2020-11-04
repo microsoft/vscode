@@ -11,7 +11,7 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageValueChangeEvent } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { localize } from 'vs/nls';
@@ -55,7 +55,7 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 	) {
 		super();
-		this._register(storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
 	}
 
 	isEnabled(defaultEnablement?: boolean): boolean {
@@ -76,7 +76,7 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL);
 	}
 
-	private onDidStorageChange(storageChangeEvent: IStorageChangeEvent): void {
+	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
 		if (storageChangeEvent.scope !== StorageScope.GLOBAL) {
 			return;
 		}

@@ -23,7 +23,7 @@ import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
 import { EventHelper, createStyleSheet, addDisposableListener, EventType, hide, show, isAncestor, appendChildren } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, IStorageChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
@@ -101,10 +101,10 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e)));
 	}
 
-	private onDidStorageChange(event: IStorageChangeEvent): void {
+	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
 		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
 
 			// Keep current hidden entries
