@@ -26,9 +26,8 @@ import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchMo
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { ResourceMap } from 'vs/base/common/map';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isStringArray } from 'vs/base/common/types';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 namespace snippetExt {
@@ -136,10 +135,7 @@ class SnippetEnablement {
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncService: IStorageKeysSyncRegistryService,
 	) {
-
-		storageKeysSyncService.registerStorageKey({ key: SnippetEnablement._key, version: 1 });
 
 		const raw = _storageService.get(SnippetEnablement._key, StorageScope.GLOBAL, '');
 		let data: string[] | undefined;
@@ -164,7 +160,7 @@ class SnippetEnablement {
 			changed = true;
 		}
 		if (changed) {
-			this._storageService.store(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL);
+			this._storageService.store2(SnippetEnablement._key, JSON.stringify(Array.from(this._ignored)), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 	}
 }

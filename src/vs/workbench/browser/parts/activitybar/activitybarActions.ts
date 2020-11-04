@@ -32,7 +32,7 @@ import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -235,7 +235,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		}
 
 		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
-			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL);
+			this.storageService.store2(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
 			return Promise.resolve();
 		}));
 

@@ -28,7 +28,6 @@ import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
@@ -185,14 +184,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this.state = updateService.state;
 		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
-
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'neverShowAgain:update/win32-fast-updates', version: 1 });
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
