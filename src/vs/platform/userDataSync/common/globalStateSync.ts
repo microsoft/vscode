@@ -317,7 +317,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (updatedStorageKeys.length) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
 			for (const key of Object.keys(updatedStorage)) {
-				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL);
+				this.storageService.store2(key, updatedStorage[key], StorageScope.GLOBAL, StorageTarget.USER);
 			}
 			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
 		}
@@ -385,7 +385,7 @@ export class GlobalStateInitializer extends AbstractInitializer {
 
 		if (Object.keys(storage).length) {
 			for (const key of Object.keys(storage)) {
-				this.storageService.store(key, storage[key], StorageScope.GLOBAL);
+				this.storageService.store2(key, storage[key], StorageScope.GLOBAL, StorageTarget.USER);
 			}
 		}
 	}
