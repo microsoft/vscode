@@ -7,7 +7,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as objects from '../utils/objects';
-import * as arrays from './arrays';
 
 export enum TsServerLogLevel {
 	Off,
@@ -66,10 +65,7 @@ export class ImplicitProjectConfiguration {
 	}
 
 	public isEqualTo(other: ImplicitProjectConfiguration): boolean {
-		return this.checkJs === other.checkJs
-			&& this.experimentalDecorators === other.experimentalDecorators
-			&& this.strictNullChecks === other.strictNullChecks
-			&& this.strictFunctionTypes === other.strictFunctionTypes;
+		return objects.equals(this, other);
 	}
 
 	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
@@ -129,20 +125,7 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
-		return this.locale === other.locale
-			&& this.globalTsdk === other.globalTsdk
-			&& this.localTsdk === other.localTsdk
-			&& this.npmLocation === other.npmLocation
-			&& this.tsServerLogLevel === other.tsServerLogLevel
-			&& this.implictProjectConfiguration.isEqualTo(other.implictProjectConfiguration)
-			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
-			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths)
-			&& this.separateSyntaxServer === other.separateSyntaxServer
-			&& this.enableProjectDiagnostics === other.enableProjectDiagnostics
-			&& this.maxTsServerMemory === other.maxTsServerMemory
-			&& objects.equals(this.watchOptions, other.watchOptions)
-			&& this.enablePromptUseWorkspaceTsdk === other.enablePromptUseWorkspaceTsdk
-			&& this.includePackageJsonAutoImports === other.includePackageJsonAutoImports;
+		return objects.equals(this, other);
 	}
 
 	private static fixPathPrefixes(inspectValue: string): string {
