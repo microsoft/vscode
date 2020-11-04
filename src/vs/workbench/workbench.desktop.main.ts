@@ -133,6 +133,9 @@ import 'vs/workbench/contrib/debug/node/debugHelperService';
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
 
+// Dialogs
+import 'vs/workbench/contrib/dialogs/electron-sandbox/dialog.contribution';
+
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
