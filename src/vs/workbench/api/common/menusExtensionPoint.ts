@@ -620,6 +620,7 @@ submenusExtensionPoint.setHandler(extensions => {
 
 const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
+const _submenuMenuItems = new Map<number /* menu id */, Set<number /* submenu id */>>();
 
 const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
 	extensionPoint: 'menus',
@@ -631,6 +632,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 	// remove all previous menu registrations
 	_menuRegistrations.clear();
+	_submenuMenuItems.clear();
 
 	const items: { id: MenuId, item: IMenuItem | ISubmenuItem }[] = [];
 
@@ -697,6 +699,20 @@ menusExtensionPoint.setHandler(extensions => {
 						collector.error(localize('missing.submenu', "Menu item references a submenu `{0}` which is not defined in the 'submenus' section.", menuItem.submenu));
 						continue;
 					}
+
+					let submenuRegistrations = _submenuMenuItems.get(menu.id.id);
+
+					if (!submenuRegistrations) {
+						submenuRegistrations = new Set();
+						_submenuMenuItems.set(menu.id.id, submenuRegistrations);
+					}
+
+					if (submenuRegistrations.has(submenu.id.id)) {
+						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry.key));
+						continue;
+					}
+
+					submenuRegistrations.add(submenu.id.id);
 
 					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group: undefined, order: undefined, when: undefined };
 				}
