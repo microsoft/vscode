@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
@@ -12,6 +13,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISocket, Protocol, Client, ChunkStream } from 'vs/base/parts/ipc/common/ipc.net';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Platform, platform } from 'vs/base/common/platform';
 
 export class NodeSocket implements ISocket {
 	public readonly socket: Socket;
@@ -57,11 +60,46 @@ export class NodeSocket implements ISocket {
 		// > https://nodejs.org/api/stream.html#stream_writable_write_chunk_encoding_callback
 		// > However, the false return value is only advisory and the writable stream will unconditionally
 		// > accept and buffer chunk even if it has not been allowed to drain.
-		this.socket.write(<Buffer>buffer.buffer);
+		try {
+			this.socket.write(<Buffer>buffer.buffer);
+		} catch (err) {
+			if (err.code === 'EPIPE') {
+				// An EPIPE exception at the wrong time can lead to a renderer process crash
+				// so ignore the error since the socket will fire the close event soon anyways:
+				// > https://nodejs.org/api/errors.html#errors_common_system_errors
+				// > EPIPE (Broken pipe): A write on a pipe, socket, or FIFO for which there is no
+				// > process to read the data. Commonly encountered at the net and http layers,
+				// > indicative that the remote side of the stream being written to has been closed.
+				return;
+			}
+			onUnexpectedError(err);
+		}
 	}
 
 	public end(): void {
 		this.socket.end();
+	}
+
+	public drain(): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			if (this.socket.bufferSize === 0) {
+				resolve();
+				return;
+			}
+			const finished = () => {
+				this.socket.off('close', finished);
+				this.socket.off('end', finished);
+				this.socket.off('error', finished);
+				this.socket.off('timeout', finished);
+				this.socket.off('drain', finished);
+				resolve();
+			};
+			this.socket.on('close', finished);
+			this.socket.on('end', finished);
+			this.socket.on('error', finished);
+			this.socket.on('timeout', finished);
+			this.socket.on('drain', finished);
+		});
 	}
 }
 
@@ -229,6 +267,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 			}
 		}
 	}
+
+	public drain(): Promise<void> {
+		return this.socket.drain();
+	}
 }
 
 function unmask(buffer: VSBuffer, mask: number): void {
@@ -256,13 +298,67 @@ function unmask(buffer: VSBuffer, mask: number): void {
 	}
 }
 
-export function generateRandomPipeName(): string {
+// Read this before there's any chance it is overwritten
+// Related to https://github.com/microsoft/vscode/issues/30624
+export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
+
+const safeIpcPathLengths: { [platform: number]: number } = {
+	[Platform.Linux]: 107,
+	[Platform.Mac]: 103
+};
+
+export function createRandomIPCHandle(): string {
 	const randomSuffix = generateUuid();
+
+	// Windows: use named pipe
 	if (process.platform === 'win32') {
 		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
+	}
+
+	// Mac/Unix: use socket file and prefer
+	// XDG_RUNTIME_DIR over tmpDir
+	let result: string;
+	if (XDG_RUNTIME_DIR) {
+		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
 	} else {
-		// Mac/Unix: use socket file
-		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
+		result = join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
+	}
+
+	// Validate length
+	validateIPCHandleLength(result);
+
+	return result;
+}
+
+export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
+	const scope = createHash('md5').update(directoryPath).digest('hex');
+
+	// Windows: use named pipe
+	if (process.platform === 'win32') {
+		return `\\\\.\\pipe\\${scope}-${version}-${type}-sock`;
+	}
+
+	// Mac/Unix: use socket file and prefer
+	// XDG_RUNTIME_DIR over user data path
+	// unless portable
+	let result: string;
+	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
+		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
+	} else {
+		result = join(directoryPath, `${version}-${type}.sock`);
+	}
+
+	// Validate length
+	validateIPCHandleLength(result);
+
+	return result;
+}
+
+function validateIPCHandleLength(handle: string): void {
+	const limit = safeIpcPathLengths[platform];
+	if (typeof limit === 'number' && handle.length >= limit) {
+		// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
+		console.warn(`WARNING: IPC handle "${handle}" is longer than ${limit} chars, try a shorter --user-data-dir`);
 	}
 }
 

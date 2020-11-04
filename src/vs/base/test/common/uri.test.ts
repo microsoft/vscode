@@ -404,7 +404,7 @@ suite('URI', () => {
 		path = 'foo/bar';
 		assert.equal(URI.file(path).path, '/foo/bar');
 		path = './foo/bar';
-		assert.equal(URI.file(path).path, '/./foo/bar'); // todo@joh missing normalization
+		assert.equal(URI.file(path).path, '/./foo/bar'); // missing normalization
 
 		const fileUri1 = URI.parse(`file:foo/bar`);
 		assert.equal(fileUri1.path, '/foo/bar');
@@ -502,5 +502,69 @@ suite('URI', () => {
 		}
 		// }
 		// console.profileEnd();
+	});
+	function assertJoined(base: string, fragment: string, expected: string, checkWithUrl: boolean = true) {
+		const baseUri = URI.parse(base);
+		const newUri = URI.joinPath(baseUri, fragment);
+		const actual = newUri.toString(true);
+		assert.equal(actual, expected);
+
+		if (checkWithUrl) {
+			const actualUrl = new URL(fragment, base).href;
+			assert.equal(actualUrl, expected, 'DIFFERENT from URL');
+		}
+	}
+	test('URI#joinPath', function () {
+
+		assertJoined(('file:///foo/'), '../../bazz', 'file:///bazz');
+		assertJoined(('file:///foo'), '../../bazz', 'file:///bazz');
+		assertJoined(('file:///foo'), '../../bazz', 'file:///bazz');
+		assertJoined(('file:///foo/bar/'), './bazz', 'file:///foo/bar/bazz');
+		assertJoined(('file:///foo/bar'), './bazz', 'file:///foo/bar/bazz', false);
+		assertJoined(('file:///foo/bar'), 'bazz', 'file:///foo/bar/bazz', false);
+
+		// "auto-path" scheme
+		assertJoined(('file:'), 'bazz', 'file:///bazz');
+		assertJoined(('http://domain'), 'bazz', 'http://domain/bazz');
+		assertJoined(('https://domain'), 'bazz', 'https://domain/bazz');
+		assertJoined(('http:'), 'bazz', 'http:/bazz', false);
+		assertJoined(('https:'), 'bazz', 'https:/bazz', false);
+
+		// no "auto-path" scheme with and w/o paths
+		assertJoined(('foo:/'), 'bazz', 'foo:/bazz');
+		assertJoined(('foo://bar/'), 'bazz', 'foo://bar/bazz');
+
+		// no "auto-path" + no path -> error
+		assert.throws(() => assertJoined(('foo:'), 'bazz', ''));
+		assert.throws(() => new URL('bazz', 'foo:'));
+		assert.throws(() => assertJoined(('foo://bar'), 'bazz', ''));
+		// assert.throws(() => new URL('bazz', 'foo://bar')); Edge, Chrome => THROW, Firefox, Safari => foo://bar/bazz
+	});
+
+	test('URI#joinPath (posix)', function () {
+		if (isWindows) {
+			this.skip();
+		}
+		assertJoined(('file:///c:/foo/'), '../../bazz', 'file:///bazz', false);
+		assertJoined(('file://server/share/c:/'), '../../bazz', 'file://server/bazz', false);
+		assertJoined(('file://server/share/c:'), '../../bazz', 'file://server/bazz', false);
+
+		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/bazz', false); // Firefox -> Different, Edge, Chrome, Safar -> OK
+		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/bazz', false); // Firefox -> Different, Edge, Chrome, Safar -> OK
+	});
+
+	test('URI#joinPath (windows)', function () {
+		if (!isWindows) {
+			this.skip();
+		}
+		assertJoined(('file:///c:/foo/'), '../../bazz', 'file:///c:/bazz', false);
+		assertJoined(('file://server/share/c:/'), '../../bazz', 'file://server/share/bazz', false);
+		assertJoined(('file://server/share/c:'), '../../bazz', 'file://server/share/bazz', false);
+
+		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/foo/bazz', false);
+		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/foo/bazz', false);
+
+		//https://github.com/microsoft/vscode/issues/93831
+		assertJoined('file:///c:/foo/bar', './other/foo.img', 'file:///c:/foo/bar/other/foo.img', false);
 	});
 });

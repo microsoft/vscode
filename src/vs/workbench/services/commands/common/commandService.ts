@@ -14,7 +14,7 @@ import { timeout } from 'vs/base/common/async';
 
 export class CommandService extends Disposable implements ICommandService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _extensionHostIsReady: boolean = false;
 	private _starActivation: Promise<void> | null;
@@ -81,7 +81,7 @@ export class CommandService extends Disposable implements ICommandService {
 		}
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id, args });
-			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]);
+			const result = this._instantiationService.invokeFunction(command.handler, ...args);
 			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {

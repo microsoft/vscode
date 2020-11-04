@@ -5,46 +5,31 @@
 
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ShutdownReason, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export abstract class BackupTracker extends Disposable {
-
-	// Disable backup for when a short auto-save delay is configured with
-	// the rationale that the auto save will trigger a save periodically
-	// anway and thus creating frequent backups is not useful
-	//
-	// This will only apply to working copies that are not untitled where
-	// auto save is actually saving.
-	private static DISABLE_BACKUP_AUTO_SAVE_THRESHOLD = 1500;
-
-	// Delay creation of backups when content changes to avoid too much
-	// load on the backup service when the user is typing into the editor
-	protected static BACKUP_FROM_CONTENT_CHANGE_DELAY = 1000;
 
 	// A map from working copy to a version ID we compute on each content
 	// change. This version ID allows to e.g. ask if a backup for a specific
 	// content has been made before closing.
 	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
 
-	private backupsDisabledForAutoSaveables = false;
-
 	// A map of scheduled pending backups for working copies
 	private readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
 
 	constructor(
 		protected readonly backupFileService: IBackupFileService,
-		protected readonly filesConfigurationService: IFilesConfigurationService,
 		protected readonly workingCopyService: IWorkingCopyService,
 		protected readonly logService: ILogService,
 		protected readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
-		// Figure out initial auto save config
-		this.onAutoSaveConfigurationChange(filesConfigurationService.getAutoSaveConfiguration());
+		// Fill in initial dirty working copies
+		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
 
 		this.registerListeners();
 	}
@@ -52,20 +37,19 @@ export abstract class BackupTracker extends Disposable {
 	private registerListeners() {
 
 		// Working Copy events
-		this._register(this.workingCopyService.onDidRegister(c => this.onDidRegister(c)));
-		this._register(this.workingCopyService.onDidUnregister(c => this.onDidUnregister(c)));
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.onDidChangeDirty(c)));
-		this._register(this.workingCopyService.onDidChangeContent(c => this.onDidChangeContent(c)));
-
-		// Listen to auto save config changes
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(c => this.onAutoSaveConfigurationChange(c)));
+		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
+		this._register(this.workingCopyService.onDidUnregister(workingCopy => this.onDidUnregister(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
+		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
 		// Lifecycle (handled in subclasses)
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 	}
 
 	private onDidRegister(workingCopy: IWorkingCopy): void {
-		this.scheduleBackup(workingCopy);
+		if (workingCopy.isDirty()) {
+			this.scheduleBackup(workingCopy);
+		}
 	}
 
 	private onDidUnregister(workingCopy: IWorkingCopy): void {
@@ -78,7 +62,9 @@ export abstract class BackupTracker extends Disposable {
 	}
 
 	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
-		if (!workingCopy.isDirty()) {
+		if (workingCopy.isDirty()) {
+			this.scheduleBackup(workingCopy);
+		} else {
 			this.discardBackup(workingCopy);
 		}
 	}
@@ -91,48 +77,78 @@ export abstract class BackupTracker extends Disposable {
 
 		// Schedule backup if dirty
 		if (workingCopy.isDirty()) {
+			// this listener will make sure that the backup is
+			// pushed out for as long as the user is still changing
+			// the content of the working copy.
 			this.scheduleBackup(workingCopy);
 		}
 	}
 
-	private onAutoSaveConfigurationChange(configuration: IAutoSaveConfiguration): void {
-		this.backupsDisabledForAutoSaveables = typeof configuration.autoSaveDelay === 'number' && configuration.autoSaveDelay < BackupTracker.DISABLE_BACKUP_AUTO_SAVE_THRESHOLD;
-	}
+	/**
+	 * Allows subclasses to conditionally opt-out of doing a backup, e.g. if
+	 * auto save is enabled.
+	 */
+	protected abstract shouldScheduleBackup(workingCopy: IWorkingCopy): boolean;
+
+	/**
+	 * Allows subclasses to control the delay before performing a backup from
+	 * working copy content changes.
+	 */
+	protected abstract getBackupScheduleDelay(workingCopy: IWorkingCopy): number;
 
 	private scheduleBackup(workingCopy: IWorkingCopy): void {
-		if (this.backupsDisabledForAutoSaveables && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
-			return; // skip if auto save is enabled with a short delay
-		}
-
-		if (typeof workingCopy.backup !== 'function') {
-			return; // skip if working copy does not support backups
-		}
 
 		// Clear any running backup operation
-		dispose(this.pendingBackups.get(workingCopy));
-		this.pendingBackups.delete(workingCopy);
+		this.cancelBackup(workingCopy);
+
+		// subclass prevented backup for working copy
+		if (!this.shouldScheduleBackup(workingCopy)) {
+			return;
+		}
 
 		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString());
 
 		// Schedule new backup
+		const cts = new CancellationTokenSource();
 		const handle = setTimeout(async () => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			// Backup if dirty
+			if (workingCopy.isDirty()) {
+				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString());
+
+				try {
+					const backup = await workingCopy.backup(cts.token);
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+
+					if (workingCopy.isDirty()) {
+						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString());
+
+						await this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
+					}
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
 
 			// Clear disposable
 			this.pendingBackups.delete(workingCopy);
 
-			// Backup if dirty
-			if (workingCopy.isDirty() && typeof workingCopy.backup === 'function') {
-				this.logService.trace(`[backup tracker] running backup`, workingCopy.resource.toString());
-
-				const backup = await workingCopy.backup();
-				this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
-			}
-		}, BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY);
+		}, this.getBackupScheduleDelay(workingCopy));
 
 		// Keep in map for disposal as needed
 		this.pendingBackups.set(workingCopy, toDisposable(() => {
 			this.logService.trace(`[backup tracker] clearing pending backup`, workingCopy.resource.toString());
 
+			cts.dispose(true);
 			clearTimeout(handle);
 		}));
 	}
@@ -145,11 +161,15 @@ export abstract class BackupTracker extends Disposable {
 		this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString());
 
 		// Clear any running backup operation
-		dispose(this.pendingBackups.get(workingCopy));
-		this.pendingBackups.delete(workingCopy);
+		this.cancelBackup(workingCopy);
 
 		// Forward to backup file service
 		this.backupFileService.discardBackup(workingCopy.resource);
+	}
+
+	private cancelBackup(workingCopy: IWorkingCopy): void {
+		dispose(this.pendingBackups.get(workingCopy));
+		this.pendingBackups.delete(workingCopy);
 	}
 
 	protected abstract onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean>;

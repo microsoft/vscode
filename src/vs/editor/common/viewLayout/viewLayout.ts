@@ -7,10 +7,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IConfiguration, IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
+import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { LinesLayout, IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
+import { ContentSizeChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
@@ -75,8 +76,8 @@ class EditorScrollable extends Disposable {
 
 	public readonly onDidScroll: Event<ScrollEvent>;
 
-	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
-	public readonly onDidContentSizeChange: Event<IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
+	private readonly _onDidContentSizeChange = this._register(new Emitter<ContentSizeChangedEvent>());
+	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
 	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
@@ -114,18 +115,15 @@ class EditorScrollable extends Disposable {
 			scrollWidth: dimensions.scrollWidth,
 			height: dimensions.height,
 			scrollHeight: dimensions.scrollHeight
-		});
+		}, true);
 
 		const contentWidthChanged = (oldDimensions.contentWidth !== dimensions.contentWidth);
 		const contentHeightChanged = (oldDimensions.contentHeight !== dimensions.contentHeight);
 		if (contentWidthChanged || contentHeightChanged) {
-			this._onDidContentSizeChange.fire({
-				contentWidth: dimensions.contentWidth,
-				contentHeight: dimensions.contentHeight,
-
-				contentWidthChanged: contentWidthChanged,
-				contentHeightChanged: contentHeightChanged
-			});
+			this._onDidContentSizeChange.fire(new ContentSizeChangedEvent(
+				oldDimensions.contentWidth, oldDimensions.contentHeight,
+				dimensions.contentWidth, dimensions.contentHeight
+			));
 		}
 	}
 
@@ -153,7 +151,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	private readonly _scrollable: EditorScrollable;
 	public readonly onDidScroll: Event<ScrollEvent>;
-	public readonly onDidContentSizeChange: Event<IContentSizeChangedEvent>;
+	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent>;
 
 	constructor(configuration: IConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
@@ -161,8 +159,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._configuration = configuration;
 		const options = this._configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const padding = options.get(EditorOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight));
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
 
 		this._scrollable = this._register(new EditorScrollable(0, scheduleAtNextAnimationFrame));
 		this._configureSmoothScrollDuration();
@@ -202,17 +201,21 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		if (e.hasChanged(EditorOption.lineHeight)) {
 			this._linesLayout.setLineHeight(options.get(EditorOption.lineHeight));
 		}
+		if (e.hasChanged(EditorOption.padding)) {
+			const padding = options.get(EditorOption.padding);
+			this._linesLayout.setPadding(padding.top, padding.bottom);
+		}
 		if (e.hasChanged(EditorOption.layoutInfo)) {
 			const layoutInfo = options.get(EditorOption.layoutInfo);
 			const width = layoutInfo.contentWidth;
 			const height = layoutInfo.height;
 			const scrollDimensions = this._scrollable.getScrollDimensions();
-			const scrollWidth = scrollDimensions.scrollWidth;
+			const contentWidth = scrollDimensions.contentWidth;
 			this._scrollable.setScrollDimensions(new EditorScrollDimensions(
 				width,
 				scrollDimensions.contentWidth,
 				height,
-				this._getContentHeight(width, height, scrollWidth)
+				this._getContentHeight(width, height, contentWidth)
 			));
 		} else {
 			this._updateHeight();
@@ -247,14 +250,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return scrollbar.horizontalScrollbarSize;
 	}
 
-	private _getContentHeight(width: number, height: number, scrollWidth: number): number {
+	private _getContentHeight(width: number, height: number, contentWidth: number): number {
 		const options = this._configuration.options;
 
 		let result = this._linesLayout.getLinesTotalHeight();
 		if (options.get(EditorOption.scrollBeyondLastLine)) {
 			result += height - options.get(EditorOption.lineHeight);
 		} else {
-			result += this._getHorizontalScrollbarHeight(width, scrollWidth);
+			result += this._getHorizontalScrollbarHeight(width, contentWidth);
 		}
 
 		return result;
@@ -264,12 +267,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const scrollDimensions = this._scrollable.getScrollDimensions();
 		const width = scrollDimensions.width;
 		const height = scrollDimensions.height;
-		const scrollWidth = scrollDimensions.scrollWidth;
+		const contentWidth = scrollDimensions.contentWidth;
 		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
 			width,
 			scrollDimensions.contentWidth,
 			height,
-			this._getContentHeight(width, height, scrollWidth)
+			this._getContentHeight(width, height, contentWidth)
 		));
 	}
 
@@ -319,7 +322,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		}
 	}
 
-	public onMaxLineWidthChanged(maxLineWidth: number): void {
+	public setMaxLineWidth(maxLineWidth: number): void {
 		const scrollDimensions = this._scrollable.getScrollDimensions();
 		// const newScrollWidth = ;
 		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
@@ -348,8 +351,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	// ---- IVerticalLayoutProvider
-	public changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T {
-		return this._linesLayout.changeWhitespace(callback);
+	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
+		const hadAChange = this._linesLayout.changeWhitespace(callback);
+		if (hadAChange) {
+			this.onHeightMaybeChanged();
+		}
+		return hadAChange;
 	}
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
 		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber);
@@ -419,12 +426,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._scrollable.validateScrollPosition(scrollPosition);
 	}
 
-	public setScrollPositionNow(position: INewScrollPosition): void {
-		this._scrollable.setScrollPositionNow(position);
-	}
-
-	public setScrollPositionSmooth(position: INewScrollPosition): void {
-		this._scrollable.setScrollPositionSmooth(position);
+	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
+		if (type === ScrollType.Immediate) {
+			this._scrollable.setScrollPositionNow(position);
+		} else {
+			this._scrollable.setScrollPositionSmooth(position);
+		}
 	}
 
 	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {

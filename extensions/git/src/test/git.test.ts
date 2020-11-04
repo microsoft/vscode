@@ -184,12 +184,26 @@ suite('git', () => {
 				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
 			]);
 		});
+
+		test('whitespace again #108371', () => {
+			const sample = `[submodule "deps/spdlog"]
+	path= deps/spdlog
+	url=https://github.com/gabime/spdlog.git
+`;
+
+			assert.deepEqual(parseGitmodules(sample), [
+				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
+			]);
+		});
 	});
 
 	suite('parseGitCommit', () => {
 		test('single parent commit', function () {
 			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
 john.doe@mail.com
+1580811030
+1580811031
 8e5a374372b8393906c7e380dbb09349c5385554
 This is a commit message.\x00`;
 
@@ -197,13 +211,19 @@ This is a commit message.\x00`;
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
 				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
 			}]);
 		});
 
 		test('multiple parent commits', function () {
 			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
 john.doe@mail.com
+1580811030
+1580811031
 8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
 This is a commit message.\x00`;
 
@@ -211,13 +231,19 @@ This is a commit message.\x00`;
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
 				parents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
 			}]);
 		});
 
 		test('no parent commits', function () {
 			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+John Doe
 john.doe@mail.com
+1580811030
+1580811031
 
 This is a commit message.\x00`;
 
@@ -225,7 +251,10 @@ This is a commit message.\x00`;
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
 				parents: [],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
 			}]);
 		});
 	});

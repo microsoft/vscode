@@ -107,7 +107,7 @@ export namespace SymbolKind {
 			case PConst.Kind.interface: return vscode.SymbolKind.Interface;
 			case PConst.Kind.indexSignature: return vscode.SymbolKind.Method;
 			case PConst.Kind.callSignature: return vscode.SymbolKind.Method;
-			case PConst.Kind.memberFunction: return vscode.SymbolKind.Method;
+			case PConst.Kind.method: return vscode.SymbolKind.Method;
 			case PConst.Kind.memberVariable: return vscode.SymbolKind.Property;
 			case PConst.Kind.memberGetAccessor: return vscode.SymbolKind.Property;
 			case PConst.Kind.memberSetAccessor: return vscode.SymbolKind.Property;

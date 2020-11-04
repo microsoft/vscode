@@ -148,9 +148,12 @@ class FolderDetector {
 		}
 		let gulpfile = path.join(rootPath, 'gulpfile.js');
 		if (!await exists(gulpfile)) {
-			gulpfile = path.join(rootPath, 'gulpfile.babel.js');
-			if (! await exists(gulpfile)) {
-				return emptyTasks;
+			gulpfile = path.join(rootPath, 'Gulpfile.js');
+			if (!await exists(gulpfile)) {
+				gulpfile = path.join(rootPath, 'gulpfile.babel.js');
+				if (!await exists(gulpfile)) {
+					return emptyTasks;
+				}
 			}
 		}
 
@@ -277,7 +280,7 @@ class TaskDetector {
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
 			const thisCapture = this;
-			this.taskProvider = vscode.workspace.registerTaskProvider('gulp', {
+			this.taskProvider = vscode.tasks.registerTaskProvider('gulp', {
 				provideTasks(): Promise<vscode.Task[]> {
 					return thisCapture.getTasks();
 				},

@@ -7,7 +7,7 @@
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ var CSSLoaderPlugin;
         BrowserCSSLoader.prototype._insertLinkNode = function (linkNode) {
             this._pendingLoads++;
             var head = document.head || document.getElementsByTagName('head')[0];
-            var other = head.getElementsByTagName('link') || document.head.getElementsByTagName('script');
+            var other = head.getElementsByTagName('link') || head.getElementsByTagName('script');
             if (other.length > 0) {
                 head.insertBefore(linkNode, other[other.length - 1]);
             }
@@ -97,7 +97,14 @@ var CSSLoaderPlugin;
         function CSSPlugin() {
             this._cssLoader = new BrowserCSSLoader();
         }
-        CSSPlugin.prototype.load = function (name, req, load) {
+        CSSPlugin.prototype.load = function (name, req, load, config) {
+            config = config || {};
+            var cssConfig = config['vs/css'] || {};
+            if (cssConfig.disabled) {
+                // the plugin is asked to not create any style sheets
+                load({});
+                return;
+            }
             var cssUrl = req.toUrl(name + '.css');
             this._cssLoader.load(name, cssUrl, function (contents) {
                 load({});

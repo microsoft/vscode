@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Command } from '../utils/commandManager';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { Command } from './commandManager';
 
 export class LearnMoreAboutRefactoringsCommand implements Command {
-	public readonly id = '_typescript.learnMoreAboutRefactorings';
+	public static readonly id = '_typescript.learnMoreAboutRefactorings';
+	public readonly id = LearnMoreAboutRefactoringsCommand.id;
 
 	public execute() {
 		const docUrl = vscode.window.activeTextEditor && isTypeScriptDocument(vscode.window.activeTextEditor.document)

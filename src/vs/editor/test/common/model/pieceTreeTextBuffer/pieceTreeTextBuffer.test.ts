@@ -12,7 +12,7 @@ import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceT
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
@@ -1761,7 +1761,7 @@ function getValueInSnapshot(snapshot: ITextSnapshot) {
 }
 suite('snapshot', () => {
 	test('bug #45564, piece tree pieces should be immutable', () => {
-		const model = TextModel.createFromString('\n');
+		const model = createTextModel('\n');
 		model.applyEdits([
 			{
 				range: new Range(2, 1, 2, 1),
@@ -1789,7 +1789,7 @@ suite('snapshot', () => {
 	});
 
 	test('immutable snapshot 1', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		const snapshot = model.createSnapshot();
 		model.applyEdits([
 			{
@@ -1809,7 +1809,7 @@ suite('snapshot', () => {
 	});
 
 	test('immutable snapshot 2', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		const snapshot = model.createSnapshot();
 		model.applyEdits([
 			{
@@ -1829,7 +1829,7 @@ suite('snapshot', () => {
 	});
 
 	test('immutable snapshot 3', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		model.applyEdits([
 			{
 				range: new Range(2, 4, 2, 4),

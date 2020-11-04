@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class AccessibilityService extends Disposable implements IAccessibilityService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _accessibilityModeEnabledContext: IContextKey<boolean>;
 	protected _accessibilitySupport = AccessibilitySupport.Unknown;
@@ -40,6 +40,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	isScreenReaderOptimized(): boolean {
 		const config = this._configurationService.getValue('editor.accessibilitySupport');
 		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
+	}
+
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
 	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {

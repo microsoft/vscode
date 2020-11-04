@@ -639,7 +639,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.r meta.function-call.r punctuation.definition.parameters.r",
+		"t": "source.r meta.function-call.r punctuation.section.parens.end.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.r meta.function-call.r punctuation.definition.parameters.r",
+		"t": "source.r meta.function-call.r punctuation.section.parens.end.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

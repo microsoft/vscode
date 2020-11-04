@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IActionRunner, ActionRunner, IActionViewItem } from 'vs/base/common/actions';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
@@ -15,7 +14,6 @@ import { trackFocus, Dimension } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { find } from 'vs/base/common/arrays';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -33,9 +31,6 @@ export abstract class Composite extends Component implements IComposite {
 
 	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;
-
-	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private _onDidFocus: Emitter<void> | undefined;
 	get onDidFocus(): Event<void> {
@@ -136,8 +131,6 @@ export abstract class Composite extends Component implements IComposite {
 	setVisible(visible: boolean): void {
 		if (this.visible !== !!visible) {
 			this.visible = visible;
-
-			this._onDidChangeVisibility.fire(visible);
 		}
 	}
 
@@ -240,6 +233,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		readonly name: string,
 		readonly cssClass?: string,
 		readonly order?: number,
+		readonly requestedIndex?: number,
 		readonly keybindingId?: string,
 	) { }
 
@@ -256,7 +250,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	private readonly _onDidDeregister = this._register(new Emitter<CompositeDescriptor<T>>());
 	readonly onDidDeregister = this._onDidDeregister.event;
 
-	private composites: CompositeDescriptor<T>[] = [];
+	private readonly composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
 		if (this.compositeById(descriptor.id)) {
@@ -286,6 +280,6 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> | undefined {
-		return find(this.composites, composite => composite.id === id);
+		return this.composites.find(composite => composite.id === id);
 	}
 }

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, Handler, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
@@ -21,7 +21,7 @@ export function testCommand(
 	expectedSelection: Selection,
 	forceTokenization?: boolean
 ): void {
-	let model = TextModel.createFromString(lines.join('\n'), undefined, languageIdentifier);
+	let model = createTextModel(lines.join('\n'), undefined, languageIdentifier);
 	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
 		if (!cursor) {
 			return;
@@ -33,7 +33,7 @@ export function testCommand(
 
 		cursor.setSelections('tests', [selection]);
 
-		cursor.trigger('tests', Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
+		cursor.executeCommand(commandFactory(cursor.getSelection()), 'tests');
 
 		assert.deepEqual(model.getLinesContent(), expectedLines);
 
@@ -50,7 +50,7 @@ export function testCommand(
 export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
 	let operations: IIdentifiedSingleEditOperation[] = [];
 	let editOperationBuilder: IEditOperationBuilder = {
-		addEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
+		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
 				text: text,
@@ -58,7 +58,7 @@ export function getEditOperation(model: ITextModel, command: ICommand): IIdentif
 			});
 		},
 
-		addTrackedEditOperation: (range: Range, text: string, forceMoveMarkers: boolean = false) => {
+		addTrackedEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
 				text: text,
@@ -67,7 +67,7 @@ export function getEditOperation(model: ITextModel, command: ICommand): IIdentif
 		},
 
 
-		trackSelection: (selection: Selection) => {
+		trackSelection: (selection: ISelection) => {
 			return '';
 		}
 	};

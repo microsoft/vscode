@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeymapService, areKeyboardLayoutsEqual, parseKeyboardLayoutDescription, getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -21,7 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
 
 export class KeyboardLayoutPickerContribution extends Disposable implements IWorkbenchContribution {
 	private readonly pickerElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -35,9 +35,12 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 		let layout = this.keymapService.getCurrentKeyboardLayout();
 		if (layout) {
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
+			const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
+
 			this.pickerElement.value = this.statusbarService.addEntry(
 				{
-					text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
+					text,
+					ariaLabel: text,
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				},
 				'status.workbench.keyboardLayout',
@@ -51,14 +54,18 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
 
 			if (this.pickerElement.value) {
+				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
 				this.pickerElement.value.update({
-					text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
+					text,
+					ariaLabel: text,
 					command: KEYBOARD_LAYOUT_OPEN_PICKER
 				});
 			} else {
+				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
 				this.pickerElement.value = this.statusbarService.addEntry(
 					{
-						text: nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label),
+						text,
+						ariaLabel: text,
 						command: KEYBOARD_LAYOUT_OPEN_PICKER
 					},
 					'status.workbench.keyboardLayout',
@@ -156,13 +163,14 @@ export class KeyboardLayoutPickerAction extends Action {
 
 			await this.fileService.resolve(file).then(undefined, (error) => {
 				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
-			}).then((stat): Promise<IEditor | undefined> | undefined => {
+			}).then((stat): Promise<IEditorPane | undefined> | undefined => {
 				if (!stat) {
 					return undefined;
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,
-					mode: 'jsonc'
+					mode: 'jsonc',
+					options: { pinned: true }
 				});
 			}, (error) => {
 				throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", file.toString(), error));
@@ -176,4 +184,4 @@ export class KeyboardLayoutPickerAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(KeyboardLayoutPickerAction, KeyboardLayoutPickerAction.ID, KeyboardLayoutPickerAction.LABEL, {}), 'Preferences: Change Keyboard Layout', nls.localize('preferences', "Preferences"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(KeyboardLayoutPickerAction, {}), 'Preferences: Change Keyboard Layout', nls.localize('preferences', "Preferences"));

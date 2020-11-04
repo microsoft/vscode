@@ -10,16 +10,14 @@ import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IInputValidator, HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { Delayer } from 'vs/base/common/async';
 import type { IThemable } from 'vs/base/common/styler';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IOptions {
 	placeholder?: string;
@@ -50,19 +48,14 @@ export class PatternInputWidget extends Widget implements IThemable {
 	private _onCancel = this._register(new Emitter<void>());
 	onCancel: CommonEvent<void> = this._onCancel.event;
 
-	private searchOnTypeDelayer: Delayer<void>;
-
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
-
-		this._register(this.searchOnTypeDelayer = new Delayer(this.searchConfig.searchOnTypeDebouncePeriod));
 
 		this.render(options);
 
@@ -122,6 +115,10 @@ export class PatternInputWidget extends Widget implements IThemable {
 		this.inputBox.clearHistory();
 	}
 
+	clear(): void {
+		this.setValue('');
+	}
+
 	onSearchSubmit(): void {
 		this.inputBox.addToHistory();
 	}
@@ -141,7 +138,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 	private render(options: IOptions): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
-		dom.addClass(this.domNode, 'monaco-findInput');
+		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
@@ -152,6 +149,8 @@ export class PatternInputWidget extends Widget implements IThemable {
 			history: options.history || []
 		}, this.contextKeyService);
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
+		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
+
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 
@@ -170,23 +169,12 @@ export class PatternInputWidget extends Widget implements IThemable {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
 				this.onSearchSubmit();
-				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(false), 0);
+				this._onSubmit.fire(false);
 				return;
 			case KeyCode.Escape:
 				this._onCancel.fire();
 				return;
-			case KeyCode.Tab: case KeyCode.Tab | KeyMod.Shift: return;
-			default:
-				if (this.searchConfig.searchOnType) {
-					this._onCancel.fire();
-					this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(true), this.searchConfig.searchOnTypeDebouncePeriod);
-				}
-				return;
 		}
-	}
-
-	private get searchConfig() {
-		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 }
 
@@ -197,10 +185,9 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(parent, contextViewProvider, options, themeService, configurationService, contextKeyService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService);
 	}
 
 	private useExcludesAndIgnoreFilesBox!: Checkbox;
@@ -224,7 +211,8 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
-			actionClassName: 'useExcludesAndIgnoreFiles codicon-exclude',
+			icon: Codicon.exclude,
+			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
 		}));

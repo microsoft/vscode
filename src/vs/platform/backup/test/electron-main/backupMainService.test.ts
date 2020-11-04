@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
@@ -22,6 +22,7 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 suite('BackupMainService', () => {
 
@@ -33,7 +34,7 @@ suite('BackupMainService', () => {
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
-	const environmentService = new EnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
+	const environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS));
 
 	class TestBackupMainService extends BackupMainService {
 
@@ -51,10 +52,6 @@ suite('BackupMainService', () => {
 
 		getFolderHash(folderUri: URI): string {
 			return super.getFolderHash(folderUri);
-		}
-
-		toLegacyBackupPath(folderPath: string): string {
-			return path.join(this.backupHome, super.getLegacyFolderHash(folderPath));
 		}
 	}
 
@@ -264,68 +261,6 @@ suite('BackupMainService', () => {
 		assert.equal(1, emptyBackups.length);
 		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder!)).length);
 	});
-
-	suite('migrate path to URI', () => {
-
-		test('migration folder path to URI makes sure to preserve existing backups', async () => {
-			let path1 = path.join(parentDir, 'folder1');
-			let path2 = path.join(parentDir, 'FOLDER2');
-			let uri1 = URI.file(path1);
-			let uri2 = URI.file(path2);
-
-			if (!fs.existsSync(path1)) {
-				fs.mkdirSync(path1);
-			}
-			if (!fs.existsSync(path2)) {
-				fs.mkdirSync(path2);
-			}
-			const backupFolder1 = service.toLegacyBackupPath(path1);
-			if (!fs.existsSync(backupFolder1)) {
-				fs.mkdirSync(backupFolder1);
-				fs.mkdirSync(path.join(backupFolder1, Schemas.file));
-				await pfs.writeFile(path.join(backupFolder1, Schemas.file, 'unsaved1.txt'), 'Legacy');
-			}
-			const backupFolder2 = service.toLegacyBackupPath(path2);
-			if (!fs.existsSync(backupFolder2)) {
-				fs.mkdirSync(backupFolder2);
-				fs.mkdirSync(path.join(backupFolder2, Schemas.file));
-				await pfs.writeFile(path.join(backupFolder2, Schemas.file, 'unsaved2.txt'), 'Legacy');
-			}
-
-			const workspacesJson = { rootWorkspaces: [], folderWorkspaces: [path1, path2], emptyWorkspaces: [] };
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
-			await service.initialize();
-			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<IBackupWorkspacesFormat>JSON.parse(content));
-			assert.deepEqual(json.folderURIWorkspaces, [uri1.toString(), uri2.toString()]);
-			const newBackupFolder1 = service.toBackupPath(uri1);
-			assert.ok(fs.existsSync(path.join(newBackupFolder1, Schemas.file, 'unsaved1.txt')));
-			const newBackupFolder2 = service.toBackupPath(uri2);
-			assert.ok(fs.existsSync(path.join(newBackupFolder2, Schemas.file, 'unsaved2.txt')));
-		});
-
-		test('migrate storage file', async () => {
-			let folderPath = path.join(parentDir, 'f1');
-			ensureFolderExists(URI.file(folderPath));
-			const backupFolderPath = service.toLegacyBackupPath(folderPath);
-			await createBackupFolder(backupFolderPath);
-
-			let workspacePath = path.join(parentDir, 'f2.code-workspace');
-			const workspace = toWorkspace(workspacePath);
-			await ensureWorkspaceExists(workspace);
-
-			const workspacesJson = { rootWorkspaces: [{ id: workspace.id, configPath: workspacePath }], folderWorkspaces: [folderPath], emptyWorkspaces: [] };
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
-			await service.initialize();
-			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<IBackupWorkspacesFormat>JSON.parse(content));
-			assert.deepEqual(json.folderURIWorkspaces, [URI.file(folderPath).toString()]);
-			assert.deepEqual(json.rootURIWorkspaces, [{ id: workspace.id, configURIPath: URI.file(workspacePath).toString() }]);
-
-			assertEqualUris(service.getWorkspaceBackups().map(window => window.workspace.configPath), [workspace.configPath]);
-		});
-	});
-
 
 	suite('loadSync', () => {
 		test('getFolderBackupPaths() should return [] when workspaces.json doesn\'t exist', () => {
@@ -649,12 +584,12 @@ suite('BackupMainService', () => {
 
 			const buffer = await pfs.readFile(backupWorkspacesPath, 'utf-8');
 			const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
-			assert.deepEqual(json.emptyWorkspaces, ['bar']);
+			assert.deepEqual(json.emptyWorkspaceInfos, [{ backupFolder: 'bar' }]);
 			service.unregisterEmptyWindowBackupSync('bar');
 
 			const content = await pfs.readFile(backupWorkspacesPath, 'utf-8');
 			const json2 = (<IBackupWorkspacesFormat>JSON.parse(content));
-			assert.deepEqual(json2.emptyWorkspaces, []);
+			assert.deepEqual(json2.emptyWorkspaceInfos, []);
 		});
 
 		test('should fail gracefully when removing a path that doesn\'t exist', async () => {
@@ -729,6 +664,47 @@ suite('BackupMainService', () => {
 			} else {
 				assert.equal(service.getFolderBackupPaths().length, 0);
 			}
+		});
+	});
+
+	suite('getDirtyWorkspaces', () => {
+		test('should report if a workspace or folder has backups', async () => {
+			const folderBackupPath = service.registerFolderBackupSync(fooFile);
+
+			const backupWorkspaceInfo = toWorkspaceBackupInfo(fooFile.fsPath);
+			const workspaceBackupPath = service.registerWorkspaceBackupSync(backupWorkspaceInfo);
+
+			assert.equal(((await service.getDirtyWorkspaces()).length), 0);
+
+			try {
+				await pfs.mkdirp(path.join(folderBackupPath, Schemas.file));
+				await pfs.mkdirp(path.join(workspaceBackupPath, Schemas.untitled));
+			} catch (error) {
+				// ignore - folder might exist already
+			}
+
+			assert.equal(((await service.getDirtyWorkspaces()).length), 0);
+
+			fs.writeFileSync(path.join(folderBackupPath, Schemas.file, '594a4a9d82a277a899d4713a5b08f504'), '');
+			fs.writeFileSync(path.join(workspaceBackupPath, Schemas.untitled, '594a4a9d82a277a899d4713a5b08f504'), '');
+
+			const dirtyWorkspaces = await service.getDirtyWorkspaces();
+			assert.equal(dirtyWorkspaces.length, 2);
+
+			let found = 0;
+			for (const dirtyWorkpspace of dirtyWorkspaces) {
+				if (URI.isUri(dirtyWorkpspace)) {
+					if (isEqual(fooFile, dirtyWorkpspace)) {
+						found++;
+					}
+				} else {
+					if (isEqual(backupWorkspaceInfo.workspace.configPath, dirtyWorkpspace.configPath)) {
+						found++;
+					}
+				}
+			}
+
+			assert.equal(found, 2);
 		});
 	});
 });

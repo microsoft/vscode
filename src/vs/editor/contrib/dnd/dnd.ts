@@ -54,6 +54,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._register(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
+		this._register(this._editor.onDidBlurEditorText(() => this.onEditorBlur()));
 		this._dndDecorationIds = [];
 		this._mouseDown = false;
 		this._modifierPressed = false;
@@ -68,7 +69,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
 			return;
 		}
 
@@ -84,7 +85,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
 			return;
 		}
 

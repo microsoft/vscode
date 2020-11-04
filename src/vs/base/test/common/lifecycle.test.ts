@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { IDisposable, dispose, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, MultiDisposeError, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 
 class Disposable implements IDisposable {
 	isDisposed = false;
@@ -47,6 +47,108 @@ suite('Lifecycle', () => {
 
 		assert(disposable.isDisposed);
 		assert(disposable2.isDisposed);
+	});
+
+	test('dispose array should dispose all if a child throws on dispose', () => {
+		const disposedValues = new Set<number>();
+
+		let thrownError: any;
+		try {
+			dispose([
+				toDisposable(() => { disposedValues.add(1); }),
+				toDisposable(() => { throw new Error('I am error'); }),
+				toDisposable(() => { disposedValues.add(3); }),
+			]);
+		} catch (e) {
+			thrownError = e;
+		}
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(3));
+		assert.strictEqual(thrownError.message, 'I am error');
+	});
+
+	test('dispose array should rethrow composite error if multiple entries throw on dispose', () => {
+		const disposedValues = new Set<number>();
+
+		let thrownError: any;
+		try {
+			dispose([
+				toDisposable(() => { disposedValues.add(1); }),
+				toDisposable(() => { throw new Error('I am error 1'); }),
+				toDisposable(() => { throw new Error('I am error 2'); }),
+				toDisposable(() => { disposedValues.add(4); }),
+			]);
+		} catch (e) {
+			thrownError = e;
+		}
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(4));
+		assert.ok(thrownError instanceof MultiDisposeError);
+		assert.strictEqual((thrownError as MultiDisposeError).errors.length, 2);
+		assert.strictEqual((thrownError as MultiDisposeError).errors[0].message, 'I am error 1');
+		assert.strictEqual((thrownError as MultiDisposeError).errors[1].message, 'I am error 2');
+	});
+
+	test('Action bar has broken accessibility #100273', function () {
+		let array = [{ dispose() { } }, { dispose() { } }];
+		let array2 = dispose(array);
+
+		assert.equal(array.length, 2);
+		assert.equal(array2.length, 0);
+		assert.ok(array !== array2);
+
+		let set = new Set<IDisposable>([{ dispose() { } }, { dispose() { } }]);
+		let setValues = set.values();
+		let setValues2 = dispose(setValues);
+		assert.ok(setValues === setValues2);
+	});
+});
+
+suite('DisposableStore', () => {
+	test('dispose should call all child disposes even if a child throws on dispose', () => {
+		const disposedValues = new Set<number>();
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => { disposedValues.add(1); }));
+		store.add(toDisposable(() => { throw new Error('I am error'); }));
+		store.add(toDisposable(() => { disposedValues.add(3); }));
+
+		let thrownError: any;
+		try {
+			store.dispose();
+		} catch (e) {
+			thrownError = e;
+		}
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(3));
+		assert.strictEqual(thrownError.message, 'I am error');
+	});
+
+	test('dispose should throw composite error if multiple children throw on dispose', () => {
+		const disposedValues = new Set<number>();
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => { disposedValues.add(1); }));
+		store.add(toDisposable(() => { throw new Error('I am error 1'); }));
+		store.add(toDisposable(() => { throw new Error('I am error 2'); }));
+		store.add(toDisposable(() => { disposedValues.add(4); }));
+
+		let thrownError: any;
+		try {
+			store.dispose();
+		} catch (e) {
+			thrownError = e;
+		}
+
+		assert.ok(disposedValues.has(1));
+		assert.ok(disposedValues.has(4));
+		assert.ok(thrownError instanceof MultiDisposeError);
+		assert.strictEqual((thrownError as MultiDisposeError).errors.length, 2);
+		assert.strictEqual((thrownError as MultiDisposeError).errors[0].message, 'I am error 1');
+		assert.strictEqual((thrownError as MultiDisposeError).errors[1].message, 'I am error 2');
 	});
 });
 

@@ -474,7 +474,7 @@ class UserKeyboardLayout extends Disposable {
 			}
 		}), 50));
 
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {
@@ -502,7 +502,7 @@ class UserKeyboardLayout extends Disposable {
 
 }
 
-class BrowserKeymapService extends Disposable implements IKeymapService {
+export class BrowserKeymapService extends Disposable implements IKeymapService {
 	public _serviceBrand: undefined;
 
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();

@@ -53,6 +53,31 @@ export namespace Schemas {
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
 	export const userData = 'vscode-userdata';
+
+	export const vscodeCustomEditor = 'vscode-custom-editor';
+
+	export const vscodeNotebook = 'vscode-notebook';
+
+	export const vscodeNotebookCell = 'vscode-notebook-cell';
+
+	export const vscodeSettings = 'vscode-settings';
+
+	export const webviewPanel = 'webview-panel';
+
+	/**
+	 * Scheme used for loading the wrapper html and script in webviews.
+	 */
+	export const vscodeWebview = 'vscode-webview';
+
+	/**
+	 * Scheme used for loading resources inside of webviews.
+	 */
+	export const vscodeWebviewResource = 'vscode-webview-resource';
+
+	/**
+	 * Scheme used for extension pages
+	 */
+	export const extension = 'extension';
 }
 
 class RemoteAuthoritiesImpl {
@@ -104,3 +129,46 @@ class RemoteAuthoritiesImpl {
 }
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
+
+class FileAccessImpl {
+
+	/**
+	 * Returns a URI to use in contexts where the browser is responsible
+	 * for loading (e.g. fetch()) or when used within the DOM.
+	 *
+	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
+	 */
+	asBrowserUri(uri: URI): URI;
+	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
+	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+
+		if (uri.scheme === Schemas.vscodeRemote) {
+			return RemoteAuthorities.rewrite(uri);
+		}
+
+		return uri;
+	}
+
+	/**
+	 * Returns the `file` URI to use in contexts where node.js
+	 * is responsible for loading.
+	 */
+	asFileUri(uri: URI): URI;
+	asFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
+	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+
+		return uri;
+	}
+
+	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+		if (URI.isUri(uriOrModule)) {
+			return uriOrModule;
+		}
+
+		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+	}
+}
+
+export const FileAccess = new FileAccessImpl();

@@ -1,0 +1,1927 @@
+[
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "tuple_element",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp constant.numeric.decimal.cpp",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp punctuation.separator.delimiter.comma.template.argument.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pair",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pugi",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "xml_node",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.delimiter.comma.template.argument.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "map",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "basic_string",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "char",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.delimiter.comma.template.argument.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pugi",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "xml_node",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.delimiter.comma.template.argument.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "less",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "basic_string",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "char",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.delimiter.comma.template.argument.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "allocator",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pair",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "const",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp storage.modifier.specifier.const.cpp",
+		"r": {
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "basic_string",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.begin.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "char",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.delimiter.comma.template.argument.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pugi",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp entity.name.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "xml_node",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp meta.qualified_type.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp meta.qualified_type.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp meta.template.call.cpp meta.template.call.cpp punctuation.section.angle-brackets.end.template.call.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "type dnode",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "_Rb_tree_iterator",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pair",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "const",
+		"t": "source.cpp storage.modifier.specifier.const.cpp",
+		"r": {
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "long",
+		"t": "source.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp punctuation.separator.delimiter.comma.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pair",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "pugi",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "xml_node",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp punctuation.separator.delimiter.comma.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "map",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "basic_string",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "char",
+		"t": "source.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp punctuation.separator.delimiter.comma.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pugi",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "xml_node",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp punctuation.separator.delimiter.comma.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "less",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "basic_string",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "char",
+		"t": "source.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp punctuation.separator.delimiter.comma.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "allocator",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pair",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "const",
+		"t": "source.cpp storage.modifier.specifier.const.cpp",
+		"r": {
+			"dark_plus": "storage.modifier: #569CD6",
+			"light_plus": "storage.modifier: #0000FF",
+			"dark_vs": "storage.modifier: #569CD6",
+			"light_vs": "storage.modifier: #0000FF",
+			"hc_black": "storage.modifier: #569CD6"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "std",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "basic_string",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "<",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "char",
+		"t": "source.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"r": {
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.cpp punctuation.separator.delimiter.comma.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "pugi",
+		"t": "source.cpp entity.name.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "entity.name.scope-resolution: #4EC9B0",
+			"light_plus": "entity.name.scope-resolution: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp punctuation.separator.namespace.access.cpp punctuation.separator.scope-resolution.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "xml_node",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ">",
+		"t": "source.cpp keyword.operator.comparison.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " dnode_it ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.cpp keyword.operator.assignment.cpp",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "dnodes_",
+		"t": "source.cpp variable.other.object.access.cpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.cpp punctuation.separator.dot-access.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "find",
+		"t": "source.cpp entity.name.function.member.cpp",
+		"r": {
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.cpp punctuation.section.arguments.begin.bracket.round.function.member.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "uid",
+		"t": "source.cpp variable.other.object.access.cpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.cpp punctuation.separator.dot-access.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "position",
+		"t": "source.cpp variable.other.property.cpp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.cpp punctuation.section.arguments.end.bracket.round.function.member.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	}
+]

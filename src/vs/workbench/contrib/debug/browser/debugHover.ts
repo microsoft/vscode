@@ -11,12 +11,12 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { renderExpressionValue, replaceWhitespace } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -24,15 +24,16 @@ import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
-const MAX_TREE_HEIGHT = 324;
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
@@ -72,6 +73,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private domNode!: HTMLElement;
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
+	private positionPreference: ContentWidgetPositionPreference[];
 	private highlightDecorations: string[];
 	private complexValueContainer!: HTMLElement;
 	private complexValueTitle!: HTMLElement;
@@ -84,13 +86,14 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
 		this._isVisible = false;
 		this.showAtPosition = null;
 		this.highlightDecorations = [];
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	private create(): void {
@@ -101,12 +104,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer.setAttribute('role', 'tree');
 		const dataSource = new DebugHoverDataSource();
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IExpression, IExpression, any>>(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			dataSource, {
-			ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
 			horizontalScrolling: true,
+			useShadows: false,
 			overrideStyles: {
 				listBackground: editorHoverBackground
 			}
@@ -138,7 +141,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.color = '';
 			}
 		}));
-		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
@@ -174,18 +177,51 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	async showAt(range: Range, focus: boolean): Promise<void> {
-		const pos = range.getStartPosition();
-
 		const session = this.debugService.getViewModel().focusedSession;
-		if (!this.editor.hasModel()) {
+
+		if (!session || !this.editor.hasModel()) {
 			return Promise.resolve(this.hide());
 		}
 
-		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
-		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
-		// use regex to extract the sub-expression #9821
-		const matchingExpression = lineContent.substring(start - 1, end);
-		if (!matchingExpression || !session) {
+		const model = this.editor.getModel();
+		const pos = range.getStartPosition();
+
+		let rng: IRange | undefined = undefined;
+		let matchingExpression: string | undefined;
+
+		if (EvaluatableExpressionProviderRegistry.has(model)) {
+			const supports = EvaluatableExpressionProviderRegistry.ordered(model);
+
+			const promises = supports.map(support => {
+				return Promise.resolve(support.provideEvaluatableExpression(model, pos, CancellationToken.None)).then(expression => {
+					return expression;
+				}, err => {
+					//onUnexpectedExternalError(err);
+					return undefined;
+				});
+			});
+
+			const results = await Promise.all(promises).then(coalesce);
+			if (results.length > 0) {
+				matchingExpression = results[0].expression;
+				rng = results[0].range;
+
+				if (!matchingExpression) {
+					const lineContent = model.getLineContent(pos.lineNumber);
+					matchingExpression = lineContent.substring(rng.startColumn - 1, rng.endColumn - 1);
+				}
+			}
+
+		} else {	// old one-size-fits-all strategy
+			const lineContent = model.getLineContent(pos.lineNumber);
+			const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
+
+			// use regex to extract the sub-expression #9821
+			matchingExpression = lineContent.substring(start - 1, end);
+			rng = new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length);
+		}
+
+		if (!matchingExpression) {
 			return Promise.resolve(this.hide());
 		}
 
@@ -202,13 +238,15 @@ export class DebugHoverWidget implements IContentWidget {
 
 		if (!expression || (expression instanceof Expression && !expression.available)) {
 			this.hide();
-			return undefined;
+			return;
 		}
 
-		this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-			range: new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length),
-			options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
-		}]);
+		if (rng) {
+			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
+				range: rng,
+				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
+			}]);
+		}
 
 		return this.doShow(pos, expression, focus);
 	}
@@ -230,7 +268,6 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				preserveWhitespace: true,
 				colorize: true
 			});
 			this.valueContainer.title = '';
@@ -245,16 +282,14 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		this.valueContainer.hidden = true;
-		this.complexValueContainer.hidden = false;
 
 		await this.tree.setInput(expression);
-		this.complexValueTitle.textContent = replaceWhitespace(expression.value);
+		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
-		this.layoutTreeAndContainer();
-		this.editor.layoutContentWidget(this);
-		this.scrollbar.scanDomNode();
+		this.layoutTreeAndContainer(true);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
+		this.complexValueContainer.hidden = false;
 
 		if (focus) {
 			this.editor.render();
@@ -262,32 +297,42 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 	}
 
-	private layoutTreeAndContainer(): void {
-		const scrollBarHeight = 8;
-		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight + scrollBarHeight);
+	private layoutTreeAndContainer(initialLayout: boolean): void {
+		const scrollBarHeight = 10;
+		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.7, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
-		this.tree.layout(treeHeight, 324);
+		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
+		this.editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
 	}
+
+	afterRender(positionPreference: ContentWidgetPositionPreference | null) {
+		if (positionPreference) {
+			// Remember where the editor placed you to keep position stable #109226
+			this.positionPreference = [positionPreference];
+		}
+	}
+
 
 	hide(): void {
 		if (!this._isVisible) {
 			return;
 		}
 
+		if (dom.isAncestor(document.activeElement, this.domNode)) {
+			this.editor.focus();
+		}
 		this._isVisible = false;
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
-		this.editor.focus();
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	getPosition(): IContentWidgetPosition | null {
 		return this._isVisible ? {
 			position: this.showAtPosition,
-			preference: [
-				ContentWidgetPositionPreference.ABOVE,
-				ContentWidgetPositionPreference.BELOW
-			]
+			preference: this.positionPreference
 		} : null;
 	}
 
@@ -296,9 +341,14 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 }
 
-class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpression> {
+class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('treeAriaLabel', "Debug Hover");
+	}
+
 	getAriaLabel(element: IExpression): string {
-		return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+		return nls.localize({ key: 'variableAriaLabel', comment: ['Do not translate placeholders. Placeholders are name and value of a variable.'] }, "{0}, value {1}, variables, debug", element.name, element.value);
 	}
 }
 

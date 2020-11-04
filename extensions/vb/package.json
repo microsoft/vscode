@@ -23,7 +23,7 @@
 		}],
 		"snippets": [{
 			"language": "vb",
-			"path": "./snippets/vb.json"
+			"path": "./snippets/vb.code-snippets"
 		}]
 	}
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-
 export class FastDomNode<T extends HTMLElement> {
 
 	public readonly domNode: T;
@@ -28,6 +26,7 @@ export class FastDomNode<T extends HTMLElement> {
 	private _backgroundColor: string;
 	private _layerHint: boolean;
 	private _contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint';
+	private _boxShadow: string;
 
 	constructor(domNode: T) {
 		this.domNode = domNode;
@@ -51,6 +50,7 @@ export class FastDomNode<T extends HTMLElement> {
 		this._backgroundColor = '';
 		this._layerHint = false;
 		this._contain = 'none';
+		this._boxShadow = '';
 	}
 
 	public setMaxWidth(maxWidth: number): void {
@@ -174,7 +174,7 @@ export class FastDomNode<T extends HTMLElement> {
 	}
 
 	public toggleClassName(className: string, shouldHaveIt?: boolean): void {
-		dom.toggleClass(this.domNode, className, shouldHaveIt);
+		this.domNode.classList.toggle(className, shouldHaveIt);
 		this._className = this.domNode.className;
 	}
 
@@ -218,6 +218,14 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.transform = this._layerHint ? 'translate3d(0px, 0px, 0px)' : '';
 	}
 
+	public setBoxShadow(boxShadow: string): void {
+		if (this._boxShadow === boxShadow) {
+			return;
+		}
+		this._boxShadow = boxShadow;
+		this.domNode.style.boxShadow = boxShadow;
+	}
+
 	public setContain(contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint'): void {
 		if (this._contain === contain) {
 			return;
@@ -234,11 +242,11 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.removeAttribute(name);
 	}
 
-	public appendChild(child: FastDomNode<any>): void {
+	public appendChild(child: FastDomNode<T>): void {
 		this.domNode.appendChild(child.domNode);
 	}
 
-	public removeChild(child: FastDomNode<any>): void {
+	public removeChild(child: FastDomNode<T>): void {
 		this.domNode.removeChild(child.domNode);
 	}
 }

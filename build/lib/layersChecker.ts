@@ -25,8 +25,8 @@ import { match } from 'minimatch';
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
 	'require', // from our AMD loader
-	'atob',
-	'btoa',
+	// 'atob',
+	// 'btoa',
 	'setTimeout',
 	'clearTimeout',
 	'setInterval',
@@ -39,6 +39,7 @@ const CORE_TYPES = [
 	'group',
 	'groupEnd',
 	'table',
+	'assert',
 	'Error',
 	'String',
 	'throws',
@@ -52,6 +53,15 @@ const CORE_TYPES = [
 	'self',
 	'trimLeft',
 	'trimRight'
+];
+
+// Types that are defined in a common layer but are known to be only
+// available in native environments should not be allowed in browser
+const NATIVE_TYPES = [
+	'NativeParsedArgs',
+	'INativeEnvironmentService',
+	'INativeWindowConfiguration',
+	'ICommonNativeHostService'
 ];
 
 const RULES = [
@@ -72,6 +82,51 @@ const RULES = [
 			'MessageEvent',
 			'data'
 		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/environment/common/argv.ts
+	{
+		target: '**/vs/platform/environment/common/argv.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/environment/common/environment.ts
+	{
+		target: '**/vs/platform/environment/common/environment.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/windows/common/windows.ts
+	{
+		target: '**/vs/platform/windows/common/windows.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/native/common/native.ts
+	{
+		target: '**/vs/platform/native/common/native.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -87,6 +142,7 @@ const RULES = [
 			// Safe access to global
 			'global'
 		],
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -97,6 +153,7 @@ const RULES = [
 	{
 		target: '**/vs/**/common/**',
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -107,6 +164,17 @@ const RULES = [
 	{
 		target: '**/vs/**/browser/**',
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Browser (editor contrib)
+	{
+		target: '**/src/vs/editor/contrib/**',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
@@ -130,6 +198,15 @@ const RULES = [
 		],
 		disallowedDefinitions: [
 			'lib.dom.d.ts'	// no DOM
+		]
+	},
+
+	// Electron (sandbox)
+	{
+		target: '**/vs/**/electron-sandbox/**',
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'@types/node'	// no node.js
 		]
 	},
 
@@ -162,6 +239,7 @@ interface IRule {
 	skip?: boolean;
 	allowedTypes?: string[];
 	disallowedDefinitions?: string[];
+	disallowedTypes?: string[];
 }
 
 let hasErrors = false;
@@ -178,6 +256,14 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 
 		if (rule.allowedTypes?.some(allowed => allowed === text)) {
 			return; // override
+		}
+
+		if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
+			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+			console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+
+			hasErrors = true;
+			return;
 		}
 
 		const checker = program.getTypeChecker();

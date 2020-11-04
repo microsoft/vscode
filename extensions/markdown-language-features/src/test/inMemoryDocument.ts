@@ -22,6 +22,7 @@ export class InMemoryDocument implements vscode.TextDocument {
 	isDirty: boolean = false;
 	isClosed: boolean = false;
 	eol: vscode.EndOfLine = vscode.EndOfLine.LF;
+	notebook: undefined;
 
 	get fileName(): string {
 		return this.uri.fsPath;

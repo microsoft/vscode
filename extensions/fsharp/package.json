@@ -23,7 +23,7 @@
 		}],
 		"snippets": [{
 			"language": "fsharp",
-			"path": "./snippets/fsharp.json"
+			"path": "./snippets/fsharp.code-snippets"
 		}]
 	}
 }

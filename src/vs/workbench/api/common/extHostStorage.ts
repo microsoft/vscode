@@ -7,6 +7,7 @@ import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extH
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface IStorageChangeEvent {
 	shared: boolean;
@@ -25,6 +26,10 @@ export class ExtHostStorage implements ExtHostStorageShape {
 
 	constructor(mainContext: IExtHostRpcService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadStorage);
+	}
+
+	registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
+		this._proxy.$registerExtensionStorageKeysToSync(extension, keys);
 	}
 
 	getValue<T>(shared: boolean, key: string, defaultValue?: T): Promise<T | undefined> {

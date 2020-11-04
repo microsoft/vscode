@@ -5,7 +5,7 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { localize } from 'vs/nls';
-import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -13,7 +13,7 @@ import { Event } from 'vs/base/common/event';
 
 export class NotificationsAlerts extends Disposable {
 
-	constructor(private model: INotificationsModel) {
+	constructor(private readonly model: INotificationsModel) {
 		super();
 
 		// Alert initial notifications if any
@@ -23,10 +23,10 @@ export class NotificationsAlerts extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 	}
 
-	private onDidNotificationChange(e: INotificationChangeEvent): void {
+	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		if (e.kind === NotificationChangeType.ADD) {
 
 			// ARIA alert for screen readers
@@ -37,17 +37,20 @@ export class NotificationsAlerts extends Disposable {
 				if (e.item.message.original instanceof Error) {
 					console.error(e.item.message.original);
 				} else {
-					console.error(toErrorMessage(e.item.message.value, true));
+					console.error(toErrorMessage(e.item.message.linkedText.toString(), true));
 				}
 			}
 		}
 	}
 
 	private triggerAriaAlert(notifiation: INotificationViewItem): void {
+		if (notifiation.silent) {
+			return;
+		}
 
-		// Trigger the alert again whenever the label changes
-		const listener = notifiation.onDidLabelChange(e => {
-			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
+		// Trigger the alert again whenever the message changes
+		const listener = notifiation.onDidChangeContent(e => {
+			if (e.kind === NotificationViewItemContentChangeKind.MESSAGE) {
 				this.doTriggerAriaAlert(notifiation);
 			}
 		});
@@ -60,11 +63,11 @@ export class NotificationsAlerts extends Disposable {
 	private doTriggerAriaAlert(notifiation: INotificationViewItem): void {
 		let alertText: string;
 		if (notifiation.severity === Severity.Error) {
-			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
+			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.linkedText.toString());
 		} else if (notifiation.severity === Severity.Warning) {
-			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.value);
+			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.linkedText.toString());
 		} else {
-			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.value);
+			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.linkedText.toString());
 		}
 
 		alert(alertText);

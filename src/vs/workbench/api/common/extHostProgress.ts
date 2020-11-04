@@ -26,6 +26,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
 		const source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
+
 		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, extension);
 		return this._withProgress(handle, task, !!cancellable);
 	}

@@ -14,7 +14,12 @@ import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
 
-suite('Storage Library', () => {
+suite('Storage Library', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/108113
+	// we see random test failures when accessing the native file system.
+	this.retries(3);
+	this.timeout(1000 * 20);
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -124,28 +129,27 @@ suite('Storage Library', () => {
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		const change = new Map<string, string>();
-		change.set('foo', 'bar');
-		database.fireDidChangeItemsExternal({ items: change });
+		const changed = new Map<string, string>();
+		changed.set('foo', 'bar');
+		database.fireDidChangeItemsExternal({ changed });
 		equal(changes.size, 0);
 
 		// Change is accepted if valid
-		change.set('foo', 'bar1');
-		database.fireDidChangeItemsExternal({ items: change });
+		changed.set('foo', 'bar1');
+		database.fireDidChangeItemsExternal({ changed });
 		ok(changes.has('foo'));
 		equal(storage.get('foo'), 'bar1');
 		changes.clear();
 
 		// Delete is accepted
-		change.set('foo', undefined!);
-		database.fireDidChangeItemsExternal({ items: change });
+		const deleted = new Set<string>(['foo']);
+		database.fireDidChangeItemsExternal({ deleted });
 		ok(changes.has('foo'));
-		equal(storage.get('foo', null!), null);
+		equal(storage.get('foo', undefined), undefined);
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		change.set('foo', undefined!);
-		database.fireDidChangeItemsExternal({ items: change });
+		database.fireDidChangeItemsExternal({ deleted });
 		equal(changes.size, 0);
 
 		await storage.close();
@@ -279,7 +283,12 @@ suite('Storage Library', () => {
 	});
 });
 
-suite('SQLite Storage Library', () => {
+suite('SQLite Storage Library', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/108113
+	// we see random test failures when accessing the native file system.
+	this.retries(3);
+	this.timeout(1000 * 20);
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
@@ -541,8 +550,6 @@ suite('SQLite Storage Library', () => {
 	});
 
 	test('real world example', async function () {
-		this.timeout(20000);
-
 		const storageDir = uniqueStorageDir();
 
 		await mkdirp(storageDir);

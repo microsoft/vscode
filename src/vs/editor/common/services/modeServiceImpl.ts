@@ -50,7 +50,7 @@ export class ModeServiceImpl implements IModeService {
 	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
 	protected readonly _onLanguagesMaybeChanged = new Emitter<void>();
-	private readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
+	public readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
 
 	constructor(warnOnOverwrite = false) {
 		this._instantiatedModes = {};

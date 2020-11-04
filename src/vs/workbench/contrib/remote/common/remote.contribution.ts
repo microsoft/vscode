@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
@@ -18,8 +18,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
 import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
-
-export const VIEWLET_ID = 'workbench.view.remote';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -90,3 +90,49 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContr
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
+
+const extensionKindSchema: IJSONSchema = {
+	type: 'string',
+	enum: [
+		'ui',
+		'workspace',
+		'web'
+	],
+	enumDescriptions: [
+		localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
+		localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
+	],
+};
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		id: 'remote',
+		title: localize('remote', "Remote"),
+		type: 'object',
+		properties: {
+			'remote.extensionKind': {
+				type: 'object',
+				markdownDescription: localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
+						default: ['ui'],
+					},
+				},
+				default: {
+					'pub.name': ['ui']
+				}
+			},
+			'remote.restoreForwardedPorts': {
+				type: 'boolean',
+				markdownDescription: localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
+				default: false
+			},
+			'remote.autoForwardPorts': {
+				type: 'boolean',
+				markdownDescription: localize('remote.autoForwardPorts', "When enabled, URLs with ports (ex. `http://127.0.0.1:3000`) that are printed to your terminals are automatically forwarded."),
+				default: true
+			}
+		}
+	});

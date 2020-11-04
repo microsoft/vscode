@@ -95,6 +95,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/keybindings",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/markers",
 			"project": "vscode-workbench"
 		},
@@ -119,7 +123,11 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/quickopen",
+			"name": "vs/workbench/contrib/notebook",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/quickaccess",
 			"project": "vscode-workbench"
 		},
 		{
@@ -135,11 +143,19 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/sash",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/scm",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/search",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/searchEditor",
 			"project": "vscode-workbench"
 		},
 		{
@@ -191,6 +207,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/webviewPanel",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/workspaces",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/customEditor",
 			"project": "vscode-workbench"
 		},
@@ -204,6 +228,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/views",
 			"project": "vscode-workbench"
 		},
 		{
@@ -231,10 +259,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/crashReporter",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/dialogs",
 			"project": "vscode-workbench"
 		},
@@ -252,6 +276,10 @@
 		},
 		{
 			"name": "vs/workbench/services/files",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/log",
 			"project": "vscode-workbench"
 		},
 		{
@@ -295,6 +323,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/workingCopy",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/workspaces",
 			"project": "vscode-workbench"
 		},
@@ -323,7 +355,15 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/views",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/timeline",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/authentication",
 			"project": "vscode-workbench"
 		}
 	]

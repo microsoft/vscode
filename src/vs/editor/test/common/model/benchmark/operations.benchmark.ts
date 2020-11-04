@@ -54,7 +54,7 @@ for (let fileSize of fileSizes) {
 			fn: (textBuffer) => {
 				// for line model, this loop doesn't reflect the real situation.
 				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false);
+					textBuffer.applyEdits([edit], false, false);
 				}
 			}
 		});
@@ -67,7 +67,7 @@ for (let fileSize of fileSizes) {
 			},
 			preCycle: (textBuffer) => {
 				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false);
+					textBuffer.applyEdits([edit], false, false);
 				}
 				return textBuffer;
 			},
@@ -91,7 +91,7 @@ for (let fileSize of fileSizes) {
 			},
 			preCycle: (textBuffer) => {
 				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false);
+					textBuffer.applyEdits([edit], false, false);
 				}
 				return textBuffer;
 			},
@@ -121,7 +121,7 @@ for (let fileSize of fileSizes) {
 			},
 			preCycle: (textBuffer) => {
 				for (const edit of edits) {
-					textBuffer.applyEdits([edit], false);
+					textBuffer.applyEdits([edit], false, false);
 				}
 				return textBuffer;
 			},

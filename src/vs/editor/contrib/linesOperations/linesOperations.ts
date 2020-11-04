@@ -37,12 +37,36 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignore: false }));
+		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+
+		// Remove selections that would result in copying the same line
+		let prev = selections[0];
+		for (let i = 1; i < selections.length; i++) {
+			const curr = selections[i];
+			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
+				// these two selections would copy the same line
+				if (prev.index < curr.index) {
+					// prev wins
+					curr.ignore = true;
+				} else {
+					// curr wins
+					prev.ignore = true;
+					prev = curr;
+				}
+			}
+		}
 
 		const commands: ICommand[] = [];
-		const selections = editor.getSelections() || [];
-
 		for (const selection of selections) {
-			commands.push(new CopyLinesCommand(selection, this.down));
+			if (selection.ignore) {
+				continue;
+			}
+			commands.push(new CopyLinesCommand(selection.selection, this.down));
 		}
 
 		editor.pushUndoStop();
@@ -430,12 +454,12 @@ export class IndentLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const cursors = editor._getCursors();
-		if (!cursors) {
+		const viewModel = editor._getViewModel();
+		if (!viewModel) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.indent(cursors.context.config, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
 	}
 }
@@ -476,12 +500,12 @@ export class InsertLineBeforeAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const cursors = editor._getCursors();
-		if (!cursors) {
+		const viewModel = editor._getViewModel();
+		if (!viewModel) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(cursors.context.config, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -501,12 +525,12 @@ export class InsertLineAfterAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const cursors = editor._getCursors();
-		if (!cursors) {
+		const viewModel = editor._getViewModel();
+		if (!viewModel) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(cursors.context.config, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -936,7 +960,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 			let selection = selections[i];
 			if (selection.isEmpty()) {
 				let cursor = selection.getStartPosition();
-				let word = model.getWordAtPosition(cursor);
+				const word = editor.getConfiguredWordAtPosition(cursor);
 
 				if (!word) {
 					continue;
