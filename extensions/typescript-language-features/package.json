@@ -511,7 +511,20 @@
         "javascript.implicitProjectConfig.experimentalDecorators": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.strictNullChecks": {
+          "title": "",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.implicitProjectConfig.strictNullChecks%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.strictFunctionTypes": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
           "scope": "window"
         },
         "javascript.suggest.names": {
