@@ -53,7 +53,6 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { BrowserKeymapService } from 'vs/workbench/services/keybinding/browser/keymapService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -670,28 +669,6 @@ class SimpleUserDataSyncStoreManagementService implements IUserDataSyncStoreMana
 registerSingleton(IUserDataSyncStoreManagementService, SimpleUserDataSyncStoreManagementService);
 
 //#endregion
-
-//#region IStorageKeysSyncRegistryService
-
-class SimpleStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	registerStorageKey(): void { }
-
-	onDidChangeExtensionStorageKeys = Event.None;
-
-	extensionsStorageKeys = [];
-
-	getExtensioStorageKeys() { return undefined; }
-
-	registerExtensionStorageKeys(): void { }
-}
-
-registerSingleton(IStorageKeysSyncRegistryService, SimpleStorageKeysSyncRegistryService);
-
-//#endregion
-
 
 //#region Task
 

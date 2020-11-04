@@ -55,7 +55,6 @@ import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-s
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkpsaceExtensionsConfigService, WorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
@@ -222,7 +221,6 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IWorkspaceTagsService, new NoOpWorkspaceTagsService());
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
 		instantiationService.stub(IProductService, <Partial<IProductService>>{
 			extensionTips: {
 				'ms-dotnettools.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
