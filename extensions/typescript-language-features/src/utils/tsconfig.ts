@@ -32,22 +32,22 @@ export function inferredProjectCompilerOptions(
 		jsx: 'preserve' as Proto.JsxEmit,
 	};
 
-	if (serviceConfig.checkJs) {
+	if (serviceConfig.implictProjectConfiguration.checkJs) {
 		projectConfig.checkJs = true;
 		if (projectType === ProjectType.TypeScript) {
 			projectConfig.allowJs = true;
 		}
 	}
 
-	if (serviceConfig.experimentalDecorators) {
+	if (serviceConfig.implictProjectConfiguration.experimentalDecorators) {
 		projectConfig.experimentalDecorators = true;
 	}
 
-	if (serviceConfig.implicitStrictNullChecks) {
+	if (serviceConfig.implictProjectConfiguration.strictNullChecks) {
 		projectConfig.strictNullChecks = true;
 	}
 
-	if (serviceConfig.implicitStrictFunctionTypes) {
+	if (serviceConfig.implictProjectConfiguration.strictFunctionTypes) {
 		projectConfig.strictFunctionTypes = true;
 	}
 

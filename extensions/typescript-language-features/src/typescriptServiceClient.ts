@@ -189,11 +189,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.tracer.updateConfiguration();
 
 			if (this.serverState.type === ServerState.Type.Running) {
-				if (this._configuration.checkJs !== oldConfiguration.checkJs
-					|| this._configuration.experimentalDecorators !== oldConfiguration.experimentalDecorators
-					|| this._configuration.implicitStrictNullChecks !== oldConfiguration.implicitStrictNullChecks
-					|| this._configuration.implicitStrictFunctionTypes !== oldConfiguration.implicitStrictFunctionTypes
-				) {
+				if (!this._configuration.implictProjectConfiguration.isEqualTo(oldConfiguration.implictProjectConfiguration)) {
 					this.setCompilerOptionsForInferredProjects(this._configuration);
 				}
 

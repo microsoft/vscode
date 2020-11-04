@@ -51,6 +51,44 @@ export const enum SeparateSyntaxServerConfiguration {
 	Enabled,
 }
 
+export class ImplicitProjectConfiguration {
+
+	public readonly checkJs: boolean;
+	public readonly experimentalDecorators: boolean;
+	public readonly strictNullChecks: boolean;
+	public readonly strictFunctionTypes: boolean;
+
+	constructor(configuration: vscode.WorkspaceConfiguration) {
+		this.checkJs = ImplicitProjectConfiguration.readCheckJs(configuration);
+		this.experimentalDecorators = ImplicitProjectConfiguration.readExperimentalDecorators(configuration);
+		this.strictNullChecks = ImplicitProjectConfiguration.readImplicitStrictNullChecks(configuration);
+		this.strictFunctionTypes = ImplicitProjectConfiguration.readImplicitStrictFunctionTypes(configuration);
+	}
+
+	public isEqualTo(other: ImplicitProjectConfiguration): boolean {
+		return this.checkJs === other.checkJs
+			&& this.experimentalDecorators === other.experimentalDecorators
+			&& this.strictNullChecks === other.strictNullChecks
+			&& this.strictFunctionTypes === other.strictFunctionTypes;
+	}
+
+	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
+	}
+
+	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('javascript.implicitProjectConfig.experimentalDecorators', false);
+	}
+
+	private static readImplicitStrictNullChecks(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictNullChecks', true);
+	}
+
+	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictFunctionTypes', true);
+	}
+}
+
 export class TypeScriptServiceConfiguration {
 	public readonly locale: string | null;
 	public readonly globalTsdk: string | null;
@@ -58,12 +96,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly npmLocation: string | null;
 	public readonly tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	public readonly tsServerPluginPaths: readonly string[];
-
-	public readonly checkJs: boolean;
-	public readonly experimentalDecorators: boolean;
-	public readonly implicitStrictNullChecks: boolean;
-	public readonly implicitStrictFunctionTypes: boolean;
-
+	public readonly implictProjectConfiguration: ImplicitProjectConfiguration;
 	public readonly disableAutomaticTypeAcquisition: boolean;
 	public readonly separateSyntaxServer: SeparateSyntaxServerConfiguration;
 	public readonly enableProjectDiagnostics: boolean;
@@ -85,10 +118,7 @@ export class TypeScriptServiceConfiguration {
 		this.npmLocation = TypeScriptServiceConfiguration.readNpmLocation(configuration);
 		this.tsServerLogLevel = TypeScriptServiceConfiguration.readTsServerLogLevel(configuration);
 		this.tsServerPluginPaths = TypeScriptServiceConfiguration.readTsServerPluginPaths(configuration);
-		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
-		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
-		this.implicitStrictNullChecks = TypeScriptServiceConfiguration.readImplicitStrictNullChecks(configuration);
-		this.implicitStrictFunctionTypes = TypeScriptServiceConfiguration.readImplicitStrictFunctionTypes(configuration);
+		this.implictProjectConfiguration = new ImplicitProjectConfiguration(configuration);
 		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
 		this.separateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
 		this.enableProjectDiagnostics = TypeScriptServiceConfiguration.readEnableProjectDiagnostics(configuration);
@@ -104,10 +134,7 @@ export class TypeScriptServiceConfiguration {
 			&& this.localTsdk === other.localTsdk
 			&& this.npmLocation === other.npmLocation
 			&& this.tsServerLogLevel === other.tsServerLogLevel
-			&& this.checkJs === other.checkJs
-			&& this.experimentalDecorators === other.experimentalDecorators
-			&& this.implicitStrictNullChecks === other.implicitStrictNullChecks
-			&& this.implicitStrictFunctionTypes === other.implicitStrictFunctionTypes
+			&& this.implictProjectConfiguration.isEqualTo(other.implictProjectConfiguration)
 			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
 			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths)
 			&& this.separateSyntaxServer === other.separateSyntaxServer
@@ -151,22 +178,6 @@ export class TypeScriptServiceConfiguration {
 
 	private static readTsServerPluginPaths(configuration: vscode.WorkspaceConfiguration): string[] {
 		return configuration.get<string[]>('typescript.tsserver.pluginPaths', []);
-	}
-
-	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
-	}
-
-	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('javascript.implicitProjectConfig.experimentalDecorators', false);
-	}
-
-	private static readImplicitStrictNullChecks(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictNullChecks', true);
-	}
-
-	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictFunctionTypes', true);
 	}
 
 	private static readNpmLocation(configuration: vscode.WorkspaceConfiguration): string | null {
