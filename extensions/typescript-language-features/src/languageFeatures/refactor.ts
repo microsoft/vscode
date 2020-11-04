@@ -20,11 +20,6 @@ import FormattingOptionsManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
-namespace Experimental {
-	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
-		readonly notApplicableReason?: string;
-	}
-}
 
 interface DidApplyRefactoringCommand_Args {
 	readonly codeAction: InlinedCodeAction
@@ -354,7 +349,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private refactorActionToCodeAction(
-		action: Experimental.RefactorActionInfo,
+		action: Proto.RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
