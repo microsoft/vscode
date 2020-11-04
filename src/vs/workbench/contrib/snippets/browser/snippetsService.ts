@@ -19,7 +19,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import { ISnippetGetOptions, ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
@@ -224,7 +224,7 @@ class SnippetsService implements ISnippetsService {
 		return this._files.values();
 	}
 
-	async getSnippets(languageId: LanguageId, includeIgnored?: boolean): Promise<Snippet[]> {
+	async getSnippets(languageId: LanguageId, opts?: ISnippetGetOptions): Promise<Snippet[]> {
 		await this._joinSnippets();
 
 		const result: Snippet[] = [];
@@ -241,10 +241,10 @@ class SnippetsService implements ISnippetsService {
 			}
 		}
 		await Promise.all(promises);
-		return includeIgnored ? result : result.filter(this.isEnabled, this);
+		return this._filterSnippets(result, opts);
 	}
 
-	getSnippetsSync(languageId: LanguageId, includeIgnored?: boolean): Snippet[] {
+	getSnippetsSync(languageId: LanguageId, opts?: ISnippetGetOptions): Snippet[] {
 		const result: Snippet[] = [];
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
@@ -256,7 +256,14 @@ class SnippetsService implements ISnippetsService {
 				file.select(langName, result);
 			}
 		}
-		return includeIgnored ? result : result.filter(this.isEnabled, this);
+		return this._filterSnippets(result, opts);
+	}
+
+	private _filterSnippets(snippets: Snippet[], opts?: ISnippetGetOptions): Snippet[] {
+		return snippets.filter(snippet => {
+			return (snippet.prefix || opts?.includeNoPrefixSnippets) // prefix or no-prefix wanted
+				&& (this.isEnabled(snippet) || opts?.includeDisabledSnippets); // enabled or disabled wanted
+		});
 	}
 
 	// --- loading, watching
