@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
@@ -127,10 +127,11 @@ export async function configureOpenerTrustedDomainsHandler(
 				const itemToTrust = pickedResult.toTrust;
 				if (trustedDomains.indexOf(itemToTrust) === -1) {
 					storageService.remove(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, StorageScope.GLOBAL);
-					storageService.store(
+					storageService.store2(
 						TRUSTED_DOMAINS_STORAGE_KEY,
 						JSON.stringify([...trustedDomains, itemToTrust]),
-						StorageScope.GLOBAL
+						StorageScope.GLOBAL,
+						StorageTarget.USER
 					);
 
 					return [...trustedDomains, itemToTrust];

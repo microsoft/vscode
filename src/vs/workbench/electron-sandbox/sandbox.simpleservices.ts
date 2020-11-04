@@ -677,10 +677,6 @@ class SimpleStorageKeysSyncRegistryService implements IStorageKeysSyncRegistrySe
 
 	declare readonly _serviceBrand: undefined;
 
-	onDidChangeStorageKeys = Event.None;
-
-	storageKeys = [];
-
 	registerStorageKey(): void { }
 
 	onDidChangeExtensionStorageKeys = Event.None;
