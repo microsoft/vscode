@@ -152,11 +152,13 @@ export class SuggestWidget implements IDisposable {
 		this._persistedSize = new PersistedWidgetSize(_storageService, editor);
 
 		let persistedSize: dom.Dimension | undefined;
+		let currentSize: dom.Dimension | undefined;
 		let persistHeight = false;
 		let persistWidth = false;
 		this._disposables.add(this.element.onDidWillResize(() => {
 			this._contentWidget.lockPreference();
 			persistedSize = this._persistedSize.restore();
+			currentSize = this.element.size;
 		}));
 		this._disposables.add(this.element.onDidResize(e => {
 
@@ -165,14 +167,15 @@ export class SuggestWidget implements IDisposable {
 			persistHeight = persistHeight || !!e.north || !!e.south;
 			persistWidth = persistWidth || !!e.east || !!e.west;
 			if (e.done) {
-
-				// only store width or height value that have changed
+				// only store width or height value that have changed and also
+				// only store changes that are above a certain threshold
+				const threshold = Math.floor(this.getLayoutInfo().itemHeight / 3);
 				let { width, height } = this.element.size;
-				if (persistedSize) {
-					if (!persistHeight) {
+				if (persistedSize && currentSize) {
+					if (!persistHeight || Math.abs(currentSize.height - height) > threshold) {
 						height = persistedSize.height;
 					}
-					if (!persistWidth) {
+					if (!persistWidth || Math.abs(currentSize.width - width) > threshold) {
 						width = persistedSize.width;
 					}
 				}
@@ -181,6 +184,7 @@ export class SuggestWidget implements IDisposable {
 				// reset working state
 				this._contentWidget.unlockPreference();
 				persistedSize = undefined;
+				currentSize = undefined;
 				persistHeight = false;
 				persistWidth = false;
 			}
