@@ -44,7 +44,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { RenderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -776,7 +776,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			} else if (!node.tooltip) {
 				return label;
 			} else if (!isString(node.tooltip)) {
-				return { markdown: node.tooltip, fallback: resource ? undefined : RenderMarkdownAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
+				return { markdown: node.tooltip, markdownNotSupportedFallback: resource ? undefined : renderMarkdownAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
 			} else {
 				return node.tooltip;
 			}
@@ -787,7 +787,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				await node.resolve();
 				resolve(node.tooltip);
 			}),
-			fallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
+			markdownNotSupportedFallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
 		};
 	}
 

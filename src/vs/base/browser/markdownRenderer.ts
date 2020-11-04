@@ -301,7 +301,7 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 	};
 }
 
-export function RenderMarkdownAsPlaintext(markdown: IMarkdownString) {
+export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 	const renderer = new marked.Renderer();
 
 	renderer.code = (code: string): string => {
@@ -314,7 +314,7 @@ export function RenderMarkdownAsPlaintext(markdown: IMarkdownString) {
 		return '';
 	};
 	renderer.heading = (text: string, _level: 1 | 2 | 3 | 4 | 5 | 6, _raw: string): string => {
-		return text + ' ';
+		return text + '\n';
 	};
 	renderer.hr = (): string => {
 		return '';
@@ -323,13 +323,13 @@ export function RenderMarkdownAsPlaintext(markdown: IMarkdownString) {
 		return body;
 	};
 	renderer.listitem = (text: string): string => {
-		return ' ' + text;
+		return text + '\n';
 	};
 	renderer.paragraph = (text: string): string => {
-		return text + '\n ';
+		return text + '\n';
 	};
 	renderer.table = (header: string, body: string): string => {
-		return header + ' ' + body;
+		return header + body + '\n';
 	};
 	renderer.tablerow = (content: string): string => {
 		return content;
@@ -338,7 +338,7 @@ export function RenderMarkdownAsPlaintext(markdown: IMarkdownString) {
 		header: boolean;
 		align: 'center' | 'left' | 'right' | null;
 	}): string => {
-		return content;
+		return content + ' ';
 	};
 	renderer.strong = (text: string): string => {
 		return text;
@@ -347,10 +347,10 @@ export function RenderMarkdownAsPlaintext(markdown: IMarkdownString) {
 		return text;
 	};
 	renderer.codespan = (code: string): string => {
-		return `\\\`${code}\\\``;
+		return code;
 	};
 	renderer.br = (): string => {
-		return '\n ';
+		return '\n';
 	};
 	renderer.del = (text: string): string => {
 		return text;
@@ -362,7 +362,7 @@ export function RenderMarkdownAsPlaintext(markdown: IMarkdownString) {
 		return text;
 	};
 	renderer.link = (_href: string, _title: string, text: string): string => {
-		return text + ' ';
+		return text;
 	};
 	// values that are too long will freeze the UI
 	let value = markdown.value ?? '';

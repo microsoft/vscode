@@ -25,8 +25,8 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | Promise<IMarkdownString | string | undefined> | string;
-	fallback: string | undefined;
+	markdown: IMarkdownString | string | undefined | Promise<IMarkdownString | string | undefined>;
+	markdownNotSupportedFallback: string | undefined;
 }
 
 export interface IIconLabelValueOptions {
@@ -238,8 +238,8 @@ export class IconLabel extends Disposable {
 		let stringTooltip: string = '';
 		if (isString(tooltip)) {
 			stringTooltip = tooltip;
-		} else if (tooltip?.fallback) {
-			stringTooltip = tooltip.fallback;
+		} else if (tooltip?.markdownNotSupportedFallback) {
+			stringTooltip = tooltip.markdownNotSupportedFallback;
 		}
 		htmlElement.title = stringTooltip;
 	}
