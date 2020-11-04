@@ -1410,14 +1410,14 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 				anyOf: [
 					{
 						type: 'boolean',
-						description: nls.localize('fontLigatures', "Enables/Disables font ligatures."),
+						description: nls.localize('fontLigatures', "Enables/Disables font ligatures ('calt' and 'liga' font features). Change this to a string for fine-grained control of the 'font-feature-settings' CSS property."),
 					},
 					{
 						type: 'string',
-						description: nls.localize('fontFeatureSettings', "Explicit font-feature-settings.")
+						description: nls.localize('fontFeatureSettings', "Explicit 'font-feature-settings' CSS property. A boolean can be passed instead if one only needs to turn on/off ligatures.")
 					}
 				],
-				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures or font features."),
+				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures or font features. Can be either a boolean to enable/disable ligatures or a string for the value of the CSS 'font-feature-settings' property."),
 				default: false
 			}
 		);
