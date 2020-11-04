@@ -84,6 +84,10 @@ class PersistedWidgetSize {
 	store(size: dom.Dimension) {
 		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL);
 	}
+
+	reset(): void {
+		this._service.remove(this._key, StorageScope.GLOBAL);
+	}
 }
 
 export class SuggestWidget implements IDisposable {
@@ -675,6 +679,10 @@ export class SuggestWidget implements IDisposable {
 			this._explainMode = !this._explainMode;
 			this.showDetails(false);
 		}
+	}
+
+	resetPersistedSize(): void {
+		this._persistedSize.reset();
 	}
 
 	hideWidget(): void {

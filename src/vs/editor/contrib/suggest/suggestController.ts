@@ -584,6 +584,10 @@ export class SuggestController implements IEditorContribution {
 	toggleSuggestionFocus(): void {
 		this.widget.value.toggleDetailsFocus();
 	}
+
+	resetWidgetSize(): void {
+		this.widget.value.resetPersistedSize();
+	}
 }
 
 export class TriggerSuggestAction extends EditorAction {
@@ -875,3 +879,20 @@ registerEditorCommand(new SuggestCommand({
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
+
+
+registerEditorAction(class extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.resetSuggestSize',
+			label: nls.localize('suggest.reset.label', "Reset Suggest Widget Size"),
+			alias: 'Reset Suggest Widget Size',
+			precondition: undefined
+		});
+	}
+
+	run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		SuggestController.get(editor).resetWidgetSize();
+	}
+});
