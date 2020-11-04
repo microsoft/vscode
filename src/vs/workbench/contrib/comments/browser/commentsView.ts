@@ -85,6 +85,18 @@ export class CommentsPanel extends ViewPane {
 		this.renderComments();
 	}
 
+	public focus(): void {
+		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
+			return;
+		}
+
+		if (!this.commentsModel.hasCommentThreads() && this.messageBoxContainer) {
+			this.messageBoxContainer.focus();
+		} else if (this.tree) {
+			this.tree.domFocus();
+		}
+	}
+
 	private applyStyles(styleElement: HTMLStyleElement) {
 		const content: string[] = [];
 
@@ -114,8 +126,8 @@ export class CommentsPanel extends ViewPane {
 
 	private async renderComments(): Promise<void> {
 		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
-		await this.tree.setInput(this.commentsModel);
 		this.renderMessage();
+		await this.tree.setInput(this.commentsModel);
 	}
 
 	public getActions(): IAction[] {
@@ -138,12 +150,11 @@ export class CommentsPanel extends ViewPane {
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
-		this.messageBox.setAttribute('tabindex', '0');
+		this.messageBoxContainer.setAttribute('tabIndex', '0');
 	}
 
 	private renderMessage(): void {
-		this.messageBox.textContent = this.commentsModel.getMessage();
+		this.messageBoxContainer.textContent = this.commentsModel.getMessage();
 		this.messageBoxContainer.classList.toggle('hidden', this.commentsModel.hasCommentThreads());
 	}
 
@@ -231,18 +242,23 @@ export class CommentsPanel extends ViewPane {
 		return true;
 	}
 
-	private refresh(): void {
+	private async refresh(): Promise<void> {
 		if (this.isVisible()) {
 			if (this.collapseAllAction) {
 				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 			}
 
 			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
-			this.tree.updateChildren().then(() => {
-				this.renderMessage();
-			}, (e) => {
-				console.log(e);
-			});
+			this.renderMessage();
+			await this.tree.updateChildren();
+
+			if (this.tree.getSelection().length === 0 && this.commentsModel.hasCommentThreads()) {
+				const firstComment = this.commentsModel.resourceCommentThreads[0].commentThreads[0];
+				if (firstComment) {
+					this.tree.setFocus([firstComment]);
+					this.tree.setSelection([firstComment]);
+				}
+			}
 		}
 	}
 
