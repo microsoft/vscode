@@ -43,7 +43,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
@@ -78,7 +77,6 @@ async function setupTest() {
 	instantiationService.stub(IWorkspaceContextService, new TestContextService());
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IProgressService, ProgressService);
-	instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
 	instantiationService.stub(IProductService, {});
 
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);

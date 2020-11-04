@@ -57,7 +57,7 @@ import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/storageKeys';
+import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;

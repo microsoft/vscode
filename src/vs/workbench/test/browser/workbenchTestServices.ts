@@ -104,7 +104,6 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
 import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
@@ -185,7 +184,6 @@ export function workbenchInstantiationService(overrides?: {
 	instantiationService.stub(IViewletService, new TestViewletService());
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IQuickInputService, new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService));
-	instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
 
 	return instantiationService;
 }
