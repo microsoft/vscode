@@ -167,6 +167,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		if (result.confirmed) {
 			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 			removeAccountUsage(this.storageService, this.id, accountName);
+			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.GLOBAL);
 		}
 	}
 
@@ -457,6 +458,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
+		addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
 	}
 
 	private getFullKey(extensionId: string): string {
