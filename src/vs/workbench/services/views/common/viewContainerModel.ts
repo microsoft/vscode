@@ -121,7 +121,7 @@ class ViewDescriptorsState extends Disposable {
 		}
 
 		if (Object.keys(storedViewsStates).length > 0) {
-			this.storageService.store(this.workspaceViewsStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE);
+			this.storageService.store2(this.workspaceViewsStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE);
 		}

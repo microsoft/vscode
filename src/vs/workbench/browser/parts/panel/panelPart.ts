@@ -789,7 +789,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(PanelPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.WORKSPACE);
+		this.storageService.store2(PanelPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private getViewContainer(panelId: string): ViewContainer | undefined {

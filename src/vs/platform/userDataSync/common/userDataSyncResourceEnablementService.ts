@@ -6,7 +6,7 @@
 import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, IStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type SyncEnablementClassification = {
@@ -39,7 +39,7 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 		if (this.isResourceEnabled(resource) !== enabled) {
 			const resourceEnablementKey = getEnablementKey(resource);
 			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
-			this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL);
+			this.storageService.store2(resourceEnablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	}
 

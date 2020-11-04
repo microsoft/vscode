@@ -997,7 +997,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.GLOBAL);
+		this.storageService.store2(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private get homeBarVisibilityPreference(): boolean {
