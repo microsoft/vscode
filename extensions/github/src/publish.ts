@@ -9,6 +9,7 @@ import { API as GitAPI, Repository } from './typings/git';
 import { getOctokit } from './auth';
 import { TextEncoder } from 'util';
 import { basename } from 'path';
+import { Octokit } from '@octokit/rest';
 
 const localize = nls.loadMessageBundle();
 
@@ -58,8 +59,9 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	quickpick.busy = true;
 
 	let owner: string;
+	let octokit: Octokit;
 	try {
-		const octokit = await getOctokit();
+		octokit = await getOctokit();
 		const user = await octokit.users.getAuthenticated({});
 		owner = user.data.login;
 	} catch (e) {
