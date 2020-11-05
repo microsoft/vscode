@@ -57,9 +57,17 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	quickpick.show();
 	quickpick.busy = true;
 
-	const octokit = await getOctokit();
-	const user = await octokit.users.getAuthenticated({});
-	const owner = user.data.login;
+	let owner: string;
+	try {
+		const octokit = await getOctokit();
+		const user = await octokit.users.getAuthenticated({});
+		owner = user.data.login;
+	} catch (e) {
+		// User has cancelled sign in
+		quickpick.dispose();
+		return;
+	}
+
 	quickpick.busy = false;
 
 	let repo: string | undefined;
