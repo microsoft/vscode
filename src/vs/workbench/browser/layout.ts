@@ -1095,13 +1095,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
 			(this.isVisible(Parts.SIDEBAR_PART) ? this.sideBarPartView.minimumWidth : 0) +
 			(this.isVisible(Parts.PANEL_PART) && isColumn ? this.panelPartView.minimumWidth : 0) +
-			(this.hasWindowBorder() ? 2 : 0);
+			this.getWindowBorderWidth();
 
 		const takenHeight =
 			(this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0) +
 			(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
 			(this.isVisible(Parts.PANEL_PART) && !isColumn ? this.panelPartView.minimumHeight : 0) +
-			(this.hasWindowBorder() ? 2 : 0);
+			this.getWindowBorderWidth();
 
 		const availableWidth = this.dimension.width - takenWidth;
 		const availableHeight = this.dimension.height - takenHeight;
