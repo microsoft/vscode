@@ -15,7 +15,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { HIGH_CONTRAST, ThemeType } from 'vs/platform/theme/common/themeService';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 
 const canUseFastRenderedViewLine = (function () {
@@ -71,8 +71,8 @@ export class DomReadingContext {
 }
 
 export class ViewLineOptions {
-	public readonly themeType: ThemeType;
-	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
+	public readonly themeType: ColorScheme;
+	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
@@ -83,7 +83,7 @@ export class ViewLineOptions {
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
 
-	constructor(config: IConfiguration, themeType: ThemeType) {
+	constructor(config: IConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
@@ -163,7 +163,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (alwaysRenderInlineSelection || this._options.themeType === HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (alwaysRenderInlineSelection || this._options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -184,7 +184,7 @@ export class ViewLine implements IVisibleLine {
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: LineRange[] | null = null;
-		if (alwaysRenderInlineSelection || options.themeType === HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (alwaysRenderInlineSelection || options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
 
@@ -197,7 +197,7 @@ export class ViewLine implements IVisibleLine {
 				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					if (options.themeType === HIGH_CONTRAST || this._options.renderWhitespace !== 'selection') {
+					if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace !== 'selection') {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 					} else {
 						if (!selectionsOnLine) {
@@ -259,7 +259,7 @@ export class ViewLine implements IVisibleLine {
 				// rounding errors add up to an observable large number...
 				// ---
 				// Also see another example of rounding errors on Windows in
-				// https://github.com/Microsoft/vscode/issues/33178
+				// https://github.com/microsoft/vscode/issues/33178
 				renderedViewLine = new FastRenderedViewLine(
 					this._renderedViewLine ? this._renderedViewLine.domNode : null,
 					renderLineInput,
@@ -616,7 +616,15 @@ class RenderedViewLine implements IRenderedViewLine {
 		if (!r || r.length === 0) {
 			return -1;
 		}
-		return r[0].left;
+		const result = r[0].left;
+		if (this.input.isBasicASCII) {
+			const charOffset = this._characterMapping.getAbsoluteOffsets();
+			const expectedResult = Math.round(this.input.spaceWidth * charOffset[column - 1]);
+			if (Math.abs(expectedResult - result) <= 1) {
+				return expectedResult;
+			}
+		}
+		return result;
 	}
 
 	private _readRawVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {

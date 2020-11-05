@@ -8,9 +8,10 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { insert } from 'vs/base/common/arrays';
 
 export class TextFileSaveParticipant extends Disposable {
 
@@ -24,12 +25,12 @@ export class TextFileSaveParticipant extends Disposable {
 	}
 
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
-		this.saveParticipants.push(participant);
+		const remove = insert(this.saveParticipants, participant);
 
-		return toDisposable(() => this.saveParticipants.splice(this.saveParticipants.indexOf(participant), 1));
+		return toDisposable(() => remove());
 	}
 
-	participate(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	participate(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource(token);
 
 		return this.progressService.withProgress({
@@ -40,10 +41,10 @@ export class TextFileSaveParticipant extends Disposable {
 		}, async progress => {
 
 			// undoStop before participation
-			model.textEditorModel.pushStackElement();
+			model.textEditorModel?.pushStackElement();
 
 			for (const saveParticipant of this.saveParticipants) {
-				if (cts.token.isCancellationRequested) {
+				if (cts.token.isCancellationRequested || !model.textEditorModel /* disposed */) {
 					break;
 				}
 
@@ -56,7 +57,7 @@ export class TextFileSaveParticipant extends Disposable {
 			}
 
 			// undoStop after participation
-			model.textEditorModel.pushStackElement();
+			model.textEditorModel?.pushStackElement();
 		}, () => {
 			// user cancel
 			cts.dispose(true);

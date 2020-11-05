@@ -6,7 +6,6 @@
 import { IQuickPick, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IQuickAccessProvider, IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
@@ -22,14 +21,23 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>, token: CancellationToken): IDisposable {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Open a picker with the selected value if picked
 		disposables.add(picker.onDidAccept(() => {
 			const [item] = picker.selectedItems;
 			if (item) {
-				this.quickInputService.quickAccess.show(item.prefix);
+				this.quickInputService.quickAccess.show(item.prefix, { preserveValue: true });
+			}
+		}));
+
+		// Also open a picker when we detect the user typed the exact
+		// name of a provider (e.g. `?term` for terminals)
+		disposables.add(picker.onDidChangeValue(value => {
+			const providerDescriptor = this.registry.getQuickAccessProvider(value.substr(HelpQuickAccessProvider.PREFIX.length));
+			if (providerDescriptor && providerDescriptor.prefix && providerDescriptor.prefix !== HelpQuickAccessProvider.PREFIX) {
+				this.quickInputService.quickAccess.show(providerDescriptor.prefix, { preserveValue: true });
 			}
 		}));
 
@@ -57,7 +65,11 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		const globalProviders: IHelpQuickAccessPickItem[] = [];
 		const editorProviders: IHelpQuickAccessPickItem[] = [];
 
-		for (const provider of this.registry.getQuickAccessProviders().sort((p1, p2) => p1.prefix.localeCompare(p2.prefix))) {
+		for (const provider of this.registry.getQuickAccessProviders().sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))) {
+			if (provider.prefix === HelpQuickAccessProvider.PREFIX) {
+				continue; // exclude help which is already active
+			}
+
 			for (const helpEntry of provider.helpEntries) {
 				const prefix = helpEntry.prefix || provider.prefix;
 				const label = prefix || '\u2026' /* ... */;
@@ -65,8 +77,8 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 				(helpEntry.needsEditor ? editorProviders : globalProviders).push({
 					prefix,
 					label,
-					description: helpEntry.description,
-					ariaLabel: localize('entryAriaLabel', "{0}, picker help", label)
+					ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
+					description: helpEntry.description
 				});
 			}
 		}

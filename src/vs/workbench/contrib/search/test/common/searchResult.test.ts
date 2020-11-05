@@ -16,6 +16,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -352,6 +354,7 @@ suite('SearchResult', () => {
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

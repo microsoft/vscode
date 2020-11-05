@@ -2,9 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyCodiconAware, parseCodicons, IParsedCodicons } from 'vs/base/common/codicon';
+import { stripCodicons } from 'vs/base/common/codicons';
 
 export interface ICodiconFilter {
 	// Returns null if word doesn't match.
@@ -62,5 +64,15 @@ suite('Codicon', () => {
 		filterOk(matchesFuzzyCodiconAware, 'unt', parseCodicons('$(primitive-dot) $(file-text) Untitled-1'), [
 			{ start: 30, end: 33 },
 		]);
+	});
+});
+
+suite('Codicons', () => {
+
+	test('stripCodicons', () => {
+		assert.equal(stripCodicons('Hello World'), 'Hello World');
+		assert.equal(stripCodicons('$(Hello World'), '$(Hello World');
+		assert.equal(stripCodicons('$(Hello) World'), ' World');
+		assert.equal(stripCodicons('$(Hello) W$(oi)rld'), ' Wrld');
 	});
 });

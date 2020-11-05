@@ -30,7 +30,7 @@ class TestViewlet implements IViewlet {
 	getControl(): IEditorControl { return null!; }
 	focus(): void { }
 	getOptimalWidth(): number { return 10; }
-	openView(id: string, focus?: boolean): IView { return null!; }
+	openView<T extends IView>(id: string, focus?: boolean): T | undefined { return undefined; }
 	getViewPaneContainer(): IViewPaneContainer { return null!; }
 	saveState(): void { }
 }
@@ -129,7 +129,7 @@ suite('Progress Indicator', () => {
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
 		let viewsService = new TestViewsService();
-		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, undefined, viewletService, panelService, viewsService);
+		let service = new CompositeProgressIndicator((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService, viewsService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);

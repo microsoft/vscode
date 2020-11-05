@@ -128,7 +128,7 @@ export class TypeOperations {
 			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
 				text = text.substr(0, text.length - 1);
 			}
-			let lines = text.split(/\r\n|\r|\n/);
+			let lines = strings.splitLines(text);
 			if (lines.length === selections.length) {
 				return lines;
 			}
@@ -228,7 +228,7 @@ export class TypeOperations {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
 					goodIndent = goodIndent || '\t';
 					let possibleTypeText = config.normalizeIndentation(goodIndent);
-					if (!strings.startsWith(lineText, possibleTypeText)) {
+					if (!lineText.startsWith(possibleTypeText)) {
 						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
 						continue;
 					}
@@ -263,7 +263,7 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
-				// looks like https://github.com/Microsoft/vscode/issues/2773
+				// looks like https://github.com/microsoft/vscode/issues/2773
 				// where a cursor operation occurred before a canceled composition
 				// => ignore composition
 				commands[i] = null;
@@ -417,13 +417,13 @@ export class TypeOperations {
 			const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(range.startLineNumber);
 			if (firstNonWhitespace === 0) {
 				return TypeOperations._typeCommand(
-					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
+					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
 					config.normalizeIndentation(actualIndentation) + ch,
 					false
 				);
 			} else {
 				return TypeOperations._typeCommand(
-					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
+					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
 					config.normalizeIndentation(actualIndentation) +
 					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
 					false

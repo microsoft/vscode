@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./remoteViewlet';
+import 'vs/css!./media/remoteViewlet';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +17,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { VIEWLET_ID } from 'vs/workbench/contrib/remote/common/remote.contribution';
+import { AutomaticPortForwarding, ForwardedPortsView, VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,7 +28,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -38,23 +38,23 @@ import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platfor
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { startsWith } from 'vs/base/common/strings';
-import { TunnelPanelDescriptor, TunnelViewModel, forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
-import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { WorkbenchAsyncDataTree, ResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
+import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -72,19 +72,19 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 		type: 'object',
 		properties: {
 			'getStarted': {
-				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url to your project's Getting Started page"),
+				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url, or a command that returns the url, to your project's Getting Started page"),
 				type: 'string'
 			},
 			'documentation': {
-				description: nls.localize('RemoteHelpInformationExtPoint.documentation', "The url to your project's documentation page"),
+				description: nls.localize('RemoteHelpInformationExtPoint.documentation', "The url, or a command that returns the url, to your project's documentation page"),
 				type: 'string'
 			},
 			'feedback': {
-				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url to your project's feedback reporter"),
+				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url, or a command that returns the url, to your project's feedback reporter"),
 				type: 'string'
 			},
 			'issues': {
-				description: nls.localize('RemoteHelpInformationExtPoint.issues', "The url to your project's issues list"),
+				description: nls.localize('RemoteHelpInformationExtPoint.issues', "The url, or a command that returns the url, to your project's issues list"),
 				type: 'string'
 			}
 		}
@@ -114,7 +114,7 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	templateId: string = 'HelpItemTemplate';
 
 	renderTemplate(container: HTMLElement): IHelpItemTemplateData {
-		dom.addClass(container, 'remote-help-tree-node-item');
+		container.classList.add('remote-help-tree-node-item');
 		const icon = dom.append(container, dom.$('.remote-help-tree-node-item-icon'));
 		const data = <IHelpItemTemplateData>Object.create(null);
 		data.parent = container;
@@ -125,7 +125,7 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
 		const container = templateData.parent;
 		dom.append(container, templateData.icon);
-		dom.addClasses(templateData.icon, ...element.element.iconClasses);
+		templateData.icon.classList.add(...element.element.iconClasses);
 		const labelContainer = dom.append(container, dom.$('.help-item-label'));
 		labelContainer.innerText = element.element.label;
 	}
@@ -135,12 +135,12 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	}
 }
 
-class HelpDataSource implements IAsyncDataSource<any, any> {
-	hasChildren(element: any) {
+class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
+	hasChildren(element: HelpModel) {
 		return element instanceof HelpModel;
 	}
 
-	getChildren(element: any) {
+	getChildren(element: HelpModel) {
 		if (element instanceof HelpModel && element.items) {
 			return element.items;
 		}
@@ -149,8 +149,14 @@ class HelpDataSource implements IAsyncDataSource<any, any> {
 	}
 }
 
+const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star);
+const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book);
+const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter);
+const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues);
+const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment);
+
 interface IHelpItem {
-	key: string;
+	icon: Codicon,
 	iconClasses: string[];
 	label: string;
 	handleClick(): Promise<void>;
@@ -172,13 +178,13 @@ class HelpModel {
 
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
-				'star',
+				getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
-				getStarted.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.getStarted!,
-					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
-				})),
+				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.getStarted!)
+				)),
 				quickInputService,
 				environmentService,
 				openerService,
@@ -190,13 +196,13 @@ class HelpModel {
 
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
-				'book',
+				documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
-				documentation.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.documentation!,
-					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
-				})),
+				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.documentation!)
+				)),
 				quickInputService,
 				environmentService,
 				openerService,
@@ -208,13 +214,13 @@ class HelpModel {
 
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
-				'twitter',
+				feedbackIcon,
 				nls.localize('remote.help.feedback', "Provide Feedback"),
-				feedback.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.feedback!,
-					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
-				})),
+				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.feedback!)
+				)),
 				quickInputService,
 				environmentService,
 				openerService,
@@ -226,13 +232,13 @@ class HelpModel {
 
 		if (issues.length) {
 			helpItems.push(new HelpItem(
-				'issues',
+				reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
-				issues.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.issues!,
-					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
-				})),
+				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.issues!)
+				)),
 				quickInputService,
 				environmentService,
 				openerService,
@@ -242,12 +248,12 @@ class HelpModel {
 
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
-				'comment',
+				reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
-				viewModel.helpInformation.map(info => ({
-					extensionDescription: info.extensionDescription,
-					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
-				})),
+				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
+				))),
 				quickInputService,
 				environmentService,
 				commandService,
@@ -261,34 +267,59 @@ class HelpModel {
 	}
 }
 
+class HelpItemValue {
+	private _url: string | undefined;
+	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
+
+	get url(): Promise<string> {
+		return new Promise<string>(async (resolve) => {
+			if (this._url === undefined) {
+				if (this.urlOrCommand) {
+					let url = URI.parse(this.urlOrCommand);
+					if (url.authority) {
+						this._url = this.urlOrCommand;
+					} else {
+						const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+						// We must be defensive. The command may never return, meaning that no help at all is ever shown!
+						const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
+						this._url = await Promise.race([urlCommand, emptyString]);
+					}
+				}
+			}
+			if (this._url === undefined) {
+				this._url = '';
+			}
+			resolve(this._url);
+		});
+	}
+}
+
 abstract class HelpItemBase implements IHelpItem {
 	public iconClasses: string[] = [];
 	constructor(
-		public key: string,
+		public icon: Codicon,
 		public label: string,
-		public values: { extensionDescription: IExtensionDescription, url?: string, remoteAuthority: string[] | undefined }[],
+		public values: HelpItemValue[],
 		private quickInputService: IQuickInputService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private remoteExplorerService: IRemoteExplorerService
 	) {
-		this.iconClasses.push(`codicon-${key}`);
+		this.iconClasses.push(...icon.classNamesArray);
 		this.iconClasses.push('remote-help-tree-node-item-icon');
-		this.iconClasses.push('codicon');
 	}
 
 	async handleClick() {
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		if (!remoteAuthority) {
-			return;
-		}
-		for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
-			if (startsWith(remoteAuthority, this.remoteExplorerService.targetType[i])) {
-				for (let value of this.values) {
-					if (value.remoteAuthority) {
-						for (let authority of value.remoteAuthority) {
-							if (startsWith(remoteAuthority, authority)) {
-								await this.takeAction(value.extensionDescription, value.url);
-								return;
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		if (remoteAuthority) {
+			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
+				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
+					for (let value of this.values) {
+						if (value.remoteAuthority) {
+							for (let authority of value.remoteAuthority) {
+								if (remoteAuthority.startsWith(authority)) {
+									await this.takeAction(value.extensionDescription, await value.url);
+									return;
+								}
 							}
 						}
 					}
@@ -297,13 +328,13 @@ abstract class HelpItemBase implements IHelpItem {
 		}
 
 		if (this.values.length > 1) {
-			let actions = this.values.map(value => {
+			let actions = (await Promise.all(this.values.map(async (value) => {
 				return {
 					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-					description: value.url,
+					description: await value.url,
 					extensionDescription: value.extensionDescription
 				};
-			});
+			}))).filter(item => item.description);
 
 			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
 
@@ -311,7 +342,7 @@ abstract class HelpItemBase implements IHelpItem {
 				await this.takeAction(action.extensionDescription, action.description);
 			}
 		} else {
-			await this.takeAction(this.values[0].extensionDescription, this.values[0].url);
+			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 		}
 	}
 
@@ -320,15 +351,15 @@ abstract class HelpItemBase implements IHelpItem {
 
 class HelpItem extends HelpItemBase {
 	constructor(
-		key: string,
+		icon: Codicon,
 		label: string,
-		values: { extensionDescription: IExtensionDescription; url: string, remoteAuthority: string[] | undefined }[],
+		values: HelpItemValue[],
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private openerService: IOpenerService,
 		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(key, label, values, quickInputService, environmentService, remoteExplorerService);
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
@@ -338,15 +369,15 @@ class HelpItem extends HelpItemBase {
 
 class IssueReporterItem extends HelpItemBase {
 	constructor(
-		key: string,
+		icon: Codicon,
 		label: string,
-		values: { extensionDescription: IExtensionDescription; remoteAuthority: string[] | undefined }[],
+		values: HelpItemValue[],
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private commandService: ICommandService,
 		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(key, label, values, quickInputService, environmentService, remoteExplorerService);
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
@@ -357,7 +388,7 @@ class IssueReporterItem extends HelpItemBase {
 class HelpPanel extends ViewPane {
 	static readonly ID = '~remote.helpPanel';
 	static readonly TITLE = nls.localize('remote.help', "Help and feedback");
-	private tree!: WorkbenchAsyncDataTree<any, any, any>;
+	private tree!: WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>;
 
 	constructor(
 		protected viewModel: IViewModel,
@@ -372,7 +403,7 @@ class HelpPanel extends ViewPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
@@ -382,34 +413,38 @@ class HelpPanel extends ViewPane {
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'remote-help');
+		container.classList.add('remote-help');
 		const treeContainer = document.createElement('div');
-		dom.addClass(treeContainer, 'remote-help-content');
+		treeContainer.classList.add('remote-help-content');
 		container.appendChild(treeContainer);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+		this.tree = <WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>>this.instantiationService.createInstance(WorkbenchAsyncDataTree,
 			'RemoteHelp',
 			treeContainer,
 			new HelpTreeVirtualDelegate(),
 			[new HelpTreeRenderer()],
 			new HelpDataSource(),
 			{
-				keyboardSupport: true,
+				accessibilityProvider: {
+					getAriaLabel: (item: HelpItemBase) => {
+						return item.label;
+					},
+					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
+				}
 			}
 		);
 
-		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.workbenchEnvironmentService);
+		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService);
 
 		this.tree.setInput(model);
 
-		const helpItemNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false }));
-
-		this._register(Event.debounce(helpItemNavigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
-			e.element.handleClick();
+		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
+			e.element?.handleClick();
 		}));
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 }
@@ -432,7 +467,6 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
 	private actions: IAction[] | undefined;
-	private tunnelPanelDescriptor: TunnelPanelDescriptor | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -444,10 +478,10 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
@@ -516,18 +550,6 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		return title;
 	}
 
-	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		// Call to super MUST be first, since registering the additional view will cause this to be called again.
-		const panels: ViewPane[] = super.onDidAddViewDescriptors(added);
-		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
-		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
-		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
-			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
-			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], this.viewContainer);
-		}
-		return panels;
-	}
 }
 
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
@@ -577,11 +599,11 @@ class OpenRemoteViewletAction extends ShowViewletAction {
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenRemoteViewletAction, VIEWLET_ID, nls.localize('toggleRemoteViewlet', "Show Remote Explorer"), {
+	SyncActionDescriptor.from(OpenRemoteViewletAction, {
 		primary: 0
 	}),
 	'View: Show Remote Explorer',
-	nls.localize('view', "View")
+	CATEGORIES.View.value
 );
 
 class VisibleProgress {
@@ -772,7 +794,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 
 						// Register to listen for quick input is opened
 						disposableListener = contextKeyService.onDidChangeContext((contextKeyChangeEvent) => {
-							const reconnectInteraction = new Set<string>(['inQuickOpen']);
+							const reconnectInteraction = new Set<string>([inQuickPickContextKeyValue]);
 							if (contextKeyChangeEvent.affectsSome(reconnectInteraction)) {
 								// Need to move from dialog if being shown and user needs to type in a prompt
 								if (lastLocation === ProgressLocation.Dialog && visibleProgress !== null) {
@@ -803,3 +825,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(ForwardedPortsView, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);

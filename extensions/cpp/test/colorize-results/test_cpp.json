@@ -287,7 +287,7 @@
 	},
 	{
 		"c": "Rectangle",
-		"t": "source.cpp meta.block.class.cpp meta.head.class.cpp entity.name.type.class.cpp",
+		"t": "source.cpp meta.block.class.cpp entity.name.type.class.cpp",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.block.class.cpp meta.head.class.cpp",
+		"t": "source.cpp meta.block.class.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2314,7 +2314,7 @@
 		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.character.escape.cpp",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #FF0000",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"

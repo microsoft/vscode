@@ -5,6 +5,7 @@
 		"activityBar.background": "#580000",
 		"tab.inactiveBackground": "#300a0a",
 		"tab.activeBackground": "#490000",
+		"tab.lastPinnedBorder": "#ff000044",
 		"sideBar.background": "#330000",
 		"statusBar.background": "#700000",
 		"statusBar.noFolderBackground": "#700000",
@@ -192,7 +193,7 @@
 		},
 		{
 			"name": "Support.constant",
-			"scope": "support.constant",
+			"scope": [ "support.constant", "support.variable"],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#eb939aff"
@@ -351,6 +352,20 @@
 			}
 		},
 		{
+			"name": "Markup: Strong",
+			"scope": "markup.bold",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup: Emphasis",
+			"scope": "markup.italic",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
@@ -359,17 +374,15 @@
 			}
 		},
 		{
-			"name": "Markup Headings",
-			"scope": "markup.heading",
+			"name": "Headings",
+			"scope": [
+				"markup.heading",
+				"markup.heading.setext",
+				"punctuation.definition.heading",
+				"entity.name.section"
+			],
 			"settings": {
-				"foreground": "#fec758ff"
-			}
-		},
-		{
-			"name": "Markup Setext Header",
-			"scope": "markup.heading.setext",
-			"settings": {
-				"fontStyle": "",
+				"fontStyle": "bold",
 				"foreground": "#fec758ff"
 			}
 		},
@@ -385,5 +398,6 @@
 				"foreground": "#ec0d1e"
 			}
 		}
-	]
+	],
+	"semanticHighlighting": true
 }

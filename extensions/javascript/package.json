@@ -90,14 +90,42 @@
         "path": "./syntaxes/Regular Expressions (JavaScript).tmLanguage"
       }
     ],
-    "snippets": [
+    "semanticTokenScopes": [
       {
         "language": "javascript",
-        "path": "./snippets/javascript.json"
+        "scopes": {
+          "property": ["variable.other.property.js"],
+          "property.readonly": ["variable.other.constant.property.js"],
+          "variable": ["variable.other.readwrite.js"],
+          "variable.readonly": ["variable.other.constant.object.js"],
+          "function": ["entity.name.function.js"],
+          "namespace": ["entity.name.type.module.js"],
+          "variable.defaultLibrary": ["support.variable.js"],
+          "function.defaultLibrary": ["support.function.js"]
+        }
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascript.json"
+        "scopes": {
+          "property": ["variable.other.property.jsx"],
+          "property.readonly": ["variable.other.constant.property.jsx"],
+          "variable": ["variable.other.readwrite.jsx"],
+          "variable.readonly": ["variable.other.constant.object.jsx"],
+          "function": ["entity.name.function.jsx"],
+          "namespace": ["entity.name.type.module.jsx"],
+          "variable.defaultLibrary": ["support.variable.js"],
+          "function.defaultLibrary": ["support.function.js"]
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "javascript",
+        "path": "./snippets/javascript.code-snippets"
+      },
+      {
+        "language": "javascriptreact",
+        "path": "./snippets/javascript.code-snippets"
       }
     ]
   }

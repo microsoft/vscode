@@ -5,26 +5,27 @@
 
 import * as nls from 'vs/nls';
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
+import { NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private _model: INotificationsModel = this._register(new NotificationsModel());
-	get model(): INotificationsModel { return this._model; }
+	readonly model = this._register(new NotificationsModel());
 
-	constructor(@IStorageService private readonly storageService: IStorageService) {
+	constructor(
+		@IStorageService private readonly storageService: IStorageService
+	) {
 		super();
 	}
 
 	setFilter(filter: NotificationsFilter): void {
-		this._model.setFilter(filter);
+		this.model.setFilter(filter);
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -64,10 +65,10 @@ export class NotificationService extends Disposable implements INotificationServ
 		let handle: INotificationHandle;
 		if (notification.neverShowAgain) {
 			const scope = notification.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = notification.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = notification.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
@@ -81,7 +82,7 @@ export class NotificationService extends Disposable implements INotificationServ
 					handle.close();
 
 					// Remember choice
-					this.storageService.store(id, true, scope);
+					this.storageService.store2(id, true, scope, StorageTarget.USER);
 
 					return Promise.resolve();
 				}));
@@ -115,17 +116,17 @@ export class NotificationService extends Disposable implements INotificationServ
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
 			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = options.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = options.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
 
 			const neverShowAgainChoice = {
 				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => this.storageService.store(id, true, scope),
+				run: () => this.storageService.store2(id, true, scope, StorageTarget.USER),
 				isSecondary: options.neverShowAgain.isSecondary
 			};
 

@@ -1,0 +1,181 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extension-bookmark-container {
+	position: relative;
+}
+
+.extension-bookmark-container > .extension-bookmark {
+	position: absolute;
+}
+
+.extension-list-item {
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	padding: 0 0 0 16px;
+	overflow: hidden;
+	display: flex;
+}
+
+.extension-list-item > .icon-container {
+	position: relative;
+}
+
+.extension-list-item > .icon-container > .icon {
+	width: 42px;
+	height: 42px;
+	padding: 10px 14px 10px 0;
+	flex-shrink: 0;
+	object-fit: contain;
+}
+
+.extension-list-item > .icon-container .extension-badge {
+	position: absolute;
+	bottom: 5px;
+	width: 22px;
+	height: 22px;
+	line-height: 22px;
+	border-radius: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.extension-list-item > .icon-container .extension-badge.extension-remote-badge {
+	right: 5px;
+}
+
+.extension-list-item > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
+}
+
+.extension-list-item > .details {
+	flex: 1;
+	padding: 4px 0;
+	overflow: hidden;
+}
+
+.extension-list-item > .details > .header-container {
+	height: 19px;
+	display: flex;
+	overflow: hidden;
+	padding-right: 11px;
+}
+
+.extension-list-item > .details > .header-container > .header {
+	display: flex;
+	align-items: center;
+	flex-wrap: nowrap;
+	overflow: hidden;
+	flex: 1;
+	min-width: 0;
+}
+
+.extension-list-item > .details > .header-container > .header > .name {
+	font-weight: bold;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.extension-list-item > .details > .header-container > .header > .version {
+	opacity: 0.85;
+	font-size: 80%;
+	padding-left: 6px;
+	min-width: fit-content;
+	min-width: -moz-fit-content;
+}
+
+.extension-list-item > .details > .header-container > .header > .version {
+	flex: 1;
+}
+
+.extension-list-item > .details > .header-container > .header > .install-count,
+.extension-list-item > .details > .header-container > .header > .ratings {
+	display: flex;
+	align-items: center;
+}
+
+.extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
+	font-size: 80%;
+	margin: 0 6px;
+}
+
+.extension-list-item > .details > .header-container > .header .codicon {
+	font-size: 120%;
+	margin-right: 2px;
+	-webkit-mask: inherit;
+}
+
+.extension-list-item > .details > .header-container > .header > .ratings {
+	text-align: right;
+}
+
+.extension-list-item > .details > .header-container > .header > .extension-remote-badge-container {
+	margin-left: 6px;
+	display: none;
+}
+
+.extension-list-item > .details > .header-container > .header .extension-remote-badge .codicon {
+	margin-right: 0;
+}
+
+.extension-list-item > .details > .header-container > .header .extension-remote-badge {
+	width: 14px;
+	height: 14px;
+	line-height: 14px;
+	border-radius: 20px;
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.extension-list-item > .details > .header-container > .header .extension-remote-badge > .codicon {
+	font-size: 12px;
+	color: currentColor;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored {
+	display: flex;
+	margin-left: 6px;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
+	font-size: 100%;
+}
+
+.extension-list-item > .details > .description {
+	padding-right: 11px;
+}
+
+.extension-list-item > .details > .footer {
+	display: flex;
+	justify-content: flex-end;
+	padding-right: 7px;
+	height: 18px;
+	overflow: hidden;
+}
+
+.extension-list-item > .details > .footer > .author {
+	flex: 1;
+	font-size: 90%;
+	font-weight: 600;
+}
+
+.extension-list-item .ellipsis {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container {
+	flex-wrap: wrap-reverse;
+}
+
+.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
+	max-width: 150px;
+}

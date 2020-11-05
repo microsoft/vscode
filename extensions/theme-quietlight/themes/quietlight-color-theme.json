@@ -46,6 +46,13 @@
 			}
 		},
 		{
+			"name": "Invalid",
+			"scope": "invalid",
+			"settings": {
+				"foreground": "#cd3131"
+			}
+		},
+		{
 			"name": "Invalid - Illegal",
 			"scope": "invalid.illegal",
 			"settings": {
@@ -472,6 +479,7 @@
 		"peekViewResult.background": "#F2F8FC",
 		"peekView.border": "#705697",
 		"peekViewResult.matchHighlightBackground": "#93C6D6",
+		"tab.lastPinnedBorder": "#c9d0d9",
 		"statusBar.background": "#705697",
 		"statusBar.noFolderBackground": "#705697",
 		"statusBar.debuggingBackground": "#705697",
@@ -494,5 +502,6 @@
 		"walkThrough.embeddedEditorBackground": "#00000014",
 		"editorIndentGuide.background": "#aaaaaa60",
 		"editorIndentGuide.activeBackground": "#777777b0"
-	}
+	},
+	"semanticHighlighting": true
 }

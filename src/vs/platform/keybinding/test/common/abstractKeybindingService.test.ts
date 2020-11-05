@@ -16,6 +16,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { INotification, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 function createContext(ctx: any) {
 	return {
@@ -36,7 +37,7 @@ suite('AbstractKeybindingService', () => {
 			commandService: ICommandService,
 			notificationService: INotificationService
 		) {
-			super(contextKeyService, commandService, NullTelemetryService, notificationService);
+			super(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService());
 			this._resolver = resolver;
 		}
 
@@ -119,7 +120,8 @@ suite('AbstractKeybindingService', () => {
 				createScoped: undefined!,
 				getContext: (target: IContextKeyServiceTarget): any => {
 					return currentContextValue;
-				}
+				},
+				updateParent: () => { }
 			};
 
 			let commandService: ICommandService = {
@@ -167,7 +169,7 @@ suite('AbstractKeybindingService', () => {
 				setFilter() { }
 			};
 
-			let resolver = new KeybindingResolver(items, []);
+			let resolver = new KeybindingResolver(items, [], () => { });
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService);
 		};
@@ -189,7 +191,8 @@ suite('AbstractKeybindingService', () => {
 			command,
 			null,
 			when,
-			true
+			true,
+			null
 		);
 	}
 

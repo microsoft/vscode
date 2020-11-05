@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -29,7 +29,7 @@ export class WordContextKey extends Disposable {
 
 	dispose(): void {
 		super.dispose();
-		dispose(this._selectionListener);
+		this._selectionListener?.dispose();
 		this._ckAtEnd.reset();
 	}
 

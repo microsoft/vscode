@@ -85,7 +85,7 @@ type GetLeadingNonServiceArgs<Args> =
 
 export interface IInstantiationService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Synchronously creates an instance that is denoted by
@@ -134,7 +134,7 @@ function storeServiceDependency(id: Function, target: Function, index: number, o
 }
 
 /**
- * A *only* valid way to create a {{ServiceIdentifier}}.
+ * The *only* valid way to create a {{ServiceIdentifier}}.
  */
 export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 

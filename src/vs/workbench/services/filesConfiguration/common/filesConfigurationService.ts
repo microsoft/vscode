@@ -8,10 +8,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
@@ -36,7 +34,7 @@ export const IFilesConfigurationService = createDecorator<IFilesConfigurationSer
 
 export interface IFilesConfigurationService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	//#region Auto Save
 
@@ -61,7 +59,7 @@ export interface IFilesConfigurationService {
 
 export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
 
@@ -83,8 +81,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -186,24 +183,20 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	async toggleAutoSave(): Promise<void> {
-		const setting = this.configurationService.inspect('files.autoSave');
-		let userAutoSaveConfig = setting.userValue;
-		if (isUndefinedOrNull(userAutoSaveConfig)) {
-			userAutoSaveConfig = setting.defaultValue; // use default if setting not defined
-		}
+		const currentSetting = this.configurationService.getValue('files.autoSave');
 
 		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === userAutoSaveConfig)) {
+		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(setting => setting === currentSetting)) {
 			newAutoSaveValue = AutoSaveConfiguration.OFF;
 		} else {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
 	}
 
 	get isHotExitEnabled(): boolean {
-		return !this.environmentService.isExtensionDevelopment && this.currentHotExitConfig !== HotExitConfiguration.OFF;
+		return this.currentHotExitConfig !== HotExitConfiguration.OFF;
 	}
 
 	get hotExitConfiguration(): string {

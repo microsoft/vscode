@@ -6,12 +6,13 @@
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
 export interface IResolvedBackup<T extends object> {
-	value: ITextBufferFactory;
-	meta?: T;
+	readonly value: ITextBufferFactory;
+	readonly meta?: T;
 }
 
 /**
@@ -19,7 +20,7 @@ export interface IResolvedBackup<T extends object> {
  */
 export interface IBackupFileService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Finds out if there are any backups stored.
@@ -59,13 +60,19 @@ export interface IBackupFileService {
 	 * @param versionId The optionsl version id of the resource to backup.
 	 * @param meta The optional meta data of the resource to backup. This information
 	 * can be restored later when loading the backup again.
+	 * @param token The optional cancellation token if the operation can be cancelled.
 	 */
-	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
+	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T, token?: CancellationToken): Promise<void>;
 
 	/**
-	 * Discards the backup associated with a resource if it exists..
+	 * Discards the backup associated with a resource if it exists.
 	 *
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
 	discardBackup(resource: URI): Promise<void>;
+
+	/**
+	 * Discards all backups.
+	 */
+	discardBackups(): Promise<void>;
 }

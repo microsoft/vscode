@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, IColorTheme, DARK, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export class TestColorTheme implements IColorTheme {
 
-	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
+	public readonly label = 'test';
+
+	constructor(private colors: { [id: string]: string; } = {}, public type = ColorScheme.DARK) {
 	}
 
 	getColor(color: string, useDefault?: boolean): Color | undefined {
@@ -24,9 +27,11 @@ export class TestColorTheme implements IColorTheme {
 		throw new Error('Method not implemented.');
 	}
 
-	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined {
+	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
 		return undefined;
 	}
+
+	readonly semanticHighlighting = false;
 
 	get tokenColorMap(): string[] {
 		return [];
@@ -41,7 +46,7 @@ export class TestFileIconTheme implements IFileIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	_colorTheme: IColorTheme;
 	_fileIconTheme: IFileIconTheme;
 	_onThemeChange = new Emitter<IColorTheme>();

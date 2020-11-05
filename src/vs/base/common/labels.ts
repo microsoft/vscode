@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { posix, normalize, win32, sep } from 'vs/base/common/path';
-import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual, basename, relativePath } from 'vs/base/common/resources';
@@ -18,7 +18,7 @@ export interface IWorkspaceFolderProvider {
 }
 
 export interface IUserHomeProvider {
-	userHome: string;
+	userHome?: URI;
 }
 
 /**
@@ -63,8 +63,8 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 
 	// normalize and tildify (macOS, Linux only)
 	let res = normalize(resource.fsPath);
-	if (!isWindows && userHomeProvider) {
-		res = tildify(res, userHomeProvider.userHome);
+	if (!isWindows && userHomeProvider?.userHome) {
+		res = tildify(res, userHomeProvider.userHome.fsPath);
 	}
 
 	return res;
@@ -117,7 +117,7 @@ export function tildify(path: string, userHome: string): string {
 	}
 
 	// Linux: case sensitive, macOS: case insensitive
-	if (isLinux ? startsWith(path, normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
+	if (isLinux ? path.startsWith(normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
 		path = `~/${path.substr(normalizedUserHome.length)}`;
 	}
 
@@ -210,7 +210,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 						// Adding separator as prefix for subpath, such that 'endsWith(src, trgt)' considers subpath as directory name instead of plain string.
 						// prefix is not added when either subpath is root directory or path[otherPathIndex] does not have multiple directories.
 						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(pathSeparator) > -1) ? pathSeparator + subpath : subpath;
-						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpathWithSep);
+						const isOtherPathEnding: boolean = paths[otherPathIndex].endsWith(subpathWithSep);
 
 						match = !isSubpathEnding || isOtherPathEnding;
 					}
@@ -221,7 +221,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 					let result = '';
 
 					// preserve disk drive or root prefix
-					if (endsWith(segments[0], ':') || prefix !== '') {
+					if (segments[0].endsWith(':') || prefix !== '') {
 						if (start === 1) {
 							// extend subpath to include disk drive prefix
 							start = 0;

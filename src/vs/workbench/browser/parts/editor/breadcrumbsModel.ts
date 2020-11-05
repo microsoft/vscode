@@ -6,7 +6,6 @@
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { size, values } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -53,6 +52,7 @@ export class EditorBreadcrumbsModel {
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
 
 	constructor(
+		fileInfoUri: URI,
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -65,7 +65,7 @@ export class EditorBreadcrumbsModel {
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
-		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
+		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(fileInfoUri, workspaceService);
 		this._bindToEditor();
 		this._onDidUpdate.fire(this);
 	}
@@ -250,7 +250,7 @@ export class EditorBreadcrumbsModel {
 			if (parent instanceof OutlineModel) {
 				break;
 			}
-			if (parent instanceof OutlineGroup && parent.parent && size(parent.parent.children) === 1) {
+			if (parent instanceof OutlineGroup && parent.parent && parent.parent.children.size === 1) {
 				break;
 			}
 			item = parent;
@@ -270,7 +270,12 @@ export class EditorBreadcrumbsModel {
 	}
 
 	private _getOutlineElementsRoot(model: OutlineModel): (OutlineModel | OutlineGroup | OutlineElement)[] {
-		return values(model.children).every(e => this._isFiltered(e)) ? [] : [model];
+		for (const child of model.children.values()) {
+			if (!this._isFiltered(child)) {
+				return [model];
+			}
+		}
+		return [];
 	}
 
 	private _isFiltered(element: TreeElement): boolean {

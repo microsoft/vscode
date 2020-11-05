@@ -87,6 +87,7 @@ export interface IModelDecorationsChangedEvent {
  */
 export interface IModelTokensChangedEvent {
 	readonly tokenizationSupportChanged: boolean;
+	readonly semanticTokensApplied: boolean;
 	readonly ranges: {
 		/**
 		 * The start of the range (inclusive)

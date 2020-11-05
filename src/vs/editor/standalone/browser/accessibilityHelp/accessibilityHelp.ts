@@ -328,9 +328,12 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			alias: 'Show Accessibility Help',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1,
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditorContrib,
+				linux: {
+					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+					secondary: [KeyMod.Alt | KeyCode.F1]
+				}
 			}
 		});
 	}

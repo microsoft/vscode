@@ -24,6 +24,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel {
@@ -58,9 +60,11 @@ suite('Workbench editor model', () => {
 
 		const model = await m.load();
 		assert(model === m);
+		assert.equal(model.isDisposed(), false);
 		assert.strictEqual(m.isResolved(), true);
 		m.dispose();
 		assert.equal(counter, 1);
+		assert.equal(model.isDisposed(), true);
 	});
 
 	test('BaseTextEditorModel', async () => {
@@ -84,6 +88,7 @@ suite('Workbench editor model', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IUndoRedoService, undoRedoService);
+		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

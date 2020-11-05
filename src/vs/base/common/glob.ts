@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
@@ -302,7 +301,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4
 		parsedPattern = function (path, basename) {
-			return typeof path === 'string' && strings.endsWith(path, base) ? pattern : null;
+			return typeof path === 'string' && path.endsWith(base) ? pattern : null;
 		};
 	} else if (match = T2.exec(trimForExclusions(pattern, options))) { // common pattern: **/some.txt just need basename check
 		parsedPattern = trivia2(match[1], pattern);
@@ -339,7 +338,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 }
 
 function trimForExclusions(pattern: string, options: IGlobOptions): string {
-	return options.trimForExclusions && strings.endsWith(pattern, '/**') ? pattern.substr(0, pattern.length - 2) : pattern; // dropping **, tailing / is dropped later
+	return options.trimForExclusions && pattern.endsWith('/**') ? pattern.substr(0, pattern.length - 2) : pattern; // dropping **, tailing / is dropped later
 }
 
 // common pattern: **/some.txt just need basename check
@@ -353,7 +352,7 @@ function trivia2(base: string, originalPattern: string): ParsedStringPattern {
 		if (basename) {
 			return basename === base ? originalPattern : null;
 		}
-		return path === base || strings.endsWith(path, slashBase) || strings.endsWith(path, backslashBase) ? originalPattern : null;
+		return path === base || path.endsWith(slashBase) || path.endsWith(backslashBase) ? originalPattern : null;
 	};
 	const basenames = [base];
 	parsedPattern.basenames = basenames;
@@ -382,7 +381,7 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 		}
 		return null;
 	};
-	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 	if (withBasenames) {
 		parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}
@@ -398,7 +397,7 @@ function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): Par
 	const nativePath = paths.sep !== paths.posix.sep ? path.replace(ALL_FORWARD_SLASHES, paths.sep) : path;
 	const nativePathEnd = paths.sep + nativePath;
 	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (path, basename) {
-		return typeof path === 'string' && (path === nativePath || strings.endsWith(path, nativePathEnd)) ? pattern : null;
+		return typeof path === 'string' && (path === nativePath || path.endsWith(nativePathEnd)) ? pattern : null;
 	} : function (path, basename) {
 		return typeof path === 'string' && path === nativePath ? pattern : null;
 	};
@@ -552,7 +551,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 			return null;
 		};
 
-		const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+		const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 		if (withBasenames) {
 			resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 		}
@@ -588,7 +587,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		return null;
 	};
 
-	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 	if (withBasenames) {
 		resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}

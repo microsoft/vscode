@@ -54,7 +54,11 @@ export class QuickInputBox extends Disposable {
 		this.inputBox.select(range);
 	}
 
-	setPlaceholder(placeholder: string) {
+	isSelectionAtEnd(): boolean {
+		return this.inputBox.isSelectionAtEnd();
+	}
+
+	setPlaceholder(placeholder: string): void {
 		this.inputBox.setPlaceHolder(placeholder);
 	}
 
@@ -90,11 +94,11 @@ export class QuickInputBox extends Disposable {
 		return this.inputBox.hasFocus();
 	}
 
-	setAttribute(name: string, value: string) {
+	setAttribute(name: string, value: string): void {
 		this.inputBox.inputElement.setAttribute(name, value);
 	}
 
-	removeAttribute(name: string) {
+	removeAttribute(name: string): void {
 		this.inputBox.inputElement.removeAttribute(name);
 	}
 
@@ -118,7 +122,7 @@ export class QuickInputBox extends Disposable {
 		this.inputBox.layout();
 	}
 
-	style(styles: IInputBoxStyles) {
+	style(styles: IInputBoxStyles): void {
 		this.inputBox.style(styles);
 	}
 }

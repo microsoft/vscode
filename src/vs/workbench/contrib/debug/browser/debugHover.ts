@@ -24,7 +24,7 @@ import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
@@ -34,7 +34,6 @@ import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
-const MAX_TREE_HEIGHT = 324;
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
@@ -74,6 +73,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private domNode!: HTMLElement;
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
+	private positionPreference: ContentWidgetPositionPreference[];
 	private highlightDecorations: string[];
 	private complexValueContainer!: HTMLElement;
 	private complexValueTitle!: HTMLElement;
@@ -86,13 +86,14 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
 		this._isVisible = false;
 		this.showAtPosition = null;
 		this.highlightDecorations = [];
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	private create(): void {
@@ -105,7 +106,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			dataSource, {
-			ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
 			horizontalScrolling: true,
@@ -141,7 +141,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.color = '';
 			}
 		}));
-		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
@@ -177,7 +177,6 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	async showAt(range: Range, focus: boolean): Promise<void> {
-
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
@@ -283,16 +282,14 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		this.valueContainer.hidden = true;
-		this.complexValueContainer.hidden = false;
 
 		await this.tree.setInput(expression);
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
-		this.layoutTreeAndContainer();
-		this.editor.layoutContentWidget(this);
-		this.scrollbar.scanDomNode();
+		this.layoutTreeAndContainer(true);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
+		this.complexValueContainer.hidden = false;
 
 		if (focus) {
 			this.editor.render();
@@ -300,12 +297,22 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 	}
 
-	private layoutTreeAndContainer(): void {
-		const scrollBarHeight = 8;
-		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight + scrollBarHeight);
+	private layoutTreeAndContainer(initialLayout: boolean): void {
+		const scrollBarHeight = 10;
+		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.7, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
-		this.tree.layout(treeHeight, 324);
+		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
+		this.editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
 	}
+
+	afterRender(positionPreference: ContentWidgetPositionPreference | null) {
+		if (positionPreference) {
+			// Remember where the editor placed you to keep position stable #109226
+			this.positionPreference = [positionPreference];
+		}
+	}
+
 
 	hide(): void {
 		if (!this._isVisible) {
@@ -319,15 +326,13 @@ export class DebugHoverWidget implements IContentWidget {
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	getPosition(): IContentWidgetPosition | null {
 		return this._isVisible ? {
 			position: this.showAtPosition,
-			preference: [
-				ContentWidgetPositionPreference.ABOVE,
-				ContentWidgetPositionPreference.BELOW
-			]
+			preference: this.positionPreference
 		} : null;
 	}
 
@@ -336,9 +341,14 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 }
 
-class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpression> {
+class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('treeAriaLabel', "Debug Hover");
+	}
+
 	getAriaLabel(element: IExpression): string {
-		return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+		return nls.localize({ key: 'variableAriaLabel', comment: ['Do not translate placeholders. Placeholders are name and value of a variable.'] }, "{0}, value {1}, variables, debug", element.name, element.value);
 	}
 }
 

@@ -18,16 +18,20 @@
     "watch": "gulp watch-extension:npm"
   },
   "dependencies": {
+    "find-up": "^4.1.0",
+    "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.2.5",
-    "vscode-nls": "^4.1.1"
+    "request-light": "^0.4.0",
+    "vscode-nls": "^4.1.1",
+    "which-pm": "^2.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
     "@types/node": "^12.11.7"
   },
-  "main": "./out/main",
+  "main": "./out/npmMain",
+  "browser": "./dist/browser/npmBrowserMain",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:npm.runScriptFromFolder",
@@ -39,8 +43,14 @@
     "languages": [
       {
         "id": "ignore",
-        "filenames": [
+        "extensions": [
           ".npmignore"
+        ]
+      },
+      {
+        "id": "properties",
+        "extensions": [
+          ".npmrc"
         ]
       }
     ],
@@ -49,7 +59,8 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "npm:showScriptExplorer || config.npm.enableScriptExplorer"
+          "icon": "images/code.svg",
+          "visibility": "hidden"
         }
       ]
     },
@@ -84,6 +95,10 @@
       {
         "command": "npm.runScriptFromFolder",
         "title": "%command.runScriptFromFolder%"
+      },
+      {
+        "command": "npm.packageManager",
+        "title": "%command.packageManager"
       }
     ],
     "menus": {
@@ -115,12 +130,16 @@
         {
           "command": "npm.runScriptFromFolder",
           "when": "false"
+        },
+        {
+          "command": "npm.packageManager",
+          "when": "false"
         }
       ],
       "editor/context": [
         {
           "command": "npm.runSelectedScript",
-          "when": "resourceFilename == 'package.json'",
+          "when": "resourceFilename == 'package.json' && resourceScheme == file",
           "group": "navigation@+1"
         }
       ],
@@ -158,13 +177,8 @@
           "group": "inline"
         },
         {
-          "command": "npm.runScript",
-          "when": "view == npm && viewItem == debugScript",
-          "group": "inline"
-        },
-        {
           "command": "npm.debugScript",
-          "when": "view == npm && viewItem == debugScript",
+          "when": "view == npm && viewItem == script",
           "group": "inline"
         },
         {
@@ -174,12 +188,12 @@
         }
       ],
       "explorer/context": [
-				{
-					"when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
+        {
+          "when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder && resourceScheme == file",
           "command": "npm.runScriptFromFolder",
-					"group": "2_workspace"
-				}
-			]
+          "group": "2_workspace"
+        }
+      ]
     },
     "configuration": {
       "id": "npm",
@@ -206,10 +220,12 @@
           "scope": "resource",
           "type": "string",
           "enum": [
+            "auto",
             "npm",
-            "yarn"
+            "yarn",
+            "pnpm"
           ],
-          "default": "npm",
+          "default": "auto",
           "description": "%config.npm.packageManager%"
         },
         "npm.exclude": {
@@ -227,6 +243,7 @@
           "type": "boolean",
           "default": false,
           "scope": "resource",
+          "deprecationMessage": "The NPM Script Explorer is now available in 'Views' menu in the Explorer in all folders.",
           "description": "%config.npm.enableScriptExplorer%"
         },
         "npm.enableRunFromFolder": {
@@ -259,11 +276,11 @@
     "jsonValidation": [
       {
         "fileMatch": "package.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/package.json"
+        "url": "https://json.schemastore.org/package"
       },
       {
         "fileMatch": "bower.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/bower.json"
+        "url": "https://json.schemastore.org/bower"
       }
     ],
     "taskDefinitions": [
@@ -281,7 +298,8 @@
             "type": "string",
             "description": "%taskdef.path%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
   }

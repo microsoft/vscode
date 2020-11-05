@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import 'vs/css!./media/output';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,10 +18,10 @@ import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } fro
 import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -28,10 +29,11 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
-import { TogglePanelAction } from 'vs/workbench/browser/panel';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
+import { Codicon } from 'vs/base/common/codicons';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -61,13 +63,19 @@ const toggleOutputActionKeybindings = {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	icon: Codicon.output.classNames,
+	order: 1,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	storageId: OUTPUT_VIEW_ID,
+	hideIfEmpty: true,
 	focusCommand: { id: toggleOutputAcitonId, keybindings: toggleOutputActionKeybindings }
 }, ViewContainerLocation.Panel);
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
+	containerIcon: Codicon.output.classNames,
+	canMoveView: true,
 	canToggleVisibility: false,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
 }], VIEW_CONTAINER);
@@ -108,7 +116,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
-		accessor.get(IOutputService).showChannel(channelId);
+		if (typeof channelId === 'string') {
+			// Sometimes the action is executed with no channelId parameter, then we should just ignore it #103496
+			accessor.get(IOutputService).showChannel(channelId);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -116,7 +127,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: `workbench.output.action.clearOutput`,
 			title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
-			category: nls.localize('viewCategory', "View"),
+			category: CATEGORIES.View,
 			menu: [{
 				id: MenuId.ViewTitle,
 				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
@@ -143,39 +154,26 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: `workbench.output.action.turnOffAutoScroll`,
-			title: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
+			id: `workbench.output.action.toggleAutoScroll`,
+			title: { value: nls.localize('toggleAutoScroll', "Toggle Auto Scrolling"), original: 'Toggle Auto Scrolling' },
+			tooltip: { value: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"), original: 'Turn Auto Scrolling Off' },
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID), CONTEXT_OUTPUT_SCROLL_LOCK.negate()),
+				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID)),
 				group: 'navigation',
 				order: 3,
 			},
-			icon: { id: 'codicon/unlock' }
+			icon: { id: 'codicon/unlock' },
+			toggled: {
+				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
+				icon: { id: 'codicon/lock' },
+				tooltip: { value: nls.localize('outputScrollOn', "Turn Auto Scrolling On"), original: 'Turn Auto Scrolling On' }
+			}
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const outputView = accessor.get(IViewsService).getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)!;
-		outputView.scrollLock = true;
-	}
-});
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.output.action.turnOnAutoScroll`,
-			title: nls.localize('outputScrollOn', "Turn Auto Scrolling On"),
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID), CONTEXT_OUTPUT_SCROLL_LOCK),
-				group: 'navigation',
-				order: 3,
-			},
-			icon: { id: 'codicon/lock' },
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const outputView = accessor.get(IViewsService).getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID)!;
-		outputView.scrollLock = false;
+		outputView.scrollLock = !outputView.scrollLock;
 	}
 });
 registerAction2(class extends Action2 {
@@ -202,7 +200,7 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const logFileOutputChannelDescriptor = this.getLogFileOutputChannelDescriptor(outputService);
 		if (logFileOutputChannelDescriptor) {
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor));
+			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor), { pinned: true });
 		}
 	}
 	private getLogFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
@@ -223,7 +221,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: toggleOutputAcitonId,
 			title: { value: nls.localize('toggleOutput', "Toggle Output"), original: 'Toggle Output' },
-			category: { value: nls.localize('viewCategory', "View"), original: 'View' },
+			category: CATEGORIES.View,
 			menu: {
 				id: MenuId.CommandPalette,
 			},
@@ -237,23 +235,24 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const panelService = accessor.get(IPanelService);
+		const viewsService = accessor.get(IViewsService);
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+		const contextKeyService = accessor.get(IContextKeyService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		return new class ToggleOutputAction extends TogglePanelAction {
+		return new class ToggleOutputAction extends ToggleViewAction {
 			constructor() {
-				super(toggleOutputAcitonId, 'Toggle Output', OUTPUT_VIEW_ID, panelService, layoutService);
+				super(toggleOutputAcitonId, 'Toggle Output', OUTPUT_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService);
 			}
 		}().run();
 	}
 });
 
-const devCategory = { value: nls.localize('developer', "Developer"), original: 'Developer' };
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.showLogs',
 			title: { value: nls.localize('showLogs', "Show Logs..."), original: 'Show Logs...' },
-			category: devCategory,
+			category: CATEGORIES.Developer,
 			menu: {
 				id: MenuId.CommandPalette,
 			},
@@ -281,7 +280,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.openLogFile',
 			title: { value: nls.localize('openLogFile', "Open Log File..."), original: 'Open Log File...' },
-			category: devCategory,
+			category: CATEGORIES.Developer,
 			menu: {
 				id: MenuId.CommandPalette,
 			},
@@ -299,7 +298,7 @@ registerAction2(class extends Action2 {
 		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
 		if (entry) {
 			assertIsDefined(entry.channel.file);
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)));
+			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
 		}
 	}
 });
@@ -323,7 +322,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: nls.localize('output.smartScroll.enabled', "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line."),
 			default: true,
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.WINDOW,
 			tags: ['output']
 		}
 	}

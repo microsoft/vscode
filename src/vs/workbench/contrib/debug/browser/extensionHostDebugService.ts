@@ -6,19 +6,19 @@
 import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
+import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { mapToSerializable } from 'vs/base/common/map';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -27,16 +27,16 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IHostService hostService: IHostService
 	) {
 		const connection = remoteAgentService.getConnection();
 		let channel: IChannel;
 		if (connection) {
 			channel = connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName);
 		} else {
+			// Extension host debugging not supported in serverless.
 			channel = { call: async () => undefined, listen: () => Event.None } as any;
-			// TODO@weinand TODO@isidorn fallback?
-			logService.warn('Extension Host Debugging not available due to missing connection.');
 		}
 
 		super(channel);
@@ -51,19 +51,19 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		// Reload window on reload request
 		this._register(this.onReload(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				window.location.reload();
+				hostService.reload();
 			}
 		}));
 
 		// Close window on close request
 		this._register(this.onClose(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				window.close();
+				hostService.close();
 			}
 		}));
 	}
 
-	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
+	async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<IOpenExtensionWindowResult> {
 
 		// Find out which workspace to open debug window on
 		let debugWorkspace: IWorkspace = undefined;
@@ -105,11 +105,18 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			environment.set('inspect-brk-extensions', inspectBrkExtensions);
 		}
 
-		// Open debug window as new window. Pass ParsedArgs over.
-		return this.workspaceProvider.open(debugWorkspace, {
-			reuse: false, 							// debugging always requires a new window
-			payload: mapToSerializable(environment)	// mandatory properties to enable debugging
+		const inspectExtensions = this.findArgument('inspect-extensions', args);
+		if (inspectExtensions) {
+			environment.set('inspect-extensions', inspectExtensions);
+		}
+
+		// Open debug window as new window. Pass arguments over.
+		await this.workspaceProvider.open(debugWorkspace, {
+			reuse: false, 								// debugging always requires a new window
+			payload: Array.from(environment.entries())	// mandatory properties to enable debugging
 		});
+
+		return {};
 	}
 
 	private findArgument(key: string, args: string[]): string | undefined {
@@ -124,15 +131,15 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	}
 }
 
-registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService);
+registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService, true);
 
 class BrowserDebugHelperService implements IDebugHelperService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
 		return undefined;
 	}
 }
 
-registerSingleton(IDebugHelperService, BrowserDebugHelperService);
+registerSingleton(IDebugHelperService, BrowserDebugHelperService, true);

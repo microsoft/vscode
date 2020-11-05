@@ -14,7 +14,7 @@ import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/r
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
 export interface IRequestService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
@@ -48,7 +48,13 @@ export async function asJson<T = {}>(context: IRequestContext): Promise<T | null
 		return null;
 	}
 	const buffer = await streamToBuffer(context.stream);
-	return JSON.parse(buffer.toString());
+	const str = buffer.toString();
+	try {
+		return JSON.parse(str);
+	} catch (err) {
+		err.message += ':\n' + str;
+		throw err;
+	}
 }
 
 

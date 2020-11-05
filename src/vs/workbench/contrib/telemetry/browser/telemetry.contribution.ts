@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase, ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -20,7 +20,7 @@ import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUt
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITextFileService, ITextFileSaveEvent, ITextFileLoadEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { extname, basename, isEqual, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -111,7 +111,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
 			theme: themeService.getColorTheme().id,
 			language,
-			pinnedViewlets: activityBarService.getPinnedViewletIds(),
+			pinnedViewlets: activityBarService.getPinnedViewContainerIds(),
 			restoredViewlet: activeViewlet ? activeViewlet.getId() : undefined,
 			restoredEditors: editorService.visibleEditors.length,
 			startupKind: lifecycleService.startupKind
@@ -175,7 +175,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(resource, joinPath(this.environmentService.userRoamingDataHome, 'snippets'))) {
+		if (isEqualOrParent(resource, this.environmentService.snippetsHome)) {
 			return 'snippets';
 		}
 
