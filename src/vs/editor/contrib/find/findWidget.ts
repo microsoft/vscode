@@ -225,7 +225,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			if (this._isVisible) {
 				let globalBufferTerm = await this._controller.getGlobalBufferTerm();
 				if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
-					this._state.change({ searchString: globalBufferTerm }, true);
+					this._state.change({ searchString: globalBufferTerm }, false);
 					this._findInput.select();
 				}
 			}
