@@ -230,19 +230,19 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-extension-code",
+    "value": "# vscode-extension-vscode\n\nDeprecated",
     "editable": true
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-extension-code is:issue closed:>$since",
+    "value": "repo:microsoft/vscode-extension-vscode is:issue closed:>$since",
     "editable": true
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-extension-code is:issue created:>$since",
+    "value": "repo:microsoft/vscode-extension-vscode is:issue created:>$since",
     "editable": true
   },
   {
