@@ -1460,8 +1460,14 @@ export class CommandCenter {
 			)
 			&& !opts.empty
 		) {
-			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
-			return false;
+			const commitAnyway = localize('commit anyway', "Create Empty Commit");
+			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
+
+			if (answer !== commitAnyway) {
+				return false;
+			}
+
+			opts.empty = true;
 		}
 
 		if (opts.noVerify) {
