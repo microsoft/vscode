@@ -12,7 +12,7 @@ import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -156,7 +156,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
-		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL);
+		storageService.store2(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
