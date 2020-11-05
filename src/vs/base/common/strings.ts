@@ -69,6 +69,14 @@ export function count(value: string, character: string): number {
 	return result;
 }
 
+export function truncate(value: string, maxLength: number, suffix = '…'): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	return `${value.substr(0, maxLength)}${suffix}`;
+}
+
 /**
  * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
