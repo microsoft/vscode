@@ -977,7 +977,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			newValue = Object.create(null);
 		}
 		newValue[type] = true;
-		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue);
 	}
 
 	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
