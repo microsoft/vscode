@@ -301,6 +301,9 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 	};
 }
 
+/**
+ * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
+ */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 	const renderer = new marked.Renderer();
 
@@ -369,5 +372,5 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 	if (value.length > 100_000) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
-	return marked.parse(value, { renderer });
+	return sanitizeRenderedMarkdown({ isTrusted: false }, marked.parse(value, { renderer })).toString();
 }
