@@ -221,7 +221,7 @@ body.web {
 }
 
 .monaco-workbench input[type="checkbox"]:focus {
-	outline-offset: 2px !important;
+	outline-offset: 2px;
 }
 
 .monaco-workbench [tabindex="0"]:active,
