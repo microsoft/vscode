@@ -207,7 +207,7 @@ export class ExperimentService implements ITASExperimentService {
 		);
 
 		const memento = new Memento(ExperimentService.MEMENTO_ID, this.storageService);
-		const keyValueStorage = new MementoKeyValueStorage(memento.getMemento(StorageScope.GLOBAL));
+		const keyValueStorage = new MementoKeyValueStorage(memento.legacygetMemento(StorageScope.GLOBAL));
 
 		const telemetry = new ExperimentServiceTelemetry(this.telemetryService);
 

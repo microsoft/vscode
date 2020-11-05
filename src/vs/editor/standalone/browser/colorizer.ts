@@ -54,7 +54,7 @@ export class Colorizer {
 		if (strings.startsWithUTF8BOM(text)) {
 			text = text.substr(1);
 		}
-		let lines = text.split(/\r\n|\r|\n/);
+		let lines = strings.splitLines(text);
 		let language = modeService.getModeId(mimeType);
 		if (!language) {
 			return Promise.resolve(_fakeColorize(lines, tabSize));

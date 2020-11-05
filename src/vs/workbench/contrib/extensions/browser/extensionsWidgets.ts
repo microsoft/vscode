@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { append, $ } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
@@ -18,6 +18,8 @@ import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -338,5 +340,31 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
 		const countBadge = new CountBadge(this.element);
 		countBadge.setCount(this.extension.extensionPack.length);
+	}
+}
+
+export class SyncIgnoredWidget extends ExtensionWidget {
+
+	private element: HTMLElement;
+
+	constructor(
+		container: HTMLElement,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+	) {
+		super();
+		this.element = append(container, $('span.extension-sync-ignored.codicon.codicon-sync-ignored'));
+		this.element.title = localize('syncingore.label', "This extension is ignored during sync.");
+		this.element.classList.add('codicon');
+		this.element.classList.add('codicon-sync-ignored');
+		this.element.classList.add('hide');
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
+		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
+		this.render();
+	}
+
+	render(): void {
+		this.element.classList.toggle('hide', !(this.extension && this.extension.state === ExtensionState.Installed && this.userDataAutoSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)));
 	}
 }

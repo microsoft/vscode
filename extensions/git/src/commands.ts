@@ -99,6 +99,20 @@ class MergeItem implements QuickPickItem {
 	}
 }
 
+class RebaseItem implements QuickPickItem {
+
+	get label(): string { return this.ref.name || ''; }
+	description: string = '';
+
+	constructor(readonly ref: Ref) { }
+
+	async run(repository: Repository): Promise<void> {
+		if (this.ref?.name) {
+			await repository.rebase(this.ref.name);
+		}
+	}
+}
+
 class CreateBranchItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
@@ -458,8 +472,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
@@ -515,7 +528,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, parentPath!, progress, token)
+				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
 
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
@@ -570,6 +583,16 @@ export class CommandCenter {
 
 			throw err;
 		}
+	}
+
+	@command('git.clone')
+	async clone(url?: string, parentPath?: string): Promise<void> {
+		this.cloneRepository(url, parentPath);
+	}
+
+	@command('git.cloneRecursive')
+	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
+		this.cloneRepository(url, parentPath, { recursive: true });
 	}
 
 	@command('git.init')
@@ -1395,7 +1418,7 @@ export class CommandCenter {
 			}
 
 			// prompt the user if we want to commit all or not
-			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
+			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?");
 			const yes = localize('yes', "Yes");
 			const always = localize('always', "Always");
 			const never = localize('never', "Never");
@@ -1437,8 +1460,14 @@ export class CommandCenter {
 			)
 			&& !opts.empty
 		) {
-			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
-			return false;
+			const commitAnyway = localize('commit anyway', "Create Empty Commit");
+			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
+
+			if (answer !== commitAnyway) {
+				return false;
+			}
+
+			opts.empty = true;
 		}
 
 		if (opts.noVerify) {
@@ -1840,6 +1869,44 @@ export class CommandCenter {
 		const picks = [...heads, ...remoteHeads];
 		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
 		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await choice.run(repository);
+	}
+
+	@command('git.rebase', { repository: true })
+	async rebase(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType') || 'all';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
+			.filter(ref => ref.name !== repository.HEAD?.name)
+			.filter(ref => ref.name || ref.commit);
+
+		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.filter(ref => ref.name || ref.commit);
+
+		const picks = [...heads, ...remoteHeads]
+			.map(ref => new RebaseItem(ref));
+
+		// set upstream branch as first
+		if (repository.HEAD?.upstream) {
+			const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
+			const index = picks.findIndex(e => e.ref.name === upstreamName);
+
+			if (index > -1) {
+				const [ref] = picks.splice(index, 1);
+				ref.description = '(upstream)';
+				picks.unshift(ref);
+			}
+		}
+
+		const placeHolder = localize('select a branch to rebase onto', 'Select a branch to rebase onto');
+		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
 
 		if (!choice) {
 			return;

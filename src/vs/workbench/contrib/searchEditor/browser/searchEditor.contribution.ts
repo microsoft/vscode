@@ -228,6 +228,37 @@ CommandsRegistry.registerCommand(
 //#region Actions
 const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
 
+export type LegacySearchEditorArgs = Partial<{
+	query: string,
+	includes: string,
+	excludes: string,
+	contextLines: number,
+	wholeWord: boolean,
+	caseSensitive: boolean,
+	regexp: boolean,
+	useIgnores: boolean,
+	showIncludesExcludes: boolean,
+	triggerSearch: boolean,
+	focusResults: boolean,
+	location: 'reuse' | 'new'
+}>;
+
+const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearchEditorArgs = {}): OpenSearchEditorArgs => {
+	const config: OpenSearchEditorArgs = {};
+	const overrides: { [K in keyof LegacySearchEditorArgs]: keyof OpenSearchEditorArgs } = {
+		includes: 'filesToInclude',
+		excludes: 'filesToExclude',
+		wholeWord: 'matchWholeWord',
+		caseSensitive: 'isCaseSensitive',
+		regexp: 'isRegexp',
+		useIgnores: 'useExcludeSettingsAndIgnoreFiles',
+	};
+	Object.entries(legacyConfig).forEach(([key, value]) => {
+		(config as any)[(overrides as any)[key] ?? key] = value;
+	});
+	return config;
+};
+
 export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
@@ -236,13 +267,13 @@ const openArgDescription = {
 		schema: {
 			properties: {
 				query: { type: 'string' },
-				includes: { type: 'string' },
-				excludes: { type: 'string' },
+				filesToInclude: { type: 'string' },
+				filesToExclude: { type: 'string' },
 				contextLines: { type: 'number' },
-				wholeWord: { type: 'boolean' },
-				caseSensitive: { type: 'boolean' },
-				regexp: { type: 'boolean' },
-				useIgnores: { type: 'boolean' },
+				matchWholeWord: { type: 'boolean' },
+				isCaseSensitive: { type: 'boolean' },
+				isRegexp: { type: 'boolean' },
+				useExcludeSettingsAndIgnoreFiles: { type: 'boolean' },
 				showIncludesExcludes: { type: 'boolean' },
 				triggerSearch: { type: 'boolean' },
 				focusResults: { type: 'boolean' },
@@ -285,8 +316,8 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'new' });
+	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig({ ...args, location: 'new' }));
 	}
 });
 
@@ -300,8 +331,8 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'reuse' });
+	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig({ ...args, location: 'reuse' }));
 	}
 });
 
@@ -315,8 +346,8 @@ registerAction2(class extends Action2 {
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args, true);
+	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, translateLegacyConfig(args), true);
 	}
 });
 

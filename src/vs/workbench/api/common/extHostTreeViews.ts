@@ -601,9 +601,6 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getThemeIcon(extensionTreeItem: vscode.TreeItem2): ThemeIcon | undefined {
-		if ((extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath.themeColor) {
-			checkProposedApiEnabled(this.extension);
-		}
 		return extensionTreeItem.iconPath instanceof ThemeIcon ? extensionTreeItem.iconPath : undefined;
 	}
 

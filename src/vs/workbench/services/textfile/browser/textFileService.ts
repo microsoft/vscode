@@ -37,6 +37,7 @@ import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream } from 'vs/base/common/stream';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -65,7 +66,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IPathService private readonly pathService: IPathService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 

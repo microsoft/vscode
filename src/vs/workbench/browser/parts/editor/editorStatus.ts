@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { format, compare } from 'vs/base/common/strings';
+import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -918,7 +918,7 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 		this.currentMarker = this.getMarker();
 		if (this.hasToUpdateStatus(previousMarker, this.currentMarker)) {
 			if (this.currentMarker) {
-				const line = this.currentMarker.message.split(/\r\n|\r|\n/g)[0];
+				const line = splitLines(this.currentMarker.message)[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
 					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ text: '', ariaLabel: '' }, 'statusbar.currentProblem', nls.localize('currentProblem', "Current Problem"), StatusbarAlignment.LEFT);

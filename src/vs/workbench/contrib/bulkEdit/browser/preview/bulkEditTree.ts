@@ -21,7 +21,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -386,6 +386,8 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 
 	readonly templateId: string = CategoryElementRenderer.id;
 
+	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+
 	renderTemplate(container: HTMLElement): CategoryElementTemplate {
 		return new CategoryElementTemplate(container);
 	}
@@ -394,12 +396,15 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 
 		template.icon.style.setProperty('--background-dark', null);
 		template.icon.style.setProperty('--background-light', null);
+		template.icon.style.color = '';
 
 		const { metadata } = node.element.category;
 		if (ThemeIcon.isThemeIcon(metadata.iconPath)) {
 			// css
 			const className = ThemeIcon.asClassName(metadata.iconPath);
 			template.icon.className = className ? `theme-icon ${className}` : '';
+			template.icon.style.color = metadata.iconPath.color ? this._themeService.getColorTheme().getColor(metadata.iconPath.color.id)?.toString() ?? '' : '';
+
 
 		} else if (URI.isUri(metadata.iconPath)) {
 			// background-image
@@ -532,7 +537,7 @@ class TextEditElementTemplate {
 	private readonly _icon: HTMLDivElement;
 	private readonly _label: HighlightedLabel;
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement, @IThemeService private readonly _themeService: IThemeService) {
 		container.classList.add('textedit');
 
 		this._checkbox = document.createElement('input');
@@ -597,6 +602,8 @@ class TextEditElementTemplate {
 				// css
 				const className = ThemeIcon.asClassName(iconPath);
 				this._icon.className = className ? `theme-icon ${className}` : '';
+				this._icon.style.color = iconPath.color ? this._themeService.getColorTheme().getColor(iconPath.color.id)?.toString() ?? '' : '';
+
 
 			} else if (URI.isUri(iconPath)) {
 				// background-image
@@ -623,8 +630,10 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 
 	readonly templateId: string = TextEditElementRenderer.id;
 
+	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+
 	renderTemplate(container: HTMLElement): TextEditElementTemplate {
-		return new TextEditElementTemplate(container);
+		return new TextEditElementTemplate(container, this._themeService);
 	}
 
 	renderElement({ element }: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {

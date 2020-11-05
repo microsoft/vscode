@@ -411,10 +411,16 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	private static compactLongAddress(address: string): string {
-		if (address.length < 15) {
+		if (address.length < 16) {
 			return address;
 		}
-		return new URL(address).host;
+		let url: URL | undefined;
+		try {
+			url = new URL(address);
+		} catch (e) {
+			// Address isn't a valid url and can't be compacted.
+		}
+		return url && url.host.length > 0 ? url.host : address;
 	}
 
 	set description(description: string | undefined) {
@@ -442,7 +448,7 @@ class TunnelDataTree extends WorkbenchAsyncDataTree<any, any, any> { }
 
 export class TunnelPanel extends ViewPane {
 	static readonly ID = TUNNEL_VIEW_ID;
-	static readonly TITLE = nls.localize('remote.tunnel', "Forwarded Ports");
+	static readonly TITLE = nls.localize('remote.tunnel', "Ports");
 	private tree!: TunnelDataTree;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
@@ -589,7 +595,8 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return this.viewModel.forwarded.length === 0 && this.viewModel.candidates.length === 0 && !this.isEditing;
+		return (this.viewModel.forwarded.length === 0) && (this.viewModel.candidates.length === 0) &&
+			(this.viewModel.detected.length === 0) && !this.isEditing;
 	}
 
 	focus(): void {
@@ -634,7 +641,7 @@ export class TunnelPanel extends ViewPane {
 		}
 
 		const actions: IAction[] = [];
-		this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService));
+		this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => treeEvent.anchor,

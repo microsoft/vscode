@@ -971,33 +971,33 @@ export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
 /**
  * Helper to format a raw byte size into a human readable label.
  */
-export class BinarySize {
+export class ByteSize {
 	static readonly KB = 1024;
-	static readonly MB = BinarySize.KB * BinarySize.KB;
-	static readonly GB = BinarySize.MB * BinarySize.KB;
-	static readonly TB = BinarySize.GB * BinarySize.KB;
+	static readonly MB = ByteSize.KB * ByteSize.KB;
+	static readonly GB = ByteSize.MB * ByteSize.KB;
+	static readonly TB = ByteSize.GB * ByteSize.KB;
 
 	static formatSize(size: number): string {
 		if (!isNumber(size)) {
 			size = 0;
 		}
 
-		if (size < BinarySize.KB) {
+		if (size < ByteSize.KB) {
 			return localize('sizeB', "{0}B", size.toFixed(0));
 		}
 
-		if (size < BinarySize.MB) {
-			return localize('sizeKB', "{0}KB", (size / BinarySize.KB).toFixed(2));
+		if (size < ByteSize.MB) {
+			return localize('sizeKB', "{0}KB", (size / ByteSize.KB).toFixed(2));
 		}
 
-		if (size < BinarySize.GB) {
-			return localize('sizeMB', "{0}MB", (size / BinarySize.MB).toFixed(2));
+		if (size < ByteSize.GB) {
+			return localize('sizeMB', "{0}MB", (size / ByteSize.MB).toFixed(2));
 		}
 
-		if (size < BinarySize.TB) {
-			return localize('sizeGB', "{0}GB", (size / BinarySize.GB).toFixed(2));
+		if (size < ByteSize.TB) {
+			return localize('sizeGB', "{0}GB", (size / ByteSize.GB).toFixed(2));
 		}
 
-		return localize('sizeTB', "{0}TB", (size / BinarySize.TB).toFixed(2));
+		return localize('sizeTB', "{0}TB", (size / ByteSize.TB).toFixed(2));
 	}
 }

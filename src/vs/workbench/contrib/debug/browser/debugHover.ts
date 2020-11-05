@@ -73,6 +73,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private domNode!: HTMLElement;
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
+	private positionPreference: ContentWidgetPositionPreference[];
 	private highlightDecorations: string[];
 	private complexValueContainer!: HTMLElement;
 	private complexValueTitle!: HTMLElement;
@@ -92,6 +93,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this._isVisible = false;
 		this.showAtPosition = null;
 		this.highlightDecorations = [];
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	private create(): void {
@@ -304,6 +306,14 @@ export class DebugHoverWidget implements IContentWidget {
 		this.scrollbar.scanDomNode();
 	}
 
+	afterRender(positionPreference: ContentWidgetPositionPreference | null) {
+		if (positionPreference) {
+			// Remember where the editor placed you to keep position stable #109226
+			this.positionPreference = [positionPreference];
+		}
+	}
+
+
 	hide(): void {
 		if (!this._isVisible) {
 			return;
@@ -316,15 +326,13 @@ export class DebugHoverWidget implements IContentWidget {
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	getPosition(): IContentWidgetPosition | null {
 		return this._isVisible ? {
 			position: this.showAtPosition,
-			preference: [
-				ContentWidgetPositionPreference.ABOVE,
-				ContentWidgetPositionPreference.BELOW
-			]
+			preference: this.positionPreference
 		} : null;
 	}
 
@@ -340,7 +348,7 @@ class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExp
 	}
 
 	getAriaLabel(element: IExpression): string {
-		return nls.localize({ key: 'variableAriaLabel', comment: ['Do not translate placholders. Placeholders are name and value of a variable.'] }, "{0}, value {1}, variables, debug", element.name, element.value);
+		return nls.localize({ key: 'variableAriaLabel', comment: ['Do not translate placeholders. Placeholders are name and value of a variable.'] }, "{0}, value {1}, variables, debug", element.name, element.value);
 	}
 }
 

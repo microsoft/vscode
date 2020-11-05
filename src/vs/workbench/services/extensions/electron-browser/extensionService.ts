@@ -39,6 +39,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILogService } from 'vs/platform/log/common/log';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Schemas } from 'vs/base/common/network';
+import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -199,7 +200,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
-			if (code === 55) {
+			if (code === ExtensionHostExitCode.VersionMismatch) {
 				this._notificationService.prompt(
 					Severity.Error,
 					nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),

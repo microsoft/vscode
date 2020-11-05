@@ -39,7 +39,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -68,7 +67,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IProgressService, ProgressService);
-		instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
 		instantiationService.stub(IProductService, {});
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);

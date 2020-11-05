@@ -31,6 +31,8 @@ import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semantic
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 // --- adapter
 
@@ -896,6 +898,7 @@ class SuggestAdapter {
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 
+		const sw = new StopWatch(true);
 		const itemsOrList = await asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context)));
 
 		if (!itemsOrList) {
@@ -921,7 +924,8 @@ class SuggestAdapter {
 			x: pid,
 			[extHostProtocol.ISuggestResultDtoField.completions]: completions,
 			[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined
+			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined,
+			[extHostProtocol.ISuggestResultDtoField.duration]: sw.elapsed()
 		};
 
 		for (let i = 0; i < list.items.length; i++) {
@@ -1740,7 +1744,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._apiDeprecation, extension), extension);
-		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
+		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), `${extension.identifier.value}(${triggerCharacters.join('')})`);
 		return this._createDisposable(handle);
 	}
 
@@ -1819,6 +1823,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		let result = this._createDisposable(handle);
 
 		if (eventHandle !== undefined) {
+			checkProposedApiEnabled(extension);
 			const subscription = provider.onDidChangeFoldingRanges!(_ => this._proxy.$emitFoldingRangeEvent(eventHandle));
 			result = Disposable.from(result, subscription);
 		}

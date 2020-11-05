@@ -169,7 +169,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._activeKernel = kernel;
 		this._activeKernelResolvePromise = undefined;
 
-		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
 		memento[this.viewModel!.viewType] = this._activeKernel?.id;
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
@@ -305,7 +305,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	protected getMemento(scope: StorageScope): MementoObject {
-		return this._memento.getMemento(scope);
+		return this._memento.legacygetMemento(scope);
 	}
 
 	public get isNotebookEditor() {
@@ -769,7 +769,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private async _setKernelsFromProviders(provider: NotebookProviderInfo, kernels: INotebookKernelInfo2[], tokenSource: CancellationTokenSource) {
 		const rawAssociations = this.configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId) || [];
 		const userSetKernelProvider = rawAssociations.filter(e => e.viewType === this.viewModel?.viewType)[0]?.kernelProvider;
-		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
 
 		if (userSetKernelProvider) {
 			const filteredKernels = kernels.filter(kernel => kernel.extension.value === userSetKernelProvider);
@@ -1868,7 +1868,7 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('notebook.cellToolbarSeparator', "The color of the seperator in the cell bottom toolbar"));
+}, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),

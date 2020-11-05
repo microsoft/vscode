@@ -32,13 +32,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {
 	query: string,
-	includes: string,
-	excludes: string,
+	filesToInclude: string,
+	filesToExclude: string,
 	contextLines: number,
-	wholeWord: boolean,
-	caseSensitive: boolean,
-	regexp: boolean,
-	useIgnores: boolean,
+	matchWholeWord: boolean,
+	isCaseSensitive: boolean,
+	isRegexp: boolean,
+	useExcludeSettingsAndIgnoreFiles: boolean,
 	showIncludesExcludes: boolean,
 };
 
@@ -65,7 +65,7 @@ export class SearchEditorInput extends EditorInput {
 	public get config(): Readonly<SearchConfiguration> { return this._config; }
 	public set config(value: Readonly<SearchConfiguration>) {
 		this._config = value;
-		this.memento.getMemento(StorageScope.WORKSPACE).searchConfig = value;
+		this.memento.legacygetMemento(StorageScope.WORKSPACE).searchConfig = value;
 		this._onDidChangeLabel.fire();
 	}
 
@@ -298,7 +298,7 @@ export const getOrMakeSearchEditorInput = (
 	const reuseOldSettings = searchEditorSettings.reusePriorSearchConfiguration;
 	const defaultNumberOfContextLines = searchEditorSettings.defaultNumberOfContextLines;
 
-	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
+	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).legacygetMemento(StorageScope.WORKSPACE).searchConfig : {};
 	const defaultConfig = defaultSearchConfig();
 
 	const config = { ...defaultConfig, ...priorConfig, ...existingData.config };

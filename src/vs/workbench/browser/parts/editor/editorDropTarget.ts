@@ -25,6 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -34,7 +35,7 @@ class DropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
 
-	private static readonly MAX_FILE_UPLOAD_SIZE = 100 * 1024 * 1024; // 100mb
+	private static readonly MAX_FILE_UPLOAD_SIZE = 100 * ByteSize.MB;
 
 	private container: HTMLElement | undefined;
 	private overlay: HTMLElement | undefined;

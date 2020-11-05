@@ -51,6 +51,6 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
 		const instaService = accessor.get(IInstantiationService);
-		return editorService.openEditor(instaService.createInstance(PerfviewInput));
+		return editorService.openEditor(instaService.createInstance(PerfviewInput), { pinned: true });
 	}
 });
