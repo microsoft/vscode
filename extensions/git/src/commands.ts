@@ -2534,6 +2534,16 @@ export class CommandCenter {
 			return;
 		}
 
+		// request confirmation for the operation
+		const yes = localize('yes', "Yes");
+		const result = await window.showWarningMessage(
+			localize('sure drop', "Are you sure you want to drop the stash: {0}?", stash.description),
+			yes
+		);
+		if (result !== yes) {
+			return;
+		}
+
 		await repository.dropStash(stash.index);
 	}
 
