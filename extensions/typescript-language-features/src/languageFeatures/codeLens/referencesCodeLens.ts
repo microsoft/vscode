@@ -42,12 +42,9 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		}
 
 		const locations = response.body.refs
+			.filter(reference => !reference.isDefinition)
 			.map(reference =>
-				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference))
-			.filter(location =>
-				// Exclude original definition from references
-				!(location.uri.toString() === codeLens.document.toString() &&
-					location.range.start.isEqual(codeLens.range.start)));
+				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference));
 
 		codeLens.command = {
 			title: this.getCodeLensLabel(locations),
