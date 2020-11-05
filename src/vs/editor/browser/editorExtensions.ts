@@ -14,7 +14,7 @@ import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/e
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -129,8 +129,8 @@ export abstract class Command {
 			command: {
 				id: this.id,
 				title: item.title,
-				icon: item.icon
-				// precondition: this.precondition
+				icon: item.icon,
+				precondition: this.precondition
 			},
 			when: item.when,
 			order: item.order
@@ -149,7 +149,7 @@ export abstract class Command {
  *
  * @return `true` if the command was successfully run. This stops other overrides from being executed.
  */
-export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean;
+export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
 export class MultiCommand extends Command {
 
@@ -175,8 +175,12 @@ export class MultiCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		for (const impl of this._implementations) {
-			if (impl[1](accessor, args)) {
-				return;
+			const result = impl[1](accessor, args);
+			if (result) {
+				if (typeof result === 'boolean') {
+					return;
+				}
+				return result;
 			}
 		}
 	}
@@ -337,7 +341,71 @@ export abstract class EditorAction extends EditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
+export abstract class MultiEditorAction extends EditorAction {
+	private readonly _implementations: [number, CommandImplementation][] = [];
+
+	constructor(opts: IActionOptions) {
+		super(opts);
+	}
+
+	public addImplementation(priority: number, implementation: CommandImplementation): IDisposable {
+		this._implementations.push([priority, implementation]);
+		this._implementations.sort((a, b) => b[0] - a[0]);
+		return {
+			dispose: () => {
+				for (let i = 0; i < this._implementations.length; i++) {
+					if (this._implementations[i][1] === implementation) {
+						this._implementations.splice(i, 1);
+						return;
+					}
+				}
+			}
+		};
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+		this.reportTelemetry(accessor, editor);
+
+		for (const impl of this._implementations) {
+			if (impl[1](accessor, args)) {
+				return;
+			}
+		}
+
+		return this.run(accessor, editor, args || {});
+	}
+
+	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
+
+}
+
 //#endregion EditorAction
+
+//#region EditorAction2
+
+export abstract class EditorAction2 extends Action2 {
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		// Find the editor with text focus or active
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		if (!editor) {
+			// well, at least we tried...
+			return;
+		}
+		// precondition does hold
+		return editor.invokeWithinContext((editorAccessor) => {
+			const kbService = editorAccessor.get(IContextKeyService);
+			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
+				return this.runEditorCommand(editorAccessor, editor!, args);
+			}
+		});
+	}
+
+	abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): any;
+}
+
+//#endregion
 
 // --- Registration of commands and actions
 
@@ -393,7 +461,7 @@ export function registerModelAndPositionCommand(id: string, handler: (model: ITe
 		const model = accessor.get(IModelService).getModel(resource);
 		if (model) {
 			const editorPosition = Position.lift(position);
-			return handler(model, editorPosition, args.slice(2));
+			return handler(model, editorPosition, ...args.slice(2));
 		}
 
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
@@ -444,6 +512,11 @@ export function registerEditorCommand<T extends EditorCommand>(editorCommand: T)
 
 export function registerEditorAction<T extends EditorAction>(ctor: { new(): T; }): T {
 	const action = new ctor();
+	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
+	return action;
+}
+
+export function registerMultiEditorAction<T extends MultiEditorAction>(action: T): T {
 	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
 	return action;
 }

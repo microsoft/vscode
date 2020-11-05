@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class API {
-	private static fromSimpleString(value: string): API {
+	public static fromSimpleString(value: string): API {
 		return new API(value, value, value);
 	}
 
@@ -35,6 +35,7 @@ export default class API {
 	public static readonly v381 = API.fromSimpleString('3.8.1');
 	public static readonly v390 = API.fromSimpleString('3.9.0');
 	public static readonly v400 = API.fromSimpleString('4.0.0');
+	public static readonly v401 = API.fromSimpleString('4.0.1');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);

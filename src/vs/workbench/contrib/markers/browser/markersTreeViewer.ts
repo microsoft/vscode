@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
@@ -52,6 +52,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -345,10 +346,10 @@ class MarkerWidget extends Disposable {
 		if (viewModel) {
 			const quickFixAction = viewModel.quickFixAction;
 			this.actionBar.push([quickFixAction], { icon: true, label: false });
-			dom.toggleClass(this.icon, 'quickFix', quickFixAction.enabled);
+			this.icon.classList.toggle('quickFix', quickFixAction.enabled);
 			quickFixAction.onDidChange(({ enabled }) => {
 				if (!isUndefinedOrNull(enabled)) {
-					dom.toggleClass(this.icon, 'quickFix', enabled);
+					this.icon.classList.toggle('quickFix', enabled);
 				}
 			}, this, this.disposables);
 			quickFixAction.onShowQuickFixes(() => {
@@ -392,7 +393,7 @@ class MarkerWidget extends Disposable {
 	}
 
 	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
-		dom.addClass(parent, 'details-container');
+		parent.classList.add('details-container');
 
 		if (marker.source || marker.code) {
 			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')), false);
@@ -690,14 +691,14 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.validActions.map(codeAction => new Action(
-			codeAction.command ? codeAction.command.id : codeAction.title,
-			codeAction.title,
+		return codeActions.validActions.map(item => new Action(
+			item.action.command ? item.action.command.id : item.action.title,
+			item.action.title,
 			undefined,
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item));
 			}));
 	}
 

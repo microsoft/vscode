@@ -30,6 +30,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 namespace delta {
 
@@ -306,6 +307,7 @@ export class MainThreadDocumentsAndEditors {
 
 	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
+	private readonly _mainThreadDocuments: MainThreadDocuments;
 	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
 
 	private readonly _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
@@ -333,11 +335,12 @@ export class MainThreadDocumentsAndEditors {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IPathService pathService: IPathService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		const mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService));
-		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
+		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
+		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
 		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
@@ -367,7 +370,7 @@ export class MainThreadDocumentsAndEditors {
 		// added editors
 		for (const apiEditor of delta.addedEditors) {
 			const mainThreadEditor = new MainThreadTextEditor(apiEditor.id, apiEditor.editor.getModel(),
-				apiEditor.editor, { onGainedFocus() { }, onLostFocus() { } }, this._modelService, this._clipboardService);
+				apiEditor.editor, { onGainedFocus() { }, onLostFocus() { } }, this._mainThreadDocuments, this._modelService, this._clipboardService);
 
 			this._textEditors.set(apiEditor.id, mainThreadEditor);
 			addedEditors.push(mainThreadEditor);

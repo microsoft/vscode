@@ -16,16 +16,15 @@ import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/co
 import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionMode } from 'vs/workbench/api/common/extHostTypes';
+import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
+import { RemoteAuthorityResolverError, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -35,6 +34,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -70,7 +70,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	readonly _serviceBrand: undefined;
 
-	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
+	abstract readonly extensionRuntime: ExtensionRuntime;
 
 	private readonly _onDidChangeRemoteConnectionData = this._register(new Emitter<void>());
 	public readonly onDidChangeRemoteConnectionData = this._onDidChangeRemoteConnectionData.event;
@@ -194,8 +194,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 	}
 
-	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
-
 	public async deactivateAll(): Promise<void> {
 		let allPromises: Promise<void>[] = [];
 		try {
@@ -255,7 +253,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		if (!this._extensionPathIndex) {
 			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
 			const extensions = this._registry.getAllExtensionDescriptions().map(ext => {
-				if (!ext.main) {
+				if (!this._getEntryPoint(ext)) {
 					return undefined;
 				}
 				return this._hostUtils.realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
@@ -305,8 +303,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	// --- impl
 
-	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
-		this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
+	private async _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
+		if (!this._initData.remote.isRemote) {
+			// local extension host process
+			await this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
+		} else {
+			// remote extension host process
+			// do not wait for renderer confirmation
+			this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
+		}
 		return this._doActivateExtension(extensionDescription, reason).then((activatedExtension) => {
 			const activationTimes = activatedExtension.activationTimes;
 			this._mainThreadExtensionsProxy.$onDidActivateExtension(extensionDescription.identifier, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime, reason);
@@ -346,7 +351,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
 		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
-		if (!extensionDescription.main) {
+		const entryPoint = this._getEntryPoint(extensionDescription);
+		if (!entryPoint) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
@@ -356,18 +362,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return Promise.all([
-			this._loadCommonJSModule<IExtensionModule>(joinPath(extensionDescription.extensionLocation, extensionDescription.main), activationTimesBuilder),
+			this._loadCommonJSModule<IExtensionModule>(joinPath(extensionDescription.extensionLocation, entryPoint), activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
 			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], activationTimesBuilder);
 		});
 	}
 
-	protected abstract _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
-
 	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
-		const globalState = new ExtensionMemento(extensionDescription.identifier.value, true, this._storage);
+		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
@@ -387,11 +391,18 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
-				get storagePath() { return that._storagePath.workspaceValue(extensionDescription); },
-				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription); },
 				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
+				get storagePath() { return that._storagePath.workspaceValue(extensionDescription)?.fsPath; },
+				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription).fsPath; },
 				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); },
+				get logUri() { return URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value); },
+				get storageUri() { return that._storagePath.workspaceValue(extensionDescription); },
+				get globalStorageUri() { return that._storagePath.globalValue(extensionDescription); },
 				get extensionMode() { return extensionMode; },
+				get extensionRuntime() {
+					checkProposedApiEnabled(extensionDescription);
+					return that.extensionRuntime;
+				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
 			});
 		});
@@ -486,94 +497,28 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		).then(() => { });
 	}
 
-	private _handleWorkspaceContainsEagerExtension(folders: ReadonlyArray<vscode.WorkspaceFolder>, desc: IExtensionDescription): Promise<void> {
-		const activationEvents = desc.activationEvents;
-		if (!activationEvents) {
-			return Promise.resolve(undefined);
-		}
-
+	private async _handleWorkspaceContainsEagerExtension(folders: ReadonlyArray<vscode.WorkspaceFolder>, desc: IExtensionDescription): Promise<void> {
 		if (this.isActivated(desc.identifier)) {
-			return Promise.resolve(undefined);
+			return;
 		}
-
-		const fileNames: string[] = [];
-		const globPatterns: string[] = [];
 
 		const localWithRemote = !this._initData.remote.isRemote && !!this._initData.remote.authority;
-		for (const activationEvent of activationEvents) {
-			if (/^workspaceContains:/.test(activationEvent)) {
-				const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
-				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0 || localWithRemote) {
-					globPatterns.push(fileNameOrGlob);
-				} else {
-					fileNames.push(fileNameOrGlob);
-				}
-			}
+		const host: IExtensionActivationHost = {
+			folders: folders.map(folder => folder.uri),
+			forceUsingSearch: localWithRemote,
+			exists: (uri) => this._hostUtils.exists(uri.fsPath),
+			checkExists: (folders, includes, token) => this._mainThreadWorkspaceProxy.$checkExists(folders, includes, token)
+		};
+
+		const result = await checkActivateWorkspaceContainsExtension(host, desc);
+		if (!result) {
+			return;
 		}
 
-		if (fileNames.length === 0 && globPatterns.length === 0) {
-			return Promise.resolve(undefined);
-		}
-
-		const fileNamePromise = Promise.all(fileNames.map((fileName) => this._activateIfFileName(folders, desc.identifier, fileName))).then(() => { });
-		const globPatternPromise = this._activateIfGlobPatterns(folders, desc.identifier, globPatterns);
-
-		return Promise.all([fileNamePromise, globPatternPromise]).then(() => { });
-	}
-
-	private async _activateIfFileName(folders: ReadonlyArray<vscode.WorkspaceFolder>, extensionId: ExtensionIdentifier, fileName: string): Promise<void> {
-
-		// find exact path
-		for (const { uri } of folders) {
-			if (await this._hostUtils.exists(path.join(URI.revive(uri).fsPath, fileName))) {
-				// the file was found
-				return (
-					this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContains:${fileName}` })
-						.then(undefined, err => this._logService.error(err))
-				);
-			}
-		}
-
-		return undefined;
-	}
-
-	private async _activateIfGlobPatterns(folders: ReadonlyArray<vscode.WorkspaceFolder>, extensionId: ExtensionIdentifier, globPatterns: string[]): Promise<void> {
-		this._logService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId.value}, entryPoint: workspaceContains`);
-
-		if (globPatterns.length === 0) {
-			return Promise.resolve(undefined);
-		}
-
-		const tokenSource = new CancellationTokenSource();
-		const searchP = this._mainThreadWorkspaceProxy.$checkExists(folders.map(folder => folder.uri), globPatterns, tokenSource.token);
-
-		const timer = setTimeout(async () => {
-			tokenSource.cancel();
-			this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContainsTimeout:${globPatterns.join(',')}` })
-				.then(undefined, err => this._logService.error(err));
-		}, AbstractExtHostExtensionService.WORKSPACE_CONTAINS_TIMEOUT);
-
-		let exists: boolean = false;
-		try {
-			exists = await searchP;
-		} catch (err) {
-			if (!errors.isPromiseCanceledError(err)) {
-				this._logService.error(err);
-			}
-		}
-
-		tokenSource.dispose();
-		clearTimeout(timer);
-
-		if (exists) {
-			// a file was found matching one of the glob patterns
-			return (
-				this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContains:${globPatterns.join(',')}` })
-					.then(undefined, err => this._logService.error(err))
-			);
-		}
-
-		return Promise.resolve(undefined);
+		return (
+			this._activateById(desc.identifier, { startup: true, extensionId: desc.identifier, activationEvent: result.activationEvent })
+				.then(undefined, err => this._logService.error(err))
+		);
 	}
 
 	private _handleExtensionTests(): Promise<void> {
@@ -612,7 +557,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					}
 
 					// after tests have run, we shutdown the host
-					this._gracefulExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
+					this._testRunnerExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				};
 
 				const runResult = testRunner!.run(extensionTestsPath, oldTestRunnerCallback);
@@ -622,11 +567,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					runResult
 						.then(() => {
 							c();
-							this._gracefulExit(0);
+							this._testRunnerExit(0);
 						})
 						.catch((err: Error) => {
 							e(err.toString());
-							this._gracefulExit(1);
+							this._testRunnerExit(1);
 						});
 				}
 			});
@@ -634,24 +579,20 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		// Otherwise make sure to shutdown anyway even in case of an error
 		else {
-			this._gracefulExit(1 /* ERROR */);
+			this._testRunnerExit(1 /* ERROR */);
 		}
 
 		return Promise.reject(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath)));
 	}
 
-	private _gracefulExit(code: number): void {
-		// to give the PH process a chance to flush any outstanding console
-		// messages to the main process, we delay the exit() by some time
-		setTimeout(() => {
-			// If extension tests are running, give the exit code to the renderer
-			if (this._initData.remote.isRemote && !!this._initData.environment.extensionTestsLocationURI) {
-				this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
-				return;
-			}
-
+	private _testRunnerExit(code: number): void {
+		// wait at most 5000ms for the renderer to confirm our exit request and for the renderer socket to drain
+		// (this is to ensure all outstanding messages reach the renderer)
+		const exitPromise = this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
+		const drainPromise = this._extHostContext.drain();
+		Promise.race([Promise.all([exitPromise, drainPromise]), timeout(5000)]).then(() => {
 			this._hostUtils.exit(code);
-		}, 500);
+		});
 	}
 
 	private _startExtensionHost(): Promise<void> {
@@ -710,7 +651,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const authority: ResolvedAuthority = {
 				authority: remoteAuthority,
 				host: result.host,
-				port: result.port
+				port: result.port,
+				connectionToken: result.connectionToken
 			};
 			const options: ResolvedOptions = {
 				extensionHostEnv: result.extensionHostEnv
@@ -744,7 +686,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return this._startExtensionHost();
 	}
 
-	public $activateByEvent(activationEvent: string): Promise<void> {
+	public $activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		if (activationKind === ActivationKind.Immediate) {
+			return this._activateByEvent(activationEvent, false);
+		}
+
 		return (
 			this._readyToRunExtensions.wait()
 				.then(_ => this._activateByEvent(activationEvent, false))
@@ -806,7 +752,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._onDidChangeRemoteConnectionData.fire();
 	}
 
-	public abstract async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
+	protected abstract _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined;
+	protected abstract _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
+	public abstract $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
 

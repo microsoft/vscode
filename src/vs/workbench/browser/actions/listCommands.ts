@@ -523,7 +523,6 @@ function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): 
 			}
 		}
 		tree.setSelection(focus, fakeKeyboardEvent);
-		tree.open(fakeKeyboardEvent);
 	}
 }
 
@@ -561,7 +560,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
-			list.setSelection(range(list.length));
+			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			list.setSelection(range(list.length), fakeKeyboardEvent);
 		}
 
 		// Trees
@@ -573,7 +573,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			// Which element should be considered to start selecting all?
 			let start: unknown | undefined = undefined;
 
-			if (focus.length > 0 && (selection.length === 0 || selection.indexOf(focus[0]) === -1)) {
+			if (focus.length > 0 && (selection.length === 0 || !selection.includes(focus[0]))) {
 				start = focus[0];
 			}
 
@@ -655,18 +655,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// Tree only
-		if (focused && !(focused instanceof List || focused instanceof PagedList)) {
-			if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-				const tree = focused;
-				const focus = tree.getFocus();
+		if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			const focus = tree.getFocus();
 
-				if (focus.length === 0) {
-					return;
-				}
-
+			if (focus.length > 0 && tree.isCollapsible(focus[0])) {
 				tree.toggleCollapsed(focus[0]);
+				return;
 			}
 		}
+
+		focusElement(accessor, true);
 	}
 });
 

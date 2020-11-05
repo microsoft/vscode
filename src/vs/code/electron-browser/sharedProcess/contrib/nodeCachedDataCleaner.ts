@@ -7,8 +7,6 @@ import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import product from 'vs/platform/product/common/product';
 
 export class NodeCachedDataCleaner {
@@ -20,7 +18,7 @@ export class NodeCachedDataCleaner {
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService
+		private readonly nodeCachedDataDir: string | undefined
 	) {
 		this._manageCachedDataSoon();
 	}
@@ -33,14 +31,14 @@ export class NodeCachedDataCleaner {
 		// Cached data is stored as user data and we run a cleanup task everytime
 		// the editor starts. The strategy is to delete all files that are older than
 		// 3 months (1 week respectively)
-		if (!this._environmentService.nodeCachedDataDir) {
+		if (!this.nodeCachedDataDir) {
 			return;
 		}
 
 		// The folder which contains folders of cached data. Each of these folder is per
 		// version
-		const nodeCachedDataRootDir = dirname(this._environmentService.nodeCachedDataDir);
-		const nodeCachedDataCurrent = basename(this._environmentService.nodeCachedDataDir);
+		const nodeCachedDataRootDir = dirname(this.nodeCachedDataDir);
+		const nodeCachedDataCurrent = basename(this.nodeCachedDataDir);
 
 		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;

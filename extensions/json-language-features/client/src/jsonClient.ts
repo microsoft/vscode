@@ -116,7 +116,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		initializationOptions: {
 			handledSchemaProtocols: ['file'], // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
-			customCapabilities: { rangeFormatting: { editLimit: 1000 } }
+			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
 		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server

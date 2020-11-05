@@ -280,4 +280,21 @@ suite('OutputLinkProvider', () => {
 		assert.equal(result[0].range.startColumn, 6);
 		assert.equal(result[0].range.endColumn, 86);
 	});
+
+	test('OutputLinkProvider - #106847', function () {
+		const rootFolder = isWindows ? URI.file('C:\\Users\\bpasero\\Desktop\\test-ts') :
+			URI.file('C:/Users/bpasero/Desktop');
+
+		let patterns = OutputLinkComputer.createPatterns(rootFolder);
+
+		let contextService = new TestContextService();
+
+		let line = toOSPath('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C:\\Users\\bpasero\\Desktop\\test-ts\\prj.conf C:\\Users\\bpasero\\Desktop\\test-ts\\prj.conf C:\\Users\\bpasero\\Desktop\\test-ts\\prj.conf');
+		let result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
+		assert.equal(result.length, 3);
+
+		for (const res of result) {
+			assert.ok(res.range.startColumn > 0 && res.range.endColumn > 0);
+		}
+	});
 });

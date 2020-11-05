@@ -13,7 +13,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -25,7 +25,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -37,7 +37,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -50,7 +50,7 @@ suite('GlobalStateMerge', () => {
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 		const base = { 'b': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, base, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -62,7 +62,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, { 'b': { version: 1, value: 'b' } });
 		assert.deepEqual(actual.local.updated, {});
@@ -74,7 +74,7 @@ suite('GlobalStateMerge', () => {
 		const local = {};
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } });
 		assert.deepEqual(actual.local.updated, {});
@@ -86,7 +86,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, local, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, local, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, { 'b': { version: 1, value: 'b' } });
 		assert.deepEqual(actual.local.updated, {});
@@ -98,7 +98,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, local, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, local, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -110,7 +110,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 		const remote = {};
 
-		const actual = merge(local, remote, local, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, local, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -122,7 +122,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'b' } };
 
-		const actual = merge(local, remote, local, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, local, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, { 'a': { version: 1, value: 'b' } });
@@ -134,7 +134,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'a': { version: 1, value: 'd' }, 'c': { version: 1, value: 'c' } };
 
-		const actual = merge(local, remote, local, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, local, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, { 'c': { version: 1, value: 'c' } });
 		assert.deepEqual(actual.local.updated, { 'a': { version: 1, value: 'd' } });
@@ -146,7 +146,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -158,7 +158,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' }, 'c': { version: 1, value: 'c' } };
 		const remote = { 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, remote, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, remote, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -170,7 +170,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
 
-		const actual = merge(local, remote, remote, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, remote, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -182,7 +182,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'b' } };
 		const remote = { 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, remote, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, remote, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -194,7 +194,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'd' }, 'b': { version: 1, value: 'b' } };
 		const remote = { 'a': { version: 1, value: 'a' }, 'c': { version: 1, value: 'c' } };
 
-		const actual = merge(local, remote, remote, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, remote, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -206,7 +206,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'b' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, { 'a': { version: 1, value: 'b' } });
@@ -219,7 +219,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'd' } };
 		const remote = { 'a': { version: 1, value: 'a' }, 'c': { version: 1, value: 'c' } };
 
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, base, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, { 'c': { version: 1, value: 'c' } });
 		assert.deepEqual(actual.local.updated, {});
@@ -232,10 +232,10 @@ suite('GlobalStateMerge', () => {
 		const local = {};
 		const remote = { 'a': { version: 1, value: 'b' } };
 
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, base, [], new NullLogService());
 
-		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, { 'a': { version: 1, value: 'b' } });
+		assert.deepEqual(actual.local.added, { 'a': { version: 1, value: 'b' } });
+		assert.deepEqual(actual.local.updated, {});
 		assert.deepEqual(actual.local.removed, []);
 		assert.deepEqual(actual.remote, null);
 	});
@@ -245,7 +245,7 @@ suite('GlobalStateMerge', () => {
 		const local = { 'a': { version: 1, value: 'd' } };
 		const remote = { 'a': { version: 1, value: 'b' } };
 
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }, { key: 'c', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, base, [], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, { 'a': { version: 1, value: 'b' } });
@@ -253,11 +253,11 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when a new entry is added to remote but not a registered key', async () => {
+	test('merge when a new entry is added to remote but scoped to machine locally', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, null, ['b'], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -265,23 +265,11 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when a new entry is added to remote but different version', async () => {
-		const local = { 'a': { version: 1, value: 'a' } };
-		const remote = { 'b': { version: 2, value: 'b' }, 'a': { version: 1, value: 'a' } };
-
-		const actual = merge(local, remote, null, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
-
-		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, {});
-		assert.deepEqual(actual.local.removed, []);
-		assert.deepEqual(actual.remote, null);
-	});
-
-	test('merge when an entry is updated to remote but not a registered key', async () => {
+	test('merge when an entry is updated to remote but scoped to machine locally', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'a': { version: 1, value: 'b' } };
 
-		const actual = merge(local, remote, local, [], [], new NullLogService());
+		const actual = merge(local, remote, local, ['a'], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -289,11 +277,12 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when a new entry is updated to remote but different version', async () => {
-		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
+	test('merge when a local value is removed and iscoped to machine locally', async () => {
+		const base = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
+		const local = { 'a': { version: 1, value: 'a' } };
 		const remote = { 'b': { version: 2, value: 'b' }, 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, local, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
+		const actual = merge(local, remote, base, ['b'], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
@@ -301,80 +290,17 @@ suite('GlobalStateMerge', () => {
 		assert.deepEqual(actual.remote, null);
 	});
 
-	test('merge when a local value is update with lower version', async () => {
-		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'c' } };
-		const remote = { 'b': { version: 2, value: 'b' }, 'a': { version: 1, value: 'a' } };
+	test('merge when local moved forwared by changing a key to machine scope', async () => {
+		const base = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
+		const remote = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
+		const local = { 'a': { version: 1, value: 'a' } };
 
-		const actual = merge(local, remote, remote, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
-
-		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, {});
-		assert.deepEqual(actual.local.removed, []);
-		assert.deepEqual(actual.remote, null);
-	});
-
-	test('merge when a local value is update with higher version', async () => {
-		const local = { 'a': { version: 1, value: 'a' }, 'b': { version: 2, value: 'c' } };
-		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
-
-		const actual = merge(local, remote, remote, [{ key: 'a', version: 1 }, { key: 'b', version: 2 }], [], new NullLogService());
+		const actual = merge(local, remote, base, ['b'], new NullLogService());
 
 		assert.deepEqual(actual.local.added, {});
 		assert.deepEqual(actual.local.updated, {});
 		assert.deepEqual(actual.local.removed, []);
 		assert.deepEqual(actual.remote, local);
-	});
-
-	test('merge when a local value is removed but not registered', async () => {
-		const base = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
-		const local = { 'a': { version: 1, value: 'a' } };
-		const remote = { 'b': { version: 2, value: 'b' }, 'a': { version: 1, value: 'a' } };
-
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }], [], new NullLogService());
-
-		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, {});
-		assert.deepEqual(actual.local.removed, []);
-		assert.deepEqual(actual.remote, null);
-	});
-
-	test('merge when a local value is removed with lower version', async () => {
-		const base = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
-		const local = { 'a': { version: 1, value: 'a' } };
-		const remote = { 'b': { version: 2, value: 'b' }, 'a': { version: 1, value: 'a' } };
-
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }, { key: 'b', version: 1 }], [], new NullLogService());
-
-		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, {});
-		assert.deepEqual(actual.local.removed, []);
-		assert.deepEqual(actual.remote, null);
-	});
-
-	test('merge when a local value is removed with higher version', async () => {
-		const base = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
-		const local = { 'a': { version: 1, value: 'a' } };
-		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
-
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }, { key: 'b', version: 2 }], [], new NullLogService());
-
-		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, {});
-		assert.deepEqual(actual.local.removed, []);
-		assert.deepEqual(actual.remote, local);
-	});
-
-	test('merge when a local value is not yet registered', async () => {
-		const base = { 'a': { version: 1, value: 'a' }, 'b': { version: 1, value: 'b' } };
-		const local = { 'a': { version: 1, value: 'a' } };
-		const remote = { 'b': { version: 1, value: 'b' }, 'a': { version: 1, value: 'a' } };
-
-		const actual = merge(local, remote, base, [{ key: 'a', version: 1 }], [], new NullLogService());
-
-		assert.deepEqual(actual.local.added, {});
-		assert.deepEqual(actual.local.updated, {});
-		assert.deepEqual(actual.local.removed, []);
-		assert.deepEqual(actual.remote, null);
 	});
 
 });

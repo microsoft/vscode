@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
@@ -109,7 +108,7 @@ export class Debugger implements IDebugger {
 
 	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
 		return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
+			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
 		});
 	}
 
@@ -171,7 +170,7 @@ export class Debugger implements IDebugger {
 		// fix formatting
 		const editorConfig = this.configurationService.getValue<any>();
 		if (editorConfig.editor && editorConfig.editor.insertSpaces) {
-			content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
+			content = content.replace(new RegExp('\t', 'g'), ' '.repeat(editorConfig.editor.tabSize));
 		}
 
 		return Promise.resolve(content);

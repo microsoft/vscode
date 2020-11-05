@@ -9,7 +9,7 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { extname, isAbsolute } from 'vs/base/common/path';
-import { dirname, resolvePath, isEqualAuthority, isEqualOrParent, relativePath, extname as resourceExtname } from 'vs/base/common/resources';
+import { dirname, resolvePath, isEqualAuthority, relativePath, extname as resourceExtname, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
@@ -168,6 +168,7 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 			id: workspace.id
 		};
 	}
+
 	if (workspace.folders.length === 1) {
 		return workspace.folders[0].uri;
 	}
@@ -177,7 +178,7 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 }
 
 export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
-	return isEqualOrParent(path, environmentService.untitledWorkspacesHome);
+	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
@@ -212,7 +213,6 @@ const SLASH = '/';
  * @param useSlashForPath if set, use forward slashes for file paths on windows
  */
 export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
-
 	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
@@ -227,6 +227,7 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 			folderPath = folderPath.replace(/\//g, '\\');
 		}
 	} else {
+
 		// use absolute path
 		if (folderURI.scheme === Schemas.file) {
 			folderPath = folderURI.fsPath;
@@ -246,6 +247,7 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 			folderPath = folderURI.path;
 		}
 	}
+
 	return { name: folderName, path: folderPath };
 }
 
@@ -285,6 +287,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer nexessary.
 		newContent = jsonEdit.applyEdits(newContent, jsonEdit.removeProperty(newContent, ['remoteAuthority'], formattingOptions));
 	}
+
 	return newContent;
 }
 
@@ -307,6 +310,7 @@ export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolea
 	if (isWindows) {
 		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0);
 	}
+
 	return true;
 }
 
@@ -374,17 +378,20 @@ export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData
 		workspaceLabels.push(recent.label || null);
 		hasLabel = hasLabel || !!recent.label;
 	}
+
 	if (hasLabel) {
 		serialized.workspaceLabels = workspaceLabels;
 	}
 
 	hasLabel = false;
+
 	const fileLabels: (string | null)[] = [];
 	for (const recent of recents.files) {
 		serialized.files2.push(recent.fileUri.toString());
 		fileLabels.push(recent.label || null);
 		hasLabel = hasLabel || !!recent.label;
 	}
+
 	if (hasLabel) {
 		serialized.fileLabels = fileLabels;
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IActiveCodeEditor, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { View } from 'vs/editor/browser/view/viewImpl';
@@ -34,7 +34,7 @@ export interface ITestCodeEditor extends IActiveCodeEditor {
 class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected _createConfiguration(options: editorOptions.IEditorConstructionOptions): IConfiguration {
+	protected _createConfiguration(options: IEditorConstructionOptions): IConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected _createView(viewModel: ViewModel): [View, boolean] {
@@ -92,6 +92,24 @@ export function withTestCodeEditor(text: string | string[] | null, options: Test
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
 	callback(<ITestCodeEditor>editor, editor.getViewModel()!);
+
+	editor.dispose();
+}
+
+export async function withAsyncTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel) => Promise<void>): Promise<void> {
+	// create a model if necessary and remember it in order to dispose it.
+	if (!options.model) {
+		if (typeof text === 'string') {
+			options.model = createTextModel(text);
+		} else if (text) {
+			options.model = createTextModel(text.join('\n'));
+		}
+	}
+
+	const editor = createTestCodeEditor(options);
+	const viewModel = editor.getViewModel()!;
+	viewModel.setHasFocus(true);
+	await callback(<ITestCodeEditor>editor, editor.getViewModel()!);
 
 	editor.dispose();
 }

@@ -19,9 +19,9 @@ import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platf
 import * as platform from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -36,10 +36,9 @@ export interface IRemoteExtensionHostInitData {
 	readonly connectionData: IRemoteConnectionData | null;
 	readonly pid: number;
 	readonly appRoot: URI;
-	readonly appSettingsHome: URI;
 	readonly extensionHostLogsPath: URI;
 	readonly globalStorageHome: URI;
-	readonly userHome: URI;
+	readonly workspaceStorageHome: URI;
 	readonly extensions: IExtensionDescription[];
 	readonly allExtensions: IExtensionDescription[];
 }
@@ -93,11 +92,12 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			addressProvider: {
 				getAddress: async () => {
 					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,
-			logService: this._logService
+			logService: this._logService,
+			ipcLogger: null
 		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 
@@ -205,8 +205,15 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		const [telemetryInfo, remoteInitData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 
 		// Collect all identifiers for extension ids which can be considered "resolved"
-		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main).map(extension => extension.identifier);
-		const hostExtensions = remoteInitData.allExtensions.filter(extension => extension.main && extension.api === 'none').map(extension => extension.identifier);
+		const remoteExtensions = new Set<string>();
+		remoteInitData.extensions.forEach((extension) => remoteExtensions.add(ExtensionIdentifier.toKey(extension.identifier.value)));
+
+		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
+		const hostExtensions = (
+			remoteInitData.allExtensions
+				.filter(extension => !remoteExtensions.has(ExtensionIdentifier.toKey(extension.identifier.value)))
+				.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier)
+		);
 		const workspace = this._contextService.getWorkspace();
 		return {
 			commit: this._productService.commit,
@@ -215,14 +222,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			environment: {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,
-				appSettingsHome: remoteInitData.appSettingsHome,
 				appName: this._productService.nameLong,
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				userHome: remoteInitData.userHome,
+				workspaceStorageHome: remoteInitData.workspaceStorageHome,
 				webviewResourceRoot: this._environmentService.webviewResourceRoot,
 				webviewCspSource: this._environmentService.webviewCspSource,
 			},

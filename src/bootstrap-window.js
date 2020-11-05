@@ -21,10 +21,11 @@
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
-	const path = require.__$__nodeRequire('path');
-	const webFrame = require.__$__nodeRequire('electron').webFrame;
-	const ipc = require.__$__nodeRequire('electron').ipcRenderer;
-	const bootstrap = globalThis.MonacoBootstrap;
+	const bootstrapLib = bootstrap();
+	const preloadGlobals = globals();
+	const sandbox = preloadGlobals.context.sandbox;
+	const webFrame = preloadGlobals.webFrame;
+	const safeProcess = sandbox ? preloadGlobals.process : process;
 
 	/**
 	 * @param {string[]} modulePaths
@@ -52,29 +53,33 @@
 		}
 
 		// Error handler
-		process.on('uncaughtException', function (error) {
+		safeProcess.on('uncaughtException', function (error) {
 			onUnexpectedError(error, enableDeveloperTools);
 		});
 
 		// Developer tools
-		const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
+		const enableDeveloperTools = (safeProcess.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 		let developerToolsUnbind;
 		if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
 			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
 		}
 
-		// Correctly inherit the parent's environment
-		Object.assign(process.env, configuration.userEnv);
+		// Correctly inherit the parent's environment (TODO@sandbox non-sandboxed only)
+		if (!sandbox) {
+			Object.assign(safeProcess.env, configuration.userEnv);
+		}
 
-		// Enable ASAR support
-		bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
+		// Enable ASAR support (TODO@sandbox non-sandboxed only)
+		if (!sandbox) {
+			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
+		}
 
 		if (options && typeof options.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
-		// Get the nls configuration into the process.env as early as possible.
-		const nlsConfig = bootstrap.setupNLS();
+		// Get the nls configuration into the process.env as early as possible  (TODO@sandbox non-sandboxed only)
+		const nlsConfig = sandbox ? { availableLanguages: {} } : globalThis.MonacoBootstrap.setupNLS();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
 		if (locale === 'zh-tw') {
@@ -86,18 +91,40 @@
 		window.document.documentElement.setAttribute('lang', locale);
 
 		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
-		window['define'] = undefined;
+		if (!sandbox) {
+			window['define'] = undefined;
+		}
 
-		// replace the patched electron fs with the original node fs for all AMD code
-		require.define('fs', ['original-fs'], function (originalFS) { return originalFS; });
+		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
+		if (!sandbox) {
+			require.define('fs', ['original-fs'], function (originalFS) { return originalFS; });
+		}
 
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: `${bootstrap.uriFromPath(configuration.appRoot)}/out`,
-			'vs/nls': nlsConfig,
-			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
+			'vs/nls': nlsConfig
 		};
+
+		// Enable loading of node modules:
+		// - sandbox: we list paths of webpacked modules to help the loader
+		// - non-sandbox: we signal that any module that does not begin with
+		//                `vs/` should be loaded using node.js require()
+		if (sandbox) {
+			loaderConfig.paths = {
+				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
+				'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
+				'xterm': `../node_modules/xterm/lib/xterm.js`,
+				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
+				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
+			};
+		} else {
+			loaderConfig.amdModulesPattern = /^vs\//;
+		}
 
 		// cached data config
 		if (configuration.nodeCachedDataDir) {
@@ -159,6 +186,8 @@
 	 * @returns {() => void}
 	 */
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
+		const ipcRenderer = preloadGlobals.ipcRenderer;
+
 		const extractKey = function (e) {
 			return [
 				e.ctrlKey ? 'ctrl-' : '',
@@ -170,16 +199,16 @@
 		};
 
 		// Devtools & reload support
-		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
+		const TOGGLE_DEV_TOOLS_KB = (safeProcess.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
-		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
+		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
-				ipc.send('vscode:toggleDevTools');
+				ipcRenderer.send('vscode:toggleDevTools');
 			} else if (key === RELOAD_KB && !disallowReloadKeybinding) {
-				ipc.send('vscode:reloadWindow');
+				ipcRenderer.send('vscode:reloadWindow');
 			}
 		};
 
@@ -199,7 +228,8 @@
 	 */
 	function onUnexpectedError(error, enableDeveloperTools) {
 		if (enableDeveloperTools) {
-			ipc.send('vscode:openDevTools');
+			const ipcRenderer = preloadGlobals.ipcRenderer;
+			ipcRenderer.send('vscode:openDevTools');
 		}
 
 		console.error(`[uncaught exception]: ${error}`);
@@ -209,7 +239,24 @@
 		}
 	}
 
+	/**
+	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 */
+	function bootstrap() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
+	}
+
+	/**
+	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
+	 */
+	function globals() {
+		// @ts-ignore (defined in globals.js)
+		return window.vscode;
+	}
+
 	return {
-		load
+		load,
+		globals
 	};
 }));

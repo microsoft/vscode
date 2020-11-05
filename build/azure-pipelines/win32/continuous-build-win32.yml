@@ -1,7 +1,7 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -33,6 +33,13 @@ steps:
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    exec { yarn postinstall }
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+
+- powershell: |
     yarn electron
   displayName: Download Electron
 
@@ -57,7 +64,7 @@ steps:
   displayName: Run Unit Tests (Electron)
 
 - powershell: |
-    yarn test-browser --browser chromium --browser firefox
+    yarn test-browser --browser chromium --browser firefox --tfs "Browser Unit Tests"
   displayName: Run Unit Tests (Browser)
 
 - powershell: |

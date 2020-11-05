@@ -9,12 +9,11 @@ import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
-import { assign } from 'vs/base/common/objects';
 import { IExternalTerminalService, IExternalTerminalConfiguration, IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminal';
+import { FileAccess } from 'vs/base/common/network';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -49,7 +48,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 			];
 
 			// merge environment variables into a copy of the process.env
-			const env = assign({}, process.env, envVars);
+			const env = Object.assign({}, process.env, envVars);
 
 			// delete environment variables that have a null value
 			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
@@ -145,7 +144,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = getPathFromAmdModule(require, `vs/workbench/contrib/externalTerminal/node/${script}.scpt`);
+				const scriptpath = FileAccess.asFileUri(`vs/workbench/contrib/externalTerminal/node/${script}.scpt`, require).fsPath;
 
 				const osaArgs = [
 					scriptpath,
@@ -251,7 +250,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 				// merge environment variables into a copy of the process.env
-				const env = assign({}, process.env, envVars);
+				const env = Object.assign({}, process.env, envVars);
 
 				// delete environment variables that have a null value
 				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
@@ -306,7 +305,6 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
 				if (env.isLinux) {
 					const isDebian = await pfs.exists('/etc/debian_version');
-					await process.lazyEnv;
 					if (isDebian) {
 						r('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {

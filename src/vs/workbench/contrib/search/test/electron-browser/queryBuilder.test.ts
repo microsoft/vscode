@@ -40,7 +40,7 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IPathService, new TestNativePathService(TestEnvironmentService));
+		instantiationService.stub(IPathService, new TestNativePathService());
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 		await new Promise(resolve => setTimeout(resolve, 5)); // Wait for IPathService.userHome to resolve

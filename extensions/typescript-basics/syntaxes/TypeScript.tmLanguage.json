@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScript.tmLanguage",
+		"This file has been converted from https://github.com/microsoft/TypeScript-TmLanguage/blob/master/TypeScript.tmLanguage",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/fa4e0d3a918db0eab8e5c5be952f3bd649968456",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/fa4e0d3a918db0eab8e5c5be952f3bd649968456",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -3578,23 +3578,6 @@
 						},
 						"5": {
 							"name": "support.constant.property.math.ts"
-						}
-					}
-				},
-				{
-					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(console)(?:\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*(\n  assert|clear|count|debug|dir|error|group|groupCollapsed|groupEnd|info|log\n  |profile|profileEnd|table|time|timeEnd|timeStamp|trace|warn))?\\b(?!\\$)",
-					"captures": {
-						"1": {
-							"name": "support.class.console.ts"
-						},
-						"2": {
-							"name": "punctuation.accessor.ts"
-						},
-						"3": {
-							"name": "punctuation.accessor.optional.ts"
-						},
-						"4": {
-							"name": "support.function.console.ts"
 						}
 					}
 				},

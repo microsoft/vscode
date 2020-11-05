@@ -139,11 +139,9 @@ suite('RPCProtocol', () => {
 		let p = bProxy.$m(4, tokenSource.token);
 		p.then((res: number) => {
 			assert.equal(res, 7);
-			done(null);
 		}, (err) => {
 			assert.fail('should not receive error');
-			done();
-		});
+		}).finally(done);
 		tokenSource.cancel();
 	});
 
@@ -153,11 +151,9 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.fail('unexpected');
-			done(null);
 		}, (err) => {
 			assert.equal(err.message, 'nope');
-			done(null);
-		});
+		}).finally(done);
 	});
 
 	test('error promise', function (done) {
@@ -166,11 +162,9 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.fail('unexpected');
-			done(null);
 		}, (err) => {
 			assert.equal(err, undefined);
-			done(null);
-		});
+		}).finally(done);
 	});
 
 	test('issue #60450: Converting circular structure to JSON', function (done) {
@@ -181,11 +175,9 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.equal(res, null);
-			done(null);
 		}, (err) => {
 			assert.fail('unexpected');
-			done(null);
-		});
+		}).finally(done);
 	});
 
 	test('issue #72798: null errors are hard to digest', function (done) {
@@ -195,11 +187,9 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.fail('unexpected');
-			done(null);
 		}, (err) => {
 			assert.equal(err.what, 'what');
-			done(null);
-		});
+		}).finally(done);
 	});
 
 	test('undefined arguments arrive as null', function () {

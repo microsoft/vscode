@@ -40,7 +40,7 @@ export interface ISettingsGroup {
 	title: string;
 	titleRange: IRange;
 	sections: ISettingsSection[];
-	contributedByExtension: boolean;
+	extensionInfo?: IConfigurationExtensionInfo;
 }
 
 export interface ISettingsSection {
@@ -76,6 +76,7 @@ export interface ISetting {
 	disallowSyncIgnore?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
+	enumItemLabels?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {

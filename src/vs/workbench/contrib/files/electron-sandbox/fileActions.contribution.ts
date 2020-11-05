@@ -9,7 +9,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
@@ -22,6 +22,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
@@ -36,21 +37,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		revealResourcesInOS(resources, accessor.get(IElectronService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
+
+const REVEAL_ACTIVE_FILE_IN_OS_COMMAND_ID = 'workbench.action.files.revealActiveFileInWindows';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
-	id: 'workbench.action.files.revealActiveFileInWindows',
+	id: REVEAL_ACTIVE_FILE_IN_OS_COMMAND_ID,
 	handler: (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
-		const resource = activeInput ? activeInput.resource : null;
+		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { filterByScheme: Schemas.file, supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		revealResourcesInOS(resources, accessor.get(IElectronService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 

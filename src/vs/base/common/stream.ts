@@ -33,7 +33,7 @@ export interface ReadableStreamEvents<T> {
 
 /**
  * A interface that emulates the API shape of a node.js readable
- * stream for use in desktop and web environments.
+ * stream for use in native and web environments.
  */
 export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 
@@ -60,7 +60,7 @@ export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 
 /**
  * A interface that emulates the API shape of a node.js readable
- * for use in desktop and web environments.
+ * for use in native and web environments.
  */
 export interface Readable<T> {
 
@@ -73,7 +73,7 @@ export interface Readable<T> {
 
 /**
  * A interface that emulates the API shape of a node.js writeable
- * stream for use in desktop and web environments.
+ * stream for use in native and web environments.
  */
 export interface WriteableStream<T> extends ReadableStream<T> {
 
@@ -474,7 +474,7 @@ export function peekReadable<T>(readable: Readable<T>, reducer: IReducer<T>, max
 /**
  * Helper to fully read a T stream into a T.
  */
-export function consumeStream<T>(stream: ReadableStream<T>, reducer: IReducer<T>): Promise<T> {
+export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 

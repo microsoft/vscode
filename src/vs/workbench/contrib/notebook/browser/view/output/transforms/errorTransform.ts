@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderOutput, CellOutputKind, IErrorOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IRenderOutput, CellOutputKind, IErrorOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
-import * as DOM from 'vs/base/browser/dom';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -28,17 +27,15 @@ class ErrorTransform implements IOutputTransformContribution {
 			container.appendChild(header);
 		}
 		const traceback = document.createElement('pre');
-		DOM.addClasses(traceback, 'traceback');
+		traceback.classList.add('traceback');
 		if (output.traceback) {
 			for (let j = 0; j < output.traceback.length; j++) {
 				traceback.appendChild(handleANSIOutput(output.traceback[j], this.themeService));
 			}
 		}
 		container.appendChild(traceback);
-		DOM.addClasses(container, 'error');
-		return {
-			hasDynamicHeight: false
-		};
+		container.classList.add('error');
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
 	dispose(): void {
@@ -174,7 +171,7 @@ export function handleANSIOutput(text: string, themeService: IThemeService): HTM
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code }
 	 */
 	function setBasicFormatters(styleCodes: number[]): void {
-		for (let code of styleCodes) {
+		for (const code of styleCodes) {
 			switch (code) {
 				case 0: {
 					styleNames = [];

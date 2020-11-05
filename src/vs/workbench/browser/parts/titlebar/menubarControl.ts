@@ -8,8 +8,7 @@ import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action } from 'vs/base/common/actions';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
@@ -22,12 +21,12 @@ import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SEL
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
-import { SubmenuAction, Direction } from 'vs/base/browser/ui/menu/menu';
+import { Direction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -258,7 +257,7 @@ export abstract class MenubarControl extends Disposable {
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
+		this.storageService.store2('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 }
 
@@ -282,14 +281,12 @@ export class CustomMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IHostService protected readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IHostService protected readonly hostService: IHostService
 	) {
-
 		super(
 			menuService,
 			workspacesService,
@@ -452,7 +449,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 			case StateType.Idle:
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId));
+					this.updateService.checkForUpdates(this.environmentService.sessionId));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
@@ -599,7 +596,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions, topLevelTitle);
-						target.push(new SubmenuAction(mnemonicMenuLabel(action.label), submenuActions));
+						target.push(new SubmenuAction(action.id, mnemonicMenuLabel(action.label), submenuActions));
 					} else {
 						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
 						target.push(action);
@@ -675,9 +672,9 @@ export class CustomMenubarControl extends MenubarControl {
 
 		if (this.container) {
 			if (hasFocus) {
-				DOM.removeClass(this.container, 'inactive');
+				this.container.classList.remove('inactive');
 			} else {
-				DOM.addClass(this.container, 'inactive');
+				this.container.classList.add('inactive');
 				if (this.menubar) {
 					this.menubar.blur();
 				}
@@ -733,5 +730,11 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		this.menubar?.update(this.getMenuBarOptions());
+	}
+
+	toggleFocus() {
+		if (this.menubar) {
+			this.menubar.toggleFocus();
+		}
 	}
 }

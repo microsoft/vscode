@@ -4,12 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
+import BufferSyncSupport from './tsServer/bufferSyncSupport';
+import { ExectuionTarget } from './tsServer/server';
+import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
-import { TypeScriptVersion } from './utils/versionProvider';
+import { TelemetryReporter } from './utils/telemetry';
+
+export enum ServerType {
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+}
 
 export namespace ServerResponse {
 
@@ -82,8 +89,38 @@ export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRe
 export type ExecConfig = {
 	readonly lowPriority?: boolean;
 	readonly nonRecoverable?: boolean;
-	readonly cancelOnResourceChange?: vscode.Uri
+	readonly cancelOnResourceChange?: vscode.Uri;
+	readonly executionTarget?: ExectuionTarget;
 };
+
+export enum ClientCapability {
+	/**
+	 * Basic syntax server. All clients should support this.
+	 */
+	Syntax,
+
+	/**
+	 * Advanced syntax server that can provide single file IntelliSense.
+	 */
+	EnhancedSyntax,
+
+	/**
+	 * Complete, multi-file semantic server
+	 */
+	Semantic,
+}
+
+export class ClientCapabilities {
+	private readonly capabilities: ReadonlySet<ClientCapability>;
+
+	constructor(...capabilities: ClientCapability[]) {
+		this.capabilities = new Set(capabilities);
+	}
+
+	public has(capability: ClientCapability): boolean {
+		return this.capabilities.has(capability);
+	}
+}
 
 export interface ITypeScriptServiceClient {
 	/**
@@ -108,9 +145,14 @@ export interface ITypeScriptServiceClient {
 	/**
 	 * Tries to ensure that a vscode document is open on the TS server.
 	 *
-	 * Returns the normalized path.
+	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
 	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
+
+	/**
+	 * Checks if `resource` has a given capability.
+	 */
+	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
@@ -120,14 +162,19 @@ export interface ITypeScriptServiceClient {
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
+	readonly capabilities: ClientCapabilities;
+	readonly onDidChangeCapabilities: vscode.Event<void>;
+
 	onReady(f: () => void): Promise<void>;
 
 	showVersionPicker(): void;
 
 	readonly apiVersion: API;
+
 	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
 	readonly bufferSyncSupport: BufferSyncSupport;
+	readonly telemetryReporter: TelemetryReporter;
 
 	execute<K extends keyof StandardTsServerRequests>(
 		command: K,

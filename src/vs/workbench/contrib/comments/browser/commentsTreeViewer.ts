@@ -120,7 +120,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
-		templateData.commentText.innerHTML = '';
+		templateData.commentText.innerText = '';
 		const disposables = new DisposableStore();
 		templateData.disposables.push(disposables);
 		const renderedComment = renderMarkdown(node.element.comment.body, {
@@ -182,7 +182,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			dataSource,
 			{
 				accessibilityProvider: options.accessibilityProvider,
-				keyboardSupport: true,
 				identityProvider: {
 					getId: (element: any) => {
 						if (element instanceof CommentsModel) {

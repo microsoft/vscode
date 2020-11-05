@@ -5,7 +5,6 @@
 
 import { basename, posix, extname } from 'vs/base/common/path';
 import { startsWithUTF8BOM } from 'vs/base/common/strings';
-import { coalesce } from 'vs/base/common/arrays';
 import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -162,7 +161,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let extensionMatch: ITextMimeAssociationItem | null = null;
 
 	// We want to prioritize associations based on the order they are registered so that the last registered
-	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+	// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
 	for (let i = associations.length - 1; i >= 0; i--) {
 		const association = associations[i];
 
@@ -218,7 +217,7 @@ function guessMimeTypeByFirstline(firstLine: string): string | null {
 	if (firstLine.length > 0) {
 
 		// We want to prioritize associations based on the order they are registered so that the last registered
-		// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+		// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
 		for (let i = registeredAssociations.length - 1; i >= 0; i--) {
 			const association = registeredAssociations[i];
 			if (!association.firstline) {
@@ -245,34 +244,6 @@ export function isUnspecific(mime: string[] | string): boolean {
 	}
 
 	return mime.length === 1 && isUnspecific(mime[0]);
-}
-
-/**
- * Returns a suggestion for the filename by the following logic:
- * 1. If a relevant extension exists and is an actual filename extension (starting with a dot), suggest the prefix appended by the first one.
- * 2. Otherwise, if there are other extensions, suggest the first one.
- * 3. Otherwise, suggest the prefix.
- */
-export function suggestFilename(mode: string | undefined, prefix: string): string {
-	const extensions = registeredAssociations
-		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === mode)
-		.map(assoc => assoc.extension);
-
-	const extensionsWithDotFirst = coalesce(extensions)
-		.filter(assoc => assoc.startsWith('.'));
-
-	if (extensionsWithDotFirst.length > 0) {
-		const candidateExtension = extensionsWithDotFirst[0];
-		if (prefix.endsWith(candidateExtension)) {
-			// do not add the prefix if it already exists
-			// https://github.com/microsoft/vscode/issues/83603
-			return prefix;
-		}
-
-		return prefix + candidateExtension;
-	}
-
-	return extensions[0] || prefix;
 }
 
 interface MapExtToMediaMimes {

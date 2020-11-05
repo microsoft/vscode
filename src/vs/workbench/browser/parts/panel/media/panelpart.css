@@ -163,6 +163,8 @@
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .badge {
 	margin-left: 8px;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .badge .badge-content {
@@ -170,13 +172,14 @@
 	border-radius: 11px;
 	font-size: 11px;
 	min-width: 18px;
-	min-height: 18px;
+	height: 18px;
 	line-height: 11px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
 	box-sizing: border-box;
-	}
+	position: relative;
+}
 
 /* Rotate icons when panel is on right */
 .monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,

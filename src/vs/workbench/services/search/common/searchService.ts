@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { keys, ResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
@@ -179,7 +179,7 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private async waitForProvider(queryType: QueryType, scheme: string): Promise<ISearchResultProvider> {
-		let deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = queryType === QueryType.File ?
+		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = queryType === QueryType.File ?
 			this.deferredFileSearchesByScheme :
 			this.deferredTextSearchesByScheme;
 
@@ -199,7 +199,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const searchPs: Promise<ISearchComplete>[] = [];
 
 		const fqs = this.groupFolderQueriesByScheme(query);
-		await Promise.all(keys(fqs).map(async scheme => {
+		await Promise.all([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
 			let provider = query.type === QueryType.File ?
 				this.fileSearchProviders.get(scheme) :
@@ -282,9 +282,9 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
-		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === 'file');
-		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== 'file');
-		const scheme = fileSchemeOnly ? 'file' :
+		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
+		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
+		const scheme = fileSchemeOnly ? Schemas.file :
 			otherSchemeOnly ? 'other' :
 				'mixed';
 

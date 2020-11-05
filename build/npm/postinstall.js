@@ -33,7 +33,7 @@ function yarnInstall(location, opts) {
 
 yarnInstall('extensions'); // node modules shared by all extensions
 
-if (!(process.platform === 'win32' && process.env['npm_config_arch'] === 'arm64')) {
+if (!(process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64'))) {
 	yarnInstall('remote'); // node modules used by vscode server
 	yarnInstall('remote/web'); // node modules used by vscode web
 }

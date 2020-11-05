@@ -19,9 +19,9 @@
 		globalThis.MonacoBootstrap = factory();
 	}
 }(this, function () {
-	const Module = require('module');
-	const path = require('path');
-	const fs = require('fs');
+	const Module = typeof require === 'function' ? require('module') : undefined;
+	const path = typeof require === 'function' ? require('path') : undefined;
+	const fs = typeof require === 'function' ? require('fs') : undefined;
 
 	//#region global bootstrapping
 
@@ -30,9 +30,11 @@
 
 	// Workaround for Electron not installing a handler to ignore SIGPIPE
 	// (https://github.com/electron/electron/issues/13254)
-	process.on('SIGPIPE', () => {
-		console.error(new Error('Unexpected SIGPIPE'));
-	});
+	if (typeof process !== 'undefined') {
+		process.on('SIGPIPE', () => {
+			console.error(new Error('Unexpected SIGPIPE'));
+		});
+	}
 
 	//#endregion
 
@@ -40,10 +42,15 @@
 	//#region Add support for using node_modules.asar
 
 	/**
-	 * @param {string=} nodeModulesPath
+	 * @param {string} appRoot
 	 */
-	function enableASARSupport(nodeModulesPath) {
-		let NODE_MODULES_PATH = nodeModulesPath;
+	function enableASARSupport(appRoot) {
+		if (!path || !Module) {
+			console.warn('enableASARSupport() is only available in node.js environments');
+			return;
+		}
+
+		let NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : undefined;
 		if (!NODE_MODULES_PATH) {
 			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 		} else {
@@ -80,21 +87,32 @@
 	//#region URI helpers
 
 	/**
-	 * @param {string} _path
+	 * @param {string} path
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
 	 * @returns {string}
 	 */
-	function uriFromPath(_path) {
-		let pathName = path.resolve(_path).replace(/\\/g, '/');
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backlsash
+		// to slashes and we ensure that the path begins with a '/'.
+		let pathName = path.replace(/\\/g, '/');
 		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 			pathName = `/${pathName}`;
 		}
 
 		/** @type {string} */
 		let uri;
-		if (process.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
-			uri = encodeURI(`file:${pathName}`);
-		} else {
-			uri = encodeURI(`file://${pathName}`);
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		}
+
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
 		}
 
 		return uri.replace(/#/g, '%23');
@@ -109,6 +127,10 @@
 	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
 	 */
 	function setupNLS() {
+		if (!path || !fs) {
+			console.warn('setupNLS() is only available in node.js environments');
+			return;
+		}
 
 		// Get the nls configuration into the process.env as early as possible.
 		let nlsConfig = { availableLanguages: {} };
@@ -132,7 +154,7 @@
 				}
 
 				const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`);
-				readFile(bundleFile).then(function (content) {
+				fs.promises.readFile(bundleFile, 'utf8').then(function (content) {
 					const json = JSON.parse(content);
 					bundles[bundle] = json;
 
@@ -140,7 +162,7 @@
 				}).catch((error) => {
 					try {
 						if (nlsConfig._corruptedFile) {
-							writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+							fs.promises.writeFile(nlsConfig._corruptedFile, 'corrupted', 'utf8').catch(function (error) { console.error(error); });
 						}
 					} finally {
 						cb(error, undefined);
@@ -152,23 +174,6 @@
 		return nlsConfig;
 	}
 
-	/**
-	 * @param {string} file
-	 * @returns {Promise<string>}
-	 */
-	function readFile(file) {
-		return fs.promises.readFile(file, 'utf8');
-	}
-
-	/**
-	 * @param {string} file
-	 * @param {string} content
-	 * @returns {Promise<void>}
-	 */
-	function writeFile(file, content) {
-		return fs.promises.writeFile(file, content, 'utf8');
-	}
-
 	//#endregion
 
 
@@ -176,9 +181,14 @@
 
 	/**
 	 * @param {{ portable: string; applicationName: string; }} product
-	 * @returns {{portableDataPath: string;isPortable: boolean;}}
+	 * @returns {{ portableDataPath: string; isPortable: boolean; }}
 	 */
 	function configurePortable(product) {
+		if (!path || !fs) {
+			console.warn('configurePortable() is only available in node.js environments');
+			return;
+		}
+
 		const appRoot = path.dirname(__dirname);
 
 		function getApplicationPath() {
@@ -241,6 +251,11 @@
 	// Prevents appinsights from monkey patching modules.
 	// This should be called before importing the applicationinsights module
 	function avoidMonkeyPatchFromAppInsights() {
+		if (typeof process === 'undefined') {
+			console.warn('avoidMonkeyPatchFromAppInsights() is only available in node.js environments');
+			return;
+		}
+
 		// @ts-ignore
 		process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
 		global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
@@ -254,6 +269,6 @@
 		avoidMonkeyPatchFromAppInsights,
 		configurePortable,
 		setupNLS,
-		uriFromPath
+		fileUriFromPath
 	};
 }));

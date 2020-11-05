@@ -19,6 +19,7 @@ import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
+import { Iterable } from 'vs/base/common/iterator';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -54,7 +55,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward events from provider
 		const providerDisposables = new DisposableStore();
-		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes, this.getExtUri(provider).extUri))));
+		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes, !this.isPathCaseSensitive(provider)))));
 		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 		if (typeof provider.onDidErrorOccur === 'function') {
 			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
@@ -99,6 +100,10 @@ export class FileService extends Disposable implements IFileService {
 		const provider = this.provider.get(resource.scheme);
 
 		return !!(provider && (provider.capabilities & capability));
+	}
+
+	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }> {
+		return Iterable.map(this.provider, ([scheme, provider]) => ({ scheme, capabilities: provider.capabilities }));
 	}
 
 	protected async withProvider(resource: URI): Promise<IFileSystemProvider> {
@@ -756,12 +761,16 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private getExtUri(provider: IFileSystemProvider): { extUri: IExtUri, isPathCaseSensitive: boolean } {
-		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+		const isPathCaseSensitive = this.isPathCaseSensitive(provider);
 
 		return {
 			extUri: isPathCaseSensitive ? extUri : extUriIgnorePathCase,
 			isPathCaseSensitive
 		};
+	}
+
+	private isPathCaseSensitive(provider: IFileSystemProvider): boolean {
+		return !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 	}
 
 	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {

@@ -19,7 +19,8 @@
 			"timeout": 30000,
 			"port": 5870,
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/extensions/*/out/**/*.js"
 			]
 		},
 		{
@@ -177,10 +178,30 @@
 			}
 		},
 		{
-			"type": "chrome",
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Custom Editor Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/vscode-custom-editor-tests/test-workspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-custom-editor-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-custom-editor-tests/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"port": 9222
+			"browserAttachLocation": "workspace",
+			"port": 9222,
+			"perScriptSourcemaps": "yes"
 		},
 		{
 			"type": "pwa-chrome",
@@ -198,29 +219,32 @@
 			"port": 9222,
 			"timeout": 20000,
 			"env": {
-				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
+				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"breakOnLoad": false,
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
 			],
 			"webRoot": "${workspaceFolder}",
-			// Settings for js-debug:
+			"cascadeTerminateToConfigurations": [
+				"Attach to Extension Host"
+			],
 			"userDataDir": false,
 			"pauseForSourceMap": false,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
-			"browserLaunchLocation": "workspace"
+			"browserLaunchLocation": "workspace",
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
 		},
 		{
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/resources/serverless/code-web.js",
+			"program": "${workspaceFolder}/resources/web/code-web.js",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2
@@ -246,8 +270,10 @@
 			}
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
 			"name": "VS Code (Web, Chrome)",
 			"url": "http://localhost:8080",
 			"preLaunchTask": "Run web",
@@ -259,6 +285,8 @@
 		{
 			"type": "pwa-msedge",
 			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
 			"name": "VS Code (Web, Edge)",
 			"url": "http://localhost:8080",
 			"pauseForSourceMap": false,
@@ -319,7 +347,7 @@
 			"name": "Markdown Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/markdown-language-features/test-fixtures",
+				"${workspaceFolder}/extensions/markdown-language-features/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown-language-features",
 				"--extensionTestsPath=${workspaceFolder}/extensions/markdown-language-features/out/test"
 			],
@@ -350,7 +378,7 @@
 			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
@@ -364,6 +392,41 @@
 			"outputCapture": "std",
 			"args": [
 				"--remote-debugging-port=9222"
+			],
+			"cwd": "${workspaceFolder}",
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"cascadeTerminateToConfigurations": [
+				"Attach to VS Code"
+			],
+			"env": {
+				"MOCHA_COLORS": "true"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"type": "pwa-node",
+			"request": "launch",
+			"name": "Run Unit Tests For Current File",
+			"program": "${workspaceFolder}/test/unit/electron/index.js",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
+			},
+			"cascadeTerminateToConfigurations": [
+				"Attach to VS Code"
+			],
+			"outputCapture": "std",
+			"args": [
+				"--remote-debugging-port=9222",
+				"--run",
+				"${relativeFile}"
 			],
 			"cwd": "${workspaceFolder}",
 			"outFiles": [
@@ -417,6 +480,7 @@
 				"Attach to Extension Host",
 				"Attach to Shared Process",
 			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 1
@@ -449,6 +513,17 @@
 			"configurations": [
 				"Attach to VS Code",
 				"Run Unit Tests"
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 2
+			}
+		},
+		{
+			"name": "Debug Unit Tests (Current File)",
+			"configurations": [
+				"Attach to VS Code",
+				"Run Unit Tests For Current File"
 			],
 			"presentation": {
 				"group": "1_vscode",

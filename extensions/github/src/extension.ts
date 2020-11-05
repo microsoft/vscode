@@ -9,6 +9,7 @@ import { GitExtension } from './typings/git';
 import { registerCommands } from './commands';
 import { GithubCredentialProviderManager } from './credentialProvider';
 import { dispose, combinedDisposable } from './util';
+import { GithubPushErrorHandler } from './pushErrorHandler';
 
 export function activate(context: ExtensionContext): void {
 	const disposables = new Set<Disposable>();
@@ -21,6 +22,7 @@ export function activate(context: ExtensionContext): void {
 			disposables.add(registerCommands(gitAPI));
 			disposables.add(gitAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider(gitAPI)));
 			disposables.add(new GithubCredentialProviderManager(gitAPI));
+			disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 		} catch (err) {
 			console.error('Could not initialize GitHub extension');
 			console.warn(err);

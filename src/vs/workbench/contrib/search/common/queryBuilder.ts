@@ -349,7 +349,7 @@ export class QueryBuilder {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
 
 			searchPath = normalizeSlashes(searchPath);
-			if (strings.startsWith(searchPath, '../') || searchPath === '..') {
+			if (searchPath.startsWith('../') || searchPath === '..') {
 				const resolvedPath = path.posix.resolve(workspaceUri.path, searchPath);
 				return [{
 					searchPath: workspaceUri.with({ path: resolvedPath })
@@ -400,7 +400,7 @@ export class QueryBuilder {
 				pattern
 			}];
 
-		if (pattern && !strings.endsWith(pattern, '**')) {
+		if (pattern && !pattern.endsWith('**')) {
 			results.push({
 				searchPath: oneExpandedResult.searchPath,
 				pattern: pattern + '/**'
@@ -493,7 +493,7 @@ function splitGlobPattern(pattern: string): string[] {
 }
 
 /**
- * Note - we used {} here previously but ripgrep can't handle nested {} patterns. See https://github.com/Microsoft/vscode/issues/32761
+ * Note - we used {} here previously but ripgrep can't handle nested {} patterns. See https://github.com/microsoft/vscode/issues/32761
  */
 function expandGlobalGlob(pattern: string): string[] {
 	const patterns = [

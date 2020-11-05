@@ -17,6 +17,11 @@ export interface FileFilter {
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
+export interface ICheckbox {
+	label: string;
+	checked?: boolean;
+}
+
 export interface IConfirmation {
 	title?: string;
 	type?: DialogType;
@@ -24,10 +29,7 @@ export interface IConfirmation {
 	detail?: string;
 	primaryButton?: string;
 	secondaryButton?: string;
-	checkbox?: {
-		label: string;
-		checked?: boolean;
-	};
+	checkbox?: ICheckbox;
 }
 
 export interface IConfirmationResult {
@@ -59,6 +61,15 @@ export interface IShowResult {
 	 * with the checkbox option defined.
 	 */
 	checkboxChecked?: boolean;
+}
+
+export interface IInputResult extends IShowResult {
+
+	/**
+	 * Values for the input fields as provided by the user
+	 * or `undefined` if none.
+	 */
+	values?: string[];
 }
 
 export interface IPickAndOpenOptions {
@@ -146,10 +157,13 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
-	checkbox?: {
-		label: string;
-		checked?: boolean;
-	};
+	checkbox?: ICheckbox;
+}
+
+export interface IInput {
+	placeholder?: string;
+	type?: 'text' | 'password'
+	value?: string;
 }
 
 /**
@@ -175,6 +189,16 @@ export interface IDialogService {
 	 * option then promise with index `0` is returned.
 	 */
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+
+	/**
+	 * Present a modal dialog to the user asking for input.
+	 *
+	 *  @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned. In addition, the values for the
+	 * inputs are returned as well.
+	 */
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
 
 	/**
 	 * Present the about dialog to the user.
@@ -207,7 +231,7 @@ export interface IFileDialogService {
 	 * The default path for a new workspace based on previously used workspaces.
 	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
 	 */
-	defaultWorkspacePath(schemeFilter?: string): URI | undefined;
+	defaultWorkspacePath(schemeFilter?: string, filename?: string): URI | undefined;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.

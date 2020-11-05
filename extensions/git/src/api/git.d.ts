@@ -130,6 +130,7 @@ export interface CommitOptions {
 	signoff?: boolean;
 	signCommit?: boolean;
 	empty?: boolean;
+	noVerify?: boolean;
 }
 
 export interface BranchQuery {
@@ -223,6 +224,10 @@ export interface CredentialsProvider {
 	getCredentials(host: Uri): ProviderResult<Credentials>;
 }
 
+export interface PushErrorHandler {
+	handlePushError(repository: Repository, remote: Remote, refspec: string, error: Error & { gitErrorCode: GitErrorCodes }): Promise<boolean>;
+}
+
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface API {
@@ -239,6 +244,7 @@ export interface API {
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
+	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 }
 
 export interface GitExtension {
@@ -276,6 +282,7 @@ export const enum GitErrorCodes {
 	CantOpenResource = 'CantOpenResource',
 	GitNotFound = 'GitNotFound',
 	CantCreatePipe = 'CantCreatePipe',
+	PermissionDenied = 'PermissionDenied',
 	CantAccessRemote = 'CantAccessRemote',
 	RepositoryNotFound = 'RepositoryNotFound',
 	RepositoryIsLocked = 'RepositoryIsLocked',

@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 /**
  * @returns whether the provided parameter is a JavaScript Array or not.
  */
-export function isArray(array: any): array is any[] {
+export function isArray<T>(array: T | {}): array is T extends readonly any[] ? (unknown extends T ? never : readonly any[]) : any[] {
 	return Array.isArray(array);
 }
 
@@ -171,7 +171,7 @@ export function validateConstraint(arg: any, constraint: TypeConstraint | undefi
 			if (arg instanceof constraint) {
 				return;
 			}
-		} catch{
+		} catch {
 			// ignore
 		}
 		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
@@ -258,14 +258,12 @@ export type UriDto<T> = { [K in keyof T]: T[K] extends URI
 /**
  * Mapped-type that replaces all occurrences of URI with UriComponents and
  * drops all functions.
- * todo@joh use toJSON-results
  */
-export type Dto<T> = { [K in keyof T]: T[K] extends URI
-	? UriComponents
-	: T[K] extends Function
-	? never
-	: UriDto<T[K]> };
-
+export type Dto<T> = T extends { toJSON(): infer U }
+	? U
+	: T extends object
+	? { [k in keyof T]: Dto<T[k]>; }
+	: T;
 
 export function NotImplementedProxy<T>(name: string): { new(): T } {
 	return <any>class {

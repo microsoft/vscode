@@ -71,7 +71,7 @@ suite('HTML Folding', async () => {
 			/*13*/'</head>',
 			/*14*/'</html>',
 		];
-		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11)]);
+		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11), r(9, 11)]);
 	});
 
 	test('Embedded JavaScript - incomplete', async () => {

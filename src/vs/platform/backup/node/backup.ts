@@ -9,11 +9,6 @@ export interface IBackupWorkspacesFormat {
 	rootURIWorkspaces: ISerializedWorkspace[];
 	folderURIWorkspaces: string[];
 	emptyWorkspaceInfos: IEmptyWindowBackupInfo[];
-
-	// deprecated
-	folderWorkspaces?: string[]; // use folderURIWorkspaces instead
-	emptyWorkspaces?: string[];
-	rootWorkspaces?: { id: string, configPath: string }[]; // use rootURIWorkspaces instead
 }
 
 export interface IEmptyWindowBackupInfo {

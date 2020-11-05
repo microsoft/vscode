@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 
 class File implements IStat {
 
-	type: FileType;
+	type: FileType.File;
 	ctime: number;
 	mtime: number;
 	size: number;
@@ -30,7 +30,7 @@ class File implements IStat {
 
 class Directory implements IStat {
 
-	type: FileType;
+	type: FileType.Directory;
 	ctime: number;
 	mtime: number;
 	size: number;

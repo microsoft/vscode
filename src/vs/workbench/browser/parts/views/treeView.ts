@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class TreeViewPane extends ViewPane {
 
-	private treeView: ITreeView;
+	protected readonly treeView: ITreeView;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -39,11 +39,15 @@ export class TreeViewPane extends ViewPane {
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
 		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
+		this._register(this.treeView.onDidChangeDescription((newDescription) => this.updateTitleDescription(newDescription)));
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
 		if (options.title !== this.treeView.title) {
 			this.updateTitle(this.treeView.title);
+		}
+		if (options.titleDescription !== this.treeView.description) {
+			this.updateTitleDescription(this.treeView.description);
 		}
 		this.updateTreeVisibility();
 	}
@@ -55,7 +59,7 @@ export class TreeViewPane extends ViewPane {
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.treeView.show(container);
+		this.renderTreeView(container);
 	}
 
 	shouldShowWelcome(): boolean {
@@ -64,11 +68,19 @@ export class TreeViewPane extends ViewPane {
 
 	layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.treeView.layout(height, width);
+		this.layoutTreeView(height, width);
 	}
 
 	getOptimalWidth(): number {
 		return this.treeView.getOptimalWidth();
+	}
+
+	protected renderTreeView(container: HTMLElement): void {
+		this.treeView.show(container);
+	}
+
+	protected layoutTreeView(height: number, width: number): void {
+		this.treeView.layout(height, width);
 	}
 
 	private updateTreeVisibility(): void {

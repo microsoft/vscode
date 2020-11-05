@@ -6,8 +6,8 @@
 import * as nls from 'vs/nls';
 import { ChildProcess, fork } from 'child_process';
 import { Server, Socket, createServer } from 'net';
-import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { FileAccess } from 'vs/base/common/network';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -20,15 +20,15 @@ import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteCo
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -43,7 +43,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { isUUID } from 'vs/base/common/uuid';
+import { join } from 'vs/base/common/path';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -88,9 +89,9 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -120,7 +121,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
 		this._toDispose.add(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
-				this._electronService.closeWindow();
+				this._nativeHostService.closeWindow();
 			}
 		}));
 		this._toDispose.add(this._extensionHostDebugService.onReload(event => {
@@ -153,17 +154,30 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			]).then(data => {
 				const pipeName = data[0];
 				const portNumber = data[1];
+				const env = objects.mixin(objects.deepClone(process.env), {
+					AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+					PIPE_LOGGING: 'true',
+					VERBOSE_LOGGING: true,
+					VSCODE_IPC_HOOK_EXTHOST: pipeName,
+					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
+					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
+					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
+				});
+
+				if (platform.isMacintosh) {
+					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
+					// See https://github.com/microsoft/vscode/issues/104525
+					delete env['DYLD_LIBRARY_PATH'];
+				}
+
+				if (this._isExtensionDevHost) {
+					// Unset `VSCODE_NODE_CACHED_DATA_DIR` when developing extensions because it might
+					// be that dependencies, that otherwise would be cached, get modified.
+					delete env['VSCODE_NODE_CACHED_DATA_DIR'];
+				}
 
 				const opts = {
-					env: objects.mixin(objects.deepClone(process.env), {
-						AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
-						PIPE_LOGGING: 'true',
-						VERBOSE_LOGGING: true,
-						VSCODE_IPC_HOOK_EXTHOST: pipeName,
-						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
-						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
-					}),
+					env,
 					// We only detach the extension host on windows. Linux and Mac orphan by default
 					// and detach under Linux and Mac create another process group.
 					// We detach because we have noticed that when the renderer exits, its child processes
@@ -182,22 +196,32 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					opts.execArgv = ['--inspect-port=0'];
 				}
 
-				// Enable the crash reporter depending on environment for local reporting
-				const crashesDirectory = this._environmentService.crashReporterDirectory;
-				if (crashesDirectory) {
-					const crashReporterOptions: CrashReporterStartOptions = {
+				// On linux crash reporter needs to be started on child node processes explicitly
+				if (platform.isLinux) {
+					const crashReporterStartOptions: CrashReporterStartOptions = {
 						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
 						productName: this._productService.crashReporter?.productName || this._productService.nameShort,
 						submitURL: '',
-						uploadToServer: false,
-						crashesDirectory
+						uploadToServer: false
 					};
-
-					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
+					const crashReporterId = this._environmentService.crashReporterId; // crashReporterId is set by the main process only when crash reporting is enabled by the user.
+					const appcenter = this._productService.appCenter;
+					const uploadCrashesToServer = !this._environmentService.crashReporterDirectory; // only upload unless --crash-reporter-directory is provided
+					if (uploadCrashesToServer && appcenter && crashReporterId && isUUID(crashReporterId)) {
+						const submitURL = appcenter[`linux-x64`];
+						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
+						crashReporterStartOptions.uploadToServer = true;
+					}
+					// In the upload to server case, there is a bug in electron that creates client_id file in the current
+					// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
+					// For https://github.com/microsoft/vscode/issues/105743
+					const extHostCrashDirectory = this._environmentService.crashReporterDirectory || this._environmentService.userDataPath;
+					opts.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `${ExtensionHostLogFileName} Crash Reports`);
+					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 				}
 
 				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost'], opts);
+				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost'], opts);
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
@@ -259,7 +283,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: any;
-				if (!this._environmentService.isBuilt && !this._environmentService.configuration.remoteAuthority || this._isExtensionDevHost) {
+				if (!this._environmentService.isBuilt && !this._environmentService.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
 						const msg = this._isExtensionDevDebugBrk
 							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
@@ -291,7 +315,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	 */
 	private _tryListenOnPipe(): Promise<string> {
 		return new Promise<string>((resolve, reject) => {
-			const pipeName = generateRandomPipeName();
+			const pipeName = createRandomIPCHandle();
 
 			this._namedPipeServer = createServer();
 			this._namedPipeServer.on('error', reject);
@@ -430,14 +454,13 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			environment: {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-				appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
 				appName: this._productService.nameLong,
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-				userHome: this._environmentService.userHome,
+				globalStorageHome: this._environmentService.globalStorageHome,
+				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 				webviewResourceRoot: this._environmentService.webviewResourceRoot,
 				webviewCspSource: this._environmentService.webviewCspSource,
 			},
@@ -448,7 +471,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
 			},
 			remote: {
-				authority: this._environmentService.configuration.remoteAuthority,
+				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
 				isRemote: false
 			},

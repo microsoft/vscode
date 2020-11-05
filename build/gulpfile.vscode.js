@@ -37,17 +37,13 @@ const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
-const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
-const nodeModules = ['electron', 'original-fs']
-	.concat(Object.keys(product.dependencies || {}))
-	.concat(_.uniq(productionDependencies.map(d => d.name)))
-	.concat(baseModules);
 
 // Build
 const vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
+	buildfile.workerNotebook,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ]);
@@ -82,9 +78,9 @@ const vscodeResources = [
 	'out-build/vs/platform/files/**/*.md',
 	'out-build/vs/code/electron-browser/workbench/**',
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
-	'out-build/vs/code/electron-browser/issue/issueReporter.js',
-	'out-build/vs/code/electron-browser/processExplorer/processExplorer.js',
-	'out-build/vs/platform/auth/common/auth.css',
+	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
+	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
+	'out-build/vs/code/electron-sandbox/proxy/auth.js',
 	'!**/test/**'
 ];
 
@@ -94,7 +90,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 		src: 'out-build',
 		entryPoints: vscodeEntryPoints,
 		resources: vscodeResources,
-		loaderConfig: common.loaderConfig(nodeModules),
+		loaderConfig: common.loaderConfig(),
 		out: 'out-vscode',
 		bundleInfo: undefined
 	})
@@ -105,12 +101,6 @@ const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	optimizeVSCodeTask,
 	util.rimraf('out-vscode-min'),
-	() => {
-		const fullpath = path.join(process.cwd(), 'out-vscode/bootstrap-window.js');
-		const contents = fs.readFileSync(fullpath).toString();
-		const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
-		fs.writeFileSync(fullpath, newContents);
-	},
 	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
 gulp.task(minifyVSCodeTask);
@@ -211,13 +201,18 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
+		const jsFilter = util.filter(data => !data.isDirectory() &&/\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**', '!**/package-lock.json']))
+			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')))
-			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*', '**/*.wasm'], 'app/node_modules.asar'));
+			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
+			.pipe(jsFilter)
+			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
+			.pipe(jsFilter.restore)
+			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*', '**/*.wasm'], 'node_modules.asar'));
 
 		let all = es.merge(
 			packageJsonStream,
@@ -273,7 +268,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		let result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
-			.pipe(electron(_.extend({}, config, { platform, arch, ffmpegChromium: true })))
+			.pipe(electron(_.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: true })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version'], { dot: true }));
 
 		if (platform === 'linux') {
@@ -334,7 +329,7 @@ const BUILD_TARGETS = [
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
-	{ platform: 'linux', arch: 'arm' },
+	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
 ];
 BUILD_TARGETS.forEach(buildTarget => {

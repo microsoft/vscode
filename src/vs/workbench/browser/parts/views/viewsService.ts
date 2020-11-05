@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -159,7 +160,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					super({
 						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
 						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
-						category: composite ? composite.name : localize('view category', "View"),
+						category: composite ? composite.name : CATEGORIES.View,
 						menu: [{
 							id: MenuId.CommandPalette,
 							when: viewDescriptor.when,
@@ -302,9 +303,9 @@ export class ViewsService extends Disposable implements IViewsService {
 			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			switch (viewContainerLocation) {
 				case ViewContainerLocation.Panel:
-					return this.panelService.getActivePanel()?.getId() === id ? this.panelService.hideActivePanel() : undefined;
+					return this.panelService.getActivePanel()?.getId() === id ? this.layoutService.setPanelHidden(true) : undefined;
 				case ViewContainerLocation.Sidebar:
-					return this.viewletService.getActiveViewlet()?.getId() === id ? this.viewletService.hideActiveViewlet() : undefined;
+					return this.viewletService.getActiveViewlet()?.getId() === id ? this.layoutService.setSideBarHidden(true) : undefined;
 			}
 		}
 	}
@@ -325,7 +326,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
+	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
 			return null;
