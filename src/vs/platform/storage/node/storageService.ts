@@ -201,10 +201,16 @@ export class NativeStorageService extends AbstractStorageService {
 	}
 
 	protected async doFlush(): Promise<void> {
-		await Promise.all([
-			this.getStorage(StorageScope.GLOBAL).whenFlushed(),
-			this.getStorage(StorageScope.WORKSPACE).whenFlushed()
-		]);
+		const promises: Promise<unknown>[] = [];
+		if (this.globalStorage) {
+			promises.push(this.globalStorage.whenFlushed());
+		}
+
+		if (this.workspaceStorage) {
+			promises.push(this.workspaceStorage.whenFlushed());
+		}
+
+		await Promise.all(promises);
 	}
 
 	private doFlushWhenIdle(): void {
