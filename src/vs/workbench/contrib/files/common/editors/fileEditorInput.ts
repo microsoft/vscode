@@ -123,7 +123,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		return this.decorateLabel(super.getTitle(verbosity));
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.decorateLabel(super.getName());
+			case Verbosity.MEDIUM:
+			case Verbosity.LONG:
+				return this.decorateLabel(super.getTitle(verbosity));
+		}
 	}
 
 	private decorateLabel(label: string): string {

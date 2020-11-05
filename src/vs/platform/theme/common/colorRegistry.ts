@@ -255,6 +255,8 @@ export const editorInfoBorder = registerColor('editorInfo.border', { dark: null,
 export const editorHintForeground = registerColor('editorHint.foreground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hc: null }, nls.localize('editorHint.foreground', 'Foreground color of hint squigglies in the editor.'));
 export const editorHintBorder = registerColor('editorHint.border', { dark: null, light: null, hc: Color.fromHex('#eeeeee').transparent(0.8) }, nls.localize('hintBorder', 'Border color of hint boxes in the editor.'));
 
+export const sashHoverBorder = registerColor('sash.hoverBorder', { dark: null, light: null, hc: null }, nls.localize('sashActiveBorder', "Border color of active sashes."));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
@@ -448,12 +450,12 @@ export const problemsInfoIconForeground = registerColor('problemsInfoIcon.foregr
  */
 export const chartsForeground = registerColor('charts.foreground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('chartsForeground', "The foreground color used in charts."));
 export const chartsLines = registerColor('charts.lines', { dark: transparent(foreground, .5), light: transparent(foreground, .5), hc: transparent(foreground, .5) }, nls.localize('chartsLines', "The color used for horizontal lines in charts."));
-export const chartsRed = registerColor('charts.red', { dark: editorErrorForeground, light: editorErrorForeground, hc: editorErrorForeground }, nls.localize('chartsRed', "The red color used charts."));
-export const chartsBlue = registerColor('charts.blue', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoForeground }, nls.localize('chartsBlue', "The blue color used charts."));
-export const chartsYellow = registerColor('charts.yellow', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningForeground }, nls.localize('chartsYellow', "The yellow color used charts."));
-export const chartsOrange = registerColor('charts.orange', { dark: minimapFindMatch, light: minimapFindMatch, hc: minimapFindMatch }, nls.localize('chartsOrange', "The orange color used charts."));
-export const chartsGreen = registerColor('charts.green', { dark: '#89D185', light: '#388A34', hc: '#89D185' }, nls.localize('chartsGreen', "The green color used charts."));
-export const chartsPurple = registerColor('charts.purple', { dark: '#B180D7', light: '#652D90', hc: '#B180D7' }, nls.localize('chartsPurple', "The purple color used charts."));
+export const chartsRed = registerColor('charts.red', { dark: editorErrorForeground, light: editorErrorForeground, hc: editorErrorForeground }, nls.localize('chartsRed', "The red color used in chart visualizations."));
+export const chartsBlue = registerColor('charts.blue', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoForeground }, nls.localize('chartsBlue', "The blue color used in chart visualizations."));
+export const chartsYellow = registerColor('charts.yellow', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningForeground }, nls.localize('chartsYellow', "The yellow color used in chart visualizations."));
+export const chartsOrange = registerColor('charts.orange', { dark: minimapFindMatch, light: minimapFindMatch, hc: minimapFindMatch }, nls.localize('chartsOrange', "The orange color used in chart visualizations."));
+export const chartsGreen = registerColor('charts.green', { dark: '#89D185', light: '#388A34', hc: '#89D185' }, nls.localize('chartsGreen', "The green color used in chart visualizations."));
+export const chartsPurple = registerColor('charts.purple', { dark: '#B180D7', light: '#652D90', hc: '#B180D7' }, nls.localize('chartsPurple', "The purple color used in chart visualizations."));
 
 // ----- color functions
 

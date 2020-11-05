@@ -361,6 +361,8 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
 
+		let didScroll = false;
+
 		if (e.deltaY || e.deltaX) {
 			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
 			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
@@ -419,11 +421,12 @@ export abstract class AbstractScrollableElement extends Widget {
 				} else {
 					this._scrollable.setScrollPositionNow(desiredScrollPosition);
 				}
-				this._shouldRender = true;
+
+				didScroll = true;
 			}
 		}
 
-		if (this._options.alwaysConsumeMouseWheel || this._shouldRender) {
+		if (this._options.alwaysConsumeMouseWheel || didScroll) {
 			e.preventDefault();
 			e.stopPropagation();
 		}

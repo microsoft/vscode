@@ -41,6 +41,7 @@ import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
+import { splitLines } from 'vs/base/common/strings';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -288,7 +289,7 @@ export function tokenize(text: string, languageId: string): Token[][] {
 	modeService.triggerMode(languageId);
 
 	let tokenizationSupport = getSafeTokenizationSupport(languageId);
-	let lines = text.split(/\r\n|\r|\n/);
+	let lines = splitLines(text);
 	let result: Token[][] = [];
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {

@@ -18,7 +18,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -128,7 +128,7 @@ class CallHierarchyController implements IEditorContribution {
 		this._widget.showLoading();
 		this._sessionDisposables.add(this._widget.onDidClose(() => {
 			this.endCallHierarchy();
-			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL);
+			this._storageService.store2(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL, StorageTarget.USER);
 		}));
 		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
 		this._sessionDisposables.add(this._widget);

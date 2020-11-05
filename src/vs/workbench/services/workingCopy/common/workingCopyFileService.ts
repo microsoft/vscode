@@ -133,6 +133,17 @@ export interface IWorkingCopyFileService {
 	create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
 
 	/**
+	 * Will create a folder and any parent folder that needs to be created.
+	 *
+	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
+	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 *
+	 * Note: events will only be emitted for the provided resource, but not any
+	 * parent folders that are being created as part of the operation.
+	 */
+	createFolder(resource: URI): Promise<IFileStatWithMetadata>;
+
+	/**
 	 * Will move working copies matching the provided resources and corresponding children
 	 * to the target resources using the associated file service for those resources.
 	 *
@@ -226,12 +237,22 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region File operations
 
-	async create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
+	create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
+		return this.doCreateFileOrFolder(resource, true, contents, options);
+	}
+
+	createFolder(resource: URI, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
+		return this.doCreateFileOrFolder(resource, false);
+	}
+
+	async doCreateFileOrFolder(resource: URI, isFile: boolean, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata> {
 
 		// validate create operation before starting
-		const validateCreate = await this.fileService.canCreateFile(resource, options);
-		if (validateCreate instanceof Error) {
-			throw validateCreate;
+		if (isFile) {
+			const validateCreate = await this.fileService.canCreateFile(resource, options);
+			if (validateCreate instanceof Error) {
+				throw validateCreate;
+			}
 		}
 
 		// file operation participant
@@ -244,7 +265,11 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// now actually create on disk
 		let stat: IFileStatWithMetadata;
 		try {
-			stat = await this.fileService.createFile(resource, contents, { overwrite: options?.overwrite });
+			if (isFile) {
+				stat = await this.fileService.createFile(resource, contents, { overwrite: options?.overwrite });
+			} else {
+				stat = await this.fileService.createFolder(resource);
+			}
 		} catch (error) {
 
 			// error event

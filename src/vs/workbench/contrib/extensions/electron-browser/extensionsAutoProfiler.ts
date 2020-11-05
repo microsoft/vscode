@@ -187,7 +187,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			),
 			[{
 				label: localize('show', 'Show Extensions'),
-				run: () => this._editorService.openEditor(RuntimeExtensionsInput.instance)
+				run: () => this._editorService.openEditor(RuntimeExtensionsInput.instance, { pinned: true })
 			},
 				action
 			],

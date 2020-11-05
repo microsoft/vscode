@@ -809,10 +809,21 @@ declare module 'vscode' {
 		static readonly Folder: ThemeIcon;
 
 		/**
+		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 */
+		readonly id: string;
+
+		/**
+		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
+		 */
+		readonly color?: ThemeColor;
+
+		/**
 		 * Creates a reference to a theme icon.
 		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param color optional `ThemeColor` for the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
-		constructor(id: string);
+		constructor(id: string, color?: ThemeColor);
 	}
 
 	/**
@@ -1932,18 +1943,18 @@ declare module 'vscode' {
 		/**
 		 * A language id, like `typescript`.
 		 */
-		language?: string;
+		readonly language?: string;
 
 		/**
 		 * A Uri [scheme](#Uri.scheme), like `file` or `untitled`.
 		 */
-		scheme?: string;
+		readonly scheme?: string;
 
 		/**
 		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document. Use a [relative pattern](#RelativePattern)
 		 * to filter documents to a [workspace folder](#WorkspaceFolder).
 		 */
-		pattern?: GlobPattern;
+		readonly pattern?: GlobPattern;
 	}
 
 	/**
@@ -1958,7 +1969,7 @@ declare module 'vscode' {
 	 * @example
 	 * let sel:DocumentSelector = { scheme: 'file', language: 'typescript' };
 	 */
-	export type DocumentSelector = DocumentFilter | string | Array<DocumentFilter | string>;
+	export type DocumentSelector = DocumentFilter | string | ReadonlyArray<DocumentFilter | string>;
 
 	/**
 	 * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
@@ -5481,7 +5492,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of terminal links for the given line.
 		 */
-		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Handle an activated terminal link.
@@ -5636,7 +5647,22 @@ declare module 'vscode' {
 		 * A memento object that stores state independent
 		 * of the current opened [workspace](#workspace.workspaceFolders).
 		 */
-		readonly globalState: Memento;
+		readonly globalState: Memento & {
+			/**
+			 * Set the keys whose values should be synchronized across devices when synchronizing user-data
+			 * like configuration, extensions, and mementos.
+			 *
+			 * Note that this function defines the whole set of keys whose values are synchronized:
+			 *  - calling it with an empty array stops synchronization for this memento
+			 *  - calling it with a non-empty array replaces all keys whose values are synchronized
+			 *
+			 * For any given set of keys this function needs to be called only once but there is no harm in
+			 * repeatedly calling it.
+			 *
+			 * @param keys The set of keys whose values are synced.
+			 */
+			setKeysForSync(keys: string[]): void;
+		};
 
 		/**
 		 * The uri of the directory containing the extension.
@@ -5659,7 +5685,7 @@ declare module 'vscode' {
 		 * Get the absolute path of a resource contained in the extension.
 		 *
 		 * *Note* that an absolute uri can be constructed via [`Uri.joinPath`](#Uri.joinPath) and
-		 * [`extensionUri`](#ExtensionContent.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+		 * [`extensionUri`](#ExtensionContext.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
 		 *
 		 * @param relativePath A relative path to a resource contained in the extension.
 		 * @return The absolute path of the resource.
@@ -5688,7 +5714,7 @@ declare module 'vscode' {
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 * @deprecated Use [storageUri](#ExtensionContext.storageUri) instead.
 		 */
 		readonly storagePath: string | undefined;
 
@@ -5711,7 +5737,7 @@ declare module 'vscode' {
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 * @deprecated Use [globalStorageUri](#ExtensionContext.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
 
@@ -7805,7 +7831,8 @@ declare module 'vscode' {
 		 * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
 		 * they only execute when there is an active editor when the command is called. Also, the
 		 * command handler of an editor command has access to the active editor and to an
-		 * [edit](#TextEditorEdit)-builder.
+		 * [edit](#TextEditorEdit)-builder. Note that the edit-builder is only valid while the
+		 * callback executes.
 		 *
 		 * @param command A unique identifier for the command.
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
@@ -11684,6 +11711,12 @@ declare module 'vscode' {
 		 * Defaults to Collapsed.
 		 */
 		collapsibleState: CommentThreadCollapsibleState;
+
+		/**
+		 * Whether the thread supports reply.
+		 * Defaults to true.
+		 */
+		canReply: boolean;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.

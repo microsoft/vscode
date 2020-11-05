@@ -429,7 +429,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({

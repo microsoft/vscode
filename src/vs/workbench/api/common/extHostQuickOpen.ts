@@ -446,24 +446,17 @@ function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light
 	if (iconPath instanceof ThemeIcon) {
 		return { id: iconPath.id };
 	}
-	const dark = getDarkIconUri(iconPath as any);
-	const light = getLightIconUri(iconPath as any);
+	const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
+	const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
 	return { dark, light };
 }
 
-function getLightIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
-	return getIconUri(typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath);
+function getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
 }
 
-function getDarkIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
-	return getIconUri(typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath);
-}
-
-function getIconUri(iconPath: string | URI) {
-	if (URI.isUri(iconPath)) {
-		return iconPath;
-	}
-	return URI.file(iconPath);
+function getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 }
 
 class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implements QuickPick<T> {

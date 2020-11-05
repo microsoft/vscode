@@ -28,10 +28,10 @@ import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/ele
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyBackup, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -45,6 +45,9 @@ import { TestFilesConfigurationService } from 'vs/workbench/test/browser/workben
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { timeout } from 'vs/base/common/async';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -69,9 +72,10 @@ class TestBackupTracker extends NativeBackupTracker {
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService);
+	}
 
-		// Reduce timeout for tests
-		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
+	protected getBackupScheduleDelay(): number {
+		return 10; // Reduce timeout for tests
 	}
 }
 
@@ -211,6 +215,55 @@ suite('BackupTracker', () => {
 
 		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
 
+		part.dispose();
+		tracker.dispose();
+	});
+
+	test('Track backups (custom)', async function () {
+		const [accessor, part, tracker] = await createTracker();
+
+		class TestBackupWorkingCopy extends TestWorkingCopy {
+
+			backupDelay = 0;
+
+			constructor(resource: URI) {
+				super(resource);
+
+				accessor.workingCopyService.registerWorkingCopy(this);
+			}
+
+			async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+				await timeout(this.backupDelay);
+
+				return {};
+			}
+		}
+
+		const resource = toResource.call(this, '/path/custom.txt');
+		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+
+		// Normal
+		customWorkingCopy.setDirty(true);
+		await accessor.backupFileService.joinBackupResource();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
+
+		customWorkingCopy.setDirty(false);
+		customWorkingCopy.setDirty(true);
+		await accessor.backupFileService.joinBackupResource();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
+
+		customWorkingCopy.setDirty(false);
+		await accessor.backupFileService.joinDiscardBackup();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
+
+		// Cancellation
+		customWorkingCopy.setDirty(true);
+		await timeout(0);
+		customWorkingCopy.setDirty(false);
+		await accessor.backupFileService.joinDiscardBackup();
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
+
+		customWorkingCopy.dispose();
 		part.dispose();
 		tracker.dispose();
 	});

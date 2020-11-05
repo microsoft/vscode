@@ -12,7 +12,13 @@ import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookC
 // function. Imports are not allowed. This is stringifies and injected into
 // the webview.
 
-declare const acquireVsCodeApi: () => ({ getState(): { [key: string]: unknown; }, setState(data: { [key: string]: unknown; }): void, postMessage: (msg: unknown) => void; });
+declare module globalThis {
+	const acquireVsCodeApi: () => ({
+		getState(): { [key: string]: unknown; };
+		setState(data: { [key: string]: unknown; }): void;
+		postMessage: (msg: unknown) => void;
+	});
+}
 
 declare class ResizeObserver {
 	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
@@ -30,7 +36,9 @@ interface EmitterLike<T> {
 }
 
 function webviewPreloads() {
+	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
+	delete (globalThis as any).acquireVsCodeApi;
 
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
@@ -91,6 +99,20 @@ function webviewPreloads() {
 			// TODO@connor4312: should script with src not be removed?
 			container.appendChild(scriptTag).parentNode!.removeChild(scriptTag);
 		}
+	};
+
+	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<string | undefined> => {
+		const res = await fetch(url);
+		const text = await res.text();
+		if (!res.ok) {
+			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
+		}
+
+		globals.scriptUrl = url;
+
+		const args = Object.entries(globals);
+		new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
+		return undefined;
 	};
 
 	const outputObservers = new Map<string, ResizeObserver>();
@@ -477,17 +499,11 @@ function webviewPreloads() {
 				break;
 			case 'preload':
 				const resources = event.data.resources;
-				const preloadsContainer = document.getElementById('__vscode_preloads')!;
-				for (let i = 0; i < resources.length; i++) {
-					const { uri, originalUri } = resources[i];
-					const scriptTag = document.createElement('script');
-					scriptTag.setAttribute('src', uri);
-					preloadsContainer.appendChild(scriptTag);
-					preloadPromises.set(uri, new Promise<string | undefined>(resolve => {
-						scriptTag.addEventListener('load', () => resolve(undefined));
-						scriptTag.addEventListener('error', () =>
-							resolve(`Network error loading ${originalUri}, does the path exist?`)
-						);
+				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
+				for (const { uri, originalUri } of resources) {
+					preloadPromises.set(uri, runScript(uri, originalUri, globals).catch(err => {
+						console.error(err);
+						return err.message || String(err);
 					}));
 				}
 				break;

@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
@@ -31,7 +31,7 @@ export const manageTrustedDomainSettingsCommand = {
 	},
 	handler: async (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc' });
+		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc', options: { pinned: true } });
 		return;
 	}
 };
@@ -117,7 +117,8 @@ export async function configureOpenerTrustedDomainsHandler(
 			case 'manage':
 				await editorService.openEditor({
 					resource: TRUSTED_DOMAINS_URI,
-					mode: 'jsonc'
+					mode: 'jsonc',
+					options: { pinned: true }
 				});
 				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
 					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
@@ -126,10 +127,11 @@ export async function configureOpenerTrustedDomainsHandler(
 				const itemToTrust = pickedResult.toTrust;
 				if (trustedDomains.indexOf(itemToTrust) === -1) {
 					storageService.remove(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, StorageScope.GLOBAL);
-					storageService.store(
+					storageService.store2(
 						TRUSTED_DOMAINS_STORAGE_KEY,
 						JSON.stringify([...trustedDomains, itemToTrust]),
-						StorageScope.GLOBAL
+						StorageScope.GLOBAL,
+						StorageTarget.USER
 					);
 
 					return [...trustedDomains, itemToTrust];
@@ -174,14 +176,44 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 	return [...set];
 }
 
-export async function readTrustedDomains(accessor: ServicesAccessor) {
+export interface IStaticTrustedDomains {
+	readonly defaultTrustedDomains: string[];
+	readonly trustedDomains: string[];
+}
 
-	const storageService = accessor.get(IStorageService);
-	const productService = accessor.get(IProductService);
-	const authenticationService = accessor.get(IAuthenticationService);
+export interface ITrustedDomains extends IStaticTrustedDomains {
+	readonly userDomains: string[];
+	readonly workspaceDomains: string[];
+}
+
+export async function readTrustedDomains(accessor: ServicesAccessor): Promise<ITrustedDomains> {
+	const { defaultTrustedDomains, trustedDomains } = readStaticTrustedDomains(accessor);
+	const [workspaceDomains, userDomains] = await Promise.all([readWorkspaceTrustedDomains(accessor), readAuthenticationTrustedDomains(accessor)]);
+	return {
+		workspaceDomains,
+		userDomains,
+		defaultTrustedDomains,
+		trustedDomains,
+	};
+}
+
+export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	return getRemotes(fileService, textFileService, workspaceContextService);
+}
+
+export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
+	const authenticationService = accessor.get(IAuthenticationService);
+	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
+		? [`https://github.com`]
+		: [];
+}
+
+export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {
+	const storageService = accessor.get(IStorageService);
+	const productService = accessor.get(IProductService);
 
 	const defaultTrustedDomains: string[] = productService.linkProtectionTrustedDomains
 		? [...productService.linkProtectionTrustedDomains]
@@ -195,17 +227,8 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 		}
 	} catch (err) { }
 
-	const userDomains =
-		authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
-			? [`https://github.com`]
-			: [];
-
-	const workspaceDomains = await getRemotes(fileService, textFileService, workspaceContextService);
-
 	return {
 		defaultTrustedDomains,
 		trustedDomains,
-		userDomains,
-		workspaceDomains
 	};
 }

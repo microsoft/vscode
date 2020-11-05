@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDialogService, IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
-import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
+import { Dialog, IDialogResult } from 'vs/base/browser/ui/dialog/dialog';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachDialogStyler } from 'vs/platform/theme/common/styler';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -24,7 +24,14 @@ export class DialogService implements IDialogService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private allowableCommands = ['copy', 'cut', 'editor.action.clipboardCopyAction', 'editor.action.clipboardCutAction'];
+	private static readonly ALLOWABLE_COMMANDS = [
+		'copy',
+		'cut',
+		'editor.action.selectAll',
+		'editor.action.clipboardCopyAction',
+		'editor.action.clipboardCutAction',
+		'editor.action.clipboardPasteAction'
+	];
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -51,32 +58,7 @@ export class DialogService implements IDialogService {
 			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
-		const dialogDisposables = new DisposableStore();
-		const dialog = new Dialog(
-			this.layoutService.container,
-			confirmation.message,
-			buttons,
-			{
-				detail: confirmation.detail,
-				cancelId: 1,
-				type: confirmation.type,
-				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-					if (resolved && resolved.commandId) {
-						if (this.allowableCommands.indexOf(resolved.commandId) === -1) {
-							EventHelper.stop(event, true);
-						}
-					}
-				},
-				checkboxChecked: confirmation.checkbox ? confirmation.checkbox.checked : undefined,
-				checkboxLabel: confirmation.checkbox ? confirmation.checkbox.label : undefined
-			});
-
-		dialogDisposables.add(dialog);
-		dialogDisposables.add(attachDialogStyler(dialog, this.themeService));
-
-		const result = await dialog.show();
-		dialogDisposables.dispose();
+		const result = await this.doShow(confirmation.type, confirmation.message, buttons, confirmation.detail, 1, confirmation.checkbox);
 
 		return { confirmed: result.button === 0, checkboxChecked: result.checkboxChecked };
 	}
@@ -88,25 +70,35 @@ export class DialogService implements IDialogService {
 	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
+		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox);
+
+		return {
+			choice: result.button,
+			checkboxChecked: result.checkboxChecked
+		};
+	}
+
+	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[]): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 		const dialog = new Dialog(
 			this.layoutService.container,
 			message,
 			buttons,
 			{
-				detail: options ? options.detail : undefined,
-				cancelId: options ? options.cancelId : undefined,
-				type: this.getDialogType(severity),
+				detail,
+				cancelId,
+				type,
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 					if (resolved && resolved.commandId) {
-						if (this.allowableCommands.indexOf(resolved.commandId) === -1) {
+						if (DialogService.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
 							EventHelper.stop(event, true);
 						}
 					}
 				},
-				checkboxLabel: options && options.checkbox ? options.checkbox.label : undefined,
-				checkboxChecked: options && options.checkbox ? options.checkbox.checked : undefined
+				checkboxLabel: checkbox?.label,
+				checkboxChecked: checkbox?.checked,
+				inputs
 			});
 
 		dialogDisposables.add(dialog);
@@ -115,9 +107,18 @@ export class DialogService implements IDialogService {
 		const result = await dialog.show();
 		dialogDisposables.dispose();
 
+		return result;
+	}
+
+	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
+		this.logService.trace('DialogService#input', message);
+
+		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, inputs);
+
 		return {
 			choice: result.button,
-			checkboxChecked: result.checkboxChecked
+			checkboxChecked: result.checkboxChecked,
+			values: result.values
 		};
 	}
 

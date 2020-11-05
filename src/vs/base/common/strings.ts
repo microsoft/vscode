@@ -56,6 +56,20 @@ export function escapeRegExpCharacters(value: string): string {
 }
 
 /**
+ * Counts how often `character` occurs inside `value`.
+ */
+export function count(value: string, character: string): number {
+	let result = 0;
+	const ch = character.charCodeAt(0);
+	for (let i = value.length - 1; i >= 0; i--) {
+		if (value.charCodeAt(i) === ch) {
+			result++;
+		}
+	}
+	return result;
+}
+
+/**
  * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
@@ -192,6 +206,10 @@ export function regExpFlags(regexp: RegExp): string {
 		+ (regexp.ignoreCase ? 'i' : '')
 		+ (regexp.multiline ? 'm' : '')
 		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
+}
+
+export function splitLines(str: string): string[] {
+	return str.split(/\r\n|\r|\n/);
 }
 
 /**
@@ -535,27 +553,6 @@ export function getCharContainingOffset(str: string, offset: number): [number, n
 		return _getCharContainingOffset(str, offset - 1);
 	}
 	return _getCharContainingOffset(str, offset);
-}
-
-/**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
 }
 
 /**

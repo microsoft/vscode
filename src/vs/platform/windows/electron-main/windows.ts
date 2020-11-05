@@ -109,6 +109,7 @@ export interface IWindowsMainService {
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
+	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;

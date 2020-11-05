@@ -64,12 +64,12 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	/**
 	 * The options used when opening the editor.
 	 */
-	options?: IEditorOptions;
+	readonly options?: IEditorOptions;
 
 	/**
 	 * Context indicates how the editor open event is initialized.
 	 */
-	context?: OpenEditorContext;
+	readonly context?: OpenEditorContext;
 
 	/**
 	 * Allows to prevent the opening of an editor by providing a callback

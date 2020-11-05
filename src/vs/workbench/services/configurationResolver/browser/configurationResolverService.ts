@@ -10,7 +10,7 @@ import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -146,8 +146,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		// get all "inputs"
 		let inputs: ConfiguredInput[] = [];
-		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
-			let result = this.configurationService.inspect(section, { resource: folder.uri });
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
+			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
+			let result = this.configurationService.inspect(section, overrides);
 			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
 				switch (target) {
 					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
@@ -155,7 +156,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					default: inputs = (<any>result.workspaceFolderValue)?.inputs;
 				}
 			} else {
-				const valueResult = this.configurationService.getValue<any>(section, { resource: folder.uri });
+				const valueResult = this.configurationService.getValue<any>(section, overrides);
 				if (valueResult) {
 					inputs = valueResult.inputs;
 				}

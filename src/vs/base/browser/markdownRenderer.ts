@@ -215,17 +215,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// Use our own sanitizer so that we can let through only spans.
 	// Otherwise, we'd be letting all html be rendered.
 	// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
+	// We always pass the output through insane after this so that we don't rely on
+	// marked for sanitization.
 	markedOptions.sanitizer = (html: string): string => {
 		const match = markdown.isTrusted ? html.match(/^(<span[^<]+>)|(<\/\s*span>)$/) : undefined;
 		return match ? html : '';
 	};
 	markedOptions.sanitize = true;
-	markedOptions.renderer = renderer;
+	markedOptions.silent = true;
 
-	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeRemoteResource];
-	if (markdown.isTrusted) {
-		allowedSchemes.push(Schemas.command);
-	}
+	markedOptions.renderer = renderer;
 
 	// values that are too long will freeze the UI
 	let value = markdown.value ?? '';
@@ -239,9 +238,43 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const renderedMarkdown = marked.parse(value, markedOptions);
 
-
 	// sanitize with insane
-	const insaneOptions = {
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown);
+
+	// signal that async code blocks can be now be inserted
+	signalInnerHTML!();
+
+	return element;
+}
+
+function sanitizeRenderedMarkdown(
+	options: { isTrusted?: boolean },
+	renderedMarkdown: string,
+): string {
+	const insaneOptions = getInsaneOptions(options);
+	if (_ttpInsane) {
+		return _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
+	} else {
+		return insane(renderedMarkdown, insaneOptions);
+	}
+}
+
+function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOptions {
+	const allowedSchemes = [
+		Schemas.http,
+		Schemas.https,
+		Schemas.mailto,
+		Schemas.data,
+		Schemas.file,
+		Schemas.vscodeRemote,
+		Schemas.vscodeRemoteResource,
+	];
+
+	if (options.isTrusted) {
+		allowedSchemes.push(Schemas.command);
+	}
+
+	return {
 		allowedSchemes,
 		// allowedTags should included everything that markdown renders to.
 		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
@@ -257,8 +290,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			'th': ['align'],
 			'td': ['align']
 		},
-		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
-			if (token.tag === 'span' && markdown.isTrusted && (Object.keys(token.attrs).length === 1)) {
+		filter(token: { tag: string; attrs: { readonly [key: string]: string; }; }): boolean {
+			if (token.tag === 'span' && options.isTrusted && (Object.keys(token.attrs).length === 1)) {
 				if (token.attrs['style']) {
 					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
 				} else if (token.attrs['class']) {
@@ -270,15 +303,5 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			return true;
 		}
 	};
-
-	if (_ttpInsane) {
-		element.innerHTML = _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
-	} else {
-		element.innerHTML = insane(renderedMarkdown, insaneOptions);
-	}
-
-	// signal that async code blocks can be now be inserted
-	signalInnerHTML!();
-
-	return element;
 }
+

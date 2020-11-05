@@ -97,3 +97,106 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		return elements;
 	}
 }
+
+interface HistoryNode<T> {
+	value: T;
+	previous: HistoryNode<T> | undefined;
+	next: HistoryNode<T> | undefined;
+}
+
+export class HistoryNavigator2<T> {
+
+	private head: HistoryNode<T>;
+	private tail: HistoryNode<T>;
+	private cursor: HistoryNode<T>;
+	private size: number;
+
+	constructor(history: readonly T[], private capacity: number = 10) {
+		if (history.length < 1) {
+			throw new Error('not supported');
+		}
+
+		this.size = 1;
+		this.head = this.tail = this.cursor = {
+			value: history[0],
+			previous: undefined,
+			next: undefined
+		};
+
+		for (let i = 1; i < history.length; i++) {
+			this.add(history[i]);
+		}
+	}
+
+	add(value: T): void {
+		const node: HistoryNode<T> = {
+			value,
+			previous: this.tail,
+			next: undefined
+		};
+
+		this.tail.next = node;
+		this.tail = node;
+		this.cursor = this.tail;
+		this.size++;
+
+		while (this.size > this.capacity) {
+			this.head = this.head.next!;
+			this.head.previous = undefined;
+			this.size--;
+		}
+	}
+
+	replaceLast(value: T): void {
+		this.tail.value = value;
+	}
+
+	isAtEnd(): boolean {
+		return this.cursor === this.tail;
+	}
+
+	current(): T {
+		return this.cursor.value;
+	}
+
+	previous(): T {
+		if (this.cursor.previous) {
+			this.cursor = this.cursor.previous;
+		}
+
+		return this.cursor.value;
+	}
+
+	next(): T {
+		if (this.cursor.next) {
+			this.cursor = this.cursor.next;
+		}
+
+		return this.cursor.value;
+	}
+
+	has(t: T): boolean {
+		let temp: HistoryNode<T> | undefined = this.head;
+		while (temp) {
+			if (temp.value === t) {
+				return true;
+			}
+			temp = temp.next;
+		}
+		return false;
+	}
+
+	resetCursor(): T {
+		this.cursor = this.tail;
+		return this.cursor.value;
+	}
+
+	*[Symbol.iterator](): Iterator<T> {
+		let node: HistoryNode<T> | undefined = this.head;
+
+		while (node) {
+			yield node.value;
+			node = node.next;
+		}
+	}
+}

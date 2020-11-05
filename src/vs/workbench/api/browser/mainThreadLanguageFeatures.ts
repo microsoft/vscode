@@ -441,26 +441,25 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 	}
 
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void {
+	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
 		const provider: modes.CompletionItemProvider = {
 			triggerCharacters,
-			_debugDisplayName: extensionId.value,
-			provideCompletionItems: (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
-				return this._proxy.$provideCompletionItems(handle, model.uri, position, context, token).then(result => {
-					if (!result) {
-						return result;
-					}
-
-					return {
-						suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
-						incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
-						dispose: () => {
-							if (typeof result.x === 'number') {
-								this._proxy.$releaseCompletionItems(handle, result.x);
-							}
+			_debugDisplayName: displayName,
+			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
+				const result = await this._proxy.$provideCompletionItems(handle, model.uri, position, context, token);
+				if (!result) {
+					return result;
+				}
+				return {
+					suggestions: result[ISuggestResultDtoField.completions].map(d => MainThreadLanguageFeatures._inflateSuggestDto(result[ISuggestResultDtoField.defaultRanges], d)),
+					incomplete: result[ISuggestResultDtoField.isIncomplete] || false,
+					duration: result[ISuggestResultDtoField.duration],
+					dispose: () => {
+						if (typeof result.x === 'number') {
+							this._proxy.$releaseCompletionItems(handle, result.x);
 						}
-					};
-				});
+					}
+				};
 			}
 		};
 		if (supportsResolveDetails) {
@@ -571,13 +570,27 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- folding
 
-	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const proxy = this._proxy;
-		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, <modes.FoldingRangeProvider>{
+	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
-				return proxy.$provideFoldingRanges(handle, model.uri, context, token);
+				return this._proxy.$provideFoldingRanges(handle, model.uri, context, token);
 			}
-		}));
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<modes.FoldingRangeProvider>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChange = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, provider));
+	}
+
+	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 	}
 
 	// -- smart select

@@ -70,7 +70,8 @@ class StartDebugTextMate extends Action {
 		};
 		await this._hostService.openWindow([{ fileUri: URI.file(pathInTemp) }], { forceNewWindow: true });
 		const textEditorPane = await this._editorService.openEditor({
-			resource: model.uri
+			resource: model.uri,
+			options: { pinned: true }
 		});
 		if (!textEditorPane) {
 			return;

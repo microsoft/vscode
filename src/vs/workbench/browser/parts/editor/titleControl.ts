@@ -347,7 +347,7 @@ export abstract class TitleControl extends Themable {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({

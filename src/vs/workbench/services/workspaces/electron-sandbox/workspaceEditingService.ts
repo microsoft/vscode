@@ -18,7 +18,7 @@ import { basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

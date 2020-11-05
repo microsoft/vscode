@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 import * as json from 'vs/base/common/json';
 import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
@@ -449,7 +449,7 @@ export class ExtensionScannerInput {
 		public readonly absoluteFolderPath: string,
 		public readonly isBuiltin: boolean,
 		public readonly isUnderDevelopment: boolean,
-		public readonly tanslations: Translations
+		public readonly translations: Translations
 	) {
 		// Keep empty!! (JSON.parse)
 	}
@@ -459,7 +459,7 @@ export class ExtensionScannerInput {
 			devMode: input.devMode,
 			locale: input.locale,
 			pseudo: input.locale === 'pseudo',
-			translations: input.tanslations
+			translations: input.translations
 		};
 	}
 
@@ -473,7 +473,7 @@ export class ExtensionScannerInput {
 			&& a.isBuiltin === b.isBuiltin
 			&& a.isUnderDevelopment === b.isUnderDevelopment
 			&& a.mtime === b.mtime
-			&& Translations.equals(a.tanslations, b.tanslations)
+			&& Translations.equals(a.translations, b.translations)
 		);
 	}
 }

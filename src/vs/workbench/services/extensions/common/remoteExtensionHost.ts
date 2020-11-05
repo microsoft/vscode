@@ -19,7 +19,7 @@ import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platf
 import * as platform from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -92,7 +92,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			addressProvider: {
 				getAddress: async () => {
 					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,

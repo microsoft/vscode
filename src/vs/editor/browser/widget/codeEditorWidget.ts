@@ -176,6 +176,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onMouseDrop: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
 	public readonly onMouseDrop: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseDrop.event;
 
+	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
+
 	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
 
@@ -1614,6 +1617,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseUp = (e) => this._onMouseUp.fire(e);
 		viewUserInputEvents.onMouseDrag = (e) => this._onMouseDrag.fire(e);
 		viewUserInputEvents.onMouseDrop = (e) => this._onMouseDrop.fire(e);
+		viewUserInputEvents.onMouseDropCanceled = (e) => this._onMouseDropCanceled.fire(e);
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(

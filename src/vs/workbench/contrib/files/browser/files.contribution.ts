@@ -27,7 +27,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -248,7 +248,8 @@ configurationRegistry.registerConfiguration({
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
+			'enumItemLabels': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
@@ -372,8 +373,8 @@ configurationRegistry.registerConfiguration({
 				'modifications'
 			],
 			'enumDescriptions': [
-				nls.localize('everything', "Format the whole file."),
-				nls.localize('modification', "Format modifications (requires source control)."),
+				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
+				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
 			],
 			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is `true`."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
@@ -389,7 +390,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane."),
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
 			'default': 9
 		},
 		'explorer.autoReveal': {

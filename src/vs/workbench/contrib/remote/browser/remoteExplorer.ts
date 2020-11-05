@@ -6,7 +6,6 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewDescriptorService, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IRemoteExplorerService, MakeAddress, mapHasTunnelLocalhostOrAllInterfaces, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,12 +18,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private contextKeyListener?: IDisposable;
-	private _activityBadge?: IDisposable;
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
@@ -32,7 +31,6 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IActivityService private readonly activityService: IActivityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
@@ -67,35 +65,19 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private enableBadgeAndStatusBar() {
-		this._register(this.remoteExplorerService.tunnelModel.onForwardPort(() => {
-			this.updateActivityBadge();
-			this.updateStatusBar();
-		}));
-		this._register(this.remoteExplorerService.tunnelModel.onClosePort(() => {
-			this.updateActivityBadge();
-			this.updateStatusBar();
-		}));
 		const disposable = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
 			if (e.find(view => view.views.find(viewDescriptor => viewDescriptor.id === TUNNEL_VIEW_ID))) {
-				this.updateActivityBadge();
+				this._register(this.remoteExplorerService.tunnelModel.onForwardPort(() => {
+					this.updateStatusBar();
+				}));
+				this._register(this.remoteExplorerService.tunnelModel.onClosePort(() => {
+					this.updateStatusBar();
+				}));
+
 				this.updateStatusBar();
 				disposable.dispose();
 			}
 		});
-	}
-
-	private updateActivityBadge() {
-		if (this._activityBadge) {
-			this._activityBadge.dispose();
-		}
-		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
-			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(TUNNEL_VIEW_ID);
-			if (viewContainer) {
-				this._activityBadge = this.activityService.showViewContainerActivity(viewContainer.id, {
-					badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
-				});
-			}
-		}
 	}
 
 	private updateStatusBar() {
@@ -108,15 +90,22 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 	private get entry(): IStatusbarEntry {
 		let text: string;
-		if (this.remoteExplorerService.tunnelModel.forwarded.size === 0) {
+		let tooltip: string;
+		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
+		if (count === 0) {
 			text = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Available");
-		} else if (this.remoteExplorerService.tunnelModel.forwarded.size === 1) {
-			text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available");
+			tooltip = text;
 		} else {
-			text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", this.remoteExplorerService.tunnelModel.forwarded.size);
+			if (count === 1) {
+				text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available");
+			} else {
+				text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", count);
+			}
+			const allTunnels = Array.from(this.remoteExplorerService.tunnelModel.forwarded.values());
+			allTunnels.push(...Array.from(this.remoteExplorerService.tunnelModel.detected.values()));
+			tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Available Ports: {0}",
+				allTunnels.map(forwarded => forwarded.remotePort).join(', '));
 		}
-		const tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Available Ports: {0}",
-			Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).map(forwarded => forwarded.remotePort).join(', '));
 		return {
 			text: `$(radio-tower) ${text}`,
 			ariaLabel: tooltip,
@@ -140,7 +129,8 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDebugService private readonly debugService: IDebugService
 	) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration((e) => {
@@ -174,7 +164,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		if (this.contextServiceListener) {
 			this.contextServiceListener.dispose();
 		}
-		this.urlFinder = this._register(new UrlFinder(this.terminalService));
+		this.urlFinder = this._register(new UrlFinder(this.terminalService, this.debugService));
 		this._register(this.urlFinder.onDidMatchLocalUrl(async (localUrl) => {
 			if (mapHasTunnelLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, localUrl.host, localUrl.port)) {
 				return;

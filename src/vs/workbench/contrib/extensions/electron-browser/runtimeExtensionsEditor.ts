@@ -514,7 +514,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 
 	public async run(e?: any): Promise<any> {
-		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
+		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
 	}
 }
 

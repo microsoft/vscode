@@ -1159,7 +1159,6 @@ class TimelinePaneCommands extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -1233,7 +1232,7 @@ class TimelinePaneCommands extends Disposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		menu.dispose();
 		scoped.dispose();

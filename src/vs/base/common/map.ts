@@ -318,7 +318,14 @@ export class TernarySearchTree<K, V> {
 	}
 
 	delete(key: K): void {
+		return this._delete(key, false);
+	}
 
+	deleteSuperstr(key: K): void {
+		return this._delete(key, true);
+	}
+
+	private _delete(key: K, superStr: boolean): void {
 		const iter = this._iter.reset(key);
 		const stack: [-1 | 0 | 1, TernarySearchTreeNode<K, V>][] = [];
 		let node = this._root;
@@ -344,7 +351,7 @@ export class TernarySearchTree<K, V> {
 				node.value = undefined;
 
 				// clean up empty nodes
-				while (stack.length > 0 && node.isEmpty()) {
+				while (stack.length > 0 && (node.isEmpty() || superStr)) {
 					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;
