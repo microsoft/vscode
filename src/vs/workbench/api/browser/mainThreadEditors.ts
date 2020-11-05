@@ -14,7 +14,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, EditorActivation } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, IResourceEditorInput, EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
@@ -297,7 +297,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', async function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
+CommandsRegistry.registerCommand('_workbench.open', async function (accessor: ServicesAccessor, args: [URI, ITextEditorOptions | undefined, EditorViewColumn | undefined, string | undefined]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
@@ -335,7 +335,7 @@ CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAcces
 });
 
 
-CommandsRegistry.registerCommand('_workbench.diff', async function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorViewColumn]) {
+CommandsRegistry.registerCommand('_workbench.diff', async function (accessor: ServicesAccessor, args: [URI, URI, string, string, ITextEditorOptions | undefined, EditorViewColumn | undefined]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 

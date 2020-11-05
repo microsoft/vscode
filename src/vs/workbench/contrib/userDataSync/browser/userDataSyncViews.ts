@@ -229,7 +229,7 @@ export class UserDataSyncDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const { resource } = <{ resource: string }>JSON.parse(handle.$treeItemHandle);
 				const editorService = accessor.get(IEditorService);
-				await editorService.openEditor({ resource: URI.parse(resource) });
+				await editorService.openEditor({ resource: URI.parse(resource), options: { pinned: true } });
 			}
 		});
 
@@ -282,6 +282,7 @@ export class UserDataSyncDataViews extends Disposable {
 					options: {
 						preserveFocus: true,
 						revealIfVisible: true,
+						pinned: true
 					},
 				});
 			}
