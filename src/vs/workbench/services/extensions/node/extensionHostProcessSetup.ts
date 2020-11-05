@@ -13,15 +13,17 @@ import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/common/product';
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import 'vs/workbench/api/node/extHost.services';
 import { RunOnceScheduler } from 'vs/base/common/async';
+
+import 'vs/workbench/api/common/extHost.common.services';
+import 'vs/workbench/api/node/extHost.node.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
@@ -94,10 +96,10 @@ let onTerminate = function () {
 	nativeExit();
 };
 
-function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+function _createExtHostProtocol(): Promise<PersistentProtocol> {
 	if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			let protocol: PersistentProtocol | null = null;
 
@@ -161,7 +163,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new Promise<PersistentProtocol>((resolve, reject) => {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
@@ -201,6 +203,10 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				protocol.send(msg);
 			}
 		}
+
+		drain(): Promise<void> {
+			return protocol.drain();
+		}
 	};
 }
 
@@ -219,7 +225,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 			if (rendererCommit && myCommit) {
 				// Running in the built version where commits are defined
 				if (rendererCommit !== myCommit) {
-					nativeExit(55);
+					nativeExit(ExtensionHostExitCode.VersionMismatch);
 				}
 			}
 
@@ -294,12 +300,12 @@ export async function startExtensionHostProcess(): Promise<void> {
 	const renderer = await connectToRenderer(protocol);
 	const { initData } = renderer;
 	// setup things
-	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
 	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
-		_serviceBrand: undefined;
+		declare readonly _serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
 		exists(path: string) { return exists(path); }
 		realpath(path: string) { return realpath(path); }

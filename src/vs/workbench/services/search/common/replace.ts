@@ -13,6 +13,7 @@ export class ReplacePattern {
 	private _replacePattern: string;
 	private _hasParameters: boolean = false;
 	private _regExp: RegExp;
+	private _caseOpsRegExp: RegExp;
 
 	constructor(replaceString: string, searchPatternInfo: IPatternInfo)
 	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp)
@@ -37,6 +38,8 @@ export class ReplacePattern {
 		if (this._regExp.global) {
 			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
 		}
+
+		this._caseOpsRegExp = new RegExp(/([^\\]*?)((?:\\[uUlL])+?|)(\$[0-9]+)(.*?)/g);
 	}
 
 	get hasParameters(): boolean {
@@ -57,19 +60,97 @@ export class ReplacePattern {
 	*/
 	getReplaceString(text: string, preserveCase?: boolean): string | null {
 		this._regExp.lastIndex = 0;
-		let match = this._regExp.exec(text);
+		const match = this._regExp.exec(text);
 		if (match) {
 			if (this.hasParameters) {
+				const replaceString = this.replaceWithCaseOperations(text, this._regExp, this.buildReplaceString(match, preserveCase));
 				if (match[0] === text) {
-					return text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
+					return replaceString;
 				}
-				let replaceString = text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
 			}
 			return this.buildReplaceString(match, preserveCase);
 		}
 
 		return null;
+	}
+
+	/**
+	 * replaceWithCaseOperations applies case operations to relevant replacement strings and applies
+	 * the affected $N arguments. It then passes unaffected $N arguments through to string.replace().
+	 *
+	 * \u			=> upper-cases one character in a match.
+	 * \U			=> upper-cases ALL remaining characters in a match.
+	 * \l			=> lower-cases one character in a match.
+	 * \L			=> lower-cases ALL remaining characters in a match.
+	 */
+	private replaceWithCaseOperations(text: string, regex: RegExp, replaceString: string): string {
+		// Short-circuit the common path.
+		if (!/\\[uUlL]/.test(replaceString)) {
+			return text.replace(regex, replaceString);
+		}
+		// Store the values of the search parameters.
+		const firstMatch = regex.exec(text);
+		if (firstMatch === null) {
+			return text.replace(regex, replaceString);
+		}
+
+		let patMatch: RegExpExecArray | null;
+		let newReplaceString = '';
+		let lastIndex = 0;
+		let lastMatch = '';
+		// For each annotated $N, perform text processing on the parameters and perform the substitution.
+		while ((patMatch = this._caseOpsRegExp.exec(replaceString)) !== null) {
+			lastIndex = patMatch.index;
+			const fullMatch = patMatch[0];
+			lastMatch = fullMatch;
+			let caseOps = patMatch[2]; // \u, \l\u, etc.
+			const money = patMatch[3]; // $1, $2, etc.
+
+			if (!caseOps) {
+				newReplaceString += fullMatch;
+				continue;
+			}
+			const replacement = firstMatch[parseInt(money.slice(1))];
+			if (!replacement) {
+				newReplaceString += fullMatch;
+				continue;
+			}
+			const replacementLen = replacement.length;
+
+			newReplaceString += patMatch[1]; // prefix
+			caseOps = caseOps.replace(/\\/g, '');
+			let i = 0;
+			for (; i < caseOps.length; i++) {
+				switch (caseOps[i]) {
+					case 'U':
+						newReplaceString += replacement.slice(i).toUpperCase();
+						i = replacementLen;
+						break;
+					case 'u':
+						newReplaceString += replacement[i].toUpperCase();
+						break;
+					case 'L':
+						newReplaceString += replacement.slice(i).toLowerCase();
+						i = replacementLen;
+						break;
+					case 'l':
+						newReplaceString += replacement[i].toLowerCase();
+						break;
+				}
+			}
+			// Append any remaining replacement string content not covered by case operations.
+			if (i < replacementLen) {
+				newReplaceString += replacement.slice(i);
+			}
+
+			newReplaceString += patMatch[4]; // suffix
+		}
+
+		// Append any remaining trailing content after the final regex match.
+		newReplaceString += replaceString.slice(lastIndex + lastMatch.length);
+
+		return text.replace(regex, newReplaceString);
 	}
 
 	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
@@ -94,7 +175,7 @@ export class ReplacePattern {
 
 		let substrFrom = 0, result = '';
 		for (let i = 0, len = replaceString.length; i < len; i++) {
-			let chCode = replaceString.charCodeAt(i);
+			const chCode = replaceString.charCodeAt(i);
 
 			if (chCode === CharCode.Backslash) {
 
@@ -106,7 +187,7 @@ export class ReplacePattern {
 					break;
 				}
 
-				let nextChCode = replaceString.charCodeAt(i);
+				const nextChCode = replaceString.charCodeAt(i);
 				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {
@@ -140,7 +221,7 @@ export class ReplacePattern {
 					break;
 				}
 
-				let nextChCode = replaceString.charCodeAt(i);
+				const nextChCode = replaceString.charCodeAt(i);
 				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {

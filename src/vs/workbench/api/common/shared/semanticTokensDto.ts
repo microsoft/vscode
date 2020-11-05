@@ -55,12 +55,12 @@ function fromLittleEndianBuffer(buff: VSBuffer): Uint32Array {
 		reverseEndianness(uint8Arr);
 	}
 	if (uint8Arr.byteOffset % 4 === 0) {
-		return new Uint32Array(uint8Arr.buffer, uint8Arr.byteOffset);
+		return new Uint32Array(uint8Arr.buffer, uint8Arr.byteOffset, uint8Arr.length / 4);
 	} else {
 		// unaligned memory access doesn't work on all platforms
 		const data = new Uint8Array(uint8Arr.byteLength);
 		data.set(uint8Arr);
-		return new Uint32Array(data.buffer, data.byteOffset);
+		return new Uint32Array(data.buffer, data.byteOffset, data.length / 4);
 	}
 }
 

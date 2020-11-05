@@ -13,7 +13,7 @@ import { Event } from 'vs/base/common/event';
 
 export class NotificationsAlerts extends Disposable {
 
-	constructor(private model: INotificationsModel) {
+	constructor(private readonly model: INotificationsModel) {
 		super();
 
 		// Alert initial notifications if any
@@ -44,6 +44,9 @@ export class NotificationsAlerts extends Disposable {
 	}
 
 	private triggerAriaAlert(notifiation: INotificationViewItem): void {
+		if (notifiation.silent) {
+			return;
+		}
 
 		// Trigger the alert again whenever the message changes
 		const listener = notifiation.onDidChangeContent(e => {

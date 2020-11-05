@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { IFullSemanticTokensDto, IDeltaSemanticTokensDto, encodeSemanticTokensDto, ISemanticTokensDto, decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('SemanticTokensDto', () => {
 
@@ -107,4 +108,29 @@ suite('SemanticTokensDto', () => {
 		});
 	});
 
+	test('issue #94521: unusual backing array buffer', () => {
+		function wrapAndSliceUint8Arry(buff: Uint8Array, prefixLength: number, suffixLength: number): Uint8Array {
+			const wrapped = new Uint8Array(prefixLength + buff.byteLength + suffixLength);
+			wrapped.set(buff, prefixLength);
+			return wrapped.subarray(prefixLength, prefixLength + buff.byteLength);
+		}
+		function wrapAndSlice(buff: VSBuffer, prefixLength: number, suffixLength: number): VSBuffer {
+			return VSBuffer.wrap(wrapAndSliceUint8Arry(buff.buffer, prefixLength, suffixLength));
+		}
+		const dto: ISemanticTokensDto = {
+			id: 5,
+			type: 'full',
+			data: new Uint32Array([1, 2, 3, 4, 5])
+		};
+		const encoded = encodeSemanticTokensDto(dto);
+
+		// with misaligned prefix and misaligned suffix
+		assertEqualFull(<IFullSemanticTokensDto>decodeSemanticTokensDto(wrapAndSlice(encoded, 1, 1)), dto);
+		// with misaligned prefix and aligned suffix
+		assertEqualFull(<IFullSemanticTokensDto>decodeSemanticTokensDto(wrapAndSlice(encoded, 1, 4)), dto);
+		// with aligned prefix and misaligned suffix
+		assertEqualFull(<IFullSemanticTokensDto>decodeSemanticTokensDto(wrapAndSlice(encoded, 4, 1)), dto);
+		// with aligned prefix and aligned suffix
+		assertEqualFull(<IFullSemanticTokensDto>decodeSemanticTokensDto(wrapAndSlice(encoded, 4, 4)), dto);
+	});
 });

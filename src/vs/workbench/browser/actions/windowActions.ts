@@ -7,12 +7,12 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
-import { IsMacNativeContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IsMacNativeContext, IsDevelopmentContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -30,6 +30,10 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
+import { Codicon } from 'vs/base/common/codicons';
+import { isHTMLElement } from 'vs/base/browser/dom';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -41,12 +45,12 @@ interface IRecentlyOpenedPick extends IQuickPickItem {
 abstract class BaseOpenRecentAction extends Action {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: 'codicon-close',
+		iconClass: Codicon.removeClose.classNames,
 		tooltip: nls.localize('remove', "Remove from Recently Opened")
 	};
 
 	private readonly dirtyRecentlyOpened: IQuickInputButton = {
-		iconClass: 'dirty-workspace codicon-circle-filled',
+		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
 		tooltip: nls.localize('dirtyRecentlyOpened', "Workspace With Dirty Files"),
 		alwaysVisible: true
 	};
@@ -331,23 +335,40 @@ export class NewWindowAction extends Action {
 	}
 }
 
+class BlurAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.blur',
+			title: nls.localize('blur', "Remove keyboard focus from focused element")
+		});
+	}
+
+	run(): void {
+		const el = document.activeElement;
+
+		if (isHTMLElement(el)) {
+			el.blur();
+		}
+	}
+}
+
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
 // --- Actions Registration
 
 const fileCategory = nls.localize('file', "File");
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
-registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickPickRecentAction, QuickPickRecentAction.ID, QuickPickRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NewWindowAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickPickRecentAction), 'File: Quick Open Recent...', fileCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenRecentAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
 
-const viewCategory = nls.localize('view', "View");
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleFullScreenAction, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', CATEGORIES.View.value);
 
-const developerCategory = nls.localize('developer', "Developer");
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL), 'Developer: Reload Window', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowAction), 'Developer: Reload Window', CATEGORIES.Developer.value, IsWebContext.toNegated());
 
-const helpCategory = nls.localize('help', "Help");
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowAboutDialogAction, ShowAboutDialogAction.ID, ShowAboutDialogAction.LABEL), `Help: About`, helpCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAboutDialogAction), `Help: About`, CATEGORIES.Help.value);
+
+registerAction2(BlurAction);
 
 // --- Commands/Keybindings Registration
 
@@ -380,7 +401,25 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_R
 });
 
+CommandsRegistry.registerCommand('workbench.action.toggleConfirmBeforeClose', accessor => {
+	const configurationService = accessor.get(IConfigurationService);
+	const setting = configurationService.inspect<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose').userValue;
+
+	return configurationService.updateValue('window.confirmBeforeClose', setting === 'never' ? 'keyboardOnly' : 'never', ConfigurationTarget.USER);
+});
+
 // --- Menu Registration
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: 'z_ConfirmClose',
+	command: {
+		id: 'workbench.action.toggleConfirmBeforeClose',
+		title: nls.localize('miConfirmClose', "Confirm Before Close"),
+		toggled: ContextKeyExpr.notEquals('config.window.confirmBeforeClose', 'never')
+	},
+	order: 1,
+	when: IsWebContext
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '1_new',

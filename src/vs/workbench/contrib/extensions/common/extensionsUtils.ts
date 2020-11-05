@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -28,7 +28,7 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
+		@IExtensionRecommendationsService private readonly tipsService: IExtensionRecommendationsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -44,7 +44,7 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): Promise<void> {
 		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
-			const extension = arrays.first(keymaps, extension => areSameExtensions(extension.identifier, extensionIdentifier));
+			const extension = keymaps.find(extension => areSameExtensions(extension.identifier, extensionIdentifier));
 			if (extension && extension.globallyEnabled) {
 				const otherKeymaps = keymaps.filter(extension => !areSameExtensions(extension.identifier, extensionIdentifier) && extension.globallyEnabled);
 				if (otherKeymaps.length) {
@@ -122,7 +122,7 @@ export async function getInstalledExtensions(accessor: ServicesAccessor): Promis
 	});
 }
 
-export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
+export function isKeymapExtension(tipsService: IExtensionRecommendationsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
-	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, extension.local.identifier));
+	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(extensionId => areSameExtensions({ id: extensionId }, extension.local.identifier));
 }

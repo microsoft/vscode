@@ -503,7 +503,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 
 // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-// See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
+// See https://github.com/microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
 function _getNativeMap() {
 	return {
 		VK_BACK: KeyCode.Backspace,

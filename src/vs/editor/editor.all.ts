@@ -7,13 +7,14 @@ import 'vs/editor/browser/controller/coreCommands';
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
 import 'vs/editor/browser/widget/diffNavigator';
+import 'vs/editor/contrib/anchorSelect/anchorSelect';
 import 'vs/editor/contrib/bracketMatching/bracketMatching';
 import 'vs/editor/contrib/caretOperations/caretOperations';
 import 'vs/editor/contrib/caretOperations/transpose';
 import 'vs/editor/contrib/clipboard/clipboard';
 import 'vs/editor/contrib/codeAction/codeActionContributions';
 import 'vs/editor/contrib/codelens/codelensController';
-import 'vs/editor/contrib/colorPicker/colorDetector';
+import 'vs/editor/contrib/colorPicker/colorContributions';
 import 'vs/editor/contrib/comment/comment';
 import 'vs/editor/contrib/contextmenu/contextmenu';
 import 'vs/editor/contrib/cursorUndo/cursorUndo';
@@ -40,6 +41,7 @@ import 'vs/editor/contrib/snippet/snippetController2';
 import 'vs/editor/contrib/suggest/suggestController';
 import 'vs/editor/contrib/tokenization/tokenization';
 import 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
+import 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 import 'vs/editor/contrib/viewportSemanticTokens/viewportSemanticTokens';
 import 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/wordOperations';
@@ -48,3 +50,5 @@ import 'vs/editor/contrib/wordPartOperations/wordPartOperations';
 // Load up these strings even in VSCode, even if they are not used
 // in order to get them translated
 import 'vs/editor/common/standaloneStrings';
+
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicons are defined here and must be loaded

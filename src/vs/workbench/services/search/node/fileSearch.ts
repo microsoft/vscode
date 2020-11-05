@@ -12,7 +12,6 @@ import * as arrays from 'vs/base/common/arrays';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
 import * as normalization from 'vs/base/common/normalization';
-import * as objects from 'vs/base/common/objects';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -24,9 +23,8 @@ import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFil
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 
-interface IDirectoryEntry {
+interface IDirectoryEntry extends IRawFileMatch {
 	base: string;
-	relativePath: string;
 	basename: string;
 }
 
@@ -84,7 +82,7 @@ export class FileWalker {
 		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
-			const folderExcludeExpression: glob.IExpression = objects.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
+			const folderExcludeExpression: glob.IExpression = Object.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
 
 			// Add excludes for other root folders
 			const fqPath = folderQuery.folder.fsPath;
@@ -122,7 +120,7 @@ export class FileWalker {
 			}
 
 			// File: Check for match on file pattern and include pattern
-			this.matchFile(onResult, { relativePath: extraFilePath.fsPath /* no workspace relative path */ });
+			this.matchFile(onResult, { relativePath: extraFilePath.fsPath /* no workspace relative path */, searchPath: undefined });
 		});
 
 		this.cmdSW = StopWatch.create(false);
@@ -206,7 +204,7 @@ export class FileWalker {
 			.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 			.join(' ');
 
-		let rgCmd = `rg ${escapedArgs}\n - cwd: ${ripgrep.cwd}`;
+		let rgCmd = `${ripgrep.rgDiskPath} ${escapedArgs}\n - cwd: ${ripgrep.cwd}`;
 		if (ripgrep.rgArgs.siblingClauses) {
 			rgCmd += `\n - Sibling clauses: ${JSON.stringify(ripgrep.rgArgs.siblingClauses)}`;
 		}
@@ -260,7 +258,7 @@ export class FileWalker {
 			}
 
 			// TODO: Optimize siblings clauses with ripgrep here.
-			this.addDirectoryEntries(tree, rootFolder, relativeFiles, onResult);
+			this.addDirectoryEntries(folderQuery, tree, rootFolder, relativeFiles, onResult);
 
 			if (last) {
 				this.matchDirectoryTree(tree, rootFolder, onResult);
@@ -389,13 +387,17 @@ export class FileWalker {
 		return tree;
 	}
 
-	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
+	private addDirectoryEntries(folderQuery: IFolderQuery, { pathToEntries }: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
-			this.matchFile(onResult, { base: base, relativePath: this.filePattern });
+			this.matchFile(onResult, {
+				base,
+				relativePath: this.filePattern,
+				searchPath: this.getSearchPath(folderQuery, this.filePattern)
+			});
 		}
 
-		function add(relativePath: string) {
+		const add = (relativePath: string) => {
 			const basename = path.basename(relativePath);
 			const dirname = path.dirname(relativePath);
 			let entries = pathToEntries[dirname];
@@ -406,9 +408,10 @@ export class FileWalker {
 			entries.push({
 				base,
 				relativePath,
-				basename
+				basename,
+				searchPath: this.getSearchPath(folderQuery, relativePath),
 			});
-		}
+		};
 		relativeFiles.forEach(add);
 	}
 
@@ -718,16 +721,16 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 	const lines = msg.trim().split('\n');
 	const firstLine = lines[0].trim();
 
-	if (strings.startsWith(firstLine, 'Error parsing regex')) {
+	if (firstLine.startsWith('Error parsing regex')) {
 		return firstLine;
 	}
 
-	if (strings.startsWith(firstLine, 'regex parse error')) {
+	if (firstLine.startsWith('regex parse error')) {
 		return strings.uppercaseFirstLetter(lines[lines.length - 1].trim());
 	}
 
-	if (strings.startsWith(firstLine, 'error parsing glob') ||
-		strings.startsWith(firstLine, 'unsupported encoding')) {
+	if (firstLine.startsWith('error parsing glob') ||
+		firstLine.startsWith('unsupported encoding')) {
 		// Uppercase first letter
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
@@ -737,7 +740,7 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return `Literal '\\n' currently not supported`;
 	}
 
-	if (strings.startsWith(firstLine, 'Literal ')) {
+	if (firstLine.startsWith('Literal ')) {
 		// Other unsupported chars
 		return firstLine;
 	}

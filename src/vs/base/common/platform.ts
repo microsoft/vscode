@@ -26,15 +26,16 @@ export interface IProcessEnvironment {
 	[key: string]: string;
 }
 
-interface INodeProcess {
-	platform: string;
+export interface INodeProcess {
+	platform: 'win32' | 'linux' | 'darwin';
 	env: IProcessEnvironment;
-	getuid(): number;
 	nextTick: Function;
 	versions?: {
 		electron?: string;
 	};
 	type?: string;
+	getuid(): number;
+	cwd(): string;
 }
 declare const process: INodeProcess;
 declare const global: any;
@@ -47,25 +48,39 @@ interface INavigator {
 declare const navigator: INavigator;
 declare const self: any;
 
-const isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
+const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 
-// OS detection
+let nodeProcess: INodeProcess | undefined = undefined;
+if (typeof process !== 'undefined') {
+	// Native environment (non-sandboxed)
+	nodeProcess = process;
+} else if (typeof _globals.vscode !== 'undefined') {
+	// Native envionment (sandboxed)
+	nodeProcess = _globals.vscode.process;
+}
+
+const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
+
+// Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
 	_isWindows = _userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
-	_isIOS = _userAgent.indexOf('Macintosh') >= 0 && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
+	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
-} else if (typeof process === 'object') {
-	_isWindows = (process.platform === 'win32');
-	_isMacintosh = (process.platform === 'darwin');
-	_isLinux = (process.platform === 'linux');
+}
+
+// Native environment
+else if (typeof nodeProcess === 'object') {
+	_isWindows = (nodeProcess.platform === 'win32');
+	_isMacintosh = (nodeProcess.platform === 'darwin');
+	_isLinux = (nodeProcess.platform === 'linux');
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
-	const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
+	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
 			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
@@ -78,6 +93,11 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 		}
 	}
 	_isNative = true;
+}
+
+// Unknown environment
+else {
+	console.error('Unable to resolve platform.');
 }
 
 export const enum Platform {
@@ -114,7 +134,7 @@ export const platform = _platform;
 export const userAgent = _userAgent;
 
 export function isRootUser(): boolean {
-	return _isNative && !_isWindows && (process.getuid() === 0);
+	return !!nodeProcess && !_isWindows && (nodeProcess.getuid() === 0);
 }
 
 /**
@@ -157,7 +177,6 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 export const globals: any = _globals;
 
 interface ISetImmediate {
@@ -196,8 +215,8 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
 		};
 	}
-	if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
-		return process.nextTick.bind(process);
+	if (nodeProcess) {
+		return nodeProcess.nextTick.bind(nodeProcess);
 	}
 	const _promise = Promise.resolve();
 	return (callback: (...args: any[]) => void) => _promise.then(callback);
@@ -208,7 +227,7 @@ export const enum OperatingSystem {
 	Macintosh = 2,
 	Linux = 3
 }
-export const OS = (_isMacintosh ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+export const OS = (_isMacintosh || _isIOS ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
 
 let _isLittleEndian = true;
 let _isLittleEndianComputed = false;
