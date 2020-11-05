@@ -23,6 +23,8 @@ export class UrlFinder extends Disposable {
 	 */
 	private static readonly localPythonServerRegex = /HTTP\son\s(127\.0\.0\.1|0\.0\.0\.0)\sport\s(\d+)/;
 
+	private static readonly excludeTerminals = ['Dev Containers'];
+
 	private _onDidMatchLocalUrl: Emitter<{ host: string, port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
 	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
@@ -31,14 +33,10 @@ export class UrlFinder extends Disposable {
 		super();
 		// Terminal
 		terminalService.terminalInstances.forEach(instance => {
-			this.listeners.set(instance, instance.onData(data => {
-				this.processData(data);
-			}));
+			this.registerTerminalInstance(instance);
 		});
 		this._register(terminalService.onInstanceCreated(instance => {
-			this.listeners.set(instance, instance.onData(data => {
-				this.processData(data);
-			}));
+			this.registerTerminalInstance(instance);
 		}));
 		this._register(terminalService.onInstanceDisposed(instance => {
 			this.listeners.get(instance)?.dispose();
@@ -59,6 +57,14 @@ export class UrlFinder extends Disposable {
 				this.listeners.delete(session.getId());
 			}
 		}));
+	}
+
+	private registerTerminalInstance(instance: ITerminalInstance) {
+		if (!UrlFinder.excludeTerminals.includes(instance.title)) {
+			this.listeners.set(instance, instance.onData(data => {
+				this.processData(data);
+			}));
+		}
 	}
 
 	private replPositions: Map<string, { position: number, tail: IReplElement }> = new Map();
