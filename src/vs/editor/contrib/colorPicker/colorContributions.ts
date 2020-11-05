@@ -37,8 +37,6 @@ export class ColorContribution extends Disposable implements IEditorContribution
 			return;
 		}
 
-		console.log(mouseEvent.target);
-
 		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'));
 		if (!hoverOnColorDecorator) {
 			return;
