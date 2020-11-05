@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorsOrder, IEditorIdentifier, toResource, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorsOrder, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -16,6 +16,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Codicon } from 'vs/base/common/codicons';
 
 interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
 	groupId: GroupIdentifier;
@@ -136,7 +137,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		}
 
 		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			const isDirty = editor.isDirty() && !editor.isSaving();
 			const description = editor.getDescription();
 			const nameAndDescription = description ? `${editor.getName()} ${description}` : editor.getName();
@@ -160,7 +161,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				buttons: (() => {
 					return [
 						{
-							iconClass: isDirty ? 'dirty-editor codicon-circle-filled' : 'codicon-close',
+							iconClass: isDirty ? ('dirty-editor ' + Codicon.closeDirty.classNames) : Codicon.close.classNames,
 							tooltip: localize('closeEditor', "Close Editor"),
 							alwaysVisible: isDirty
 						}

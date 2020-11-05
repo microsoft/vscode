@@ -34,6 +34,12 @@ export interface IStatusbarEntry {
 	readonly ariaLabel: string;
 
 	/**
+	 * Role of the status bar entry which defines how a screen reader interacts with it.
+	 * Default is 'button'.
+	 */
+	readonly role?: string;
+
+	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
 	readonly tooltip?: string;
@@ -57,11 +63,16 @@ export interface IStatusbarEntry {
 	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
+
+	/**
+	 * Will enable a spinning icon in front of the text to indicate progress.
+	 */
+	readonly showProgress?: boolean;
 }
 
 export interface IStatusbarService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
@@ -89,6 +100,21 @@ export interface IStatusbarService {
 	 * Allows to update an entry's visibility with the provided ID.
 	 */
 	updateEntryVisibility(id: string, visible: boolean): void;
+
+	/**
+	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
+	 */
+	focus(preserveEntryFocus?: boolean): void;
+
+	/**
+	 * Focuses the next status bar entry. If none focused, focuses the first.
+	 */
+	focusNextEntry(): void;
+
+	/**
+	 * Focuses the previous status bar entry. If none focused, focuses the last.
+	 */
+	focusPreviousEntry(): void;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

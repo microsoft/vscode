@@ -7,6 +7,7 @@ import { distinct, mergeSort } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -20,6 +21,10 @@ export const ICustomEditorService = createDecorator<ICustomEditorService>('custo
 
 export const CONTEXT_CUSTOM_EDITORS = new RawContextKey<string>('customEditors', '');
 export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
+
+export interface CustomEditorCapabilities {
+	readonly supportsMultipleEditorsPerDocument?: boolean;
+}
 
 export interface ICustomEditorService {
 	_serviceBrand: any;
@@ -35,6 +40,8 @@ export interface ICustomEditorService {
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
+
+	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
 }
 
 export interface ICustomEditorModelManager {
@@ -50,6 +57,7 @@ export interface ICustomEditorModelManager {
 export interface ICustomEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly resource: URI;
+	readonly backupId: string | undefined;
 
 	isReadonly(): boolean;
 
@@ -72,7 +80,20 @@ export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
 }
 
-export class CustomEditorInfo {
+export interface CustomEditorDescriptor {
+	readonly id: string;
+	readonly displayName: string;
+	readonly providerDisplayName: string;
+	readonly priority: CustomEditorPriority;
+	readonly selector: readonly CustomEditorSelector[];
+}
+
+export class CustomEditorInfo implements CustomEditorDescriptor {
+
+	private static readonly excludedSchemes = new Set([
+		Schemas.extension,
+		Schemas.webviewPanel,
+	]);
 
 	public readonly id: string;
 	public readonly displayName: string;
@@ -80,13 +101,7 @@ export class CustomEditorInfo {
 	public readonly priority: CustomEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
-	constructor(descriptor: {
-		readonly id: string;
-		readonly displayName: string;
-		readonly providerDisplayName: string;
-		readonly priority: CustomEditorPriority;
-		readonly selector: readonly CustomEditorSelector[];
-	}) {
+	constructor(descriptor: CustomEditorDescriptor) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
 		this.providerDisplayName = descriptor.providerDisplayName;
@@ -99,6 +114,10 @@ export class CustomEditorInfo {
 	}
 
 	static selectorMatches(selector: CustomEditorSelector, resource: URI): boolean {
+		if (CustomEditorInfo.excludedSchemes.has(resource.scheme)) {
+			return false;
+		}
+
 		if (selector.filenamePattern) {
 			const matchOnPath = selector.filenamePattern.indexOf(posix.sep) >= 0;
 			const target = matchOnPath ? resource.path : basename(resource);

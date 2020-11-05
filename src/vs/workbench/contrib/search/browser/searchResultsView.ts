@@ -225,7 +225,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 
 	renderTemplate(container: HTMLElement): IMatchTemplate {
-		DOM.addClass(container, 'linematch');
+		container.classList.add('linematch');
 
 		const parent = DOM.append(container, DOM.$('a.plain.match'));
 		const before = DOM.append(parent, DOM.$('span'));
@@ -254,7 +254,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
-		DOM.toggleClass(templateData.match, 'replace', replace);
+		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
@@ -264,7 +264,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
 		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
-		DOM.toggleClass(templateData.lineNumber, 'show', (numLines > 0) || showLineNumbers);
+		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
 		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
@@ -306,6 +306,10 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 		private searchModel: SearchModel,
 		@ILabelService private readonly labelService: ILabelService
 	) {
+	}
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('search', "Search");
 	}
 
 	getAriaLabel(element: RenderableMatch): string | null {
@@ -374,7 +378,7 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
 		}
 	}
 

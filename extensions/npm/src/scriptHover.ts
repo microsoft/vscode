@@ -8,9 +8,10 @@ import {
 	workspace, tasks, Range, HoverProvider, Hover, Position, MarkdownString, Uri
 } from 'vscode';
 import {
-	createTask, startDebugging, findAllScriptRanges, extractDebugArgFromScript
+	createTask, startDebugging, findAllScriptRanges
 } from './tasks';
 import * as nls from 'vscode-nls';
+import { dirname } from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -32,6 +33,9 @@ export class NpmScriptHoverProvider implements HoverProvider {
 	constructor(context: ExtensionContext) {
 		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
 		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromHover', this.debugScriptFromHover, this));
+		context.subscriptions.push(workspace.onDidChangeTextDocument((e) => {
+			invalidateHoverScriptsCache(e.document);
+		}));
 	}
 
 	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<Hover> {
@@ -51,11 +55,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 				let contents: MarkdownString = new MarkdownString();
 				contents.isTrusted = true;
 				contents.appendMarkdown(this.createRunScriptMarkdown(key, document.uri));
-
-				let debugArgs = extractDebugArgFromScript(value[2]);
-				if (debugArgs) {
-					contents.appendMarkdown(this.createDebugScriptMarkdown(key, document.uri, debugArgs[0], debugArgs[1]));
-				}
+				contents.appendMarkdown(this.createDebugScriptMarkdown(key, document.uri));
 				hover = new Hover(contents);
 			}
 		});
@@ -75,12 +75,10 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		);
 	}
 
-	private createDebugScriptMarkdown(script: string, documentUri: Uri, protocol: string, port: number): string {
-		let args = {
+	private createDebugScriptMarkdown(script: string, documentUri: Uri): string {
+		const args = {
 			documentUri: documentUri,
 			script: script,
-			protocol: protocol,
-			port: port
 		};
 		return this.createMarkdownLink(
 			localize('debugScript', 'Debug Script'),
@@ -100,24 +98,22 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		return `${prefix}[${label}](command:${cmd}?${encodedArgs} "${tooltip}")`;
 	}
 
-	public runScriptFromHover(args: any) {
+	public async runScriptFromHover(args: any) {
 		let script = args.script;
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = createTask(script, `run ${script}`, folder, documentUri);
-			tasks.executeTask(task);
+			let task = await createTask(script, `run ${script}`, folder, documentUri);
+			await tasks.executeTask(task);
 		}
 	}
 
-	public debugScriptFromHover(args: any) {
+	public debugScriptFromHover(args: { script: string; documentUri: Uri }) {
 		let script = args.script;
 		let documentUri = args.documentUri;
-		let protocol = args.protocol;
-		let port = args.port;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			startDebugging(script, protocol, port, folder);
+			startDebugging(script, dirname(documentUri.fsPath), folder);
 		}
 	}
 }

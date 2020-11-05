@@ -25,6 +25,7 @@ import { setup as setupDataMigrationTests } from './areas/workbench/data-migrati
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupDataSearchTests } from './areas/search/search.test';
+import { setup as setupDataNotebookTests } from './areas/notebook/notebook.test';
 import { setup as setupDataLanguagesTests } from './areas/languages/languages.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
@@ -63,7 +64,7 @@ const opts = minimist(args, {
 	}
 });
 
-const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
+const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
@@ -154,6 +155,8 @@ if (!opts.web) {
 	} else {
 		quality = Quality.Stable;
 	}
+
+	console.log(`Running desktop smoke tests against ${electronPath}`);
 }
 
 //
@@ -162,14 +165,20 @@ if (!opts.web) {
 else {
 	const testCodeServerPath = opts.build || process.env.VSCODE_REMOTE_SERVER_PATH;
 
-	if (typeof testCodeServerPath === 'string' && !fs.existsSync(testCodeServerPath)) {
-		fail(`Can't find Code server at ${testCodeServerPath}.`);
+	if (typeof testCodeServerPath === 'string') {
+		if (!fs.existsSync(testCodeServerPath)) {
+			fail(`Can't find Code server at ${testCodeServerPath}.`);
+		} else {
+			console.log(`Running web smoke tests against ${testCodeServerPath}`);
+		}
 	}
 
 	if (!testCodeServerPath) {
 		process.env.VSCODE_REPOSITORY = repoPath;
 		process.env.VSCODE_DEV = '1';
 		process.env.VSCODE_CLI = '1';
+
+		console.log(`Running web smoke out of sources`);
 	}
 
 	if (process.env.VSCODE_DEV === '1') {
@@ -266,16 +275,6 @@ after(async function () {
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	before(async function () {
-		const app = new Application(this.defaultOptions);
-		await app!.start(opts.web ? false : undefined);
-		this.app = app;
-	});
-
-	after(async function () {
-		await this.app.stop();
-	});
-
 	if (screenshotsPath) {
 		afterEach(async function () {
 			if (this.currentTest.state !== 'failed') {
@@ -296,15 +295,35 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 			app.logger.log('*** Test start:', title);
 		});
 	}
-	if (!opts.web) { setupDataMigrationTests(opts['stable-build'], testDataPath); }
-	if (!opts.web) { setupDataLossTests(); }
-	if (!opts.web) { setupDataPreferencesTests(); }
-	setupDataSearchTests();
-	setupDataLanguagesTests();
-	setupDataEditorTests();
-	setupDataStatusbarTests(!!opts.web);
-	if (!opts.web) { setupDataExtensionTests(); }
-	if (!opts.web) { setupDataMultirootTests(); }
-	if (!opts.web) { setupDataLocalizationTests(); }
-	if (!opts.web) { setupLaunchTests(); }
+
+	if (!opts.web && opts['stable-build']) {
+		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing by providing the --stable-build command line argument`, () => {
+			setupDataMigrationTests(opts['stable-build'], testDataPath);
+		});
+	}
+
+	describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
+		before(async function () {
+			const app = new Application(this.defaultOptions);
+			await app!.start(opts.web ? false : undefined);
+			this.app = app;
+		});
+
+		after(async function () {
+			await this.app.stop();
+		});
+
+		if (!opts.web) { setupDataLossTests(); }
+		if (!opts.web) { setupDataPreferencesTests(); }
+		setupDataSearchTests();
+		setupDataNotebookTests();
+		setupDataLanguagesTests();
+		setupDataEditorTests();
+		setupDataStatusbarTests(!!opts.web);
+		if (!opts.web) { setupDataExtensionTests(); }
+		if (!opts.web) { setupDataMultirootTests(); }
+		if (!opts.web) { setupDataLocalizationTests(); }
+		if (!opts.web) { setupLaunchTests(); }
+	});
 });
+

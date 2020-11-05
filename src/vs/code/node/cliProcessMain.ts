@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { raceTimeout } from 'vs/base/common/async';
+import * as semver from 'vs/base/common/semver/semver';
 import product from 'vs/platform/product/common/product';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver-umd';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -35,7 +36,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, isLanguagePackExtension, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { Schemas } from 'vs/base/common/network';
@@ -69,25 +70,26 @@ export function getIdAndVersion(id: string): [string, string | undefined] {
 	return [adoptToGalleryExtensionId(id), undefined];
 }
 
+type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions };
 
 export class Main {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
 
-	async run(argv: ParsedArgs): Promise<void> {
+	async run(argv: NativeParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
-		} else if (argv['install-extension']) {
-			await this.installExtensions(argv['install-extension'], !!argv['force']);
+		} else if (argv['install-extension'] || argv['install-builtin-extension']) {
+			await this.installExtensions(argv['install-extension'] || [], argv['install-builtin-extension'] || [], !!argv['do-not-sync'], !!argv['force']);
 		} else if (argv['uninstall-extension']) {
-			await this.uninstallExtension(argv['uninstall-extension']);
+			await this.uninstallExtension(argv['uninstall-extension'], !!argv['force']);
 		} else if (argv['locate-extension']) {
 			await this.locateExtension(argv['locate-extension']);
 		} else if (argv['telemetry']) {
@@ -101,8 +103,7 @@ export class Main {
 
 	private async listExtensions(showVersions: boolean, category?: string): Promise<void> {
 		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		// TODO: we should save this array in a common place so that the command and extensionQuery can use it that way changing it is easier
-		const categories = ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'];
+		const categories = EXTENSION_CATEGORIES.map(c => c.toLowerCase());
 		if (category && category !== '') {
 			if (categories.indexOf(category.toLowerCase()) < 0) {
 				console.log('Invalid category please enter a valid category. To list valid categories run --category without a category specified');
@@ -125,88 +126,148 @@ export class Main {
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private async installExtensions(extensions: string[], force: boolean): Promise<void> {
+	private async installExtensions(extensions: string[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
 			console.log(localize('installingExtensions', "Installing extensions..."));
 		}
 
+		const vsixs: string[] = [];
+		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
-			try {
-				const manifest = await this.installExtension(extension, force);
-				if (manifest) {
-					installedExtensionsManifests.push(manifest);
-				}
-			} catch (err) {
-				console.error(err.message || err.stack || err);
-				failed.push(extension);
+			if (/\.vsix$/i.test(extension)) {
+				vsixs.push(extension);
+			} else {
+				const [id, version] = getIdAndVersion(extension);
+				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
 			}
 		}
+		for (const extension of builtinExtensionIds) {
+			const [id, version] = getIdAndVersion(extension);
+			installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+		}
+
+		if (vsixs.length) {
+			await Promise.all(vsixs.map(async vsix => {
+				try {
+					const manifest = await this.installVSIX(vsix, force);
+					if (manifest) {
+						installedExtensionsManifests.push(manifest);
+					}
+				} catch (err) {
+					console.error(err.message || err.stack || err);
+					failed.push(vsix);
+				}
+			}));
+		}
+
+		const [galleryExtensions, installed] = await Promise.all([
+			this.getGalleryExtensions(installExtensionInfos),
+			this.extensionManagementService.getInstalled(ExtensionType.User)
+		]);
+
+		await Promise.all(installExtensionInfos.map(async extensionInfo => {
+			const gallery = galleryExtensions.get(extensionInfo.id.toLowerCase());
+			if (gallery) {
+				try {
+					const manifest = await this.installFromGallery(extensionInfo, gallery, installed, force);
+					if (manifest) {
+						installedExtensionsManifests.push(manifest);
+					}
+				} catch (err) {
+					console.error(err.message || err.stack || err);
+					failed.push(extensionInfo.id);
+				}
+			} else {
+				console.error(`${notFound(extensionInfo.version ? `${extensionInfo.id}@${extensionInfo.version}` : extensionInfo.id)}\n${useId}`);
+				failed.push(extensionInfo.id);
+			}
+		}));
+
 		if (installedExtensionsManifests.some(manifest => isLanguagePackExtension(manifest))) {
 			await this.updateLocalizationsCache();
 		}
-		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
+
+		if (failed.length) {
+			throw new Error(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', ')));
+		}
 	}
 
-	private async installExtension(extension: string, force: boolean): Promise<IExtensionManifest | null> {
-		if (/\.vsix$/i.test(extension)) {
-			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
-
-			const manifest = await getManifest(extension);
-			const valid = await this.validate(manifest, force);
-
-			if (valid) {
-				return this.extensionManagementService.install(URI.file(extension)).then(id => {
-					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(extension)));
-					return manifest;
-				}, error => {
-					if (isPromiseCanceledError(error)) {
-						console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(extension)));
-						return null;
-					} else {
-						return Promise.reject(error);
-					}
-				});
+	private async installVSIX(vsix: string, force: boolean): Promise<IExtensionManifest | null> {
+		vsix = path.isAbsolute(vsix) ? vsix : path.join(process.cwd(), vsix);
+		const manifest = await getManifest(vsix);
+		const valid = await this.validate(manifest, force);
+		if (valid) {
+			try {
+				await this.extensionManagementService.install(URI.file(vsix));
+				console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(vsix)));
+				return manifest;
+			} catch (error) {
+				if (isPromiseCanceledError(error)) {
+					console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(vsix)));
+					return null;
+				} else {
+					throw error;
+				}
 			}
-			return null;
+		}
+		return null;
+	}
+
+	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
+		const extensionIds = extensions.filter(({ version }) => version === undefined).map(({ id }) => id);
+		const extensionsWithIdAndVersion = extensions.filter(({ version }) => version !== undefined);
+
+		const galleryExtensions = new Map<string, IGalleryExtension>();
+		await Promise.all([
+			(async () => {
+				const result = await this.extensionGalleryService.getExtensions(extensionIds, CancellationToken.None);
+				result.forEach(extension => galleryExtensions.set(extension.identifier.id.toLowerCase(), extension));
+			})(),
+			Promise.all(extensionsWithIdAndVersion.map(async ({ id, version }) => {
+				const extension = await this.extensionGalleryService.getCompatibleExtension({ id }, version);
+				if (extension) {
+					galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
+				}
+			}))
+		]);
+
+		return galleryExtensions;
+	}
+
+	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[], force: boolean): Promise<IExtensionManifest | null> {
+		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
+		const installedExtension = installed.find(e => areSameExtensions(e.identifier, galleryExtension.identifier));
+		if (installedExtension) {
+			if (galleryExtension.version === installedExtension.manifest.version) {
+				console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
+				return null;
+			}
+			if (!version && !force) {
+				console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, galleryExtension.version));
+				return null;
+			}
+			console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, galleryExtension.version));
 		}
 
-		const [id, version] = getIdAndVersion(extension);
-		return this.extensionManagementService.getInstalled(ExtensionType.User)
-			.then(installed => this.extensionGalleryService.getCompatibleExtension({ id }, version)
-				.then<IGalleryExtension>(null, err => {
-					if (err.responseText) {
-						try {
-							const response = JSON.parse(err.responseText);
-							return Promise.reject(response.message);
-						} catch (e) {
-							// noop
-						}
-					}
-					return Promise.reject(err);
-				})
-				.then(async extension => {
-					if (!extension) {
-						return Promise.reject(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
-					}
-
-					const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
-					const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
-					if (installedExtension) {
-						if (extension.version === installedExtension.manifest.version) {
-							console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
-							return Promise.resolve(null);
-						}
-						if (!version && !force) {
-							console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, extension.version));
-							return Promise.resolve(null);
-						}
-						console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, extension.version));
-					}
-					await this.installFromGallery(id, extension);
-					return manifest;
-				}));
+		try {
+			if (installOptions.isBuiltin) {
+				console.log(localize('installing builtin ', "Installing builtin extension '{0}' v{1}...", id, galleryExtension.version));
+			} else {
+				console.log(localize('installing', "Installing extension '{0}' v{1}...", id, galleryExtension.version));
+			}
+			await this.extensionManagementService.installFromGallery(galleryExtension, installOptions);
+			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
+			return manifest;
+		} catch (error) {
+			if (isPromiseCanceledError(error)) {
+				console.log(localize('cancelInstall', "Cancelled installing extension '{0}'.", id));
+				return null;
+			} else {
+				throw error;
+			}
+		}
 	}
 
 	private async validate(manifest: IExtensionManifest, force: boolean): Promise<boolean> {
@@ -216,7 +277,7 @@ export class Main {
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version))[0];
+		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && semver.gt(local.manifest.version, manifest.version));
 
 		if (newer && !force) {
 			console.log(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
@@ -226,22 +287,7 @@ export class Main {
 		return true;
 	}
 
-	private async installFromGallery(id: string, extension: IGalleryExtension): Promise<void> {
-		console.log(localize('installing', "Installing extension '{0}' v{1}...", id, extension.version));
-
-		try {
-			await this.extensionManagementService.installFromGallery(extension);
-			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, extension.version));
-		} catch (error) {
-			if (isPromiseCanceledError(error)) {
-				console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", id));
-			} else {
-				throw error;
-			}
-		}
-	}
-
-	private async uninstallExtension(extensions: string[]): Promise<void> {
+	private async uninstallExtension(extensions: string[], force: boolean): Promise<void> {
 		async function getExtensionId(extensionDescription: string): Promise<string> {
 			if (!/\.vsix$/i.test(extensionDescription)) {
 				return extensionDescription;
@@ -255,10 +301,18 @@ export class Main {
 		const uninstalledExtensions: ILocalExtension[] = [];
 		for (const extension of extensions) {
 			const id = await getExtensionId(extension);
-			const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-			const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+			const installed = await this.extensionManagementService.getInstalled();
+			const extensionToUninstall = installed.find(e => areSameExtensions(e.identifier, { id }));
 			if (!extensionToUninstall) {
-				return Promise.reject(new Error(`${notInstalled(id)}\n${useId}`));
+				throw new Error(`${notInstalled(id)}\n${useId}`);
+			}
+			if (extensionToUninstall.type === ExtensionType.System) {
+				console.log(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be installed", id));
+				return;
+			}
+			if (extensionToUninstall.isBuiltin && !force) {
+				console.log(localize('forceUninstall', "Extension '{0}' is marked as a Built-in extension by user. Please use '--force' option to uninstall it.", id));
+				return;
 			}
 			console.log(localize('uninstalling', "Uninstalling {0}...", id));
 			await this.extensionManagementService.uninstall(extensionToUninstall, true);
@@ -294,11 +348,11 @@ export class Main {
 
 const eventPrefix = 'monacoworkbench';
 
-export async function main(argv: ParsedArgs): Promise<void> {
+export async function main(argv: NativeParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
 	const disposables = new DisposableStore();
 
-	const environmentService = new EnvironmentService(argv, process.execPath);
+	const environmentService = new NativeEnvironmentService(argv);
 	const logService: ILogService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
 	process.once('exit', () => logService.dispose());
 	logService.info('main', argv);
@@ -320,6 +374,8 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(INativeEnvironmentService, environmentService);
+
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));
@@ -340,11 +396,12 @@ export async function main(argv: ParsedArgs): Promise<void> {
 		const appenders: AppInsightsAppender[] = [];
 		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService));
+				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 			}
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
+				sendErrorTelemetry: false,
 				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};
@@ -360,8 +417,10 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 		try {
 			await main.run(argv);
+
 			// Flush the remaining data in AI adapter.
-			await combinedAppender(...appenders).flush();
+			// If it does not complete in 1 second, exit the process.
+			await raceTimeout(combinedAppender(...appenders).flush(), 1000);
 		} finally {
 			disposables.dispose();
 		}
