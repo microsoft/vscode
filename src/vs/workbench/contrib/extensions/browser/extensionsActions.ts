@@ -247,7 +247,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 
 		if (extension && extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
-			if (runningExtension) {
+			if (runningExtension && !(runningExtension.activationEvents && runningExtension.activationEvents.some(activationEent => activationEent.startsWith('onLanguage')))) {
 				let action = await SetColorThemeAction.create(this.workbenchThemeService, this.instantiationService, extension)
 					|| await SetFileIconThemeAction.create(this.workbenchThemeService, this.instantiationService, extension)
 					|| await SetProductIconThemeAction.create(this.workbenchThemeService, this.instantiationService, extension);
