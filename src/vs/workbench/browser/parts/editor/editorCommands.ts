@@ -23,6 +23,8 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -36,6 +38,7 @@ export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOt
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
+export const KEEP_EDITORS_COMMAND_ID = 'workbench.action.keepEditors';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
@@ -707,6 +710,27 @@ function registerOtherEditorCommands(): void {
 			if (group && editor) {
 				return group.pinEditor(editor);
 			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: KEEP_EDITORS_COMMAND_ID,
+		handler: accessor => {
+			const configurationService = accessor.get(IConfigurationService);
+			const notificationService = accessor.get(INotificationService);
+			const openerService = accessor.get(IOpenerService);
+
+			// Update setting
+			configurationService.updateValue('workbench.editor.enablePreview', false);
+
+			// Inform user
+			notificationService.prompt(
+				Severity.Info,
+				nls.localize('disablePreview', "Preview editors have been disabled in settings."),
+				[{
+					label: nls.localize('learnMode', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
+				}]
+			);
 		}
 	});
 
