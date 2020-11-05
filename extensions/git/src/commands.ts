@@ -6,7 +6,7 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection } from 'vscode';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
@@ -254,10 +254,27 @@ interface PushOptions {
 	silent?: boolean;
 }
 
+class CommandErrorOutputTextDocumentContentProvider implements TextDocumentContentProvider {
+
+	private items = new Map<string, string>();
+
+	set(uri: Uri, contents: string): void {
+		this.items.set(uri.path, contents);
+	}
+
+	delete(uri: Uri): void {
+		this.items.delete(uri.path);
+	}
+
+	provideTextDocumentContent(uri: Uri): string | undefined {
+		return this.items.get(uri.path);
+	}
+}
+
 export class CommandCenter {
 
 	private disposables: Disposable[];
-	private lastCommandErrorOutput = '';
+	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
 
 	constructor(
 		private git: Git,
@@ -274,13 +291,8 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
-		this.disposables.push(
-			workspace.registerTextDocumentContentProvider('git-output', this)
-		);
-	}
 
-	async provideTextDocumentContent(): Promise<string> {
-		return this.lastCommandErrorOutput;
+		this.disposables.push(workspace.registerTextDocumentContentProvider('git-output', this.commandErrors));
 	}
 
 	@command('git.setLogLevel')
@@ -2689,14 +2701,29 @@ export class CommandCenter {
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
 				const outputChannel = this.outputChannel as OutputChannel;
 				choices.set(openOutputChannelChoice, () => outputChannel.show());
-				const showCommandOutputChoice = localize('show command output', 'Show Command Output');
+
+				const showCommandOutputChoice = localize('show command output', "Show Command Output");
 				if (err.stderr) {
-					choices.set(showCommandOutputChoice, () => {
-						this.lastCommandErrorOutput = err.stderr;
-						const uri = Uri.parse(`git-output://command-error/${err.gitCommand}-${Math.random().toString(16).slice(2, 10)}`);
-						workspace.openTextDocument(uri).then(doc => {
-							return window.showTextDocument(doc);
-						});
+					choices.set(showCommandOutputChoice, async () => {
+						const timestamp = new Date().getTime();
+						const uri = Uri.parse(`git-output:/git-error-${timestamp}`);
+
+						let command = 'git';
+
+						if (err.gitArgs) {
+							command = `${command} ${err.gitArgs.join(' ')}`;
+						} else if (err.gitCommand) {
+							command = `${command} ${err.gitCommand}`;
+						}
+
+						this.commandErrors.set(uri, `> ${command}\n${err.stderr}`);
+
+						try {
+							const doc = await workspace.openTextDocument(uri);
+							await window.showTextDocument(doc);
+						} finally {
+							this.commandErrors.delete(uri);
+						}
 					});
 				}
 
