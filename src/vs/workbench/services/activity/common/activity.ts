@@ -6,16 +6,37 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface IActivity {
+	readonly badge: IBadge;
+	readonly clazz?: string;
+	readonly priority?: number;
+}
+
 export const IActivityService = createDecorator<IActivityService>('activityService');
 
 export interface IActivityService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
-	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.
+	 * Show activity for the given view container
 	 */
-	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+
+	/**
+	 * Show activity for the given view
+	 */
+	showViewActivity(viewId: string, badge: IActivity): IDisposable;
+
+	/**
+	 * Show accounts activity
+	 */
+	showAccountsActivity(activity: IActivity): IDisposable;
+
+	/**
+	 * Show global activity
+	 */
+	showGlobalActivity(activity: IActivity): IDisposable;
 }
 
 export interface IBadge {

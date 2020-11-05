@@ -91,7 +91,7 @@
 	margin-left: 10px;
 }
 
-.vs .extension-editor > .header > .details > .title > .preview {
+.monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {
 	color: white;
 }
 
@@ -113,7 +113,7 @@
 	line-height: 20px;
 }
 
-.extension-editor > .header > .details > .subtitle > .publisher {
+.extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
 
@@ -124,20 +124,14 @@
 	align-items: center;
 }
 
-.extension-editor > .header > .details > .subtitle > .install > .count {
+.extension-editor > .header > .details > .subtitle .install > .count {
 	margin-left: 6px;
 }
 
-.extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty),
-.extension-editor > .header > .details > .subtitle > a:not(:first-child):not(:empty) {
+.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty) {
 	border-left: 1px solid rgba(128, 128, 128, 0.7);
 	margin-left: 14px;
 	padding-left: 14px;
-}
-
-.extension-editor > .header > .details > .subtitle .version {
-	font-size: 90%;
-	font-style: italic;
 }
 
 .extension-editor > .header > .details > .description {
@@ -159,14 +153,28 @@
 	justify-content: flex-start;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.action-label.dropdown,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .extension-action.action-label.empty-dropdown {
 	margin-right: 8px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
 	font-weight: 600;
-	padding: 1px 6px;
 	max-width: 300px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.icon {
+	padding-top: 1px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+	padding: 1px 6px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.dropdown.label {
+	padding: 1px 0px;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label.system-disable {
@@ -208,8 +216,7 @@
 .extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
 	margin-top: 4px;
 	margin-left: 4px;
-	padding-top: 0;
-	padding-bottom: 2px;
+	padding-bottom: 1px;
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
@@ -413,8 +420,8 @@
 	vertical-align: middle;
 }
 
-.vs-dark .extension-editor > .body > .content table .colorBox,
-.hc-black .extension-editor > .body > .content table .colorBox {
+.monaco-workbench.vs-dark .extension-editor > .body > .content table .colorBox,
+.monaco-workbench.hc-black .extension-editor > .body > .content table .colorBox {
 	border-color: rgb(238, 238, 238);
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/product/common/product';
 import { app, Event as ElectronEvent } from 'electron';
@@ -43,7 +43,7 @@ export class ElectronURLListener {
 		initialUrisToHandle: URI[],
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
-		environmentService: INativeEnvironmentService
+		environmentService: IEnvironmentMainService
 	) {
 
 		// the initial set of URIs we need to handle once the window is ready

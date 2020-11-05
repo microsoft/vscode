@@ -20,8 +20,9 @@ export namespace SeverityIcon {
 				return Codicon.warning.classNames;
 			case Severity.Error:
 				return Codicon.error.classNames;
+			default:
+				return '';
 		}
-		return '';
 	}
 }
 
@@ -33,8 +34,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 			.monaco-editor .zone-widget ${errorCodiconSelector},
 			.markers-panel .marker-icon${errorCodiconSelector},
-			.extensions-viewlet > .extensions ${errorCodiconSelector},
-			.monaco-dialog-box .dialog-message-row ${errorCodiconSelector} {
+			.extensions-viewlet > .extensions ${errorCodiconSelector} {
 				color: ${errorIconForeground};
 			}
 		`);
@@ -47,8 +47,7 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-editor .zone-widget ${warningCodiconSelector},
 			.markers-panel .marker-icon${warningCodiconSelector},
 			.extensions-viewlet > .extensions ${warningCodiconSelector},
-			.extension-editor ${warningCodiconSelector},
-			.monaco-dialog-box .dialog-message-row ${warningCodiconSelector} {
+			.extension-editor ${warningCodiconSelector} {
 				color: ${warningIconForeground};
 			}
 		`);
@@ -61,8 +60,7 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-editor .zone-widget ${infoCodiconSelector},
 			.markers-panel .marker-icon${infoCodiconSelector},
 			.extensions-viewlet > .extensions ${infoCodiconSelector},
-			.extension-editor ${infoCodiconSelector},
-			.monaco-dialog-box .dialog-message-row ${infoCodiconSelector} {
+			.extension-editor ${infoCodiconSelector} {
 				color: ${infoIconForeground};
 			}
 		`);

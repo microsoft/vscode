@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { CompleteEnterAction, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
@@ -135,7 +135,8 @@ export class MoveLinesCommand implements ICommand {
 					// to s.startLineNumber
 					builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), insertingText + '\n');
 
-					let ret = this.matchEnterRule(model, indentConverter, tabSize, s.startLineNumber, s.startLineNumber, insertingText);
+					let ret = this.matchEnterRuleMovingDown(model, indentConverter, tabSize, s.startLineNumber, movingLineNumber, insertingText);
+
 					// check if the line being moved before matches onEnter rules, if so let's adjust the indentation by onEnter rules.
 					if (ret !== null) {
 						if (ret !== 0) {
@@ -229,31 +230,7 @@ export class MoveLinesCommand implements ICommand {
 		};
 	}
 
-	private matchEnterRule(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, oneLineAboveText?: string) {
-		let validPrecedingLine = oneLineAbove;
-		while (validPrecedingLine >= 1) {
-			// ship empty lines as empty lines just inherit indentation
-			let lineContent;
-			if (validPrecedingLine === oneLineAbove && oneLineAboveText !== undefined) {
-				lineContent = oneLineAboveText;
-			} else {
-				lineContent = model.getLineContent(validPrecedingLine);
-			}
-
-			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineContent);
-			if (nonWhitespaceIdx >= 0) {
-				break;
-			}
-			validPrecedingLine--;
-		}
-
-		if (validPrecedingLine < 1 || line > model.getLineCount()) {
-			return null;
-		}
-
-		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-		let enter = LanguageConfigurationRegistry.getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
-
+	private parseEnterResult(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, enter: CompleteEnterAction | null) {
 		if (enter) {
 			let enterPrefix = enter.indentation;
 
@@ -281,6 +258,72 @@ export class MoveLinesCommand implements ICommand {
 		}
 
 		return null;
+	}
+
+	/**
+	 *
+	 * @param model
+	 * @param indentConverter
+	 * @param tabSize
+	 * @param line the line moving down
+	 * @param futureAboveLineNumber the line which will be at the `line` position
+	 * @param futureAboveLineText
+	 */
+	private matchEnterRuleMovingDown(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, futureAboveLineNumber: number, futureAboveLineText: string) {
+		if (strings.lastNonWhitespaceIndex(futureAboveLineText) >= 0) {
+			// break
+			let maxColumn = model.getLineMaxColumn(futureAboveLineNumber);
+			let enter = LanguageConfigurationRegistry.getEnterAction(this._autoIndent, model, new Range(futureAboveLineNumber, maxColumn, futureAboveLineNumber, maxColumn));
+			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
+		} else {
+			// go upwards, starting from `line - 1`
+			let validPrecedingLine = line - 1;
+			while (validPrecedingLine >= 1) {
+				let lineContent = model.getLineContent(validPrecedingLine);
+				let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineContent);
+
+				if (nonWhitespaceIdx >= 0) {
+					break;
+				}
+
+				validPrecedingLine--;
+			}
+
+			if (validPrecedingLine < 1 || line > model.getLineCount()) {
+				return null;
+			}
+
+			let maxColumn = model.getLineMaxColumn(validPrecedingLine);
+			let enter = LanguageConfigurationRegistry.getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
+			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
+		}
+	}
+
+	private matchEnterRule(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, oneLineAboveText?: string) {
+		let validPrecedingLine = oneLineAbove;
+		while (validPrecedingLine >= 1) {
+			// ship empty lines as empty lines just inherit indentation
+			let lineContent;
+			if (validPrecedingLine === oneLineAbove && oneLineAboveText !== undefined) {
+				lineContent = oneLineAboveText;
+			} else {
+				lineContent = model.getLineContent(validPrecedingLine);
+			}
+
+			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineContent);
+			if (nonWhitespaceIdx >= 0) {
+				break;
+			}
+			validPrecedingLine--;
+		}
+
+		if (validPrecedingLine < 1 || line > model.getLineCount()) {
+			return null;
+		}
+
+		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
+		let enter = LanguageConfigurationRegistry.getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
+		return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
 	}
 
 	private trimLeft(str: string) {

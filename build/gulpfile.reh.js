@@ -37,19 +37,11 @@ const BUILD_TARGETS = [
 
 const noop = () => { return Promise.resolve(); };
 
-gulp.task('vscode-reh-win32-ia32-min', noop);
-gulp.task('vscode-reh-win32-x64-min', noop);
-gulp.task('vscode-reh-darwin-min', noop);
-gulp.task('vscode-reh-linux-x64-min', noop);
-gulp.task('vscode-reh-linux-armhf-min', noop);
-gulp.task('vscode-reh-linux-arm64-min', noop);
-gulp.task('vscode-reh-linux-alpine-min', noop);
-
-gulp.task('vscode-reh-web-win32-ia32-min', noop);
-gulp.task('vscode-reh-web-win32-x64-min', noop);
-gulp.task('vscode-reh-web-darwin-min', noop);
-gulp.task('vscode-reh-web-linux-x64-min', noop);
-gulp.task('vscode-reh-web-linux-alpine-min', noop);
+BUILD_TARGETS.forEach(({ platform, arch }) => {
+	for (const target of ['reh', 'reh-web']) {
+		gulp.task(`vscode-${target}-${platform}${ arch ? `-${arch}` : '' }-min`, noop);
+	}
+});
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');

@@ -11,7 +11,7 @@ pr:
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: AzureKeyVault@1
   displayName: 'Azure Key Vault: Get Secrets'
@@ -31,10 +31,10 @@ steps:
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
 
-    git checkout origin/electron-8.0.x
+    git checkout origin/electron-11.x.y
     git merge origin/master
 
     # Push master branch into exploration branch
-    git push origin HEAD:electron-8.0.x
+    git push origin HEAD:electron-11.x.y
 
   displayName: Sync & Merge Exploration

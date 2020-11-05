@@ -10,8 +10,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
 import { URI } from 'vs/base/common/uri';
@@ -20,7 +20,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { BulkEditService } from 'vs/workbench/services/bulkEdit/browser/bulkEditService';
+import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
@@ -48,6 +48,8 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { extUri } from 'vs/base/common/resources';
 
 suite('MainThreadEditors', () => {
 
@@ -73,7 +75,7 @@ suite('MainThreadEditors', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService, dialogService);
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
 
 
 		const services = new ServiceCollection();
@@ -93,10 +95,6 @@ suite('MainThreadEditors', () => {
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(ITextFileService, new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
-			create(resource: URI) {
-				createdResources.add(resource);
-				return Promise.resolve(Object.create(null));
-			}
 			files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
@@ -104,16 +102,25 @@ suite('MainThreadEditors', () => {
 			};
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
-			move(source: URI, target: URI) {
+			onDidRunWorkingCopyFileOperation = Event.None;
+			create(resource: URI) {
+				createdResources.add(resource);
+				return Promise.resolve(Object.create(null));
+			}
+			move(files: { source: URI, target: URI }[]) {
+				const { source, target } = files[0];
 				movedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			copy(source: URI, target: URI) {
+			copy(files: { source: URI, target: URI }[]) {
+				const { source, target } = files[0];
 				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			delete(resource: URI) {
-				deletedResources.add(resource);
+			delete(resources: URI[]) {
+				for (const resource of resources) {
+					deletedResources.add(resource);
+				}
 				return Promise.resolve(undefined);
 			}
 		});
@@ -130,12 +137,15 @@ suite('MainThreadEditors', () => {
 
 		});
 		services.set(IPanelService, new class extends mock<IPanelService>() implements IPanelService {
-			_serviceBrand: undefined;
+			declare readonly _serviceBrand: undefined;
 			onDidPanelOpen = Event.None;
 			onDidPanelClose = Event.None;
 			getActivePanel() {
 				return undefined;
 			}
+		});
+		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			get extUri() { return extUri; }
 		});
 
 		const instaService = new InstantiationService(services);
@@ -160,6 +170,7 @@ suite('MainThreadEditors', () => {
 		let model = modelService.createModel('something', null, resource);
 
 		let workspaceResourceEdit: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -181,6 +192,7 @@ suite('MainThreadEditors', () => {
 		let model = modelService.createModel('something', null, resource);
 
 		let workspaceResourceEdit1: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -189,6 +201,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 		let workspaceResourceEdit2: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -211,9 +224,9 @@ suite('MainThreadEditors', () => {
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
-				{ oldUri: resource, newUri: resource, options: undefined },
-				{ oldUri: undefined, newUri: resource, options: undefined },
-				{ oldUri: resource, newUri: undefined, options: undefined }
+				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: resource, options: undefined },
+				{ _type: WorkspaceEditType.File, oldUri: undefined, newUri: resource, options: undefined },
+				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: undefined, options: undefined }
 			]
 		}).then((result) => {
 			assert.equal(result, true);

@@ -13,20 +13,6 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	return str.trim().length === 0;
 }
 
-/**
- * @deprecated ES6: use `String.padStart`
- */
-export function pad(n: number, l: number, char: string = '0'): string {
-	const str = '' + n;
-	const r = [str];
-
-	for (let i = str.length; i < l; i++) {
-		r.push(char);
-	}
-
-	return r.reverse().join('');
-}
-
 const _formatRegexp = /{(\d+)}/g;
 
 /**
@@ -67,6 +53,28 @@ export function escape(html: string): string {
  */
 export function escapeRegExpCharacters(value: string): string {
 	return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
+}
+
+/**
+ * Counts how often `character` occurs inside `value`.
+ */
+export function count(value: string, character: string): number {
+	let result = 0;
+	const ch = character.charCodeAt(0);
+	for (let i = value.length - 1; i >= 0; i--) {
+		if (value.charCodeAt(i) === ch) {
+			result++;
+		}
+	}
+	return result;
+}
+
+export function truncate(value: string, maxLength: number, suffix = '…'): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	return `${value.substr(0, maxLength)}${suffix}`;
 }
 
 /**
@@ -144,41 +152,6 @@ export function stripWildcards(pattern: string): string {
 	return pattern.replace(/\*/g, '');
 }
 
-/**
- * @deprecated ES6: use `String.startsWith`
- */
-export function startsWith(haystack: string, needle: string): boolean {
-	if (haystack.length < needle.length) {
-		return false;
-	}
-
-	if (haystack === needle) {
-		return true;
-	}
-
-	for (let i = 0; i < needle.length; i++) {
-		if (haystack[i] !== needle[i]) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-/**
- * @deprecated ES6: use `String.endsWith`
- */
-export function endsWith(haystack: string, needle: string): boolean {
-	const diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
-	}
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;
@@ -241,6 +214,10 @@ export function regExpFlags(regexp: RegExp): string {
 		+ (regexp.ignoreCase ? 'i' : '')
 		+ (regexp.multiline ? 'm' : '')
 		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
+}
+
+export function splitLines(str: string): string[] {
+	return str.split(/\r\n|\r|\n/);
 }
 
 /**
@@ -728,6 +705,14 @@ export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
 }
 
+export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029]/; // LINE SEPARATOR (LS) or PARAGRAPH SEPARATOR (PS)
+/**
+ * Returns true if `str` contains unusual line terminators, like LS or PS
+ */
+export function containsUnusualLineTerminators(str: string): boolean {
+	return UNUSUAL_LINE_TERMINATORS.test(str);
+}
+
 export function containsFullWidthCharacter(str: string): boolean {
 	for (let i = 0, len = str.length; i < len; i++) {
 		if (isFullWidthCharacter(str.charCodeAt(i))) {
@@ -845,21 +830,6 @@ export function startsWithUTF8BOM(str: string): boolean {
 
 export function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
-}
-
-export function safeBtoa(str: string): string {
-	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
-}
-
-/**
- * @deprecated ES6
- */
-export function repeat(s: string, count: number): string {
-	let result = '';
-	for (let i = 0; i < count; i++) {
-		result += s;
-	}
-	return result;
 }
 
 /**

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONSchemaType } from 'vs/base/common/jsonSchema';
-import { isArray } from 'vs/base/common/types';
 import * as nls from 'vs/nls';
+import { JSONSchemaType } from 'vs/base/common/jsonSchema';
+import { Color } from 'vs/base/common/color';
+import { isArray } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
 type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
@@ -55,29 +56,39 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 	};
 }
 
+/**
+ * Returns an error string if the value is invalid and can't be displayed in the settings UI for the given type.
+ */
 export function getInvalidTypeError(value: any, type: undefined | string | string[]): string | undefined {
-	let typeArr = Array.isArray(type) ? type : [type];
-	const isNullable = canBeType(typeArr, 'null');
-	if (canBeType(typeArr, 'number', 'integer') && (typeArr.length === 1 || typeArr.length === 2 && isNullable)) {
-		if (value === '' || isNaN(+value)) {
-			return nls.localize('validations.expectedNumeric', "Value must be a number.");
-		}
+	if (typeof type === 'undefined') {
+		return;
 	}
 
-	const valueType = typeof value;
-	if (
-		(valueType === 'boolean' && !canBeType(typeArr, 'boolean')) ||
-		(valueType === 'object' && !canBeType(typeArr, 'object', 'null', 'array')) ||
-		(valueType === 'string' && !canBeType(typeArr, 'string', 'number', 'integer')) ||
-		(typeof parseFloat(value) === 'number' && !isNaN(parseFloat(value)) && !canBeType(typeArr, 'number', 'integer')) ||
-		(Array.isArray(value) && !canBeType(typeArr, 'array'))
-	) {
-		if (typeof type !== 'undefined') {
-			return nls.localize('invalidTypeError', "Setting has an invalid type, expected {0}. Fix in JSON.", JSON.stringify(type));
-		}
+	const typeArr = Array.isArray(type) ? type : [type];
+	if (!typeArr.some(_type => valueValidatesAsType(value, _type))) {
+		return nls.localize('invalidTypeError', "Setting has an invalid type, expected {0}. Fix in JSON.", JSON.stringify(type));
 	}
 
 	return;
+}
+
+function valueValidatesAsType(value: any, type: string): boolean {
+	const valueType = typeof value;
+	if (type === 'boolean') {
+		return valueType === 'boolean';
+	} else if (type === 'object') {
+		return value && !Array.isArray(value) && valueType === 'object';
+	} else if (type === 'null') {
+		return value === null;
+	} else if (type === 'array') {
+		return Array.isArray(value);
+	} else if (type === 'string') {
+		return valueType === 'string';
+	} else if (type === 'number' || type === 'integer') {
+		return valueType === 'number';
+	}
+
+	return true;
 }
 
 function getStringValidators(prop: IConfigurationPropertySchema) {
@@ -101,6 +112,11 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 			isValid: ((value: string) => patternRegex!.test(value)),
 			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
 		},
+		{
+			enabled: prop.format === 'color-hex',
+			isValid: ((value: string) => Color.Format.CSS.parseHex(value)),
+			message: nls.localize('validations.colorFormat', "Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA.")
+		}
 	].filter(validation => validation.enabled);
 }
 

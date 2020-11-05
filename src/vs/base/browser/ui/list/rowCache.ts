@@ -5,7 +5,7 @@
 
 import { IListRenderer } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { $, removeClass } from 'vs/base/browser/dom';
+import { $ } from 'vs/base/browser/dom';
 
 export interface IRow {
 	domNode: HTMLElement | null;
@@ -60,7 +60,7 @@ export class RowCache<T> implements IDisposable {
 	private releaseRow(row: IRow): void {
 		const { domNode, templateId } = row;
 		if (domNode) {
-			removeClass(domNode, 'scrolling');
+			domNode.classList.remove('scrolling');
 			removeFromParent(domNode);
 		}
 

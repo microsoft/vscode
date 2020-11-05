@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import * as resources from 'vs/base/common/resources';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -55,7 +54,6 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,
 	handler: async (accessor) => {
-		const viewletService = accessor.get(IViewletService);
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const dialogsService = accessor.get(IFileDialogService);
 		const folders = await dialogsService.showOpenDialog({
@@ -71,7 +69,6 @@ CommandsRegistry.registerCommand({
 		}
 
 		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })));
-		await viewletService.openViewlet(viewletService.getDefaultViewletId(), true);
 	}
 });
 

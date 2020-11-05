@@ -289,3 +289,31 @@ export class StandardAutoClosingPairConditional {
 		return (this._standardTokenMask & <number>standardToken) === 0;
 	}
 }
+
+/**
+ * @internal
+ */
+export class AutoClosingPairs {
+
+	public readonly autoClosingPairsOpen: Map<string, StandardAutoClosingPairConditional[]>;
+	public readonly autoClosingPairsClose: Map<string, StandardAutoClosingPairConditional[]>;
+
+	constructor(autoClosingPairs: StandardAutoClosingPairConditional[]) {
+		this.autoClosingPairsOpen = new Map<string, StandardAutoClosingPairConditional[]>();
+		this.autoClosingPairsClose = new Map<string, StandardAutoClosingPairConditional[]>();
+		for (const pair of autoClosingPairs) {
+			appendEntry(this.autoClosingPairsOpen, pair.open.charAt(pair.open.length - 1), pair);
+			if (pair.close.length === 1) {
+				appendEntry(this.autoClosingPairsClose, pair.close, pair);
+			}
+		}
+	}
+}
+
+function appendEntry<K, V>(target: Map<K, V[]>, key: K, value: V): void {
+	if (target.has(key)) {
+		target.get(key)!.push(value);
+	} else {
+		target.set(key, [value]);
+	}
+}
