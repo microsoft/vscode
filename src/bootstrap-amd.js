@@ -5,6 +5,9 @@
 
 //@ts-check
 'use strict';
+'use strict';
+'use strict';
+
 
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
