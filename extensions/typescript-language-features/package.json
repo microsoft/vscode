@@ -519,7 +519,7 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
-          "markdownDeprecationMessage": "%configuration.javascript.implicitProjectConfig.experimentalDecorators.deprecation%",
+          "markdownDeprecationMessage": "%configuration.javascript.checkJs.experimentalDecorators.deprecation%",
           "scope": "window"
         },
         "js/ts.implicitProjectConfig.experimentalDecorators": {
