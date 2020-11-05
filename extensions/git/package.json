@@ -1751,6 +1751,22 @@
           "description": "%config.enableStatusBarSync%",
           "scope": "resource"
         },
+        "git.promptToSaveFilesBeforeStash": {
+          "type": "string",
+          "enum": [
+            "always",
+            "staged",
+            "never"
+          ],
+          "enumDescriptions": [
+            "%config.promptToSaveFilesBeforeStash.always%",
+            "%config.promptToSaveFilesBeforeStash.staged%",
+            "%config.promptToSaveFilesBeforeStash.never%"
+          ],
+          "scope": "resource",
+          "default": "always",
+          "description": "%config.promptToSaveFilesBeforeStash%"
+        },
         "git.promptToSaveFilesBeforeCommit": {
           "type": "string",
           "enum": [
