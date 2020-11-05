@@ -2331,7 +2331,7 @@ export class CommandCenter {
 			localize('sure drop', "Are you sure you want to drop the stash: {0}?", stash.description),
 			yes
 		);
-		if (result !== 'Yes') {
+		if (result !== yes) {
 			return;
 		}
 
