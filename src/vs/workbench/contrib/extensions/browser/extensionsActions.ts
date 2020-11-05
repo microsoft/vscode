@@ -14,7 +14,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -40,7 +40,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -62,47 +62,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { EXTENSIONS_CONFIG } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-
-const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error, instantiationService: IInstantiationService): Promise<any> => {
-	return instantiationService.invokeFunction(accessor => {
-		if (isPromiseCanceledError(error)) {
-			return Promise.resolve();
-		}
-
-		const productService = accessor.get(IProductService);
-		const openerService = accessor.get(IOpenerService);
-		const notificationService = accessor.get(INotificationService);
-		const dialogService = accessor.get(IDialogService);
-		const erorrsToShows = [INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_NOT_SUPPORTED];
-		if (!extension || erorrsToShows.indexOf(error.name) !== -1 || !productService.extensionsGallery) {
-			return dialogService.show(Severity.Error, error.message, []);
-		} else {
-			const downloadUrl = `${productService.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
-			notificationService.prompt(Severity.Error, message, [{
-				label: localize('download', "Download Manually"),
-				run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
-					notificationService.prompt(
-						Severity.Info,
-						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.identifier.id),
-						[{
-							label: InstallVSIXAction.LABEL,
-							run: () => {
-								const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
-								action.run();
-								action.dispose();
-							}
-						}]
-					);
-				})
-			}]);
-			return Promise.resolve();
-		}
-	});
-};
+import { ILogService } from 'vs/platform/log/common/log';
+import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -136,6 +101,61 @@ function getRelativeDateLabel(date: Date): string {
 	}
 
 	return '';
+}
+
+class PromptExtensionInstallFailureAction extends Action {
+
+	constructor(
+		private readonly extension: IExtension,
+		private readonly installOperation: InstallOperation,
+		private readonly error: Error,
+		@IProductService private readonly productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super('extension.promptExtensionInstallFailure');
+	}
+
+	async run(): Promise<void> {
+		if (isPromiseCanceledError(this.error)) {
+			return;
+		}
+
+		this.logService.error(this.error);
+		const operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
+			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
+
+		if ([INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_NOT_SUPPORTED].includes(this.error.name)) {
+			await this.dialogService.show(Severity.Error, `${operationMessage}\n${getErrorMessage(this.error)}`, []);
+			return;
+		}
+
+		const promptChoices: IPromptChoice[] = [];
+		if (this.extension.gallery && this.productService.extensionsGallery) {
+			promptChoices.push({
+				label: localize('download', "Try Downloading Manually..."),
+				run: () => this.openerService.open(URI.parse(`${this.productService.extensionsGallery!.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.extension.version}/vspackage`)).then(() => {
+					this.notificationService.prompt(
+						Severity.Info,
+						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
+						[{
+							label: InstallVSIXAction.LABEL,
+							run: () => {
+								const action = this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
+								action.run();
+								action.dispose();
+							}
+						}]
+					);
+				})
+			});
+		}
+		const checkLogsMessage = localize('check logs', "Please check [logs]({0}) for more details.", `command:${Constants.showWindowLogActionId}`);
+		this.notificationService.prompt(Severity.Error, `${operationMessage} ${checkLogsMessage}`, promptChoices);
+	}
 }
 
 export abstract class ExtensionAction extends Action implements IExtensionContainer {
@@ -213,7 +233,6 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		id: string, label: string, cssClass: string,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -243,9 +262,8 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 
 		const extension = await this.install(this.extension);
 
-		alert(localize('installExtensionComplete', "Installing extension {0} is completed.", this.extension.displayName));
-
-		if (extension && extension.local) {
+		if (extension?.local) {
+			alert(localize('installExtensionComplete', "Installing extension {0} is completed.", this.extension.displayName));
 			const runningExtension = await this.getRunningExtension(extension.local);
 			if (runningExtension && !(runningExtension.activationEvents && runningExtension.activationEvents.some(activationEent => activationEent.startsWith('onLanguage')))) {
 				let action = await SetColorThemeAction.create(this.workbenchThemeService, this.instantiationService, extension)
@@ -263,17 +281,13 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 
 	}
 
-	private install(extension: IExtension): Promise<IExtension | void> {
-		return this.extensionsWorkbenchService.install(extension, this.getInstallOptions())
-			.then(null, err => {
-				if (!extension.gallery) {
-					return this.notificationService.error(err);
-				}
-
-				console.error(err);
-
-				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
-			});
+	private async install(extension: IExtension): Promise<IExtension | undefined> {
+		try {
+			return await this.extensionsWorkbenchService.install(extension, this.getInstallOptions());
+		} catch (error) {
+			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Install, error).run();
+			return undefined;
+		}
 	}
 
 	private async getRunningExtension(extension: ILocalExtension): Promise<IExtensionDescription | null> {
@@ -304,7 +318,6 @@ export class InstallAction extends AbstractInstallAction {
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService notificationService: INotificationService,
 		@IExtensionService runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
@@ -315,7 +328,7 @@ export class InstallAction extends AbstractInstallAction {
 		@IUserDataSyncResourceEnablementService protected readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 	) {
 		super(`extensions.installAndSync`, localize('install', "Install"), InstallAction.Class,
-			extensionsWorkbenchService, instantiationService, notificationService, runtimeExtensionService, workbenchThemeService, labelService);
+			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
 		this.updateLabel();
 		this._register(labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 		this._register(Event.any(userDataAutoSyncEnablementService.onDidChangeEnablement,
@@ -362,7 +375,6 @@ export class InstallAndSyncAction extends AbstractInstallAction {
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService notificationService: INotificationService,
 		@IExtensionService runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
@@ -371,7 +383,7 @@ export class InstallAndSyncAction extends AbstractInstallAction {
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 	) {
 		super(`extensions.installAndSync`, localize('install', "Install"), InstallAndSyncAction.Class,
-			extensionsWorkbenchService, instantiationService, notificationService, runtimeExtensionService, workbenchThemeService, labelService);
+			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService);
 		this.tooltip = localize('install everywhere tooltip', "Install this extension in all your synced {0} instances", productService.nameLong);
 		this._register(Event.any(userDataAutoSyncEnablementService.onDidChangeEnablement,
 			Event.filter(userDataSyncResourceEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
@@ -632,7 +644,6 @@ export class UpdateAction extends ExtensionAction {
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(`extensions.update`, '', UpdateAction.DisabledClass, false);
 		this.update();
@@ -669,18 +680,13 @@ export class UpdateAction extends ExtensionAction {
 		return this.install(this.extension);
 	}
 
-	private install(extension: IExtension): Promise<void> {
-		return this.extensionsWorkbenchService.install(extension).then(() => {
+	private async install(extension: IExtension): Promise<void> {
+		try {
+			await this.extensionsWorkbenchService.install(extension);
 			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
-		}, err => {
-			if (!extension.gallery) {
-				return this.notificationService.error(err);
-			}
-
-			console.error(err);
-
-			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService);
-		});
+		} catch (err) {
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Update, err).run();
+		}
 	}
 
 	private getUpdateLabel(version?: string): string {
@@ -968,7 +974,6 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL);
 		this.update();
@@ -983,22 +988,20 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			return Promise.resolve();
 		}
 		return this.quickInputService.pick(this.getVersionEntries(), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true })
-			.then(pick => {
+			.then(async pick => {
 				if (pick) {
 					if (this.extension!.version === pick.id) {
 						return Promise.resolve();
 					}
-					const promise: Promise<any> = pick.latest ? this.extensionsWorkbenchService.install(this.extension!) : this.extensionsWorkbenchService.installVersion(this.extension!, pick.id);
-					return promise
-						.then(null, err => {
-							if (!this.extension!.gallery) {
-								return this.notificationService.error(err);
-							}
-
-							console.error(err);
-
-							return promptDownloadManually(this.extension!.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension!.identifier.id), err, this.instantiationService);
-						});
+					try {
+						if (pick.latest) {
+							await this.extensionsWorkbenchService.install(this.extension!);
+						} else {
+							await this.extensionsWorkbenchService.installVersion(this.extension!, pick.id);
+						}
+					} catch (error) {
+						this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension!, InstallOperation.Install, error).run();
+					}
 				}
 				return null;
 			});
@@ -1265,7 +1268,6 @@ export class UpdateAllAction extends Action {
 	constructor(
 		id: string, label: string, isPrimary: boolean,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, '', false);
@@ -1283,16 +1285,12 @@ export class UpdateAllAction extends Action {
 		return Promise.all(this.extensionsWorkbenchService.outdated.map(e => this.install(e)));
 	}
 
-	private install(extension: IExtension): Promise<any> {
-		return this.extensionsWorkbenchService.install(extension).then(undefined, err => {
-			if (!extension.gallery) {
-				return this.notificationService.error(err);
-			}
-
-			console.error(err);
-
-			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService);
-		});
+	private async install(extension: IExtension): Promise<void> {
+		try {
+			await this.extensionsWorkbenchService.install(extension);
+		} catch (err) {
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Update, err).run();
+		}
 	}
 }
 
@@ -1956,26 +1954,21 @@ export class InstallRecommendedExtensionAction extends Action {
 		this.extensionId = extensionId;
 	}
 
-	run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-			.then(viewlet => {
-				viewlet.search(`@id:${this.extensionId}`);
-				viewlet.focus();
-				return this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None)
-					.then(pager => {
-						if (pager && pager.firstPage && pager.firstPage.length) {
-							const extension = pager.firstPage[0];
-							return this.extensionWorkbenchService.install(extension)
-								.then(() => this.extensionWorkbenchService.open(extension))
-								.then(() => null, err => {
-									console.error(err);
-									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
-								});
-						}
-						return null;
-					});
-			});
+	async run(): Promise<any> {
+		const viewlet = await this.viewletService.openViewlet(VIEWLET_ID, true);
+		const viewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		viewPaneContainer.search(`@id:${this.extensionId}`);
+		viewPaneContainer.focus();
+		const pager = await this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None);
+		if (pager && pager.firstPage && pager.firstPage.length) {
+			const extension = pager.firstPage[0];
+			await this.extensionWorkbenchService.open(extension);
+			try {
+				await this.extensionWorkbenchService.install(extension);
+			} catch (err) {
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Install, err).run();
+			}
+		}
 	}
 }
 
