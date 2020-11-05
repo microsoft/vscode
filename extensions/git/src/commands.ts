@@ -1460,6 +1460,8 @@ export class CommandCenter {
 				// no staged changes and no tracked unstaged changes
 				|| (noStagedChanges && smartCommitChanges === 'tracked' && repository.workingTreeGroup.resourceStates.every(r => r.type === Status.UNTRACKED))
 			)
+			// amend allows changing only the commit message
+			&& !opts.amend
 			&& !opts.empty
 		) {
 			const commitAnyway = localize('commit anyway', "Create Empty Commit");
