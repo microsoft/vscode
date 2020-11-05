@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
-import * as path from 'path';
 import { MarkdownIt, Token } from 'markdown-it';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { Schemes, isOfScheme } from './util/links';
+import { hash } from './util/hash';
+import { isOfScheme, MarkdownFileExtensions, Schemes } from './util/links';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -129,7 +129,6 @@ export class MarkdownEngine {
 		}
 
 		this.currentDocument = document.uri;
-		this._slugCount = new Map<string, number>();
 
 		const tokens = this.tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
@@ -137,6 +136,8 @@ export class MarkdownEngine {
 	}
 
 	private tokenizeString(text: string, engine: MarkdownIt) {
+		this._slugCount = new Map<string, number>();
+
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
@@ -197,9 +198,7 @@ export class MarkdownEngine {
 
 			const src = token.attrGet('src');
 			if (src) {
-				const hash = crypto.createHash('sha256');
-				hash.update(src);
-				const imgHash = hash.digest('hex');
+				const imgHash = hash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 			}
 
@@ -242,7 +241,7 @@ export class MarkdownEngine {
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
 						if (root) {
-							const fileUri = vscode.Uri.file(path.join(root.uri.fsPath, uri.fsPath));
+							const fileUri = vscode.Uri.joinPath(root.uri, uri.fsPath);
 							uri = fileUri.with({
 								scheme: uri.scheme,
 								fragment: uri.fragment,
@@ -251,7 +250,9 @@ export class MarkdownEngine {
 						}
 					}
 
-					if (uri.fragment) {
+					const extname = path.extname(uri.fsPath);
+
+					if (uri.fragment && (extname === '' || MarkdownFileExtensions.includes(extname))) {
 						uri = uri.with({
 							fragment: this.slugifier.fromHeading(uri.fragment).value
 						});
@@ -355,4 +356,3 @@ function normalizeHighlightLang(lang: string | undefined) {
 			return lang;
 	}
 }
-

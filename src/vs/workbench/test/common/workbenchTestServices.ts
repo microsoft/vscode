@@ -8,18 +8,24 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { InMemoryStorageService, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { WorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -37,7 +43,7 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 
 export class TestContextService implements IWorkspaceContextService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private workspace: Workspace;
 	private options: object;
@@ -75,11 +81,11 @@ export class TestContextService implements IWorkspaceContextService {
 		return WorkbenchState.EMPTY;
 	}
 
-	getCompleteWorkspace(): Promise<IWorkbenchWorkspace> {
+	getCompleteWorkspace(): Promise<IWorkspace> {
 		return Promise.resolve(this.getWorkspace());
 	}
 
-	getWorkspace(): IWorkbenchWorkspace {
+	getWorkspace(): IWorkspace {
 		return this.workspace;
 	}
 
@@ -115,11 +121,94 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestStorageService extends InMemoryStorageService {
-	readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState = this._onWillSaveState.event;
+
+	emitWillSaveState(reason: WillSaveStateReason): void {
+		super.emitWillSaveState(reason);
+	}
 }
 
 export class TestWorkingCopyService extends WorkingCopyService { }
+
+export class TestWorkingCopy extends Disposable implements IWorkingCopy {
+
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
+
+	readonly capabilities = WorkingCopyCapabilities.None;
+
+	readonly name = resources.basename(this.resource);
+
+	private dirty = false;
+
+	constructor(public readonly resource: URI, isDirty = false) {
+		super();
+
+		this.dirty = isDirty;
+	}
+
+	setDirty(dirty: boolean): void {
+		if (this.dirty !== dirty) {
+			this.dirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	setContent(content: string): void {
+		this._onDidChangeContent.fire();
+	}
+
+	isDirty(): boolean {
+		return this.dirty;
+	}
+
+	async save(options?: ISaveOptions): Promise<boolean> {
+		return true;
+	}
+
+	async revert(options?: IRevertOptions): Promise<void> {
+		this.setDirty(false);
+	}
+
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+		return {};
+	}
+
+	dispose(): void {
+		this._onDispose.fire();
+
+		super.dispose();
+	}
+}
+
+export class TestWorkingCopyFileService implements IWorkingCopyFileService {
+
+	declare readonly _serviceBrand: undefined;
+
+	onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
+
+	async delete(resources: URI[], options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<void> { }
+
+	registerWorkingCopyProvider(provider: (resourceOrFolder: URI) => IWorkingCopy[]): IDisposable { return Disposable.None; }
+
+	getDirty(resource: URI): IWorkingCopy[] { return []; }
+
+	create(resource: URI, contents?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: { overwrite?: boolean | undefined; } | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+	createFolder(resource: URI): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+
+	move(files: { source: URI; target: URI; }[], options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+
+	copy(files: { source: URI; target: URI; }[], options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+}
 
 export function mock<T>(): Ctor<T> {
 	return function () { } as any;

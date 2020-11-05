@@ -14,7 +14,7 @@ const i18n = require('./lib/i18n');
 const standalone = require('./lib/standalone');
 const cp = require('child_process');
 const compilation = require('./lib/compilation');
-const monacoapi = require('./monaco/api');
+const monacoapi = require('./lib/monaco-api');
 const fs = require('fs');
 const webpack = require('webpack');
 const webpackGulp = require('webpack-stream');
@@ -43,7 +43,7 @@ let editorEntryPoints = [
 ];
 
 let editorResources = [
-	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
+	'out-editor-build/vs/base/browser/ui/codicons/**/*.ttf'
 ];
 
 let BUNDLED_FILE_HEADER = [
@@ -51,7 +51,7 @@ let BUNDLED_FILE_HEADER = [
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + headerVersion,
 	' * Released under the MIT license',
-	' * https://github.com/Microsoft/vscode/blob/master/LICENSE.txt',
+	' * https://github.com/microsoft/vscode/blob/master/LICENSE.txt',
 	' *-----------------------------------------------------------*/',
 	''
 ].join('\n');
@@ -127,6 +127,7 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 
 const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	const KEEP_PREV_ANALYSIS = false;
+	const FAIL_ON_PURPOSE = false;
 	console.log(`Launching the TS compiler at ${path.join(__dirname, '../out-editor-esm')}...`);
 	let result;
 	if (process.platform === 'win32') {
@@ -142,7 +143,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	console.log(result.stdout.toString());
 	console.log(result.stderr.toString());
 
-	if (result.status !== 0) {
+	if (FAIL_ON_PURPOSE || result.status !== 0) {
 		console.log(`The TS Compilation failed, preparing analysis folder...`);
 		const destPath = path.join(__dirname, '../../vscode-monaco-editor-esm-analysis');
 		const keepPrevAnalysis = (KEEP_PREV_ANALYSIS && fs.existsSync(destPath));
@@ -280,7 +281,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		// version.txt
 		gulp.src('build/monaco/version.txt')
 			.pipe(es.through(function (data) {
-				data.contents = Buffer.from(`monaco-editor-core: https://github.com/Microsoft/vscode/tree/${sha1}`);
+				data.contents = Buffer.from(`monaco-editor-core: https://github.com/microsoft/vscode/tree/${sha1}`);
 				this.emit('data', data);
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),

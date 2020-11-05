@@ -5,17 +5,18 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFolderQuery, IPatternInfo, QueryType, ITextQuery, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, toWorkspaceFolder, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { isWindows } from 'vs/base/common/platform';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import { TestPathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true };
@@ -49,6 +50,7 @@ suite('QueryBuilder', () => {
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IPathService, new TestPathService());
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});
@@ -949,8 +951,8 @@ export function assertEqualQueries(actual: ITextQuery | IFileQuery, expected: IT
 	// Avoid comparing URI objects, not a good idea
 	if (expected.folderQueries) {
 		assert.deepEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));
-		delete actual.folderQueries;
-		delete expected.folderQueries;
+		actual.folderQueries = [];
+		expected.folderQueries = [];
 	}
 
 	if (expected.extraFileResources) {

@@ -11,12 +11,13 @@ import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remo
 export class ShowCandidateContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		if (workbenchEnvironmentService.options && workbenchEnvironmentService.options.showCandidate) {
+		const showPortCandidate = environmentService.options?.tunnelProvider?.showPortCandidate;
+		if (showPortCandidate) {
 			this._register(remoteExplorerService.setCandidateFilter(async (candidates: { host: string, port: number, detail: string }[]): Promise<{ host: string, port: number, detail: string }[]> => {
-				const filters: boolean[] = await Promise.all(candidates.map(candidate => workbenchEnvironmentService.options!.showCandidate!(candidate.host, candidate.port, candidate.detail)));
+				const filters: boolean[] = await Promise.all(candidates.map(candidate => showPortCandidate(candidate.host, candidate.port, candidate.detail)));
 				const filteredCandidates: { host: string, port: number, detail: string }[] = [];
 				if (filters.length !== candidates.length) {
 					return candidates;

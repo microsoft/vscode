@@ -250,8 +250,8 @@ const command: IJSONSchema = {
 					enum: ['escape', 'strong', 'weak'],
 					enumDescriptions: [
 						nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
-						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
 					],
 					default: 'strong',
 					description: nls.localize('JsonSchema.command.quotesString.quote', 'How the command value should be quoted.')
@@ -283,8 +283,8 @@ const args: IJSONSchema = {
 						enum: ['escape', 'strong', 'weak'],
 						enumDescriptions: [
 							nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
-							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
 						],
 						default: 'strong',
 						description: nls.localize('JsonSchema.args.quotesString.quote', 'How the argument value should be quoted.')

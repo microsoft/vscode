@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Profile, ProfileNode } from 'v8-inspect-profiler';
+import type { Profile, ProfileNode } from 'v8-inspect-profiler';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { realpathSync } from 'vs/base/node/extpath';
 import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
@@ -30,10 +30,10 @@ export class ExtensionHostProfiler {
 	}
 
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
-		let searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
+		let searchTree = TernarySearchTree.forUris<IExtensionDescription>();
 		for (let extension of extensions) {
 			if (extension.extensionLocation.scheme === Schemas.file) {
-				searchTree.set(URI.file(realpathSync(extension.extensionLocation.fsPath)).toString(), extension);
+				searchTree.set(URI.file(realpathSync(extension.extensionLocation.fsPath)), extension);
 			}
 		}
 
@@ -62,7 +62,7 @@ export class ExtensionHostProfiler {
 			} else if (segmentId === 'self' && node.callFrame.url) {
 				let extension: IExtensionDescription | undefined;
 				try {
-					extension = searchTree.findSubstr(URI.parse(node.callFrame.url).toString());
+					extension = searchTree.findSubstr(URI.parse(node.callFrame.url));
 				} catch {
 					// ignore
 				}
