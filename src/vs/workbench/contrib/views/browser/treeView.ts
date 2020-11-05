@@ -435,6 +435,7 @@ export class TreeView extends Disposable implements ITreeView {
 				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 			}
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
 		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
 		renderer.actionRunner = actionRunner;
@@ -995,10 +996,10 @@ class MultipleSelectionActionRunner extends ActionRunner {
 }
 
 class TreeMenus extends Disposable implements IDisposable {
+	private contextKeyService: IContextKeyService | undefined;
 
 	constructor(
 		private id: string,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
 		super();
@@ -1012,7 +1013,14 @@ class TreeMenus extends Disposable implements IDisposable {
 		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).secondary;
 	}
 
+	public setContextKeyService(service: IContextKeyService) {
+		this.contextKeyService = service;
+	}
+
 	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
+		if (!this.contextKeyService) {
+			return { primary: [], secondary: [] };
+		}
 		const contextKeyService = this.contextKeyService.createScoped();
 		contextKeyService.createKey('view', this.id);
 		contextKeyService.createKey(context.key, context.value);
