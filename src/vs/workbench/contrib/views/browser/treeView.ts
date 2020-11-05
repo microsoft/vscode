@@ -43,6 +43,8 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -778,23 +780,26 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return { resourceLabel, icon, actionBar, container, elementDisposable: Disposable.None };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | Promise<IMarkdownString | string | undefined> | undefined {
+	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IIconLabelMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource) {
 				return undefined;
 			} else if (!node.tooltip) {
 				return label;
 			} else if (!isString(node.tooltip)) {
-				return Promise.resolve(node.tooltip);
+				return { markdown: node.tooltip, markdownNotSupportedFallback: resource ? undefined : renderMarkdownAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
 			} else {
 				return node.tooltip;
 			}
 		}
 
-		return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-			await node.resolve();
-			resolve(node.tooltip);
-		});
+		return {
+			markdown: new Promise<IMarkdownString | string | undefined>(async (resolve) => {
+				await node.resolve();
+				resolve(node.tooltip);
+			}),
+			markdownNotSupportedFallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
+		};
 	}
 
 	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {

@@ -24,8 +24,13 @@ export interface IIconLabelCreationOptions {
 	hoverDelegate?: IHoverDelegate;
 }
 
+export interface IIconLabelMarkdownString {
+	markdown: IMarkdownString | string | undefined | Promise<IMarkdownString | string | undefined>;
+	markdownNotSupportedFallback: string | undefined;
+}
+
 export interface IIconLabelValueOptions {
-	title?: string | IMarkdownString | Promise<IMarkdownString | string | undefined>;
+	title?: string | IIconLabelMarkdownString;
 	descriptionTitle?: string;
 	hideIcon?: boolean;
 	extraClasses?: string[];
@@ -164,7 +169,7 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
+	private setupHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
 		const previousCustomHover = this.customHovers.get(htmlElement);
 		if (previousCustomHover) {
 			previousCustomHover.dispose();
@@ -183,8 +188,9 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
+	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString): void {
 		htmlElement.removeAttribute('title');
+		let tooltip = isString(markdownTooltip) ? markdownTooltip : markdownTooltip.markdown;
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
 		const hoverDelay = isMacintosh ? 1500 : 500;
@@ -232,8 +238,14 @@ export class IconLabel extends Disposable {
 		this.customHovers.set(htmlElement, mouseOverDisposable);
 	}
 
-	private setupNativeHover(htmlElement: HTMLElement, tooltip: string | IMarkdownString | Promise<IMarkdownString | string | undefined> | undefined): void {
-		htmlElement.title = isString(tooltip) ? tooltip : '';
+	private setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
+		let stringTooltip: string = '';
+		if (isString(tooltip)) {
+			stringTooltip = tooltip;
+		} else if (tooltip?.markdownNotSupportedFallback) {
+			stringTooltip = tooltip.markdownNotSupportedFallback;
+		}
+		htmlElement.title = stringTooltip;
 	}
 }
 
