@@ -70,7 +70,7 @@ export class WebviewViewPane extends ViewPane {
 		this.defaultTitle = this.title;
 
 		this.memento = new Memento(`webviewView.${this.id}`, storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE);
+		this.viewState = this.memento.legacygetMemento(StorageScope.WORKSPACE);
 
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 

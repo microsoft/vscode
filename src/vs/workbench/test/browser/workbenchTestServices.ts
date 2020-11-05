@@ -63,7 +63,7 @@ import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
@@ -1219,12 +1219,12 @@ export class TestEditorPart extends EditorPart {
 	}
 
 	clearState(): void {
-		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE);
+		const workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		for (const key of Object.keys(workspaceMemento)) {
 			delete workspaceMemento[key];
 		}
 
-		const globalMemento = this.getMemento(StorageScope.GLOBAL);
+		const globalMemento = this.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		for (const key of Object.keys(globalMemento)) {
 			delete globalMemento[key];
 		}
