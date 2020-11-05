@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEnvironmentVariableCollection, EnvironmentVariableMutatorType, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff, IExtensionOwnedEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
@@ -42,24 +42,30 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	}
 
 	applyToProcessEnvironment(env: IProcessEnvironment): void {
+		let lowerToActualVariableNames: { [lowerKey: string]: string | undefined } | undefined;
+		if (isWindows) {
+			lowerToActualVariableNames = {};
+			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
+		}
 		this.map.forEach((mutators, variable) => {
+			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			mutators.forEach(mutator => {
 				switch (mutator.type) {
 					case EnvironmentVariableMutatorType.Append:
-						env[variable] = (env[variable] || '') + mutator.value;
+						env[actualVariable] = (env[actualVariable] || '') + mutator.value;
 						break;
 					case EnvironmentVariableMutatorType.Prepend:
-						env[variable] = mutator.value + (env[variable] || '');
+						env[actualVariable] = mutator.value + (env[actualVariable] || '');
 						break;
 					case EnvironmentVariableMutatorType.Replace:
-						env[variable] = mutator.value;
+						env[actualVariable] = mutator.value;
 						break;
 				}
 			});
 		});
 	}
 
-	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff {
+	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined {
 		const added: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const changed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
@@ -90,6 +96,10 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				changed.set(variable, result);
 			}
 		});
+
+		if (added.size === 0 && changed.size === 0 && removed.size === 0) {
+			return undefined;
+		}
 
 		return { added, changed, removed };
 	}

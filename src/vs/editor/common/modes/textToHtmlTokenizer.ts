@@ -68,7 +68,9 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					break;
 
 				case CharCode.UTF8_BOM:
-				case CharCode.LINE_SEPARATOR_2028:
+				case CharCode.LINE_SEPARATOR:
+				case CharCode.PARAGRAPH_SEPARATOR:
+				case CharCode.NEXT_LINE:
 					partContent += '\ufffd';
 					break;
 
@@ -99,7 +101,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 
 function _tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport): string {
 	let result = `<div class="monaco-tokenized-source">`;
-	let lines = text.split(/\r\n|\r|\n/);
+	let lines = strings.splitLines(text);
 	let currentState = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let line = lines[i];

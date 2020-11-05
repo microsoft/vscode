@@ -16,7 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, registerEditorContribution, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -30,6 +30,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -273,16 +277,15 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 }
 
-class ShowAccessibilityHelpAction extends EditorAction {
+// Show Accessibility Help is a workench command so it can also be shown when there is no editor open #108850
+class ShowAccessibilityHelpAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'editor.action.showAccessibilityHelp',
-			label: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"),
-			alias: 'Show Accessibility Help',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
+			title: { value: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"), original: 'Show Accessibility Help' },
+			f1: true,
+			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F1,
 				weight: KeybindingWeight.EditorContrib,
 				linux: {
@@ -293,16 +296,26 @@ class ShowAccessibilityHelpAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = AccessibilityHelpController.get(editor);
-		if (controller) {
-			controller.show();
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(ICodeEditorService);
+		let activeEditor = editorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+		}
+		activeEditor = editorService.getActiveCodeEditor();
+
+		if (activeEditor) {
+			const controller = AccessibilityHelpController.get(activeEditor);
+			if (controller) {
+				controller.show();
+			}
 		}
 	}
 }
 
 registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
-registerEditorAction(ShowAccessibilityHelpAction);
+registerAction2(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 

@@ -15,6 +15,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class TwitterFeedbackService implements IFeedbackDelegate {
 
@@ -68,7 +69,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 				command: {
 					id: 'help.tweetFeedback',
-					category: localize('help', "Help"),
+					category: CATEGORIES.Help,
 					title: localize('status.feedback', "Tweet Feedback")
 				}
 			});
@@ -103,6 +104,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 	private getStatusEntry(showBeak?: boolean): IStatusbarEntry {
 		return {
 			text: '$(feedback)',
+			ariaLabel: localize('status.feedback', "Tweet Feedback"),
 			tooltip: localize('status.feedback', "Tweet Feedback"),
 			command: 'help.tweetFeedback',
 			showBeak

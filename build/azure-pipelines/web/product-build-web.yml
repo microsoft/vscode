@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -87,6 +87,13 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-web-min-ci
   displayName: Build
+
+- script: |
+    set -e
+    AZURE_STORAGE_ACCOUNT="$(web-storage-account)" \
+    AZURE_STORAGE_ACCESS_KEY="$(web-storage-key)" \
+      node build/azure-pipelines/upload-cdn.js
+  displayName: Upload to CDN
 
   # upload only the workbench.web.api.js source maps because
   # we just compiled these bits in the previous step and the

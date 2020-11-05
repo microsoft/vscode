@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -39,12 +40,16 @@ export interface IActionRunner extends IDisposable {
 }
 
 export interface IActionViewItem extends IDisposable {
-	readonly actionRunner: IActionRunner;
+	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
 	isEnabled(): boolean;
-	focus(): void;
+	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
+}
+
+export interface IActionViewItemProvider {
+	(action: IAction): IActionViewItem | undefined;
 }
 
 export interface IActionChangeEvent {
@@ -216,5 +221,34 @@ export class RadioGroup extends Disposable {
 				}
 			}));
 		}
+	}
+}
+
+export class Separator extends Action {
+
+	static readonly ID = 'vs.actions.separator';
+
+	constructor(label?: string) {
+		super(Separator.ID, label, label ? 'separator text' : 'separator');
+		this.checked = false;
+		this.enabled = false;
+	}
+}
+
+export class SubmenuAction extends Action {
+
+	get actions(): IAction[] {
+		return this._actions;
+	}
+
+	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
+		super(id, label, cssClass, true);
+	}
+}
+
+export class EmptySubmenuAction extends Action {
+	static readonly ID = 'vs.actions.empty';
+	constructor() {
+		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
 	}
 }

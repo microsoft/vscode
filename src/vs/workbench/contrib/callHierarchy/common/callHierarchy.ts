@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult } from 'vs/editor/common/modes';
+import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -12,15 +12,15 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export const enum CallHierarchyDirection {
-	CallsTo = 1,
-	CallsFrom = 2
+	CallsTo = 'incomingCalls',
+	CallsFrom = 'outgoingCalls'
 }
 
 export interface CallHierarchyItem {
@@ -32,6 +32,7 @@ export interface CallHierarchyItem {
 	uri: URI;
 	range: IRange;
 	selectionRange: IRange;
+	tags?: SymbolTag[]
 }
 
 export interface IncomingCall {
@@ -179,7 +180,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 		return [model.root];
 
 	} finally {
-		dispose(textModelReference);
+		textModelReference?.dispose();
 	}
 });
 

@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as https from 'https';
+import * as nls from 'vscode-nls';
 import * as vscode from 'vscode';
-import * as uuid from 'uuid';
+import fetch, { Response } from 'node-fetch';
+import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
-import ClientRegistrar, { ClientDetails } from './common/clientRegistrar';
+
+const localize = nls.loadMessageBundle();
+
+export const NETWORK_ERROR = 'network error';
+const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
@@ -18,45 +23,9 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 
 export const uriHandler = new UriEventHandler;
 
-const exchangeCodeForToken: (state: string, clientDetails: ClientDetails) => PromiseAdapter<vscode.Uri, string> =
-	(state, clientDetails) => async (uri, resolve, reject) => {
-		Logger.info('Exchanging code for token...');
-		const query = parseQuery(uri);
-		const code = query.code;
+const onDidManuallyProvideToken = new vscode.EventEmitter<string>();
 
-		if (query.state !== state) {
-			reject('Received mismatched state');
-			return;
-		}
 
-		const post = https.request({
-			host: 'github.com',
-			path: `/login/oauth/access_token?client_id=${clientDetails.id}&client_secret=${clientDetails.secret}&state=${query.state}&code=${code}`,
-			method: 'POST',
-			headers: {
-				Accept: 'application/json'
-			}
-		}, result => {
-			const buffer: Buffer[] = [];
-			result.on('data', (chunk: Buffer) => {
-				buffer.push(chunk);
-			});
-			result.on('end', () => {
-				if (result.statusCode === 200) {
-					const json = JSON.parse(Buffer.concat(buffer).toString());
-					Logger.info('Token exchange success!');
-					resolve(json.access_token);
-				} else {
-					reject(new Error(result.statusMessage));
-				}
-			});
-		});
-
-		post.end();
-		post.on('error', err => {
-			reject(err);
-		});
-	};
 
 function parseQuery(uri: vscode.Uri) {
 	return uri.query.split('&').reduce((prev: any, current) => {
@@ -67,135 +36,174 @@ function parseQuery(uri: vscode.Uri) {
 }
 
 export class GitHubServer {
-	public async login(scopes: string): Promise<string> {
-		Logger.info('Logging in...');
-		const state = uuid();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		const clientDetails = scopes === 'vso' ? ClientRegistrar.getGitHubAppDetails() : ClientRegistrar.getClientDetails(callbackUri);
-		const uri = vscode.Uri.parse(`https://github.com/login/oauth/authorize?redirect_uri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&client_id=${clientDetails.id}`);
+	private _statusBarItem: vscode.StatusBarItem | undefined;
 
-		vscode.env.openExternal(uri);
-		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state, clientDetails));
+	private _pendingStates = new Map<string, string[]>();
+	private _codeExchangePromises = new Map<string, Promise<string>>();
+
+	private isTestEnvironment(url: vscode.Uri): boolean {
+		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
 	}
 
-	public async hasUserInstallation(token: string): Promise<boolean> {
-		return new Promise((resolve, reject) => {
-			Logger.info('Getting user installations...');
-			const post = https.request({
-				host: 'api.github.com',
-				path: `/user/installations`,
-				method: 'GET',
-				headers: {
-					Accept: 'application/vnd.github.machine-man-preview+json',
-					Authorization: `token ${token}`,
-					'User-Agent': 'Visual-Studio-Code'
-				}
-			}, result => {
-				const buffer: Buffer[] = [];
-				result.on('data', (chunk: Buffer) => {
-					buffer.push(chunk);
-				});
-				result.on('end', () => {
-					if (result.statusCode === 200) {
-						const json = JSON.parse(Buffer.concat(buffer).toString());
-						Logger.info('Got installation info!');
-						const hasInstallation = json.installations.some((installation: { app_slug: string }) => installation.app_slug === 'microsoft-visual-studio-code');
-						resolve(hasInstallation);
-					} else {
-						reject(new Error(result.statusMessage));
-					}
-				});
-			});
+	public async login(scopes: string): Promise<string> {
+		Logger.info('Logging in...');
+		this.updateStatusBarItem(true);
 
-			post.end();
-			post.on('error', err => {
-				reject(err);
-			});
+		const state = uuid();
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+
+		if (this.isTestEnvironment(callbackUri)) {
+			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
+			if (!token) { throw new Error('Sign in failed: No token provided'); }
+
+			const tokenScopes = await this.getScopes(token); // Example: ['repo', 'user']
+			const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
+			if (!scopesList.every(scope => {
+				const included = tokenScopes.includes(scope);
+				if (included || !scope.includes(':')) {
+					return included;
+				}
+
+				return scope.split(':').some(splitScopes => {
+					return tokenScopes.includes(splitScopes);
+				});
+			})) {
+				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+			}
+
+			this.updateStatusBarItem(false);
+			return token;
+		} else {
+			const existingStates = this._pendingStates.get(scopes) || [];
+			this._pendingStates.set(scopes, [...existingStates, state]);
+
+			const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
+			await vscode.env.openExternal(uri);
+		}
+
+		// Register a single listener for the URI callback, in case the user starts the login process multiple times
+		// before completing it.
+		let existingPromise = this._codeExchangePromises.get(scopes);
+		if (!existingPromise) {
+			existingPromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
+			this._codeExchangePromises.set(scopes, existingPromise);
+		}
+
+		return Promise.race([
+			existingPromise,
+			promiseFromEvent<string, string>(onDidManuallyProvideToken.event)
+		]).finally(() => {
+			this._pendingStates.delete(scopes);
+			this._codeExchangePromises.delete(scopes);
+			this.updateStatusBarItem(false);
 		});
 	}
 
-	public async installApp(): Promise<string> {
-		const clientDetails = ClientRegistrar.getGitHubAppDetails();
-		const state = uuid();
-		const uri = vscode.Uri.parse(`https://github.com/apps/microsoft-visual-studio-code/installations/new?state=${state}`);
+	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
+		(scopes) => async (uri, resolve, reject) => {
+			Logger.info('Exchanging code for token...');
+			const query = parseQuery(uri);
+			const code = query.code;
 
-		vscode.env.openExternal(uri);
-		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state, clientDetails));
+			const acceptedStates = this._pendingStates.get(scopes) || [];
+			if (!acceptedStates.includes(query.state)) {
+				reject('Received mismatched state');
+				return;
+			}
+
+			try {
+				const result = await fetch(`https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`, {
+					method: 'POST',
+					headers: {
+						Accept: 'application/json'
+					}
+				});
+
+				if (result.ok) {
+					const json = await result.json();
+					Logger.info('Token exchange success!');
+					resolve(json.access_token);
+				} else {
+					reject(result.statusText);
+				}
+			} catch (ex) {
+				reject(ex);
+			}
+		};
+
+	private updateStatusBarItem(isStart?: boolean) {
+		if (isStart && !this._statusBarItem) {
+			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+			this._statusBarItem.text = localize('signingIn', "$(mark-github) Signing in to github.com...");
+			this._statusBarItem.command = 'github.provide-token';
+			this._statusBarItem.show();
+		}
+
+		if (!isStart && this._statusBarItem) {
+			this._statusBarItem.dispose();
+			this._statusBarItem = undefined;
+		}
+	}
+
+	public async manuallyProvideToken() {
+		const uriOrToken = await vscode.window.showInputBox({ prompt: 'Token', ignoreFocusOut: true });
+		if (!uriOrToken) { return; }
+		try {
+			const uri = vscode.Uri.parse(uriOrToken);
+			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
+			uriHandler.handleUri(uri);
+		} catch (e) {
+			// If it doesn't look like a URI, treat it as a token.
+			Logger.info('Treating input as token');
+			onDidManuallyProvideToken.fire(uriOrToken);
+		}
+	}
+
+	private async getScopes(token: string): Promise<string[]> {
+		try {
+			Logger.info('Getting token scopes...');
+			const result = await fetch('https://api.github.com', {
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (result.ok) {
+				const scopes = result.headers.get('X-OAuth-Scopes');
+				return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
+			} else {
+				Logger.error(`Getting scopes failed: ${result.statusText}`);
+				throw new Error(result.statusText);
+			}
+		} catch (ex) {
+			Logger.error(ex.message);
+			throw new Error(NETWORK_ERROR);
+		}
 	}
 
 	public async getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
-		return new Promise((resolve, reject) => {
-			Logger.info('Getting account info...');
-			const post = https.request({
-				host: 'api.github.com',
-				path: `/user`,
-				method: 'GET',
+		let result: Response;
+		try {
+			Logger.info('Getting user info...');
+			result = await fetch('https://api.github.com/user', {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'
 				}
-			}, result => {
-				const buffer: Buffer[] = [];
-				result.on('data', (chunk: Buffer) => {
-					buffer.push(chunk);
-				});
-				result.on('end', () => {
-					if (result.statusCode === 200) {
-						const json = JSON.parse(Buffer.concat(buffer).toString());
-						Logger.info('Got account info!');
-						resolve({ id: json.id, accountName: json.login });
-					} else {
-						reject(new Error(result.statusMessage));
-					}
-				});
 			});
+		} catch (ex) {
+			Logger.error(ex.message);
+			throw new Error(NETWORK_ERROR);
+		}
 
-			post.end();
-			post.on('error', err => {
-				reject(err);
-			});
-		});
-	}
-
-	public async revokeToken(token: string): Promise<void> {
-		return new Promise(async (resolve, reject) => {
-			const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-			const clientDetails = ClientRegistrar.getClientDetails(callbackUri);
-			const detailsString = `${clientDetails.id}:${clientDetails.secret}`;
-
-			const payload = JSON.stringify({ access_token: token });
-
-			Logger.info('Revoking token...');
-			const post = https.request({
-				host: 'api.github.com',
-				path: `/applications/${clientDetails.id}/token`,
-				method: 'DELETE',
-				headers: {
-					Authorization: `Basic ${Buffer.from(detailsString).toString('base64')}`,
-					'User-Agent': 'Visual-Studio-Code',
-					'Content-Type': 'application/json',
-					'Content-Length': Buffer.byteLength(payload)
-				}
-			}, result => {
-				const buffer: Buffer[] = [];
-				result.on('data', (chunk: Buffer) => {
-					buffer.push(chunk);
-				});
-				result.on('end', () => {
-					if (result.statusCode === 204) {
-						Logger.info('Revoked token!');
-						resolve();
-					} else {
-						reject(new Error(result.statusMessage));
-					}
-				});
-			});
-
-			post.write(payload);
-			post.end();
-			post.on('error', err => {
-				reject(err);
-			});
-		});
+		if (result.ok) {
+			const json = await result.json();
+			Logger.info('Got account info!');
+			return { id: json.id, accountName: json.login };
+		} else {
+			Logger.error(`Getting account info failed: ${result.statusText}`);
+			throw new Error(result.statusText);
+		}
 	}
 }

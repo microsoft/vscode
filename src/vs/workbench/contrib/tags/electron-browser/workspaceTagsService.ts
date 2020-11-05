@@ -7,21 +7,27 @@ import * as crypto from 'crypto';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INotificationService, NeverShowAgainScope, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { joinPath } from 'vs/base/common/resources';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { splitLines } from 'vs/base/common/strings';
+
+const MetaModulesToLookFor = [
+	// Azure packages
+	'@azure',
+	'@azure/ai',
+	'@azure/core',
+	'@azure/cosmos',
+	'@azure/event',
+	'@azure/identity',
+	'@azure/keyvault',
+	'@azure/search',
+	'@azure/storage'
+];
 
 const ModulesToLookFor = [
 	// Packages that suggest a node server
@@ -34,11 +40,14 @@ const ModulesToLookFor = [
 	// JS frameworks
 	'react',
 	'react-native',
+	'react-native-macos',
+	'react-native-windows',
 	'rnpm-plugin-windows',
 	'@angular/core',
 	'@ionic',
 	'vue',
 	'tns-core-modules',
+	'electron',
 	// Other interesting packages
 	'aws-sdk',
 	'aws-amplify',
@@ -47,7 +56,8 @@ const ModulesToLookFor = [
 	'firebase',
 	'@google-cloud/common',
 	'heroku-cli',
-	//Office and Sharepoint packages
+	// Office and Sharepoint packages
+	'@microsoft/teams-js',
 	'@microsoft/office-js',
 	'@microsoft/office-js-helpers',
 	'@types/office-js',
@@ -61,38 +71,55 @@ const ModulesToLookFor = [
 	'@microsoft/rush',
 	'lerna',
 	'just-task',
-	'beachball'
+	'beachball',
+	// Playwright packages
+	'playwright',
+	'playwright-cli',
+	'@playwright/test',
+	'playwright-core',
+	'playwright-chromium',
+	'playwright-firefox',
+	'playwright-webkit'
 ];
+
+const PyMetaModulesToLookFor = [
+	'azure-ai',
+	'azure-cognitiveservices',
+	'azure-core',
+	'azure-cosmos',
+	'azure-event',
+	'azure-identity',
+	'azure-keyvault',
+	'azure-mgmt',
+	'azure-ml',
+	'azure-search',
+	'azure-storage'
+];
+
 const PyModulesToLookFor = [
 	'azure',
-	'azure-storage-common',
-	'azure-storage-blob',
-	'azure-storage-file',
-	'azure-storage-queue',
-	'azure-shell',
-	'azure-cosmos',
 	'azure-devtools',
 	'azure-elasticluster',
 	'azure-eventgrid',
 	'azure-functions',
 	'azure-graphrbac',
-	'azure-keyvault',
+	'azure-iothub-device-client',
 	'azure-loganalytics',
 	'azure-monitor',
 	'azure-servicebus',
 	'azure-servicefabric',
-	'azure-storage',
+	'azure-shell',
 	'azure-translator',
-	'azure-iothub-device-client',
 	'adal',
 	'pydocumentdb',
 	'botbuilder-core',
 	'botbuilder-schema',
-	'botframework-connector'
+	'botframework-connector',
+	'playwright'
 ];
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private _tags: Tags | undefined;
 
 	constructor(
@@ -100,15 +127,12 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) { }
 
 	async getTags(): Promise<Tags> {
 		if (!this._tags) {
-			this._tags = await this.resolveWorkspaceTags(this.environmentService.configuration, rootFiles => this.handleWorkspaceFiles(rootFiles));
+			this._tags = await this.resolveWorkspaceTags();
 		}
 
 		return this._tags;
@@ -180,11 +204,21 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/cosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/event" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/identity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@microsoft/teams-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@microsoft/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@microsoft/office-js-helpers" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@types/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -199,6 +233,16 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.lerna" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.just-task" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.beachball" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.electron" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@playwright/test" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-chromium" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-firefox" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-webkit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.react-native-macos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.react-native-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -215,38 +259,40 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.conda" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.any-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-blob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-file" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-storage-queue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-mgmt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.pulumi-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-cosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-devtools" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-elasticluster" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-event" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-functions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-graphrbac" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-identity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-iothub-device-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-keyvault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-loganalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-mgmt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-monitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-servicebus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-servicefabric" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-translator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-iothub-device-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.adal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.pydocumentdb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.botbuilder-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.botbuilder-schema" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): Promise<Tags> {
+	private resolveWorkspaceTags(): Promise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -254,7 +300,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 		tags['workspace.id'] = this.getTelemetryWorkspaceId(workspace, state);
 
-		const { filesToOpenOrCreate, filesToDiff } = configuration;
+		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
 
@@ -262,18 +308,14 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 
-		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders(configuration);
-		if (!folders || !folders.length || !this.fileService) {
+		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders();
+		if (!folders || !folders.length) {
 			return Promise.resolve(tags);
 		}
 
 		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
-
-			if (participant) {
-				participant(names);
-			}
 
 			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
 			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
@@ -358,23 +400,20 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				if (PyModulesToLookFor.indexOf(packageName) > -1) {
 					tags['workspace.py.' + packageName] = true;
 				}
-				// cognitive services has a lot of tiny packages. e.g. 'azure-cognitiveservices-search-autosuggest'
-				if (packageName.indexOf('azure-cognitiveservices') > -1) {
-					tags['workspace.py.azure-cognitiveservices'] = true;
+
+				for (const metaModule of PyMetaModulesToLookFor) {
+					if (packageName.startsWith(metaModule)) {
+						tags['workspace.py.' + metaModule] = true;
+					}
 				}
-				if (packageName.indexOf('azure-mgmt') > -1) {
-					tags['workspace.py.azure-mgmt'] = true;
-				}
-				if (packageName.indexOf('azure-ml') > -1) {
-					tags['workspace.py.azure-ml'] = true;
-				}
+
 				if (!tags['workspace.py.any-azure']) {
 					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
 				}
 			}
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, this.textFileService, content => {
-				const dependencies: string[] = content.value.split(/\r\n|\r|\n/);
+				const dependencies: string[] = splitLines(content.value);
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
 					const format1 = dependency.split('==');
@@ -385,7 +424,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, this.textFileService, content => {
-				let dependencies: string[] = content.value.split(/\r\n|\r|\n/);
+				let dependencies: string[] = splitLines(content.value);
 
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
@@ -407,24 +446,23 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					let dependencies = packageJsonContents['dependencies'];
-					let devDependencies = packageJsonContents['devDependencies'];
-					for (let module of ModulesToLookFor) {
-						if ('react-native' === module) {
-							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
-								tags['workspace.reactNative'] = true;
-							}
-						} else if ('tns-core-modules' === module) {
-							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
-								tags['workspace.nativescript'] = true;
-							}
+					let dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
+
+					for (let dependency of dependencies) {
+						if ('react-native' === dependency) {
+							tags['workspace.reactNative'] = true;
+						} else if ('tns-core-modules' === dependency) {
+							tags['workspace.nativescript'] = true;
+						} else if (ModulesToLookFor.indexOf(dependency) > -1) {
+							tags['workspace.npm.' + dependency] = true;
 						} else {
-							if ((dependencies && dependencies[module]) || (devDependencies && devDependencies[module])) {
-								tags['workspace.npm.' + module] = true;
+							for (const metaModule of MetaModulesToLookFor) {
+								if (dependency.startsWith(metaModule)) {
+									tags['workspace.npm.' + metaModule] = true;
+								}
 							}
 						}
 					}
-
 				}
 				catch (e) {
 					// Ignore errors when resolving file or parsing file contents
@@ -434,55 +472,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		});
 	}
 
-	private handleWorkspaceFiles(rootFiles: string[]): void {
-		const state = this.contextService.getWorkbenchState();
-		const workspace = this.contextService.getWorkspace();
-
-		// Handle top-level workspace files for local single folder workspace
-		if (state === WorkbenchState.FOLDER) {
-			const workspaceFiles = rootFiles.filter(hasWorkspaceFileExtension);
-			if (workspaceFiles.length > 0) {
-				this.doHandleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
-			}
-		}
-	}
-
-	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
-		const neverShowAgain: INeverShowAgainOptions = { id: 'workspaces.dontPromptToOpen', scope: NeverShowAgainScope.WORKSPACE, isSecondary: true };
-
-		// Prompt to open one workspace
-		if (workspaces.length === 1) {
-			const workspaceFile = workspaces[0];
-
-			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
-				label: localize('openWorkspace', "Open Workspace"),
-				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
-			}], { neverShowAgain });
-		}
-
-		// Prompt to select a workspace from many
-		else if (workspaces.length > 1) {
-			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one? [Learn more]({0}) about workspace files.", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
-				label: localize('selectWorkspace', "Select Workspace"),
-				run: () => {
-					this.quickInputService.pick(
-						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
-						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
-							if (pick) {
-								this.hostService.openWindow([{ workspaceUri: joinPath(folder, pick.label) }]);
-							}
-						});
-				}
-			}], { neverShowAgain });
-		}
-	}
-
-	private findFolders(configuration: IWindowConfiguration): URI[] | undefined {
-		const folder = this.findFolder(configuration);
+	private findFolders(): URI[] | undefined {
+		const folder = this.findFolder();
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpenOrCreate, filesToDiff }: IWindowConfiguration): URI | undefined {
+	private findFolder(): URI | undefined {
+		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
 		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
 			return this.parentURI(filesToOpenOrCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {

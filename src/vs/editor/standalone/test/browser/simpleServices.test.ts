@@ -9,6 +9,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 suite('StandaloneKeybindingService', () => {
@@ -19,7 +20,7 @@ suite('StandaloneKeybindingService', () => {
 		}
 	}
 
-	test('issue Microsoft/monaco-editor#167', () => {
+	test('issue microsoft/monaco-editor#167', () => {
 
 		let serviceCollection = new ServiceCollection();
 		const instantiationService = new InstantiationService(serviceCollection, true);
@@ -34,7 +35,7 @@ suite('StandaloneKeybindingService', () => {
 
 		let domElement = document.createElement('div');
 
-		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, domElement);
+		let keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), domElement);
 
 		let commandInvoked = false;
 		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {

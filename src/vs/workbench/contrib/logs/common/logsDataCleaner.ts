@@ -8,7 +8,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class LogsDataCleaner extends Disposable {
 

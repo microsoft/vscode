@@ -17,27 +17,6 @@
 		"watch": "gulp watch-extension:debug-auto-launch"
 	},
 	"contributes": {
-		"configuration": {
-			"title": "Node debug",
-			"properties": {
-				"debug.node.autoAttach": {
-					"scope": "window",
-					"type": "string",
-					"enum": [
-						"disabled",
-						"on",
-						"off"
-					],
-					"enumDescriptions": [
-						"%debug.node.autoAttach.disabled.description%",
-						"%debug.node.autoAttach.on.description%",
-						"%debug.node.autoAttach.off.description%"
-					],
-					"description": "%debug.node.autoAttach.description%",
-					"default": "disabled"
-				}
-			}
-		},
 		"commands": [
 			{
 				"command": "extension.node-debug.toggleAutoAttach",
@@ -51,5 +30,11 @@
 	},
 	"devDependencies": {
 		"@types/node": "^12.11.7"
+	},
+	"prettier": {
+		"printWidth": 100,
+		"trailingComma": "all",
+		"singleQuote": true,
+		"arrowParens": "avoid"
 	}
 }

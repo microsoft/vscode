@@ -6,19 +6,28 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 
 export const NullTelemetryService = new class implements ITelemetryService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
+	readonly sendErrorTelemetry = false;
+
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as ITelemetryData);
 	}
+	publicLogError(eventName: string, data?: ITelemetryData) {
+		return Promise.resolve(undefined);
+	}
+	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLogError(eventName, data as ITelemetryData);
+	}
+
+	setExperimentProperty() { }
 	setEnabled() { }
 	isOptedIn = true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -44,26 +53,6 @@ export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetry
 
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
 
-
-export class LogAppender implements ITelemetryAppender {
-
-	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
-	constructor(@ILogService private readonly _logService: ILogService) { }
-
-	flush(): Promise<any> {
-		return Promise.resolve(undefined);
-	}
-
-	log(eventName: string, data: any): void {
-		const strippedData: { [key: string]: any } = {};
-		Object.keys(data).forEach(key => {
-			if (!this.commonPropertiesRegex.test(key)) {
-				strippedData[key] = data[key];
-			}
-		});
-		this._logService.trace(`telemetry/${eventName}`, strippedData);
-	}
-}
 
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
@@ -147,8 +136,8 @@ export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	}
 
 	let ret = 'other';
-	// Whitelisted remote authorities
-	['ssh-remote', 'dev-container', 'attached-container', 'wsl'].forEach((res: string) => {
+	const allowedAuthorities = ['ssh-remote', 'dev-container', 'attached-container', 'wsl'];
+	allowedAuthorities.forEach((res: string) => {
 		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
 			ret = res;
 		}

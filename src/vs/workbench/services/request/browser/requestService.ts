@@ -10,8 +10,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { IRemoteAgentService, IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RequestService } from 'vs/platform/request/browser/requestService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRequestService } from 'vs/platform/request/common/request';
 
 export class BrowserRequestService extends RequestService {
 
@@ -44,5 +42,3 @@ export class BrowserRequestService extends RequestService {
 		return connection.withChannel('request', channel => RequestChannelClient.request(channel, options, token));
 	}
 }
-
-registerSingleton(IRequestService, BrowserRequestService, true);

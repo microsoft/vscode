@@ -11,7 +11,7 @@ import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platfor
 import { Event, Emitter } from 'vs/base/common/event';
 
 function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
-	return new FileChangesEvent(toFileChanges(changes));
+	return new FileChangesEvent(toFileChanges(changes), !platform.isLinux);
 }
 
 class TestFileWatcher {

@@ -7,7 +7,6 @@ import { Emitter } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
-import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -41,12 +40,13 @@ import { getDefaultValue, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 const emptyEditableSettingsContent = '{\n}';
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 
@@ -210,7 +210,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		const editorInput = this.getActiveSettingsEditorInput() || this.lastOpenedSettingsInput;
-		const resource = editorInput ? editorInput.master.resource! : this.userSettingsResource;
+		const resource = editorInput ? editorInput.primary.resource! : this.userSettingsResource;
 		const target = this.getConfigurationTargetFromSettingsResource(resource);
 		return this.openOrSwitchSettings(target, resource, { query: query });
 	}
@@ -317,7 +317,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private async openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): Promise<IEditorPane | undefined> {
 		const editorInput = this.getActiveSettingsEditorInput(group);
 		if (editorInput) {
-			const editorInputResource = editorInput.master.resource;
+			const editorInputResource = editorInput.primary.resource;
 			if (editorInputResource && editorInputResource.fsPath !== resource.fsPath) {
 				return this.doSwitchSettings(configurationTarget, resource, editorInput, group, options);
 			}
@@ -346,7 +346,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				if (!options) {
 					options = { pinned: true };
 				} else {
-					options = assign(options, { pinned: true });
+					options = { ...options, pinned: true };
 				}
 
 				if (openDefaultSettings) {
@@ -368,7 +368,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				if (!options) {
 					options = { pinned: true };
 				} else {
-					options = assign(options, { pinned: true });
+					options = { ...options, pinned: true };
 				}
 
 				const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
@@ -518,7 +518,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this._defaultUserSettingsContentModel;
 	}
 
-	private async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
+	public async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
@@ -546,7 +546,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.textFileService.read(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, [{ key: 'settings', value: {} }], true).then(undefined, () => { });
+						return this.jsonEditingService.write(resource, [{ path: ['settings'], value: {} }], true).then(undefined, () => { });
 					}
 					return undefined;
 				});
@@ -558,7 +558,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.textFileService.read(resource, { acceptTextOnly: true }).then(undefined, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.textFileService.write(resource, contents).then(undefined, error => {
-					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
+					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), getErrorMessage(error))));
 				});
 			}
 
@@ -614,9 +614,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const type = schema ? schema.type : 'object' /* Override Identifier */;
 		let setting = settingsModel.getPreference(settingKey);
 		if (!setting) {
-			const defaultValue = type === 'array' ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
+			const defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
 			if (defaultValue !== undefined) {
-				await this.jsonEditingService.write(settingsModel.uri!, [{ key: settingKey, value: defaultValue }], false);
+				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
+				await this.jsonEditingService.write(settingsModel.uri!, [{ path: key, value: defaultValue }], false);
 				setting = settingsModel.getPreference(settingKey);
 			}
 		}

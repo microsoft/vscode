@@ -723,6 +723,23 @@ suite('SettingsMerge - Merge', () => {
 		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
 		assert.ok(actual.hasConflicts);
 	});
+
+	test('merge when remote has comments and local is empty', async () => {
+		const localContent = `
+{
+
+}`;
+		const remoteContent = stringify`
+{
+	// this is a comment
+	"a": 1,
+}`;
+		const actual = merge(localContent, remoteContent, null, [], [], formattingOptions);
+		assert.equal(actual.localContent, remoteContent);
+		assert.equal(actual.remoteContent, null);
+		assert.equal(actual.conflictsSettings.length, 0);
+		assert.ok(!actual.hasConflicts);
+	});
 });
 
 suite('SettingsMerge - Compute Remote Content', () => {
@@ -1478,7 +1495,101 @@ suite('SettingsMerge - Add Setting', () => {
 
 		assert.equal(actual, sourceContent);
 	});
+
+	test('Insert after a comment with comma separator of previous setting and no next nodes ', () => {
+
+		const sourceContent = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	"b": 2
+}`;
+		const targetContent = `
+{
+	"a": 1
+	// this is comment for a
+	,
+}`;
+
+		const expected = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	"b": 2
+}`;
+
+		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+
+		assert.equal(actual, expected);
+	});
+
+	test('Insert after a comment with comma separator of previous setting and there is a setting after ', () => {
+
+		const sourceContent = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	"b": 2,
+	"c": 3
+}`;
+		const targetContent = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	"c": 3
+}`;
+
+		const expected = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	"b": 2,
+	"c": 3
+}`;
+
+		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+
+		assert.equal(actual, expected);
+	});
+
+	test('Insert after a comment with comma separator of previous setting and there is a comment after ', () => {
+
+		const sourceContent = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	"b": 2
+	// this is a comment
+}`;
+		const targetContent = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	// this is a comment
+}`;
+
+		const expected = `
+{
+	"a": 1
+	// this is comment for a
+	,
+	"b": 2
+	// this is a comment
+}`;
+
+		const actual = addSetting('b', sourceContent, targetContent, formattingOptions);
+
+		assert.equal(actual, expected);
+	});
 });
+
 
 function stringify(value: any): string {
 	return JSON.stringify(value, null, '\t');
