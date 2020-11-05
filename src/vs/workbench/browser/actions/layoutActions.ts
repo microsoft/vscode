@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -76,7 +76,7 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 		const visibility = layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 		const newVisibilityValue = !visibility;
 
-		configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
+		configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue);
 	}
 }
 
@@ -196,7 +196,7 @@ export class ToggleSidebarPositionAction extends Action {
 		const position = this.layoutService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 
-		return this.configurationService.updateValue(ToggleSidebarPositionAction.sidebarPositionConfigurationKey, newPositionValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(ToggleSidebarPositionAction.sidebarPositionConfigurationKey, newPositionValue);
 	}
 
 	static getLabel(layoutService: IWorkbenchLayoutService): string {
@@ -317,7 +317,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 		const visibility = this.layoutService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 
-		return this.configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue);
 	}
 }
 
