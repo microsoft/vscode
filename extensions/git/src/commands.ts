@@ -347,7 +347,9 @@ export class CommandCenter {
 				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
 			}
 		} else {
-			if (resource.type !== Status.DELETED_BY_THEM) {
+			if (resource.type === Status.DELETED_BY_US || resource.type === Status.DELETED_BY_THEM) {
+				left = toGitUri(resource.resourceUri, '~1');
+			} else {
 				left = this.getLeftResource(resource);
 			}
 

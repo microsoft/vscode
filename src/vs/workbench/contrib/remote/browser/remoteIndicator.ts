@@ -23,6 +23,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
+import { truncate } from 'vs/base/common/strings';
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -200,10 +201,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
 					break;
 				case 'disconnected':
-					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", hostLabel)}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
+					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, 40))}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
 					break;
 				default:
-					this.renderRemoteStatusIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel));
+					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, 40)}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel));
 			}
 		}
 

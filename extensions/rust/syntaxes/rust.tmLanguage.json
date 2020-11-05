@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/f3eb2221c8c334f1aae1fbc7af9a6c0b753bb29b",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/19f9aa86c0850b98db175754f019a2e79413353e",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -141,6 +141,12 @@
 				}
 			},
 			"patterns": [
+				{
+					"include": "#block-comments"
+				},
+				{
+					"include": "#comments"
+				},
 				{
 					"include": "#keywords"
 				},
@@ -458,7 +464,7 @@
 							"name": "punctuation.brackets.angle.rust"
 						}
 					},
-					"end": "\\{",
+					"end": "\\{|;",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.brackets.curly.rust"
@@ -541,7 +547,64 @@
 							"include": "#lvariables"
 						},
 						{
+							"include": "#constants"
+						},
+						{
+							"include": "#gtypes"
+						},
+						{
+							"include": "#functions"
+						},
+						{
+							"include": "#lifetimes"
+						},
+						{
+							"include": "#macros"
+						},
+						{
 							"include": "#namespaces"
+						},
+						{
+							"include": "#punctuation"
+						},
+						{
+							"include": "#strings"
+						},
+						{
+							"include": "#types"
+						},
+						{
+							"include": "#variables"
+						}
+					]
+				},
+				{
+					"comment": "function/method calls with turbofish",
+					"name": "meta.function.call.rust",
+					"begin": "((?:r#(?!crate|[Ss]elf|super))?[A-Za-z0-9_]+)(?=::<.*>\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.rust"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.brackets.round.rust"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#block-comments"
+						},
+						{
+							"include": "#comments"
+						},
+						{
+							"include": "#keywords"
+						},
+						{
+							"include": "#lvariables"
 						},
 						{
 							"include": "#constants"
@@ -557,6 +620,9 @@
 						},
 						{
 							"include": "#macros"
+						},
+						{
+							"include": "#namespaces"
 						},
 						{
 							"include": "#punctuation"
