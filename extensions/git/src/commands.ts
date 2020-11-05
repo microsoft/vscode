@@ -533,35 +533,54 @@ export class CommandCenter {
 				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
 			);
 
-			let message = localize('proposeopen', "Would you like to open the cloned repository?");
-			const open = localize('openrepo', "Open");
-			const openNewWindow = localize('openreponew', "Open in New Window");
-			const choices = [open, openNewWindow];
+			const config = workspace.getConfiguration('git');
+			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
 
-			const addToWorkspace = localize('add', "Add to Workspace");
-			if (workspace.workspaceFolders) {
-				message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
-				choices.push(addToWorkspace);
+			enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace }
+			let action: PostCloneAction | undefined = undefined;
+
+			if (openAfterClone === 'always') {
+				action = PostCloneAction.Open;
+			} else if (openAfterClone === 'alwaysNewWindow') {
+				action = PostCloneAction.OpenNewWindow;
+			} else if (openAfterClone === 'whenNoFolderOpen' && !workspace.workspaceFolders) {
+				action = PostCloneAction.Open;
 			}
 
-			const result = await window.showInformationMessage(message, ...choices);
+			if (action === undefined) {
+				let message = localize('proposeopen', "Would you like to open the cloned repository?");
+				const open = localize('openrepo', "Open");
+				const openNewWindow = localize('openreponew', "Open in New Window");
+				const choices = [open, openNewWindow];
 
-			const openFolder = result === open;
+				const addToWorkspace = localize('add', "Add to Workspace");
+				if (workspace.workspaceFolders) {
+					message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
+					choices.push(addToWorkspace);
+				}
+
+				const result = await window.showInformationMessage(message, ...choices);
+
+				action = result === open ? PostCloneAction.Open
+					: result === openNewWindow ? PostCloneAction.OpenNewWindow
+						: result === addToWorkspace ? PostCloneAction.AddToWorkspace : undefined;
+			}
+
 			/* __GDPR__
 				"clone" : {
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
 
 			const uri = Uri.file(repositoryPath);
 
-			if (openFolder) {
+			if (action === PostCloneAction.Open) {
 				commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
-			} else if (result === addToWorkspace) {
+			} else if (action === PostCloneAction.AddToWorkspace) {
 				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
-			} else if (result === openNewWindow) {
+			} else if (action === PostCloneAction.OpenNewWindow) {
 				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 			}
 		} catch (err) {

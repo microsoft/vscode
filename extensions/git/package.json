@@ -1799,6 +1799,23 @@
           "scope": "resource",
           "default": "none"
         },
+        "git.openAfterClone": {
+          "type": "string",
+          "enum": [
+            "always",
+            "alwaysNewWindow",
+            "whenNoFolderOpen",
+            "prompt"
+          ],
+          "enumDescriptions": [
+            "%config.openAfterClone.always%",
+            "%config.openAfterClone.alwaysNewWindow%",
+            "%config.openAfterClone.whenNoFolderOpen%",
+            "%config.openAfterClone.prompt%"
+          ],
+          "default": "prompt",
+          "description": "%config.openAfterClone%"
+        },
         "git.showInlineOpenFileAction": {
           "type": "boolean",
           "default": true,
