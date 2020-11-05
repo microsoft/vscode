@@ -18,7 +18,7 @@ import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -1390,7 +1390,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Check for confirmation checkbox
 			if (confirmation.checkboxChecked === true) {
-				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
+				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false);
 			}
 		}
 
