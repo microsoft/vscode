@@ -53,10 +53,13 @@ class DidApplyRefactoringCommand implements Command {
 
 		const renameLocation = args.codeAction.renameLocation;
 		if (renameLocation) {
-			await vscode.commands.executeCommand('editor.action.rename', [
-				args.codeAction.document.uri,
-				typeConverters.Position.fromLocation(renameLocation)
-			]);
+			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
+			if (args.codeAction.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
+				await vscode.commands.executeCommand('editor.action.rename', [
+					args.codeAction.document.uri,
+					typeConverters.Position.fromLocation(renameLocation)
+				]);
+			}
 		}
 	}
 }
