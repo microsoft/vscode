@@ -51,6 +51,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._register(this._editor.onMouseDrop((e: IPartialEditorMouseEvent) => this._onEditorMouseDrop(e)));
+		this._register(this._editor.onMouseDropCanceled(() => this._onEditorMouseDropCanceled()));
 		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._register(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
@@ -142,6 +143,16 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 				this.showAt(target.position);
 			}
 		}
+	}
+
+	private _onEditorMouseDropCanceled() {
+		this._editor.updateOptions({
+			mouseStyle: 'text'
+		});
+
+		this._removeDecoration();
+		this._dragSelection = null;
+		this._mouseDown = false;
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {

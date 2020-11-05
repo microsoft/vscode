@@ -495,6 +495,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
+	 * An event emitted on a "mousedropcanceled".
+	 * @internal
+	 * @event
+	 */
+	onMouseDropCanceled(listener: () => void): IDisposable;
+	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
