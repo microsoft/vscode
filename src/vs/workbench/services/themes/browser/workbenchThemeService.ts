@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, ThemeSettings, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -192,7 +192,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const preferredColorScheme = this.getPreferredColorScheme();
 			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
 			if (preferredColorScheme !== prevScheme) {
-				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL);
+				this.storageService.store2(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL, StorageTarget.USER);
 				if (preferredColorScheme && theme?.type !== preferredColorScheme) {
 					return this.applyPreferredColorTheme(preferredColorScheme);
 				}
@@ -344,7 +344,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const scheme = this.getPreferredColorScheme();
 		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
 		if (scheme !== prevScheme) {
-			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL);
+			this.storageService.store2(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			if (scheme) {
 				if (!prevScheme) {
 					// remember the theme before scheme switching
