@@ -35,7 +35,7 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -381,7 +381,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchBuiltInExtensionsContextKey = SearchBuiltInExtensionsContext.bindTo(contextKeyService);
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this._register(this.viewletService.onDidViewletOpen(this.onViewletOpen, this));
-		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE);
+		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this.extensionManagementService.getInstalled().then(result => {
 			this.hasInstalledExtensionsContextKey.set(result.some(r => !r.isBuiltin));
