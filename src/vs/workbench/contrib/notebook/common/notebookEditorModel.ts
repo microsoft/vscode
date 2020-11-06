@@ -11,7 +11,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
@@ -66,7 +66,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			readonly onDidChangeDirty = that.onDidChangeDirty;
 			readonly onDidChangeContent = that.onDidChangeContent;
 			isDirty(): boolean { return that.isDirty(); }
-			backup(): Promise<IWorkingCopyBackup> { return that.backup(); }
+			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return that.backup(token); }
 			save(): Promise<boolean> { return that.save(); }
 			revert(options?: IRevertOptions): Promise<void> { return that.revert(options); }
 		};
@@ -89,10 +89,13 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		}
 	}
 
-	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
 		if (this._notebook.supportBackup) {
-			const tokenSource = new CancellationTokenSource();
+			const tokenSource = new CancellationTokenSource(token);
 			const backupId = await this._notebookService.backup(this.viewType, this.resource, tokenSource.token);
+			if (token.isCancellationRequested) {
+				return {};
+			}
 			const stats = await this._resolveStats(this.resource);
 
 			return {

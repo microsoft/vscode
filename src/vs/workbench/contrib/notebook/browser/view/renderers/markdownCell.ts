@@ -109,13 +109,13 @@ export class StatefulMarkdownCell extends Disposable {
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					DOM.addClass(templateData.container, options.className);
+					templateData.rootContainer.classList.add(options.className);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					DOM.removeClass(templateData.container, options.className);
+					templateData.rootContainer.classList.remove(options.className);
 				}
 			});
 		}));
@@ -124,7 +124,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				DOM.addClass(templateData.container, options.className);
+				templateData.rootContainer.classList.add(options.className);
 			}
 		});
 
@@ -255,7 +255,7 @@ export class StatefulMarkdownCell extends Disposable {
 			this.relayoutCell();
 		} else {
 			// first time, readonly mode
-			this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
+			this.localDisposables.add(markdownRenderer.onDidRenderCodeBlock(() => {
 				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
 				this.relayoutCell();
 			}));

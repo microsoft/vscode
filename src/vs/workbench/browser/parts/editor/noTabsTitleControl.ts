@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notabstitlecontrol';
-import { toResource, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
 import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
-import { EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -22,6 +22,9 @@ interface IRenderedEditorLabel {
 }
 
 export class NoTabsTitleControl extends TitleControl {
+
+	private static readonly HEIGHT = 35;
+
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
@@ -100,21 +103,27 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private onTitleAuxClick(e: MouseEvent): void {
 		if (e.button === 1 /* Middle Button */ && this.group.activeEditor) {
-			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 			this.group.closeEditor(this.group.activeEditor);
 		}
 	}
 
 	private onTitleTap(e: GestureEvent): void {
+
+		// We only want to open the quick access picker when
+		// the tap occured over the editor label, so we need
+		// to check on the target
+		// (https://github.com/microsoft/vscode/issues/107543)
+		const target = e.initialTarget;
+		if (!(target instanceof HTMLElement) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
+			return;
+		}
+
 		// TODO@rebornix gesture tap should open the quick access
 		// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
 		// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
 		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
-	}
-
-	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT;
 	}
 
 	openEditor(editor: IEditorInput): void {
@@ -275,7 +284,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 			editorLabel.setResource(
 				{
-					resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
+					resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 					name: editor.getName(),
 					description
 				},
@@ -315,6 +324,13 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Group inactive: only show close action
 		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
+	}
+
+	getDimensions(): IEditorGroupTitleDimensions {
+		return {
+			height: NoTabsTitleControl.HEIGHT,
+			offset: 0
+		};
 	}
 
 	layout(dimension: Dimension): void {

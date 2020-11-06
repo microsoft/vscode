@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -21,8 +20,8 @@ import { context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals
 export class TimerService extends AbstractTimerService {
 
 	constructor(
-		@IElectronService private readonly _electronService: IElectronService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,
@@ -43,15 +42,15 @@ export class TimerService extends AbstractTimerService {
 		return didUseCachedData();
 	}
 	protected _getWindowCount(): Promise<number> {
-		return this._electronService.getWindowCount();
+		return this._nativeHostService.getWindowCount();
 	}
 
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		try {
 			const [osProperties, osStatistics, virtualMachineHint] = await Promise.all([
-				this._electronService.getOSProperties(),
-				this._electronService.getOSStatistics(),
-				this._electronService.getOSVirtualMachineHint()
+				this._nativeHostService.getOSProperties(),
+				this._nativeHostService.getOSStatistics(),
+				this._nativeHostService.getOSVirtualMachineHint()
 			]);
 
 			info.totalmem = osStatistics.totalmem;

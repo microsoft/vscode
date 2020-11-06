@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/master/classifier-deep/apply/apply-labels/deep-classifier-config.schema.json",
-	"vacation": ["joaomoreno"], 
+	"vacation": [],
 	"assignees": {
 		"JacksonKearl": {"accuracy": 0.5}
 	},

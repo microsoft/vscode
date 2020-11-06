@@ -88,6 +88,10 @@ export class NotebookEditor extends EditorPane {
 		return true;
 	}
 
+	get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._widget.value?.scopedContextKeyService;
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
 

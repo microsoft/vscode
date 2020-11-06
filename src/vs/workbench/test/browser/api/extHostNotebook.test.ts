@@ -77,6 +77,7 @@ suite('NotebookCell#Document', function () {
 					cellKind: CellKind.Code,
 					outputs: [],
 				}],
+				contentOptions: { transientMetadata: {}, transientOutputs: false }
 			}],
 			addedEditors: [{
 				documentUri: notebookUri,

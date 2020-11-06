@@ -71,7 +71,7 @@ export interface IIPCOptions {
 	debugBrk?: number;
 
 	/**
-	 * See https://github.com/Microsoft/vscode/issues/27665
+	 * See https://github.com/microsoft/vscode/issues/27665
 	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
 	 * e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
 	 * results in the forked process inheriting `--inspect-brk=xxx`.

@@ -21,7 +21,7 @@
 				},
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
-					"description": "Machine specific settings that should be copied into the container."
+					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -31,7 +31,7 @@
 							"null"
 						]
 					},
-					"description": "Remote environment variables."
+					"description": "Remote environment variables. If these are used in the Integrated Terminal, make sure the 'Terminal > Integrated: Inherit Env' setting is enabled."
 				},
 				"remoteUser": {
 					"type": "string",

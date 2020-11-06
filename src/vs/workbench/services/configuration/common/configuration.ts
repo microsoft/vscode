@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { URI } from 'vs/base/common/uri';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -35,6 +36,7 @@ export type ConfigurationKey = { type: 'user' | 'workspaces' | 'folder', key: st
 
 export interface IConfigurationCache {
 
+	needsCaching(resource: URI): boolean;
 	read(key: ConfigurationKey): Promise<string>;
 	write(key: ConfigurationKey, content: string): Promise<void>;
 	remove(key: ConfigurationKey): Promise<void>;

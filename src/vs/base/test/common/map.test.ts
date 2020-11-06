@@ -368,7 +368,7 @@ suite('Map', () => {
 	});
 
 	test('URIIterator', function () {
-		const iter = new UriIterator();
+		const iter = new UriIterator(false);
 		iter.reset(URI.parse('file:///usr/bin/file.txt'));
 
 		assert.equal(iter.value(), 'file');
@@ -434,11 +434,22 @@ suite('Map', () => {
 		map.forEach((value, key) => {
 			assert.equal(trie.get(key), value);
 		});
+
+		// forEach
+		let forEachCount = 0;
 		trie.forEach((element, key) => {
 			assert.equal(element, map.get(key));
-			map.delete(key);
+			forEachCount++;
 		});
-		assert.equal(map.size, 0);
+		assert.equal(map.size, forEachCount);
+
+		// iterator
+		let iterCount = 0;
+		for (let [key, value] of trie) {
+			assert.equal(value, map.get(key));
+			iterCount++;
+		}
+		assert.equal(map.size, iterCount);
 	}
 
 	test('TernarySearchTree - set', function () {
@@ -522,13 +533,38 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree - delete & cleanup', function () {
+		// normal delete
 		let trie = new TernarySearchTree<string, number>(new StringIterator());
 		trie.set('foo', 1);
 		trie.set('foobar', 2);
 		trie.set('bar', 3);
-
+		assertTernarySearchTree(trie, ['foo', 1], ['foobar', 2], ['bar', 3]);
 		trie.delete('foo');
+		assertTernarySearchTree(trie, ['foobar', 2], ['bar', 3]);
 		trie.delete('foobar');
+		assertTernarySearchTree(trie, ['bar', 3]);
+
+		// superstr-delete
+		trie = new TernarySearchTree<string, number>(new StringIterator());
+		trie.set('foo', 1);
+		trie.set('foobar', 2);
+		trie.set('bar', 3);
+		trie.deleteSuperstr('foo');
+		assertTernarySearchTree(trie, ['bar', 3]);
+
+		trie = new TernarySearchTree<string, number>(new StringIterator());
+		trie.set('foo', 1);
+		trie.set('foobar', 2);
+		trie.set('bar', 3);
+		trie.deleteSuperstr('fo');
+		assertTernarySearchTree(trie, ['bar', 3]);
+
+		// trie = new TernarySearchTree<string, number>(new StringIterator());
+		// trie.set('foo', 1);
+		// trie.set('foobar', 2);
+		// trie.set('bar', 3);
+		// trie.deleteSuperStr('f');
+		// assertTernarySearchTree(trie, ['bar', 3]);
 	});
 
 	test('TernarySearchTree (PathSegments) - basics', function () {
@@ -608,8 +644,43 @@ suite('Map', () => {
 	});
 
 
+	test('TernarySearchTree (PathSegments) - delete_superstr', function () {
+
+		const map = new TernarySearchTree<string, number>(new PathIterator());
+		map.set('/user/foo/bar', 1);
+		map.set('/user/foo', 2);
+		map.set('/user/foo/flip/flop', 3);
+		map.set('/usr/foo', 4);
+
+		assertTernarySearchTree(map,
+			['/user/foo/bar', 1],
+			['/user/foo', 2],
+			['/user/foo/flip/flop', 3],
+			['/usr/foo', 4],
+		);
+
+		// not a segment
+		map.deleteSuperstr('/user/fo');
+		assertTernarySearchTree(map,
+			['/user/foo/bar', 1],
+			['/user/foo', 2],
+			['/user/foo/flip/flop', 3],
+			['/usr/foo', 4],
+		);
+
+		// delete a segment
+		map.set('/user/foo/bar', 1);
+		map.set('/user/foo', 2);
+		map.set('/user/foo/flip/flop', 3);
+		map.set('/usr/foo', 4);
+		map.deleteSuperstr('/user/foo');
+		assertTernarySearchTree(map,
+			['/usr/foo', 4],
+		);
+	});
+
 	test('TernarySearchTree (URI) - basics', function () {
-		let trie = new TernarySearchTree<URI, number>(new UriIterator());
+		let trie = new TernarySearchTree<URI, number>(new UriIterator(false));
 
 		trie.set(URI.file('/user/foo/bar'), 1);
 		trie.set(URI.file('/user/foo'), 2);
@@ -629,7 +700,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (URI) - lookup', function () {
 
-		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		const map = new TernarySearchTree<URI, number>(new UriIterator(false));
 		map.set(URI.parse('http://foo.bar/user/foo/bar'), 1);
 		map.set(URI.parse('http://foo.bar/user/foo?query'), 2);
 		map.set(URI.parse('http://foo.bar/user/foo?QUERY'), 3);
@@ -646,7 +717,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (PathSegments) - superstr', function () {
 
-		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		const map = new TernarySearchTree<URI, number>(new UriIterator(false));
 		map.set(URI.file('/user/foo/bar'), 1);
 		map.set(URI.file('/user/foo'), 2);
 		map.set(URI.file('/user/foo/flip/flop'), 3);

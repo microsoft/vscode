@@ -27,7 +27,7 @@ import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } fro
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingEvent, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -46,7 +46,7 @@ import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -207,6 +207,10 @@ export class SimpleDialogService implements IDialogService {
 		return Promise.resolve({ choice: 0 });
 	}
 
+	public input(): Promise<IInputResult> {
+		return Promise.resolve({ choice: 0 }); // unsupported
+	}
+
 	public about(): Promise<void> {
 		return Promise.resolve(undefined);
 	}
@@ -298,9 +302,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		commandService: ICommandService,
 		telemetryService: ITelemetryService,
 		notificationService: INotificationService,
+		logService: ILogService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, new NullLogService());
+		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];

@@ -5,16 +5,17 @@
 
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ShutdownReason, StartupKind, handleVetos, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
+import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import Severity from 'vs/base/common/severity';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -26,7 +27,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IStorageService readonly storageService: IStorageService,
 		@ILogService readonly logService: ILogService
 	) {
@@ -56,7 +57,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		const windowId = this.electronService.windowId;
+		const windowId = this.nativeHostService.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipcRenderer.on('vscode:onBeforeUnload', (event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
@@ -94,7 +95,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		// Save shutdown reason to retrieve on next startup
 		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
+				this.storageService.store2(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		});
 	}
@@ -155,6 +156,10 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		});
 
 		onUnexpectedError(error);
+	}
+
+	shutdown(): void {
+		this.nativeHostService.closeWindow();
 	}
 }
 

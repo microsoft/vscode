@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput, Verbosity, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, Verbosity, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -364,9 +364,9 @@ export class OpenEditorsView extends ViewPane {
 		if (element) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 
-			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/Microsoft/vscode/issues/42399
+			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/microsoft/vscode/issues/42399
 			if (!preserveActivateGroup) {
-				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/Microsoft/vscode/issues/6672
+				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/microsoft/vscode/issues/6672
 			}
 			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : element.group);
 		}
@@ -379,7 +379,7 @@ export class OpenEditorsView extends ViewPane {
 
 		const element = e.element;
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.resource : {} }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? EditorResourceAccessor.getOriginalUri(element.editor) : {} }, actions);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -595,9 +595,10 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
 		const editor = openedEditor.editor;
 		templateData.actionRunner.editor = openedEditor;
-		editor.isDirty() && !editor.isSaving() ? templateData.container.classList.add('dirty') : templateData.container.classList.remove('dirty');
+		templateData.container.classList.toggle('dirty', editor.isDirty() && !editor.isSaving());
+		templateData.container.classList.toggle('sticky', openedEditor.isSticky());
 		templateData.root.setResource({
-			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
+			resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {

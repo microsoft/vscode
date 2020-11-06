@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, IInputResult, IInput } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -17,7 +17,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { fromNow } from 'vs/base/common/date';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -52,14 +52,14 @@ export class DialogService implements IDialogService {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IProductService productService: IProductService,
 		@IClipboardService clipboardService: IClipboardService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
 		this.customImpl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
-		this.nativeImpl = new NativeDialogService(logService, electronService, productService, clipboardService);
+		this.nativeImpl = new NativeDialogService(logService, nativeHostService, productService, clipboardService);
 	}
 
 	private get useCustomDialog(): boolean {
-		return this.configurationService.getValue('workbench.dialogs.customEnabled') === true;
+		return this.configurationService.getValue('window.dialogStyle') === 'custom';
 	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -70,12 +70,16 @@ export class DialogService implements IDialogService {
 		return this.nativeImpl.confirm(confirmation);
 	}
 
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<IShowResult> {
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
 		if (this.useCustomDialog) {
 			return this.customImpl.show(severity, message, buttons, options);
 		}
 
 		return this.nativeImpl.show(severity, message, buttons, options);
+	}
+
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
+		return this.customImpl.input(severity, message, buttons, inputs, options);
 	}
 
 	about(): Promise<void> {
@@ -89,7 +93,7 @@ class NativeDialogService implements IDialogService {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
@@ -100,7 +104,7 @@ class NativeDialogService implements IDialogService {
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
-		const result = await this.electronService.showMessageBox(options);
+		const result = await this.nativeHostService.showMessageBox(options);
 		return {
 			confirmed: buttonIndexMap[result.response] === 0 ? true : false,
 			checkboxChecked: result.checkboxChecked
@@ -157,7 +161,7 @@ class NativeDialogService implements IDialogService {
 			checkboxChecked: dialogOptions && dialogOptions.checkbox ? dialogOptions.checkbox.checked : undefined
 		});
 
-		const result = await this.electronService.showMessageBox(options);
+		const result = await this.nativeHostService.showMessageBox(options);
 		return { choice: buttonIndexMap[result.response], checkboxChecked: result.checkboxChecked };
 	}
 
@@ -205,6 +209,10 @@ class NativeDialogService implements IDialogService {
 		return { options, buttonIndexMap };
 	}
 
+	input(): never {
+		throw new Error('Unsupported'); // we have no native API for password dialogs in Electron
+	}
+
 	async about(): Promise<void> {
 		let version = this.productService.version;
 		if (this.productService.target) {
@@ -212,10 +220,10 @@ class NativeDialogService implements IDialogService {
 		}
 
 		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-		const osProps = await this.electronService.getOSProperties();
+		const osProps = await this.nativeHostService.getOSProperties();
 
 		const detailString = (useAgo: boolean): string => {
-			return nls.localize('aboutDetail',
+			return nls.localize({ key: 'aboutDetail', comment: ['Electron, Chrome, Node.js and V8 are product names that need no translation'] },
 				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
 				version,
 				this.productService.commit || 'Unknown',
@@ -240,7 +248,7 @@ class NativeDialogService implements IDialogService {
 			buttons = [ok, copy];
 		}
 
-		const result = await this.electronService.showMessageBox({
+		const result = await this.nativeHostService.showMessageBox({
 			title: this.productService.nameLong,
 			type: 'info',
 			message: this.productService.nameLong,

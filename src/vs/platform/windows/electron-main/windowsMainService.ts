@@ -10,7 +10,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
@@ -163,6 +163,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private shuttingDown = false;
 
+	private readonly _onWindowOpened = this._register(new Emitter<ICodeWindow>());
+	readonly onWindowOpened = this._onWindowOpened.event;
+
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady = this._onWindowReady.event;
 
@@ -174,7 +177,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -383,13 +386,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		openConfig = this.validateOpenConfig(openConfig);
 
 		const pathsToOpen = this.getPathsToOpen(openConfig);
+		this.logService.trace('windowsManager#open pathsToOpen', pathsToOpen);
 
 		const foldersToAdd: IFolderPathToOpen[] = [];
 		const foldersToOpen: IFolderPathToOpen[] = [];
 		const workspacesToOpen: IWorkspacePathToOpen[] = [];
+		const workspacesToRestore: IWorkspacePathToOpen[] = [];
 		const emptyToRestore: IEmptyWindowBackupInfo[] = []; // empty windows with backupPath
+
 		let emptyToOpen: number = 0;
-		let fileInputs: IFileInputs | undefined; 		// collect all file inputs
+		let fileInputs: IFileInputs | undefined; // collect all file inputs
 		for (const path of pathsToOpen) {
 			if (isFolderPathToOpen(path)) {
 				if (openConfig.addMode) {
@@ -428,11 +434,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
-		let workspacesToRestore: IWorkspacePathToOpen[] = [];
-		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
+		if (openConfig.initialStartup) {
 
 			// Untitled workspaces are always restored
-			workspacesToRestore = this.workspacesMainService.getUntitledWorkspacesSync();
+			workspacesToRestore.push(...this.workspacesMainService.getUntitledWorkspacesSync());
 			workspacesToOpen.push(...workspacesToRestore);
 
 			// Empty windows with backups are always restored
@@ -444,9 +449,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Open based on config
 		const usedWindows = this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyToRestore, emptyToOpen, fileInputs, foldersToAdd);
 
+		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyToRestore.length}, emptyToOpen: ${emptyToOpen})`);
+
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
-			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+			const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 			let focusLastOpened = true;
 			let focusLastWindow = true;
 
@@ -497,6 +504,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri });
 				}
 			}
+
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
@@ -736,6 +744,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, fileInputs?: IFileInputs): ICodeWindow {
+		this.logService.trace('windowsManager#doOpenFilesInExistingWindow');
+
 		window.focus(); // make sure window has focus
 
 		const params: { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, termProgram?: string } = {};
@@ -758,7 +768,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.focus(); // make sure window has focus
 
 		const request: IAddFoldersRequest = { foldersToAdd };
-
 		window.sendWhenReady('vscode:addFolders', request);
 
 		return window;
@@ -783,7 +792,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IPathToOpen, forceNewWindow: boolean, fileInputs: IFileInputs | undefined, windowToUse?: ICodeWindow): ICodeWindow {
 		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/Microsoft/vscode/issues/49587
+			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
 		}
 
 		return this.openInBrowserWindow({
@@ -972,7 +981,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 						if (pathToOpen?.folderUri) {
 							windowsToOpen.push(pathToOpen);
 						}
-					} else if (restoreWindows !== 'folders' && openedWindow.backupPath && !openedWindow.remoteAuthority) { // Local windows that were empty. Empty windows with backups will always be restored in open()
+					} else if (restoreWindows !== 'folders' && openedWindow.backupPath) { // Empty window, potentially editors open to be restored
 						windowsToOpen.push({ backupPath: openedWindow.backupPath, remoteAuthority: openedWindow.remoteAuthority });
 					}
 				}
@@ -1089,7 +1098,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return undefined;
 		}
 
-		let lineNumber, columnNumber: number | undefined;
+		let lineNumber: number | undefined;
+		let columnNumber: number | undefined;
 
 		if (options.gotoLineMode) {
 			const parsedPath = parseLineAndColumnAware(anyPath);
@@ -1101,7 +1111,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// open remote if either specified in the cli even if it is a local file.
 		const remoteAuthority = options.remoteAuthority;
-
 		if (remoteAuthority) {
 			const first = anyPath.charCodeAt(0);
 
@@ -1110,7 +1119,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				if (isWindowsDriveLetter(first) && anyPath.charCodeAt(anyPath.charCodeAt(1)) === CharCode.Colon) {
 					anyPath = toSlashes(anyPath);
 				}
-				anyPath = '/' + anyPath;
+
+				anyPath = `/${anyPath}`;
 			}
 
 			const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: anyPath });
@@ -1125,13 +1135,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					return { fileUri: uri, remoteAuthority };
 				}
 			}
+
 			return { folderUri: uri, remoteAuthority };
 		}
 
 		let candidate = normalize(anyPath);
 
 		try {
-
 			const candidateStat = fs.statSync(candidate);
 			if (candidateStat.isFile()) {
 
@@ -1238,6 +1248,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			return [existingWindow];
 		}
+
 		let folderUris = openConfig.cli['folder-uri'] || [];
 		let fileUris = openConfig.cli['file-uri'] || [];
 		let cliArgs = openConfig.cli._;
@@ -1288,23 +1299,26 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, uri)) {
 				return false;
 			}
+
 			return uri.authority === authority;
 		});
 
-		folderUris = folderUris.filter(uri => {
-			const u = this.argToUri(uri);
-			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, u)) {
+		folderUris = folderUris.filter(folderUriStr => {
+			const folderUri = this.argToUri(folderUriStr);
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, folderUri)) {
 				return false;
 			}
-			return u ? u.authority === authority : false;
+
+			return folderUri ? folderUri.authority === authority : false;
 		});
 
-		fileUris = fileUris.filter(uri => {
-			const u = this.argToUri(uri);
-			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, u)) {
+		fileUris = fileUris.filter(fileUriStr => {
+			const fileUri = this.argToUri(fileUriStr);
+			if (!!findWindowOnWorkspaceOrFolderUri(WindowsMainService.WINDOWS, fileUri)) {
 				return false;
 			}
-			return u ? u.authority === authority : false;
+
+			return fileUri ? fileUri.authority === authority : false;
 		});
 
 		openConfig.cli._ = cliArgs;
@@ -1415,6 +1429,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Add to our list of windows
 			WindowsMainService.WINDOWS.push(createdWindow);
+
+			// Indicate new window via event
+			this._onWindowOpened.fire(createdWindow);
 
 			// Indicate number change via event
 			this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length - 1, newCount: WindowsMainService.WINDOWS.length });
@@ -1576,7 +1593,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			} else if ((windowConfig.newWindowDimensions === 'inherit' || windowConfig.newWindowDimensions === 'offset') && lastActive) {
 				const lastActiveState = lastActive.serializeWindowState();
 				if (lastActiveState.mode === WindowMode.Fullscreen) {
-					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/Microsoft/vscode/issues/19331)
+					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
 				} else {
 					state = lastActiveState;
 				}
@@ -1611,6 +1628,25 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return state;
 	}
 
+	private onWindowClosed(win: ICodeWindow): void {
+
+		// Remove from our list so that Electron can clean it up
+		const index = WindowsMainService.WINDOWS.indexOf(win);
+		WindowsMainService.WINDOWS.splice(index, 1);
+
+		// Emit
+		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
+	}
+
+	getFocusedWindow(): ICodeWindow | undefined {
+		const win = BrowserWindow.getFocusedWindow();
+		if (win) {
+			return this.getWindowById(win.id);
+		}
+
+		return undefined;
+	}
+
 	getLastActiveWindow(): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsMainService.WINDOWS);
 	}
@@ -1637,15 +1673,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 	}
 
-	private getFocusedWindow(): ICodeWindow | undefined {
-		const win = BrowserWindow.getFocusedWindow();
-		if (win) {
-			return this.getWindowById(win.id);
-		}
-
-		return undefined;
-	}
-
 	getWindowById(windowId: number): ICodeWindow | undefined {
 		const res = WindowsMainService.WINDOWS.filter(window => window.id === windowId);
 
@@ -1658,15 +1685,5 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	getWindowCount(): number {
 		return WindowsMainService.WINDOWS.length;
-	}
-
-	private onWindowClosed(win: ICodeWindow): void {
-
-		// Remove from our list so that Electron can clean it up
-		const index = WindowsMainService.WINDOWS.indexOf(win);
-		WindowsMainService.WINDOWS.splice(index, 1);
-
-		// Emit
-		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
 	}
 }

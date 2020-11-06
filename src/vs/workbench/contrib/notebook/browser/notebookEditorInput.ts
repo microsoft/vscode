@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as glob from 'vs/base/common/glob';
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -13,7 +14,6 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -38,7 +38,6 @@ export class NotebookEditorInput extends EditorInput {
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IPathService private readonly _pathService: IPathService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -118,12 +117,16 @@ export class NotebookEditorInput extends EditorInput {
 		}
 
 		if (!provider.matches(target)) {
-			const patterns = provider.selector.map(pattern => {
-				if (pattern.excludeFileNamePattern) {
-					return `${pattern.filenamePattern} (exclude: ${pattern.excludeFileNamePattern})`;
+			const patterns = provider.selectors.map(pattern => {
+				if (typeof pattern === 'string') {
+					return pattern;
 				}
 
-				return pattern.filenamePattern;
+				if (glob.isRelativePattern(pattern)) {
+					return `${pattern} (base ${pattern.base})`;
+				}
+
+				return `${pattern.include} (exclude: ${pattern.exclude})`;
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
 
@@ -140,7 +143,7 @@ ${patterns}
 	}
 
 	async suggestName(suggestedFilename: string) {
-		return joinPath(this._fileDialogService.defaultFilePath() || (await this._pathService.userHome()), suggestedFilename);
+		return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
 	// called when users rename a notebook document

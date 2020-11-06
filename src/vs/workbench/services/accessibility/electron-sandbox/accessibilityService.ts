@@ -5,7 +5,6 @@
 
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -15,7 +14,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 interface AccessibilityMetrics {
 	enabled: boolean;
@@ -29,12 +29,14 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 	declare readonly _serviceBrand: undefined;
 
 	private didSendTelemetry = false;
+	private shouldAlwaysUnderlineAccessKeys: boolean | undefined = undefined;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextKeyService, configurationService);
 		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
@@ -45,16 +47,12 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 			return false;
 		}
 
-		const Registry = await import('vscode-windows-registry');
-
-		let value: string | undefined = undefined;
-		try {
-			value = Registry.GetStringRegKey('HKEY_CURRENT_USER', 'Control Panel\\Accessibility\\Keyboard Preference', 'On');
-		} catch {
-			return false;
+		if (typeof this.shouldAlwaysUnderlineAccessKeys !== 'boolean') {
+			const windowsKeyboardAccessibility = await this.nativeHostService.windowsGetStringRegKey('HKEY_CURRENT_USER', 'Control Panel\\Accessibility\\Keyboard Preference', 'On');
+			this.shouldAlwaysUnderlineAccessKeys = (windowsKeyboardAccessibility === '1');
 		}
 
-		return value === '1';
+		return this.shouldAlwaysUnderlineAccessKeys;
 	}
 
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
@@ -74,7 +72,7 @@ class LinuxAccessibilityContribution implements IWorkbenchContribution {
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		const forceRendererAccessibility = () => {
 			if (accessibilityService.isScreenReaderOptimized()) {

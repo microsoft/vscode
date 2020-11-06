@@ -67,7 +67,7 @@
 
 .extension-list-item > .details > .header-container > .header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
@@ -137,6 +137,15 @@
 .extension-list-item > .details > .header-container > .header .extension-remote-badge > .codicon {
 	font-size: 12px;
 	color: currentColor;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored {
+	display: flex;
+	margin-left: 6px;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
+	font-size: 100%;
 }
 
 .extension-list-item > .details > .description {

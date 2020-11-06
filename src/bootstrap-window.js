@@ -21,6 +21,7 @@
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
+	const bootstrapLib = bootstrap();
 	const preloadGlobals = globals();
 	const sandbox = preloadGlobals.context.sandbox;
 	const webFrame = preloadGlobals.webFrame;
@@ -89,7 +90,7 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs (TODO@sandbox non-sandboxed only)
+		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
 		if (!sandbox) {
 			window['define'] = undefined;
 		}
@@ -102,10 +103,28 @@
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: `${uriFromPath(configuration.appRoot)}/out`,
-			'vs/nls': nlsConfig,
-			amdModulesPattern: /^vs\//,
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
+			'vs/nls': nlsConfig
 		};
+
+		// Enable loading of node modules:
+		// - sandbox: we list paths of webpacked modules to help the loader
+		// - non-sandbox: we signal that any module that does not begin with
+		//                `vs/` should be loaded using node.js require()
+		if (sandbox) {
+			loaderConfig.paths = {
+				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
+				'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
+				'xterm': `../node_modules/xterm/lib/xterm.js`,
+				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
+				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
+			};
+		} else {
+			loaderConfig.amdModulesPattern = /^vs\//;
+		}
 
 		// cached data config
 		if (configuration.nodeCachedDataDir) {
@@ -221,36 +240,19 @@
 	}
 
 	/**
+	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 */
+	function bootstrap() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
+	}
+
+	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
 	function globals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
-	}
-
-	/**
-	 * TODO@sandbox this should not use the file:// protocol at all
-	 * and be consolidated with the fileUriFromPath() method in
-	 * bootstrap.js.
-	 *
-	 * @param {string} path
-	 * @returns {string}
-	 */
-	function uriFromPath(path) {
-		let pathName = path.replace(/\\/g, '/');
-		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-			pathName = `/${pathName}`;
-		}
-
-		/** @type {string} */
-		let uri;
-		if (safeProcess.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
-			uri = encodeURI(`file:${pathName}`);
-		} else {
-			uri = encodeURI(`file://${pathName}`);
-		}
-
-		return uri.replace(/#/g, '%23');
 	}
 
 	return {

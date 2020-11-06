@@ -5,26 +5,38 @@
 
 import { Constants } from 'vs/base/common/uint';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { distinct } from 'vs/base/common/arrays';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
+const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
+const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 // we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	glyphMarginClassName: 'codicon-debug-stackframe',
-	stickiness
+	stickiness,
+	overviewRuler: {
+		position: OverviewRulerLane.Full,
+		color: themeColorFromId(topStackFrameColor)
+	}
 };
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	glyphMarginClassName: 'codicon-debug-stackframe-focused',
-	stickiness
+	stickiness,
+	overviewRuler: {
+		position: OverviewRulerLane.Full,
+		color: themeColorFromId(focusedStackFrameColor)
+	}
 };
 const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	isWholeLine: true,
@@ -94,6 +106,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		const setDecorations = () => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, this.createCallStackDecorations());
 		this.toDispose.push(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
@@ -121,14 +134,15 @@ export class CallStackEditorContribution implements IEditorContribution {
 						}
 					}
 
-					if (candidateStackFrame && candidateStackFrame.source.uri.toString() === this.editor.getModel()?.uri.toString()) {
+					if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
 						decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange, isSessionFocused));
 					}
 				}
 			});
 		});
 
-		return decorations;
+		// Deduplicate same decorations so colors do not stack #109045
+		return distinct(decorations, d => `${d.options.className} ${d.options.glyphMarginClassName} ${d.range.startLineNumber} ${d.range.startColumn}`);
 	}
 
 	dispose(): void {
@@ -141,7 +155,6 @@ registerThemingParticipant((theme, collector) => {
 	const topStackFrame = theme.getColor(topStackFrameColor);
 	if (topStackFrame) {
 		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
-		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
 	}
 
 	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
@@ -149,6 +162,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
 	}
 });
-
-const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
-const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));

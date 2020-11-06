@@ -1,54 +1,37 @@
 # Query: .innerHTML = 
 # Flags: CaseSensitive WordMatch
 # Including: src/vs/**/*.{t,j}s
-# Excluding: *.test.ts
+# Excluding: *.test.ts, **/test/**
 # ContextLines: 3
 
-22 results - 14 files
+12 results - 9 files
+
+src/vs/base/browser/dom.ts:
+  1359  	);
+  1360  
+  1361  	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
+  1362: 	node.innerHTML = html as unknown as string;
+  1363  }
 
 src/vs/base/browser/markdownRenderer.ts:
-  161  				const strValue = values[0];
-  162  				const span = element.querySelector(`div[data-code="${id}"]`);
-  163  				if (span) {
-  164: 					span.innerHTML = strValue;
-  165  				}
-  166  			}).catch(err => {
-  167  				// ignore
+  272  	};
+  273  
+  274  	if (_ttpInsane) {
+  275: 		element.innerHTML = _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
+  276  	} else {
+  277: 		element.innerHTML = insane(renderedMarkdown, insaneOptions);
+  278  	}
+  279  
+  280  	// signal that async code blocks can be now be inserted
 
-  243  		return true;
-  244  	}
-  245  
-  246: 	element.innerHTML = insane(renderedMarkdown, {
-  247  		allowedSchemes,
-  248  		// allowedTags should included everything that markdown renders to.
-  249  		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
-
-src/vs/base/browser/ui/contextview/contextview.ts:
-  157  				this.shadowRootHostElement = DOM.$('.shadow-root-host');
-  158  				this.container.appendChild(this.shadowRootHostElement);
-  159  				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
-  160: 				this.shadowRoot.innerHTML = `
-  161  					<style>
-  162  						${SHADOW_ROOT_CSS}
-  163  					</style>
-
-src/vs/code/electron-sandbox/issue/issueReporterMain.ts:
-  57  	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
-  58  	addClass(document.body, platformClass); // used by our fonts
-  59  
-  60: 	document.body.innerHTML = BaseHtml();
-  61  	const issueReporter = new IssueReporter(configuration);
-  62  	issueReporter.render();
-  63  	document.body.style.display = 'block';
-
-src/vs/code/electron-sandbox/processExplorer/processExplorerMain.ts:
-  320  			content.push(`.highest { color: ${styles.highlightForeground}; }`);
-  321  		}
-  322  
-  323: 		styleTag.innerHTML = content.join('\n');
-  324  		if (document.head) {
-  325  			document.head.appendChild(styleTag);
-  326  		}
+src/vs/editor/browser/core/markdownRenderer.ts:
+  88  
+  89  				const element = document.createElement('span');
+  90  
+  91: 				element.innerHTML = MarkdownRenderer._ttpTokenizer
+  92  					? MarkdownRenderer._ttpTokenizer.createHTML(value, tokenization) as unknown as string
+  93  					: tokenizeToString(value, tokenization);
+  94  
 
 src/vs/editor/browser/view/domLineBreaksComputer.ts:
   107  		allCharOffsets[i] = tmp[0];
@@ -60,21 +43,21 @@ src/vs/editor/browser/view/domLineBreaksComputer.ts:
   113  	containerDomNode.style.top = '10000';
 
 src/vs/editor/browser/view/viewLayer.ts:
-  507  	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
-  508  		const lastChild = <HTMLElement>this.domNode.lastChild;
-  509  		if (domNodeIsEmpty || !lastChild) {
-  510: 			this.domNode.innerHTML = newLinesHTML;
-  511  		} else {
-  512  			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
-  513  		}
+  512  		}
+  513  		const lastChild = <HTMLElement>this.domNode.lastChild;
+  514  		if (domNodeIsEmpty || !lastChild) {
+  515: 			this.domNode.innerHTML = newLinesHTML;
+  516  		} else {
+  517  			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
+  518  		}
 
-  525  	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
-  526  		const hugeDomNode = document.createElement('div');
-  527  
-  528: 		hugeDomNode.innerHTML = invalidLinesHTML;
-  529  
-  530  		for (let i = 0; i < ctx.linesLength; i++) {
-  531  			const line = ctx.lines[i];
+  533  		if (ViewLayerRenderer._ttPolicy) {
+  534  			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML) as unknown as string;
+  535  		}
+  536: 		hugeDomNode.innerHTML = invalidLinesHTML;
+  537  
+  538  		for (let i = 0; i < ctx.linesLength; i++) {
+  539  			const line = ctx.lines[i];
 
 src/vs/editor/browser/widget/diffEditorWidget.ts:
   2157  
@@ -99,64 +82,14 @@ src/vs/editor/standalone/browser/colorizer.ts:
   45  		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
   46  	}
 
-src/vs/editor/standalone/browser/standaloneThemeServiceImpl.ts:
-  212  		if (!this._globalStyleElement) {
-  213  			this._globalStyleElement = dom.createStyleSheet();
-  214  			this._globalStyleElement.className = 'monaco-colors';
-  215: 			this._globalStyleElement.innerHTML = this._css;
-  216  			this._styleElements.push(this._globalStyleElement);
-  217  		}
-  218  		return Disposable.None;
-
-  221  	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-  222  		const styleElement = dom.createStyleSheet(domNode);
-  223  		styleElement.className = 'monaco-colors';
-  224: 		styleElement.innerHTML = this._css;
-  225  		this._styleElements.push(styleElement);
-  226  		return {
-  227  			dispose: () => {
-
-  291  		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
-  292  
-  293  		this._css = cssRules.join('\n');
-  294: 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
-  295  
-  296  		TokenizationRegistry.setColorMap(colorMap);
-  297  		this._onColorThemeChange.fire(theme);
-
-src/vs/editor/test/browser/controller/imeTester.ts:
-  55  			let content = this._model.getModelLineContent(i);
-  56  			r += content + '<br/>';
-  57  		}
-  58: 		output.innerHTML = r;
-  59  	}
-  60  }
-  61  
-
-  69  	let title = document.createElement('div');
-  70  	title.className = 'title';
-  71  
-  72: 	title.innerHTML = description + '. Type <strong>' + inputStr + '</strong>';
-  73  	container.appendChild(title);
-  74  
-  75  	let startBtn = document.createElement('button');
-
 src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
-  454  
-  455  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
-  456  		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-  457: 		dragImageContainer.innerHTML = templateData.container.outerHTML;
-  458  
-  459  		// Remove all rendered content nodes after the
-  460  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
-
-  611  			return null;
-  612  		}
-  613  
-  614: 		editorContainer.innerHTML = richEditorText;
-  615  
-  616  		return dragImageContainer;
-  617  	}
+  580  		const element = DOM.$('div', { style });
+  581  
+  582  		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
+  583: 		element.innerHTML = linesHtml as unknown as string;
+  584  		return element;
+  585  	}
+  586  
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   375  					addMouseoverListeners(outputNode, outputId);
@@ -165,30 +98,4 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   378: 						outputNode.innerHTML = content.htmlContent;
   379  						cellOutputContainer.appendChild(outputNode);
   380  						domEval(outputNode);
-  381  					} else {
-
-src/vs/workbench/contrib/webview/browser/pre/main.js:
-  386  			// apply default styles
-  387  			const defaultStyles = newDocument.createElement('style');
-  388  			defaultStyles.id = '_defaultStyles';
-  389: 			defaultStyles.innerHTML = defaultCssRules;
-  390  			newDocument.head.prepend(defaultStyles);
-  391  
-  392  			applyStyles(newDocument, newDocument.body);
-
-src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
-  281  
-  282  				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
-  283  				if (!strings.endsWith(input.resource.path, '.md')) {
-  284: 					this.content.innerHTML = content;
-  285  					this.updateSizeClasses();
-  286  					this.decorateContent();
-  287  					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
-
-  303  				const innerContent = document.createElement('div');
-  304  				innerContent.classList.add('walkThroughContent'); // only for markdown files
-  305  				const markdown = this.expandMacros(content);
-  306: 				innerContent.innerHTML = marked(markdown, { renderer });
-  307  				this.content.appendChild(innerContent);
-  308  
-  309  				model.snippets.forEach((snippet, i) => {
+  381  					} else if (preloadErrs.some(e => !!e)) {

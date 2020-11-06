@@ -306,6 +306,12 @@ export class NotificationTemplateRenderer extends Disposable {
 
 		// Container
 		this.template.container.classList.toggle('expanded', notification.expanded);
+		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
+			if (e.button === 1 /* Middle Button */) {
+				// Prevent firing the 'paste' event in the editor textarea - #109322
+				EventHelper.stop(e, true);
+			}
+		}));
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
 			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);

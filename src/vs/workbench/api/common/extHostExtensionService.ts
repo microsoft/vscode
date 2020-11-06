@@ -23,7 +23,7 @@ import type * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
+import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -303,8 +303,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	// --- impl
 
-	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
-		this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
+	private async _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
+		if (!this._initData.remote.isRemote) {
+			// local extension host process
+			await this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
+		} else {
+			// remote extension host process
+			// do not wait for renderer confirmation
+			this._mainThreadExtensionsProxy.$onWillActivateExtension(extensionDescription.identifier);
+		}
 		return this._doActivateExtension(extensionDescription, reason).then((activatedExtension) => {
 			const activationTimes = activatedExtension.activationTimes;
 			this._mainThreadExtensionsProxy.$onDidActivateExtension(extensionDescription.identifier, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime, reason);
@@ -364,7 +371,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
-		const globalState = new ExtensionMemento(extensionDescription.identifier.value, true, this._storage);
+		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
@@ -499,7 +506,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const host: IExtensionActivationHost = {
 			folders: folders.map(folder => folder.uri),
 			forceUsingSearch: localWithRemote,
-			exists: (path) => this._hostUtils.exists(path),
+			exists: (uri) => this._hostUtils.exists(uri.fsPath),
 			checkExists: (folders, includes, token) => this._mainThreadWorkspaceProxy.$checkExists(folders, includes, token)
 		};
 
@@ -644,7 +651,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const authority: ResolvedAuthority = {
 				authority: remoteAuthority,
 				host: result.host,
-				port: result.port
+				port: result.port,
+				connectionToken: result.connectionToken
 			};
 			const options: ResolvedOptions = {
 				extensionHostEnv: result.extensionHostEnv

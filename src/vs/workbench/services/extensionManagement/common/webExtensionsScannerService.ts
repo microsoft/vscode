@@ -24,6 +24,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
+import * as semver from 'vs/base/common/semver/semver';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
@@ -170,6 +171,34 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return Promise.all(extensions.map((ext) => this._translateScannedExtension(ext)));
 	}
 
+	async scanAndTranslateSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<ITranslatedScannedExtension | null> {
+		const extension = await this._scanSingleExtension(extensionLocation, extensionType);
+		if (extension) {
+			return this._translateScannedExtension(extension);
+		}
+		return null;
+	}
+
+	private async _scanSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null> {
+		if (extensionType === ExtensionType.System) {
+			const systemExtensions = await this.systemExtensionsPromise;
+			return this._findScannedExtension(systemExtensions, extensionLocation);
+		}
+
+		const staticExtensions = await this.defaultExtensionsPromise;
+		const userExtensions = await this.scanUserExtensions();
+		return this._findScannedExtension(staticExtensions.concat(userExtensions), extensionLocation);
+	}
+
+	private _findScannedExtension(candidates: IScannedExtension[], extensionLocation: URI): IScannedExtension | null {
+		for (const candidate of candidates) {
+			if (candidate.location.toString() === extensionLocation.toString()) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
 	private async _translateScannedExtension(scannedExtension: IScannedExtension): Promise<ITranslatedScannedExtension> {
 		let manifest = scannedExtension.packageJSON;
 		if (scannedExtension.packageNLS) {
@@ -244,7 +273,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async scanUserExtensions(): Promise<IScannedExtension[]> {
-		const semver = await import('semver-umd');
 		let userExtensions = await this.readUserExtensions();
 		const byExtension: IUserExtension[][] = groupByExtension(userExtensions, e => e.identifier);
 		userExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);

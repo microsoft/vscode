@@ -14,7 +14,7 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/Microsoft/vscode-emmet"
+        "url": "https://github.com/microsoft/vscode-emmet"
     },
     "activationEvents": [
         "*",
@@ -435,7 +435,7 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/math-expression": "^0.1.1",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper": "^2.0.0",
+        "vscode-emmet-helper": "~2.0.0",
         "vscode-html-languageservice": "^3.0.3"
     }
 }

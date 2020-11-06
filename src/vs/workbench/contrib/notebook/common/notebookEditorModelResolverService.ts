@@ -64,8 +64,15 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 
 		const existingViewType = this._notebookService.getNotebookTextModel(resource)?.viewType;
 		if (!viewType) {
-			viewType = existingViewType ?? this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
+			if (existingViewType) {
+				viewType = existingViewType;
+			} else {
+				const providers = this._notebookService.getContributedNotebookProviders(resource);
+				const exclusiveProvider = providers.find(provider => provider.exclusive);
+				viewType = exclusiveProvider?.id || providers[0]?.id;
+			}
 		}
+
 		if (!viewType) {
 			throw new Error(`Missing viewType for '${resource}'`);
 		}

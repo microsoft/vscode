@@ -5,7 +5,8 @@
 
 .open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
 .open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
-.open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar {
+.open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar,
+.open-editors .monaco-list .monaco-list-row.sticky > .monaco-action-bar {
 	visibility: visible;
 }
 
@@ -26,9 +27,12 @@
 	justify-content: center;
 }
 
-.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before,
 .open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-pinned::before {
-	content: "\ea71"; /* Close/Unpin icon flips between black dot and normal for dirty open editors */
+	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+}
+
+.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
+	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
 }
 
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,

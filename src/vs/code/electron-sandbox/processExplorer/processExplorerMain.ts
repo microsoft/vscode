@@ -5,7 +5,8 @@
 
 import 'vs/css!./media/processExplorer';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
@@ -13,11 +14,12 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener, addClass, $ } from 'vs/base/browser/dom';
+import { addDisposableListener, $ } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -40,11 +42,11 @@ class ProcessExplorer {
 
 	private listeners = new DisposableStore();
 
-	private electronService: IElectronService;
+	private nativeHostService: INativeHostService;
 
 	constructor(windowId: number, private data: ProcessExplorerData) {
 		const mainProcessService = new MainProcessService(windowId);
-		this.electronService = new ElectronService(windowId, mainProcessService) as IElectronService;
+		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
 
 		this.applyStyles(data.styles);
 
@@ -77,8 +79,6 @@ class ProcessExplorer {
 	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number): void {
 		const isRoot = (indent === 0);
 
-		const MB = 1024 * 1024;
-
 		let name = item.name;
 		if (isRoot) {
 			name = isLocal ? `${this.data.applicationName} main` : 'remote agent';
@@ -94,7 +94,7 @@ class ProcessExplorer {
 		const memory = this.data.platform === 'win32' ? item.mem : (totalMem * (item.mem / 100));
 		processes.push({
 			cpu: item.load,
-			memory: (memory / MB),
+			memory: (memory / ByteSize.MB),
 			pid: item.pid.toFixed(0),
 			name,
 			formattedName,
@@ -293,7 +293,7 @@ class ProcessExplorer {
 		container.append(tableHead);
 
 		const hasMultipleMachines = Object.keys(processLists).length > 1;
-		const { totalmem } = await this.electronService.getOSStatistics();
+		const { totalmem } = await this.nativeHostService.getOSStatistics();
 		processLists.forEach((remote, i) => {
 			const isLocal = i === 0;
 			if (isRemoteDiagnosticError(remote.rootProcess)) {
@@ -320,7 +320,7 @@ class ProcessExplorer {
 			content.push(`.highest { color: ${styles.highlightForeground}; }`);
 		}
 
-		styleTag.innerHTML = content.join('\n');
+		styleTag.textContent = content.join('\n');
 		if (document.head) {
 			document.head.appendChild(styleTag);
 		}
@@ -339,14 +339,14 @@ class ProcessExplorer {
 			items.push({
 				label: localize('killProcess', "Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, 'SIGTERM');
+					this.nativeHostService.killProcess(pid, 'SIGTERM');
 				}
 			});
 
 			items.push({
 				label: localize('forceKillProcess', "Force Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, 'SIGKILL');
+					this.nativeHostService.killProcess(pid, 'SIGKILL');
 				}
 			});
 
@@ -360,7 +360,7 @@ class ProcessExplorer {
 			click: () => {
 				const row = document.getElementById(pid.toString());
 				if (row) {
-					this.electronService.writeClipboardText(row.innerText);
+					this.nativeHostService.writeClipboardText(row.innerText);
 				}
 			}
 		});
@@ -370,7 +370,7 @@ class ProcessExplorer {
 			click: () => {
 				const processList = document.getElementById('process-list');
 				if (processList) {
-					this.electronService.writeClipboardText(processList.innerText);
+					this.nativeHostService.writeClipboardText(processList.innerText);
 				}
 			}
 		});
@@ -416,13 +416,22 @@ class ProcessExplorer {
 
 export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
-	addClass(document.body, platformClass); // used by our fonts
+	document.body.classList.add(platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
 	const processExplorer = new ProcessExplorer(windowId, data);
 
 	document.onkeydown = (e: KeyboardEvent) => {
 		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
+
+		// Cmd/Ctrl + w closes issue window
+		if (cmdOrCtrlKey && e.keyCode === 87) {
+			e.stopPropagation();
+			e.preventDefault();
+
+			processExplorer.dispose();
+			ipcRenderer.send('vscode:closeProcessExplorer');
+		}
 
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
@@ -434,13 +443,4 @@ export function startup(windowId: number, data: ProcessExplorerData): void {
 			zoomOut();
 		}
 	};
-
-	// Cmd/Ctrl + w closes process explorer
-	window.addEventListener('keydown', e => {
-		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-		if (cmdOrCtrlKey && e.keyCode === 87) {
-			processExplorer.dispose();
-			ipcRenderer.send('vscode:closeProcessExplorer');
-		}
-	});
 }

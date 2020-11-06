@@ -31,6 +31,8 @@ import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semantic
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 // --- adapter
 
@@ -413,7 +415,8 @@ class CodeActionAdapter {
 			this._disposables.set(cacheId, disposables);
 
 			const actions: CustomCodeAction[] = [];
-			for (const candidate of commandsOrActions) {
+			for (let i = 0; i < commandsOrActions.length; i++) {
+				const candidate = commandsOrActions[i];
 				if (!candidate) {
 					continue;
 				}
@@ -439,6 +442,7 @@ class CodeActionAdapter {
 
 					// new school: convert code action
 					actions.push({
+						cacheId: [cacheId, i],
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
@@ -452,6 +456,21 @@ class CodeActionAdapter {
 
 			return { cacheId, actions };
 		});
+	}
+
+	public async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+		const [sessionId, itemId] = id;
+		const item = this._cache.get(sessionId, itemId);
+		if (!item || CodeActionAdapter._isCommand(item)) {
+			return undefined; // code actions only!
+		}
+		if (!this._provider.resolveCodeAction) {
+			return; // this should not happen...
+		}
+		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
+		return resolvedItem?.edit
+			? typeConvert.WorkspaceEdit.from(resolvedItem.edit)
+			: undefined;
 	}
 
 	public releaseCodeActions(cachedId: number): void {
@@ -879,6 +898,7 @@ class SuggestAdapter {
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 
+		const sw = new StopWatch(true);
 		const itemsOrList = await asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context)));
 
 		if (!itemsOrList) {
@@ -904,7 +924,8 @@ class SuggestAdapter {
 			x: pid,
 			[extHostProtocol.ISuggestResultDtoField.completions]: completions,
 			[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined
+			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined,
+			[extHostProtocol.ISuggestResultDtoField.duration]: sw.elapsed()
 		};
 
 		for (let i = 0; i < list.items.length; i++) {
@@ -1595,7 +1616,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),
 			}))
-		}, ExtHostLanguageFeatures._extLabel(extension));
+		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(provider.resolveCodeAction));
 		store.add(this._createDisposable(handle));
 		return store;
 	}
@@ -1603,6 +1624,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
 		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined);
+	}
+
+	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), undefined);
 	}
 
 	$releaseCodeActions(handle: number, cacheId: number): void {
@@ -1719,7 +1744,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._apiDeprecation, extension), extension);
-		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
+		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), `${extension.identifier.value}(${triggerCharacters.join('')})`);
 		return this._createDisposable(handle);
 	}
 
@@ -1789,10 +1814,21 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo, token), undefined);
 	}
 
-	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new FoldingProviderAdapter(this._documents, provider), extension);
-		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector));
-		return this._createDisposable(handle);
+	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider2): vscode.Disposable {
+		const handle = this._nextHandle();
+		const eventHandle = typeof provider.onDidChangeFoldingRanges === 'function' ? this._nextHandle() : undefined;
+
+		this._adapter.set(handle, new AdapterData(new FoldingProviderAdapter(this._documents, provider), extension));
+		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector), eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle !== undefined) {
+			checkProposedApiEnabled(extension);
+			const subscription = provider.onDidChangeFoldingRanges!(_ => this._proxy.$emitFoldingRangeEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
 	}
 
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext, token: CancellationToken): Promise<modes.FoldingRange[] | undefined> {

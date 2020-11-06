@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier, activeContrastBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, isAncestor, Dimension, addDisposableListener, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, isAncestor, Dimension, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IAction, Separator, IActionViewItem } from 'vs/base/common/actions';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel } from 'vs/workbench/common/views';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -305,6 +305,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(this.toolbar);
 		this.setActions();
 
+		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
+
 		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
 			this.updateTitle(this.title);
 		}));
@@ -361,7 +363,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		if (cssClass) {
-			addClasses(this.iconContainer, cssClass);
+			this.iconContainer.classList.add(...cssClass.split(' '));
 		}
 
 		const calculatedTitle = this.calculateTitle(title);
@@ -640,7 +642,7 @@ type BoundingRect = { top: number, left: number, bottom: number, right: number }
 
 class ViewPaneDropOverlay extends Themable {
 
-	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
+	private static readonly OVERLAY_ID = 'monaco-pane-drop-overlay';
 
 	private container!: HTMLElement;
 	private overlay!: HTMLElement;
@@ -1317,7 +1319,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	saveState(): void {
 		this.panes.forEach((view) => view.saveState());
-		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE);
+		this.storageService.store2(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {

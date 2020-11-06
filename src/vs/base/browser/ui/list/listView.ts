@@ -327,7 +327,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => scheduleAtNextAnimationFrame(cb));
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
-			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
 			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
@@ -340,7 +339,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 
 		// Prevent the monaco-scrollable-element from scrolling
-		// https://github.com/Microsoft/vscode/issues/44181
+		// https://github.com/microsoft/vscode/issues/44181
 		domEvent(this.scrollableElement.getDomNode(), 'scroll')
 			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
 

@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, computeEditorAriaLabel } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, computeEditorAriaLabel } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -34,7 +34,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -47,6 +47,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { insert } from 'vs/base/common/arrays';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isSafari } from 'vs/base/browser/browser';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -64,11 +65,13 @@ export class TabsTitleControl extends TitleControl {
 		large: 10
 	};
 
-	private static readonly TAB_SIZES = {
+	private static readonly TAB_WIDTH = {
 		compact: 38,
 		shrink: 80,
 		fit: 120
 	};
+
+	private static readonly TAB_HEIGHT = 35;
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
@@ -238,7 +241,7 @@ export class TabsTitleControl extends TitleControl {
 			}));
 		});
 
-		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault();
@@ -254,7 +257,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if the target is not on the tabs container
 				if (e.target !== tabsContainer) {
-					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
+					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/microsoft/vscode/issues/52093
 					return;
 				}
 
@@ -440,7 +443,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	pinEditor(editor: IEditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(editor, index, tabContainer, tabLabelWidget, tabLabel));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel));
 	}
 
 	stickEditor(editor: IEditorInput): void {
@@ -456,15 +459,21 @@ export class TabsTitleControl extends TitleControl {
 		// Update tab
 		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
 
+		// Sticky change has an impact on each tab's border because
+		// it potentially moves the border to the last pinned tab
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawTabBorders(index, tabContainer);
+		});
+
 		// A change to the sticky state requires a layout to keep the active editor visible
 		this.layout(this.dimension);
 	}
 
 	setActive(isGroupActive: boolean): void {
 
-		// Activity has an impact on each tab
+		// Activity has an impact on each tab's active indication
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawEditorActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidget);
+			this.redrawTabActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidget);
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -491,7 +500,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// As such we need to redraw each label
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+			this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
 		});
 
 		// A change to a label requires a layout to keep the active editor visible
@@ -499,7 +508,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget) => this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -507,6 +516,11 @@ export class TabsTitleControl extends TitleControl {
 		// A change to a label format options requires to recompute all labels
 		if (oldOptions.labelFormat !== newOptions.labelFormat) {
 			this.computeTabLabels();
+		}
+
+		// Update tabs scrollbar sizing
+		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
+			this.updateTabsScrollbarSizing();
 		}
 
 		// Redraw tabs when other options change
@@ -520,11 +534,6 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
 		) {
 			this.redraw();
-		}
-
-		// Udate tabs scrollbar sizing
-		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
-			this.updateTabsScrollbarSizing();
 		}
 	}
 
@@ -610,7 +619,7 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
-					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
 				return undefined; // only for left mouse click
@@ -657,7 +666,7 @@ export class TabsTitleControl extends TitleControl {
 		// Close on mouse middle click
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, (e: MouseEvent) => {
 			if (e.button === 1 /* Middle Button*/) {
-				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
 				this.closeEditorAction.run({ groupId: this.group.id, editorIndex: index });
@@ -748,7 +757,7 @@ export class TabsTitleControl extends TitleControl {
 			if (input) {
 				this.onContextMenu(input, e, tab);
 			}
-		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
+		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
 		// Drag support
 		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
@@ -766,7 +775,7 @@ export class TabsTitleControl extends TitleControl {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.doFillResourceDataTransfers(editor, e);
 
-			// Fixes https://github.com/Microsoft/vscode/issues/18733
+			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
 			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
 		}));
@@ -857,7 +866,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-			return true; // optimistically allow external data (// see https://github.com/Microsoft/vscode/issues/25789)
+			return true; // optimistically allow external data (// see https://github.com/microsoft/vscode/issues/25789)
 		}
 
 		return false;
@@ -1018,11 +1027,10 @@ export class TabsTitleControl extends TitleControl {
 
 	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
 		const isTabSticky = this.group.isSticky(index);
-		const isTabLastSticky = isTabSticky && this.group.stickyCount === index + 1;
 		const options = this.accessor.partOptions;
 
 		// Label
-		this.redrawLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
 		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
@@ -1032,11 +1040,6 @@ export class TabsTitleControl extends TitleControl {
 			}
 			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
 		}
-
-		// Borders / Outline
-		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
-		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
-		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
 		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
@@ -1049,14 +1052,11 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
 		});
 
-		if (options.showIcons && options.hasIcons) {
-			tabContainer.classList.add('has-icon');
-		} else {
-			tabContainer.classList.remove('has-icon');
-		}
+		tabContainer.classList.toggle('has-icon', options.showIcons && options.hasIcons);
 
-		['compact', 'shrink', 'normal'].forEach(option => {
-			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && !!options.pinnedTabSizing);
+		tabContainer.classList.toggle('sticky', isTabSticky);
+		['normal', 'compact', 'shrink'].forEach(option => {
+			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
 		});
 
 		// Sticky compact/shrink tabs need a position to remain at their location
@@ -1065,10 +1065,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1077,11 +1077,14 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.style.left = 'auto';
 		}
 
+		// Borders / outline
+		this.redrawTabBorders(index, tabContainer);
+
 		// Active / dirty state
-		this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+		this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
 	}
 
-	private redrawLabel(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
+	private redrawTabLabel(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		const options = this.accessor.partOptions;
 
 		// Unless tabs are sticky compact, show the full label and description
@@ -1112,12 +1115,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Label
 		tabLabelWidget.setResource(
-			{ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
+			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
 			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel }
 		);
 
 		// Tests helper
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resource));
 		} else {
@@ -1125,15 +1128,15 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
+	private redrawTabActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 		const isTabActive = this.group.isActive(editor);
 
-		const hasModifiedBorderTop = this.doRedrawEditorDirty(isGroupActive, isTabActive, editor, tabContainer);
+		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
 
-		this.doRedrawEditorActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
+		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
 	}
 
-	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
+	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 
 		// Tab is active
 		if (this.group.isActive(editor)) {
@@ -1179,7 +1182,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doRedrawEditorDirty(isGroupActive: boolean, isTabActive: boolean, editor: IEditorInput, tabContainer: HTMLElement): boolean {
+	private doRedrawTabDirty(isGroupActive: boolean, isTabActive: boolean, editor: IEditorInput, tabContainer: HTMLElement): boolean {
 		let hasModifiedBorderColor = false;
 
 		// Tab: dirty (unless saving)
@@ -1220,8 +1223,26 @@ export class TabsTitleControl extends TitleControl {
 		return hasModifiedBorderColor;
 	}
 
-	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
+	private redrawTabBorders(index: number, tabContainer: HTMLElement): void {
+		const isTabSticky = this.group.isSticky(index);
+		const isTabLastSticky = isTabSticky && this.group.stickyCount === index + 1;
+
+		// Borders / Outline
+		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
+		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
+		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
+	}
+
+	getDimensions(): IEditorGroupTitleDimensions {
+		let height = TabsTitleControl.TAB_HEIGHT;
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			height += BreadcrumbsControl.HEIGHT;
+		}
+
+		return {
+			height,
+			offset: TabsTitleControl.TAB_HEIGHT
+		};
 	}
 
 	layout(dimension: Dimension | undefined): void {
@@ -1263,7 +1284,7 @@ export class TabsTitleControl extends TitleControl {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			const tabsScrollbar = assertIsDefined(this.tabsScrollbar);
 
-			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.breadcrumbsControl.layout(new Dimension(dimension.width, BreadcrumbsControl.HEIGHT));
 			tabsScrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 	}
@@ -1299,27 +1320,30 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (this.accessor.partOptions.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
 					break;
 			}
 
 			stickyTabsWidth = this.group.stickyCount * stickyTabWidth;
 		}
-		let activeTabSticky = this.group.isSticky(activeIndex);
-		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
+
+		// Figure out if active tab is positioned static which has an
+		// impact on wether to reveal the tab or not later
+		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && this.group.isSticky(activeIndex);
 
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
-		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_SIZES.fit) {
+		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
+		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
 			availableTabsContainerWidth = visibleTabsContainerWidth;
 			stickyTabsWidth = 0;
-			activeTabSticky = false;
+			activeTabPositionStatic = false;
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
@@ -1339,9 +1363,9 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Return now if we are blocked to reveal the active tab and clear flag
-		// We also return if the active tab is sticky because this means it is
-		// always visible anyway.
-		if (this.blockRevealActiveTab || typeof activeTabPosX !== 'number' || typeof activeTabWidth !== 'number' || activeTabSticky) {
+		// We also return if the active tab is positioned static because this
+		// means it is always visible anyway.
+		if (this.blockRevealActiveTab || typeof activeTabPosX !== 'number' || typeof activeTabWidth !== 'number' || activeTabPositionStatic) {
 			this.blockRevealActiveTab = false;
 			return;
 		}
@@ -1533,6 +1557,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
 				opacity: 1 !important;
 			}
@@ -1607,7 +1632,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 
 	// Fade out styles via linear gradient (when tabs are set to shrink)
-	if (theme.type !== 'hc') {
+	// But not when:
+	// - in high contrast theme
+	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
+	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
+	if (theme.type !== 'hc' && !isSafari && !activeContrastBorderColor) {
 		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 		const editorBackgroundColor = theme.getColor(editorBackground);
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);

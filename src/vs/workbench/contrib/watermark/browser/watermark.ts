@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
@@ -154,11 +154,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private handleEditorPartSize(container: HTMLElement, dimension: dom.IDimension): void {
-		if (dimension.height <= 478) {
-			dom.addClass(container, 'max-height-478px');
-		} else {
-			dom.removeClass(container, 'max-height-478px');
-		}
+		container.classList.toggle('max-height-478px', dimension.height <= 478);
 	}
 
 	private destroy(): void {

@@ -189,9 +189,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.tracer.updateConfiguration();
 
 			if (this.serverState.type === ServerState.Type.Running) {
-				if (this._configuration.checkJs !== oldConfiguration.checkJs
-					|| this._configuration.experimentalDecorators !== oldConfiguration.experimentalDecorators
-				) {
+				if (!this._configuration.implictProjectConfiguration.isEqualTo(oldConfiguration.implictProjectConfiguration)) {
 					this.setCompilerOptionsForInferredProjects(this._configuration);
 				}
 
@@ -677,13 +675,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (capability) {
 			case ClientCapability.Semantic:
 				{
-					switch (resource.scheme) {
-						case fileSchemes.file:
-						case fileSchemes.untitled:
-							return true;
-						default:
-							return false;
-					}
+					return fileSchemes.semanticSupportedSchemes.includes(resource.scheme);
 				}
 			case ClientCapability.Syntax:
 			case ClientCapability.EnhancedSyntax:
@@ -851,6 +843,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					break;
 				}
 			case EventName.projectsUpdatedInBackground:
+				this.loadingIndicator.reset();
+
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
@@ -1028,7 +1022,7 @@ class ServerInitializingIndicator extends Disposable {
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
 			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-		}, () => new Promise((resolve, reject) => {
+		}, () => new Promise<void>((resolve, reject) => {
 			this._task = { project: projectName, resolve, reject };
 		}));
 	}

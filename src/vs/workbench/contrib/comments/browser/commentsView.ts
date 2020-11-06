@@ -6,7 +6,7 @@
 import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { IAction, Action } from 'vs/base/common/actions';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -34,7 +34,6 @@ export class CommentsPanel extends ViewPane {
 	private tree!: CommentsList;
 	private treeContainer!: HTMLElement;
 	private messageBoxContainer!: HTMLElement;
-	private messageBox!: HTMLElement;
 	private commentsModel!: CommentsModel;
 	private collapseAllAction?: IAction;
 
@@ -60,7 +59,7 @@ export class CommentsPanel extends ViewPane {
 	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'comments-panel');
+		container.classList.add('comments-panel');
 
 		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
@@ -83,6 +82,18 @@ export class CommentsPanel extends ViewPane {
 		}));
 
 		this.renderComments();
+	}
+
+	public focus(): void {
+		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
+			return;
+		}
+
+		if (!this.commentsModel.hasCommentThreads() && this.messageBoxContainer) {
+			this.messageBoxContainer.focus();
+		} else if (this.tree) {
+			this.tree.domFocus();
+		}
 	}
 
 	private applyStyles(styleElement: HTMLStyleElement) {
@@ -113,9 +124,9 @@ export class CommentsPanel extends ViewPane {
 	}
 
 	private async renderComments(): Promise<void> {
-		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
-		await this.tree.setInput(this.commentsModel);
+		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 		this.renderMessage();
+		await this.tree.setInput(this.commentsModel);
 	}
 
 	public getActions(): IAction[] {
@@ -138,13 +149,12 @@ export class CommentsPanel extends ViewPane {
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
-		this.messageBox.setAttribute('tabindex', '0');
+		this.messageBoxContainer.setAttribute('tabIndex', '0');
 	}
 
 	private renderMessage(): void {
-		this.messageBox.textContent = this.commentsModel.getMessage();
-		dom.toggleClass(this.messageBoxContainer, 'hidden', this.commentsModel.hasCommentThreads());
+		this.messageBoxContainer.textContent = this.commentsModel.getMessage();
+		this.messageBoxContainer.classList.toggle('hidden', this.commentsModel.hasCommentThreads());
 	}
 
 	private createTree(): void {
@@ -196,7 +206,7 @@ export class CommentsPanel extends ViewPane {
 
 		const activeEditor = this.editorService.activeEditor;
 		let currentActiveResource = activeEditor ? activeEditor.resource : undefined;
-		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
+		if (currentActiveResource && isEqual(currentActiveResource, element.resource)) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorControl;
@@ -231,18 +241,23 @@ export class CommentsPanel extends ViewPane {
 		return true;
 	}
 
-	private refresh(): void {
+	private async refresh(): Promise<void> {
 		if (this.isVisible()) {
 			if (this.collapseAllAction) {
 				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 			}
 
-			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
-			this.tree.updateChildren().then(() => {
-				this.renderMessage();
-			}, (e) => {
-				console.log(e);
-			});
+			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
+			this.renderMessage();
+			await this.tree.updateChildren();
+
+			if (this.tree.getSelection().length === 0 && this.commentsModel.hasCommentThreads()) {
+				const firstComment = this.commentsModel.resourceCommentThreads[0].commentThreads[0];
+				if (firstComment) {
+					this.tree.setFocus([firstComment]);
+					this.tree.setSelection([firstComment]);
+				}
+			}
 		}
 	}
 

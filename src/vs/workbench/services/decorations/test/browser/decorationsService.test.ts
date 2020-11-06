@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ConsoleLogService } from 'vs/platform/log/common/log';
 
 suite('DecorationsService', function () {
 
@@ -20,7 +19,7 @@ suite('DecorationsService', function () {
 		if (service) {
 			service.dispose();
 		}
-		service = new DecorationsService(new TestThemeService(), new ConsoleLogService());
+		service = new DecorationsService(new TestThemeService());
 	});
 
 	test('Async provider, async/evented result', function () {

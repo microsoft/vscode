@@ -46,6 +46,9 @@ export class TreeViewPane extends ViewPane {
 		if (options.title !== this.treeView.title) {
 			this.updateTitle(this.treeView.title);
 		}
+		if (options.titleDescription !== this.treeView.description) {
+			this.updateTitleDescription(this.treeView.description);
+		}
 		this.updateTreeVisibility();
 	}
 

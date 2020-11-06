@@ -29,7 +29,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -522,13 +521,13 @@ export function registerCommands(): void {
 		const control = editorService.activeTextEditorControl;
 		if (isCodeEditor(control)) {
 			const position = control.getPosition();
-			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+			if (position && control.hasModel() && debugService.canSetBreakpointsIn(control.getModel())) {
 				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
 				if (!breakpointAlreadySet) {
-					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 				}
 			}
 		}
@@ -565,7 +564,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService), accessor.get(IUriIdentityService));
+					return openBreakpointSource(focus[0], true, false, true, accessor.get(IDebugService), accessor.get(IEditorService));
 				}
 			}
 

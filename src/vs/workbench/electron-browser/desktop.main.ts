@@ -5,6 +5,9 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
+import { createHash } from 'crypto';
+import { stat } from 'vs/base/node/pfs';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -16,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -45,14 +48,14 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
-import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration);
+	private readonly productService: IProductService = { _serviceBrand: undefined, ...product };
+	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.productService);
 
 	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
@@ -69,27 +72,27 @@ class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		importEntries(this.environmentService.configuration.perfEntries);
+		importEntries(this.configuration.perfEntries);
 
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 		setZoomLevel(zoomLevel, true /* isTrusted */);
-		setFullscreen(!!this.environmentService.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen);
 	}
 
 	private reviveUris() {
-		if (this.environmentService.configuration.folderUri) {
-			this.environmentService.configuration.folderUri = URI.revive(this.environmentService.configuration.folderUri);
+		if (this.configuration.folderUri) {
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
 
-		if (this.environmentService.configuration.workspace) {
-			this.environmentService.configuration.workspace = reviveWorkspaceIdentifier(this.environmentService.configuration.workspace);
+		if (this.configuration.workspace) {
+			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
-		const filesToWait = this.environmentService.configuration.filesToWait;
+		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
-		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
+		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
@@ -123,12 +126,12 @@ class DesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Driver
-		if (this.environmentService.configuration.driver) {
+		if (this.configuration.driver) {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
+		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
@@ -162,10 +165,19 @@ class DesktopMain extends Disposable {
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		// Main Process
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
@@ -173,10 +185,10 @@ class DesktopMain extends Disposable {
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
+		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
-		serviceCollection.set(IProductService, productService);
+		serviceCollection.set(IProductService, this.productService);
 
 		// Log
 		const logService = this._register(new NativeLogService(this.configuration.windowId, mainProcessService, this.environmentService));
@@ -186,27 +198,55 @@ class DesktopMain extends Disposable {
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 		// Sign
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, productService, remoteAuthorityResolverService, signService, logService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, this.productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
-		// Electron
-		const electronService = new ElectronService(this.configuration.windowId, mainProcessService) as IElectronService;
-		serviceCollection.set(IElectronService, electronService);
+		// Native Host
+		const nativeHostService = new NativeHostService(this.configuration.windowId, mainProcessService) as INativeHostService;
+		serviceCollection.set(INativeHostService, nativeHostService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, electronService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.configuration.backupPath ? URI.file(this.environmentService.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.configuration.backupPath ? URI.file(this.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -214,10 +254,7 @@ class DesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const resourceIdentityService = this._register(new NativeResourceIdentityService());
-		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
-
-		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
+		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		const services = await Promise.all([
 			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
@@ -240,20 +277,34 @@ class DesktopMain extends Disposable {
 			})
 		]);
 
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
-		if (this.environmentService.configuration.workspace) {
-			return this.environmentService.configuration.workspace;
+		if (this.configuration.workspace) {
+			return this.configuration.workspace;
 		}
 
 		// Single-folder workspace
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
-		if (this.environmentService.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri, resourceIdentityService);
+		if (this.configuration.folderUri) {
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
 		}
 
 		// Fallback to empty workspace if we have no payload yet.
@@ -273,12 +324,12 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, resourceIdentityService: IResourceIdentityService): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 		try {
 			const folder = folderUri.scheme === Schemas.file
 				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
 				: folderUri;
-			const id = await resourceIdentityService.resolveResourceIdentity(folderUri);
+			const id = await this.createHash(folderUri);
 			return { id, folder };
 		} catch (error) {
 			onUnexpectedError(error);
@@ -286,8 +337,33 @@ class DesktopMain extends Disposable {
 		return;
 	}
 
+	private async createHash(resource: URI): Promise<string> {
+		// Return early the folder is not local
+		if (resource.scheme !== Schemas.file) {
+			return createHash('md5').update(resource.toString()).digest('hex');
+		}
+
+		const fileStat = await stat(resource.fsPath);
+		let ctime: number | undefined;
+		if (isLinux) {
+			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+		} else if (isMacintosh) {
+			ctime = fileStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+		} else if (isWindows) {
+			if (typeof fileStat.birthtimeMs === 'number') {
+				ctime = Math.floor(fileStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			} else {
+				ctime = fileStat.birthtime.getTime();
+			}
+		}
+
+		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
+		// deleted and recreated. in that case we do not want to carry over previous state
+		return createHash('md5').update(resource.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+	}
+
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.configuration.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

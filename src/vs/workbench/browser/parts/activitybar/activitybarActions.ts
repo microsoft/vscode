@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -32,9 +32,12 @@ import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -74,7 +77,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
+		if (now > this.lastRun /* https://github.com/microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
 			return;
 		}
 		this.lastRun = now;
@@ -128,6 +131,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -140,7 +144,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
+			this.showContextMenu(e);
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -192,7 +196,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 			if (sessionInfo.sessions) {
 				Object.keys(sessionInfo.sessions).forEach(accountName => {
-					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id || this.environmentService.options?.authenticationSessionId));
+					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id));
 					const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
 						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
 					});
@@ -231,23 +235,26 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		}
 
 		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
-			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL);
+			this.storageService.store2(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
 			return Promise.resolve();
 		}));
 
 		return menus;
 	}
 
-	private async showContextMenu(): Promise<void> {
+	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const accountsActions: IAction[] = [];
 		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
+		const customOrMac = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' || isMacintosh; // using the location logic on mac helps with #40262
+		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		const location = { x: containerPosition.left + (position === 'left' ? containerPosition.width : 0), y: containerPosition.top };
 		const actions = await this.getActions(accountsMenu);
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
+			getAnchor: () => customOrMac ? location : e || this.container,
+			anchorAlignment: customOrMac ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
 			getActions: () => actions,
 			onHide: () => {
 				accountsMenu.dispose();
@@ -265,7 +272,9 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -278,7 +287,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
+			this.showContextMenu(e);
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -295,15 +304,18 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	private showContextMenu(): void {
+	private showContextMenu(e?: MouseEvent): void {
 		const globalActivityActions: IAction[] = [];
 		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
+		const customOrMac = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' || isMacintosh; // using the location logic on mac helps with #40262
+		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		const location = { x: containerPosition.left + (position === 'left' ? containerPosition.width : 0), y: containerPosition.top + containerPosition.height };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
+			getAnchor: () => customOrMac ? location : e || this.container,
+			anchorAlignment: customOrMac ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
 			getActions: () => globalActivityActions,
 			onHide: () => {
 				globalActivityMenu.dispose();
@@ -539,5 +551,5 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 });
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', CATEGORIES.View.value);

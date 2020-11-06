@@ -25,7 +25,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { variableSetEmitter, VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -34,12 +34,12 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
-let ignoreVariableSetEmitter = false;
+let ignoreViewUpdates = false;
 let useCachedEvaluation = false;
 
 export class WatchExpressionsView extends ViewPane {
 
-	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
+	private watchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private tree!: WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>;
 
@@ -58,7 +58,7 @@ export class WatchExpressionsView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
-		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
+		this.watchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
 			this.tree.updateChildren();
 		}, 50);
@@ -117,24 +117,24 @@ export class WatchExpressionsView extends ViewPane {
 				return;
 			}
 
-			if (!this.onWatchExpressionsUpdatedScheduler.isScheduled()) {
-				this.onWatchExpressionsUpdatedScheduler.schedule();
+			if (!this.watchExpressionsUpdatedScheduler.isScheduled()) {
+				this.watchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this._register(variableSetEmitter.event(() => {
-			if (!ignoreVariableSetEmitter) {
+		this._register(this.debugService.getViewModel().onWillUpdateViews(() => {
+			if (!ignoreViewUpdates) {
 				this.tree.updateChildren();
 			}
 		}));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
-				this.onWatchExpressionsUpdatedScheduler.schedule();
+				this.watchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
-			if (e instanceof Expression && e.name) {
+			if (e instanceof Expression) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
@@ -291,9 +291,9 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			onFinish: (value: string, success: boolean) => {
 				if (success && value) {
 					this.debugService.renameWatchExpression(expression.getId(), value);
-					ignoreVariableSetEmitter = true;
-					variableSetEmitter.fire();
-					ignoreVariableSetEmitter = false;
+					ignoreViewUpdates = true;
+					this.debugService.getViewModel().updateViews();
+					ignoreViewUpdates = false;
 				} else if (!expression.name) {
 					this.debugService.removeWatchExpressions(expression.getId());
 				}

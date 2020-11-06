@@ -11,7 +11,7 @@ import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestSer
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -1513,7 +1513,7 @@ suite('Workbench editor groups', () => {
 		assert.ok(group1Listener.disposed[1].matches(input3));
 	});
 
-	test('Preview tab does not have a stable position (https://github.com/Microsoft/vscode/issues/8245)', function () {
+	test('Preview tab does not have a stable position (https://github.com/microsoft/vscode/issues/8245)', function () {
 		const group1 = createGroup();
 
 		const input1 = input();

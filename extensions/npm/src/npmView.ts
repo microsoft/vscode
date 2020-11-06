@@ -129,7 +129,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
-		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
 		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
 	}
 
@@ -138,7 +137,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private async debugScript(script: NpmScript) {
-		startDebugging(script.task.name, script.getFolder());
+		startDebugging(script.task.definition.script, path.dirname(script.package.resourceUri!.fsPath), script.getFolder());
 	}
 
 	private findScript(document: TextDocument, script?: NpmScript): number {
@@ -182,7 +181,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, undefined, []);
+		let task = await createTask('install', 'install', selection.folder.workspaceFolder, uri, undefined, []);
 		tasks.executeTask(task);
 	}
 

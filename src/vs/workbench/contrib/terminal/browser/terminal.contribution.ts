@@ -17,7 +17,7 @@ import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { registerTerminalActions, ClearTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, KillTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, SplitTerminalAction, TerminalPasteAction, ToggleTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
@@ -101,7 +101,7 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectAllTermin
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleTerminalAction, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
-}), 'View: Toggle Integrated Terminal', nls.localize('viewCategory', "View"));
+}), 'View: Toggle Integrated Terminal', CATEGORIES.View.value);
 // Weight is higher than work workbench contributions so the keybinding remains
 // highest priority when chords are registered afterwards
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ClearTerminalAction, {
@@ -145,7 +145,7 @@ function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyE
 const CTRL_LETTER_OFFSET = 64;
 
 if (BrowserFeatures.clipboard.readText) {
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TerminalPasteAction, {
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TerminalPasteAction, platform.isMacintosh && platform.isWeb ? undefined : {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }

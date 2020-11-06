@@ -2593,6 +2593,10 @@ declare namespace monaco.editor {
 		 */
 		ariaLabel?: string;
 		/**
+		 * The `tabindex` property of the editor's textarea
+		 */
+		tabIndex?: number;
+		/**
 		 * Render vertical lines at the specified columns.
 		 * Defaults to empty array.
 		 */
@@ -2635,7 +2639,7 @@ declare namespace monaco.editor {
 		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 		 * Defaults to 'prompt'.
 		 */
-		unusualLineTerminators?: 'off' | 'prompt' | 'auto';
+		unusualLineTerminators?: 'auto' | 'off' | 'prompt';
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -2905,6 +2909,10 @@ declare namespace monaco.editor {
 		 * Suggest options.
 		 */
 		suggest?: ISuggestOptions;
+		/**
+		 * Smart select opptions;
+		 */
+		smartSelect?: ISmartSelectOptions;
 		/**
 		 *
 		 */
@@ -3698,9 +3706,13 @@ declare namespace monaco.editor {
 		 */
 		showIcons?: boolean;
 		/**
-		 * Max suggestions to show in suggestions. Defaults to 12.
+		 * Enable or disable the suggest status bar.
 		 */
-		maxVisibleSuggestions?: number;
+		showStatusBar?: boolean;
+		/**
+		 * Show details inline with the label. Defaults to true.
+		 */
+		showStatusDetailsInline?: boolean;
 		/**
 		 * Show method-suggestions.
 		 */
@@ -3809,18 +3821,15 @@ declare namespace monaco.editor {
 		 * Show snippet-suggestions.
 		 */
 		showSnippets?: boolean;
-		/**
-		 * Status bar related settings.
-		 */
-		statusBar?: {
-			/**
-			 * Controls the visibility of the status bar at the bottom of the suggest widget.
-			 */
-			visible?: boolean;
-		};
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
+
+	export interface ISmartSelectOptions {
+		selectLeadingAndTrailingWhitespace?: boolean;
+	}
+
+	export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
 
 	/**
 	 * Describes how to indent wrapped lines.
@@ -3946,30 +3955,32 @@ declare namespace monaco.editor {
 		showFoldingControls = 91,
 		showUnused = 92,
 		snippetSuggestions = 93,
-		smoothScrolling = 94,
-		stopRenderingLineAfter = 95,
-		suggest = 96,
-		suggestFontSize = 97,
-		suggestLineHeight = 98,
-		suggestOnTriggerCharacters = 99,
-		suggestSelection = 100,
-		tabCompletion = 101,
-		unusualLineTerminators = 102,
-		useTabStops = 103,
-		wordSeparators = 104,
-		wordWrap = 105,
-		wordWrapBreakAfterCharacters = 106,
-		wordWrapBreakBeforeCharacters = 107,
-		wordWrapColumn = 108,
-		wordWrapMinified = 109,
-		wrappingIndent = 110,
-		wrappingStrategy = 111,
-		showDeprecated = 112,
-		editorClassName = 113,
-		pixelRatio = 114,
-		tabFocusMode = 115,
-		layoutInfo = 116,
-		wrappingInfo = 117
+		smartSelect = 94,
+		smoothScrolling = 95,
+		stopRenderingLineAfter = 96,
+		suggest = 97,
+		suggestFontSize = 98,
+		suggestLineHeight = 99,
+		suggestOnTriggerCharacters = 100,
+		suggestSelection = 101,
+		tabCompletion = 102,
+		tabIndex = 103,
+		unusualLineTerminators = 104,
+		useTabStops = 105,
+		wordSeparators = 106,
+		wordWrap = 107,
+		wordWrapBreakAfterCharacters = 108,
+		wordWrapBreakBeforeCharacters = 109,
+		wordWrapColumn = 110,
+		wordWrapMinified = 111,
+		wrappingIndent = 112,
+		wrappingStrategy = 113,
+		showDeprecated = 114,
+		editorClassName = 115,
+		pixelRatio = 116,
+		tabFocusMode = 117,
+		layoutInfo = 118,
+		wrappingInfo = 119
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4067,6 +4078,7 @@ declare namespace monaco.editor {
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
+		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, InternalSuggestOptions>;
@@ -4075,7 +4087,8 @@ declare namespace monaco.editor {
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
-		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'prompt' | 'auto'>;
+		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
+		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
@@ -4240,6 +4253,18 @@ declare namespace monaco.editor {
 		 * If null is returned, the content widget will be placed off screen.
 		 */
 		getPosition(): IContentWidgetPosition | null;
+		/**
+		 * Optional function that is invoked before rendering
+		 * the content widget. If a dimension is returned the editor will
+		 * attempt to use it.
+		 */
+		beforeRender?(): IDimension | null;
+		/**
+		 * Optional function that is invoked after rendering the content
+		 * widget. Is being invoked with the selected position preference
+		 * or `null` if not rendered.
+		 */
+		afterRender?(position: ContentWidgetPositionPreference | null): void;
 	}
 
 	/**
@@ -4499,6 +4524,11 @@ declare namespace monaco.editor {
 		 * An event emitted after composition has ended.
 		 */
 		onDidCompositionEnd(listener: () => void): IDisposable;
+		/**
+		 * An event emitted when editing failed because the editor is read-only.
+		 * @event
+		 */
+		onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 		/**
 		 * An event emitted when users paste text in the editor.
 		 * @event
@@ -5402,31 +5432,6 @@ declare namespace monaco.languages {
 		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 	}
 
-	/**
-	 * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
-	 * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
-	 */
-	export interface EvaluatableExpression {
-		/**
-		 * The range to which this expression applies.
-		 */
-		range: IRange;
-		expression?: string;
-	}
-
-	/**
-	 * The hover provider interface defines the contract between extensions and
-	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
-	 */
-	export interface EvaluatableExpressionProvider {
-		/**
-		 * Provide a hover for the given position and document. Multiple hovers at the same
-		 * position will be merged by the editor. A hover can have a range which defaults
-		 * to the word range at the position when omitted.
-		 */
-		provideEvaluatableExpression(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
-	}
-
 	export enum CompletionItemKind {
 		Method = 0,
 		Function = 1,
@@ -6152,6 +6157,10 @@ declare namespace monaco.languages {
 	 */
 	export interface FoldingRangeProvider {
 		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChange?: IEvent<this>;
+		/**
 		 * Provides the folding ranges for a specific model.
 		 */
 		provideFoldingRanges(model: editor.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
@@ -6202,12 +6211,6 @@ declare namespace monaco.languages {
 		needsConfirmation: boolean;
 		label: string;
 		description?: string;
-		iconPath?: {
-			id: string;
-		} | Uri | {
-			light: Uri;
-			dark: Uri;
-		};
 	}
 
 	export interface WorkspaceFileEditOptions {

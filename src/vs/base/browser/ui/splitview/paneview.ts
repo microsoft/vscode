@@ -298,7 +298,7 @@ class PaneDraggable extends Disposable {
 
 	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
 
-	private dragOverCounter = 0; // see https://github.com/Microsoft/vscode/issues/14470
+	private dragOverCounter = 0; // see https://github.com/microsoft/vscode/issues/14470
 
 	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
 	readonly onDidDrop = this._onDidDrop.event;

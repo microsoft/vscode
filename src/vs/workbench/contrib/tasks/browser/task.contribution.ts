@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 
 import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';

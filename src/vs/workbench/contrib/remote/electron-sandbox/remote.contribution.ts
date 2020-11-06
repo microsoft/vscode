@@ -11,7 +11,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
@@ -21,7 +21,6 @@ import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc'
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -121,7 +120,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 
 class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
@@ -169,11 +168,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
 				default: false
 			},
-			'remote.restoreForwardedPorts': {
-				type: 'boolean',
-				markdownDescription: nls.localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
-				default: false
-			}
 		}
 	});
 

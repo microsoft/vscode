@@ -13,12 +13,14 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { Action2, MenuId, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { isAncestor } from 'vs/base/browser/dom';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -215,8 +217,8 @@ function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Part
 	return findVisibleNeighbour(layoutService, neighbour, next);
 }
 
-function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, next: boolean): void {
-	const currentlyFocusedPart = layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
+function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
+	const currentlyFocusedPart = isActiveElementInNotebookEditor(editorService) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
 		layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART : layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
 	let partToFocus = Parts.EDITOR_PART;
 	if (currentlyFocusedPart) {
@@ -226,6 +228,17 @@ function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, next: b
 	layoutService.focusPart(partToFocus);
 }
 
+function isActiveElementInNotebookEditor(editorService: IEditorService): boolean {
+	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+	if (activeEditorPane?.isNotebookEditor) {
+		const control = editorService.activeEditorPane?.getControl() as { getDomNode(): HTMLElement; getOverflowContainerDomNode(): HTMLElement; };
+		const activeElement = document.activeElement;
+		return isAncestor(activeElement, control.getDomNode()) || isAncestor(activeElement, control.getOverflowContainerDomNode());
+	}
+
+	return false;
+}
+
 export class FocusNextPart extends Action {
 	static readonly ID = 'workbench.action.focusNextPart';
 	static readonly LABEL = nls.localize('focusNextPart', "Focus Next Part");
@@ -233,13 +246,14 @@ export class FocusNextPart extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<void> {
-		focusNextOrPreviousPart(this.layoutService, true);
+		focusNextOrPreviousPart(this.layoutService, this.editorService, true);
 	}
 }
 
@@ -250,13 +264,14 @@ export class FocusPreviousPart extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<void> {
-		focusNextOrPreviousPart(this.layoutService, false);
+		focusNextOrPreviousPart(this.layoutService, this.editorService, false);
 	}
 }
 
@@ -283,15 +298,16 @@ class GoHomeContributor implements IWorkbenchContribution {
 	}
 }
 
-const actionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-const viewCategory = nls.localize('view', "View");
+// --- Actions Registration
 
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', viewCategory);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', viewCategory);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', viewCategory);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', viewCategory);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', viewCategory);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', viewCategory);
+const actionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', CATEGORIES.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', CATEGORIES.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', CATEGORIES.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', CATEGORIES.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', CATEGORIES.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', CATEGORIES.View.value);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(GoHomeContributor, LifecyclePhase.Ready);

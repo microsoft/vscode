@@ -6,7 +6,6 @@
 import 'vs/css!./welcomePage';
 import 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { URI } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
@@ -16,16 +15,17 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { splitName } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -38,7 +38,6 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -76,9 +75,10 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							const folderUri = folder.uri;
 							return fileService.resolve(folderUri)
 								.then(folder => {
-									const files = folder.children ? folder.children.map(child => child.name) : [];
+									const files = folder.children ? folder.children.map(child => child.name).sort() : [];
 
-									const file = files.sort().find(file => strings.startsWith(file.toLowerCase(), 'readme'));
+									const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
+
 									if (file) {
 										return joinPath(folderUri, file);
 									}
@@ -88,7 +88,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							.then<any>(readmes => {
 								if (!editorService.activeEditor) {
 									if (readmes.length) {
-										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
 										return Promise.all([
 											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
 											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
@@ -298,7 +298,7 @@ class WelcomePage extends Disposable {
 
 		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
-		const resource = URI.parse(require.toUrl('./vs_code_welcome_page'))
+		const resource = FileAccess.asBrowserUri('./vs_code_welcome_page', require)
 			.with({
 				scheme: Schemas.walkThrough,
 				query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page' })
@@ -323,7 +323,7 @@ class WelcomePage extends Disposable {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile', ConfigurationTarget.USER);
+			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile');
 		});
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
@@ -486,7 +486,7 @@ class WelcomePage extends Disposable {
 						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
-						.then(() => this.extensionManagementService.getInstalled(ExtensionType.User))
+						.then(() => this.extensionManagementService.getInstalled())
 						.then(installed => {
 							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.

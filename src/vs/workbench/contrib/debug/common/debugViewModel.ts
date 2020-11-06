@@ -20,6 +20,7 @@ export class ViewModel implements IViewModel {
 	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
 	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>();
 	private readonly _onDidSelectExpression = new Emitter<IExpression | undefined>();
+	private readonly _onWillUpdateViews = new Emitter<void>();
 	private multiSessionView: boolean;
 	private expressionSelectedContextKey!: IContextKey<boolean>;
 	private breakpointSelectedContextKey!: IContextKey<boolean>;
@@ -113,6 +114,14 @@ export class ViewModel implements IViewModel {
 
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined {
 		return this.selectedFunctionBreakpoint;
+	}
+
+	updateViews(): void {
+		this._onWillUpdateViews.fire();
+	}
+
+	get onWillUpdateViews(): Event<void> {
+		return this._onWillUpdateViews.event;
 	}
 
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void {

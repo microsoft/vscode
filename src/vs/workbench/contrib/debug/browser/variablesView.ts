@@ -21,7 +21,6 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter } from 'vs/base/common/event';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
@@ -41,7 +40,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 const $ = dom.$;
 let forgetScopes = true;
 
-export const variableSetEmitter = new Emitter<void>();
 let variableInternalContext: Variable | undefined;
 let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
 
@@ -52,7 +50,7 @@ interface IVariablesContext {
 
 export class VariablesView extends ViewPane {
 
-	private onFocusStackFrameScheduler: RunOnceScheduler;
+	private updateTreeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
 	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
@@ -85,7 +83,7 @@ export class VariablesView extends ViewPane {
 		this.variableEvaluateName = CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.bindTo(contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
-		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
+		this.updateTreeScheduler = new RunOnceScheduler(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 
 			this.needsRefresh = false;
@@ -142,9 +140,9 @@ export class VariablesView extends ViewPane {
 			// Refresh the tree immediately if the user explictly changed stack frames.
 			// Otherwise postpone the refresh until user stops stepping.
 			const timeout = sf.explicit ? 0 : undefined;
-			this.onFocusStackFrameScheduler.schedule(timeout);
+			this.updateTreeScheduler.schedule(timeout);
 		}));
-		this._register(variableSetEmitter.event(() => {
+		this._register(this.debugService.getViewModel().onWillUpdateViews(() => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (stackFrame && forgetScopes) {
 				stackFrame.forgetScopes();
@@ -157,7 +155,7 @@ export class VariablesView extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
-				this.onFocusStackFrameScheduler.schedule();
+				this.updateTreeScheduler.schedule();
 			}
 		}));
 		let horizontalScrolling: boolean | undefined;
@@ -209,8 +207,8 @@ export class VariablesView extends ViewPane {
 			this.variableEvaluateName.set(!!variable.evaluateName);
 			this.breakWhenValueChangesSupported.reset();
 			if (session && session.capabilities.supportsDataBreakpoints) {
-				const response = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataBreakpointId = response?.dataId;
+				dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
+				const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
 				this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
 			}
 
@@ -219,7 +217,7 @@ export class VariablesView extends ViewPane {
 				variable: variable.toDebugProtocolObject()
 			};
 			const actions: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions, this.contextMenuService);
+			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions);
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
@@ -358,7 +356,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 						.then(() => {
 							// Do not refresh scopes due to a node limitation #15520
 							forgetScopes = false;
-							variableSetEmitter.fire();
+							this.debugService.getViewModel().updateViews();
 						});
 				}
 			}

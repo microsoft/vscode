@@ -23,6 +23,8 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -36,6 +38,7 @@ export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOt
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
+export const KEEP_EDITORS_COMMAND_ID = 'workbench.action.keepEditors';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
@@ -50,6 +53,11 @@ export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
+
+export const FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusLeftGroupWithoutWrap';
+export const FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusRightGroupWithoutWrap';
+export const FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusAboveGroupWithoutWrap';
+export const FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusBelowGroupWithoutWrap';
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
@@ -655,6 +663,39 @@ function registerCloseEditorCommands() {
 	});
 }
 
+function registerFocusEditorGroupWihoutWrapCommands(): void {
+
+	const commands = [
+		{
+			id: FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.LEFT
+		},
+		{
+			id: FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.RIGHT
+		},
+		{
+			id: FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.UP,
+		},
+		{
+			id: FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.DOWN
+		}
+	];
+
+	for (const command of commands) {
+		CommandsRegistry.registerCommand(command.id, async (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const group = editorGroupService.findGroup({ direction: command.direction }, editorGroupService.activeGroup, false);
+			if (group) {
+				group.focus();
+			}
+		});
+	}
+}
+
 function registerOtherEditorCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -669,6 +710,27 @@ function registerOtherEditorCommands(): void {
 			if (group && editor) {
 				return group.pinEditor(editor);
 			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: KEEP_EDITORS_COMMAND_ID,
+		handler: accessor => {
+			const configurationService = accessor.get(IConfigurationService);
+			const notificationService = accessor.get(INotificationService);
+			const openerService = accessor.get(IOpenerService);
+
+			// Update setting
+			configurationService.updateValue('workbench.editor.enablePreview', false);
+
+			// Inform user
+			notificationService.prompt(
+				Severity.Info,
+				nls.localize('disablePreview', "Preview editors have been disabled in settings."),
+				[{
+					label: nls.localize('learnMode', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
+				}]
+			);
 		}
 	});
 
@@ -844,4 +906,5 @@ export function setup(): void {
 	registerOtherEditorCommands();
 	registerFocusEditorGroupAtIndexCommands();
 	registerSplitEditorCommands();
+	registerFocusEditorGroupWihoutWrapCommands();
 }

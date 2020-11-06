@@ -66,6 +66,12 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	setEditorDecorations(key: string, range: ICellRange): void {
+		// throw new Error('Method not implemented.');
+	}
+	removeEditorDecorations(key: string): void {
+		// throw new Error('Method not implemented.');
+	}
 	getSelectionHandles(): number[] {
 		return [];
 	}

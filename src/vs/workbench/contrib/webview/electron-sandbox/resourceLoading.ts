@@ -11,7 +11,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as modes from 'vs/editor/common/modes';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -62,7 +62,7 @@ export class WebviewResourceRequestManager extends Disposable {
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IElectronService electronService: IElectronService,
+		@INativeHostService nativeHostService: INativeHostService,
 		@IFileService fileService: IFileService,
 		@IRequestService requestService: IRequestService,
 	) {
@@ -75,11 +75,11 @@ export class WebviewResourceRequestManager extends Disposable {
 		this._localResourceRoots = initialContentOptions.localResourceRoots || [];
 		this._portMappings = initialContentOptions.portMapping || [];
 
-		const remoteAuthority = environmentService.configuration.remoteAuthority;
+		const remoteAuthority = environmentService.remoteAuthority;
 		const remoteConnectionData = remoteAuthority ? remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
 		this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);
-		this._ready = this._webviewManagerService.registerWebview(this.id, electronService.windowId, {
+		this._ready = this._webviewManagerService.registerWebview(this.id, nativeHostService.windowId, {
 			extensionLocation: this.extension?.location.toJSON(),
 			localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
 			remoteConnectionData: remoteConnectionData,

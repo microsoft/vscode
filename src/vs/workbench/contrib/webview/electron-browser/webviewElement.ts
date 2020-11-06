@@ -9,7 +9,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
@@ -206,8 +206,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			this.styledFindWidget();
 		}
 
-		this.element!.preload = require.toUrl('./pre/electron-index.js');
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html`;
+		// We must ensure to put a `file:` URI as the preload attribute
+		// and not the `vscode-file` URI because preload scripts are loaded
+		// via node.js from the main side and only allow `file:` protocol
+		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html?platform=electron`;
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -288,6 +291,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			return;
 		}
 
+		// Clear the existing focus first.
+		// This is required because the next part where we set the focus is async.
+		if (document.activeElement && document.activeElement instanceof HTMLElement) {
+			document.activeElement.blur();
+		}
+
 		// Workaround for https://github.com/microsoft/vscode/issues/75209
 		// Electron's webview.focus is async so for a sequence of actions such as:
 		//
@@ -303,8 +312,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			if (!this.isFocused || !this.element) {
 				return;
 			}
-
-			if (document.activeElement?.tagName === 'INPUT') {
+			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 			try {

@@ -41,7 +41,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	private setSelectionForConnection(optionsItems: IRemoteSelectItem[], environmentService: IWorkbenchEnvironmentService, remoteExplorerService: IRemoteExplorerService) {
 		if (this.optionsItems.length > 0) {
 			let index = 0;
-			const remoteAuthority = environmentService.configuration.remoteAuthority;
+			const remoteAuthority = environmentService.remoteAuthority;
 			const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] :
 				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.GLOBAL)?.split(',');
 			if (explorerType !== undefined) {

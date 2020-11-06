@@ -123,6 +123,7 @@ export class MenuId {
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
+	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
@@ -302,33 +303,34 @@ export class ExecuteCommandAction extends Action {
 
 export class SubmenuItemAction extends SubmenuAction {
 
+	readonly item: ISubmenuItem;
+
 	constructor(
-		readonly item: ISubmenuItem,
+		item: ISubmenuItem,
 		menuService: IMenuService,
 		contextKeyService: IContextKeyService,
 		options?: IMenuActionOptions
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, () => {
-			const result: IAction[] = [];
-			const menu = menuService.createMenu(item.submenu, contextKeyService);
-			const groups = menu.getActions(options);
-			menu.dispose();
+		const result: IAction[] = [];
+		const menu = menuService.createMenu(item.submenu, contextKeyService);
+		const groups = menu.getActions(options);
+		menu.dispose();
 
-			for (let group of groups) {
-				const [, actions] = group;
+		for (let group of groups) {
+			const [, actions] = group;
 
-				if (actions.length > 0) {
-					result.push(...actions);
-					result.push(new Separator());
-				}
+			if (actions.length > 0) {
+				result.push(...actions);
+				result.push(new Separator());
 			}
+		}
 
-			if (result.length) {
-				result.pop(); // remove last separator
-			}
+		if (result.length) {
+			result.pop(); // remove last separator
+		}
 
-			return result;
-		}, 'submenu');
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, result, 'submenu');
+		this.item = item;
 	}
 }
 

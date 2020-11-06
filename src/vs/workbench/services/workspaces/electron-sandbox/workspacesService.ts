@@ -7,17 +7,18 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
-export class NativeWorkspacesService {
+// @ts-ignore: interface is implemented via proxy
+export class NativeWorkspacesService implements IWorkspacesService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		return createChannelSender<IWorkspacesService>(mainProcessService.getChannel('workspaces'), { context: electronService.windowId });
+		return createChannelSender<IWorkspacesService>(mainProcessService.getChannel('workspaces'), { context: nativeHostService.windowId });
 	}
 }
 

@@ -46,7 +46,6 @@ import { posix } from 'vs/base/common/path';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const $ = dom.$;
 
@@ -112,8 +111,8 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 }
 
 export class CallStackView extends ViewPane {
-	private pauseMessage!: HTMLSpanElement;
-	private pauseMessageLabel!: HTMLSpanElement;
+	private stateMessage!: HTMLSpanElement;
+	private stateMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private ignoreSelectionChangedEvent = false;
@@ -138,8 +137,7 @@ export class CallStackView extends ViewPane {
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -158,15 +156,19 @@ export class CallStackView extends ViewPane {
 
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
-				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
-				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
-				this.pauseMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
-				this.pauseMessage.hidden = false;
-				this.updateActions();
+				this.stateMessageLabel.textContent = thread.stateLabel;
+				this.stateMessageLabel.title = thread.stateLabel;
+				this.stateMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
+				this.stateMessage.hidden = false;
+			} else if (sessions.length === 1 && sessions[0].state === State.Running) {
+				this.stateMessageLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+				this.stateMessageLabel.title = sessions[0].getLabel();
+				this.stateMessageLabel.classList.remove('exception');
+				this.stateMessage.hidden = false;
 			} else {
-				this.pauseMessage.hidden = true;
-				this.updateActions();
+				this.stateMessage.hidden = true;
 			}
+			this.updateActions();
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
@@ -197,13 +199,13 @@ export class CallStackView extends ViewPane {
 		const titleContainer = dom.append(container, $('.debug-call-stack-title'));
 		super.renderHeaderTitle(titleContainer, this.options.title);
 
-		this.pauseMessage = dom.append(titleContainer, $('span.pause-message'));
-		this.pauseMessage.hidden = true;
-		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
+		this.stateMessage = dom.append(titleContainer, $('span.state-message'));
+		this.stateMessage.hidden = true;
+		this.stateMessageLabel = dom.append(this.stateMessage, $('span.label'));
 	}
 
 	getActions(): IAction[] {
-		if (this.pauseMessage.hidden) {
+		if (this.stateMessage.hidden) {
 			return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 		}
 
@@ -291,7 +293,7 @@ export class CallStackView extends ViewPane {
 			const element = e.element;
 			if (element instanceof StackFrame) {
 				focusStackFrame(element, element.thread, element.thread.session);
-				element.openInEditor(this.editorService, this.uriIdentityService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
+				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 			}
 			if (element instanceof Thread) {
 				focusStackFrame(undefined, element, element.session);
@@ -439,7 +441,7 @@ export class CallStackView extends ViewPane {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -549,7 +551,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		data.stateLabel.style.display = '';
 
 		if (thread && thread.stoppedDetails) {
-			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+			data.stateLabel.textContent = thread.stateLabel;
 			if (thread.stoppedDetails.text) {
 				data.session.title = thread.stoppedDetails.text;
 			}
@@ -579,7 +581,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 	renderTemplate(container: HTMLElement): IThreadTemplateData {
 		const thread = dom.append(container, $('.thread'));
 		const name = dom.append(thread, $('.name'));
-		const stateLabel = dom.append(thread, $('span.state.label'));
+		const stateLabel = dom.append(thread, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(thread);
 
@@ -932,13 +934,15 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
-			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
+			return nls.localize({ key: 'threadAriaLabel', comment: ['Placeholders stand for the thread name and the thread state.For example "Thread 1" and "Stopped'] }, "Thread {0} {1}", element.name, element.stateLabel);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}, callstack, debug", element.name, element.range.startLineNumber, getSpecificSourceName(element));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}", element.name, element.range.startLineNumber, getSpecificSourceName(element));
 		}
 		if (isDebugSession(element)) {
-			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());
+			const thread = element.getAllThreads().find(t => t.stopped);
+			const state = thread ? thread.stateLabel : nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			return nls.localize({ key: 'sessionLabel', comment: ['Placeholders stand for the session name and the session state. For example "Launch Program" and "Running"'] }, "Session {0} {1}", element.getLabel(), state);
 		}
 		if (typeof element === 'string') {
 			return element;

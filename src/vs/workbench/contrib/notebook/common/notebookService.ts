@@ -10,19 +10,21 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Event } from 'vs/base/common/event';
 import {
 	INotebookTextModel, INotebookRendererInfo,
-	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions
+	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter
 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {
 	supportBackup: boolean;
+	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
 	resolveNotebookDocument(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }>;
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
@@ -57,7 +59,7 @@ export interface INotebookService {
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
-	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
+	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
@@ -78,5 +80,7 @@ export interface INotebookService {
 	listNotebookEditors(): readonly IEditor[];
 	listVisibleNotebookEditors(): readonly IEditor[];
 	listNotebookDocuments(): readonly NotebookTextModel[];
-
+	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
+	removeEditorDecorationType(key: string): void;
+	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;
 }

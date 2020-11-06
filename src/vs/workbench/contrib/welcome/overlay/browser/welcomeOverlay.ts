@@ -12,7 +12,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -205,7 +205,7 @@ class WelcomeOverlay extends Disposable {
 		if (this._overlay.style.display !== 'block') {
 			this._overlay.style.display = 'block';
 			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
-			dom.addClass(workbench, 'blur-background');
+			workbench.classList.add('blur-background');
 			this._overlayVisible.set(true);
 			this.updateProblemsKey();
 			this.updateActivityBarKeys();
@@ -252,17 +252,17 @@ class WelcomeOverlay extends Disposable {
 		if (this._overlay.style.display !== 'none') {
 			this._overlay.style.display = 'none';
 			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
-			dom.removeClass(workbench, 'blur-background');
+			workbench.classList.remove('blur-background');
 			this._overlayVisible.reset();
 		}
 	}
 }
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomeOverlayAction), 'Help: User Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomeOverlayAction), 'Help: User Interface Overview', CATEGORIES.Help.value);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.from(HideWelcomeOverlayAction, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(HideWelcomeOverlayAction, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', CATEGORIES.Help.value);
 
 // theming
 

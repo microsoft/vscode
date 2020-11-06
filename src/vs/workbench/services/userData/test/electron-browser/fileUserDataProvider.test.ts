@@ -21,6 +21,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { Emitter, Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('FileUserDataProvider', () => {
 
@@ -42,7 +43,7 @@ suite('FileUserDataProvider', () => {
 		disposables.add(testObject.registerProvider(Schemas.file, diskFileSystemProvider));
 
 		const workspaceId = 'workspaceId';
-		environmentService = new BrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId, logsPath: URI.file('logFile') });
+		environmentService = new BrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId, logsPath: URI.file('logFile') }, TestProductService);
 
 		rootResource = URI.file(path.join(os.tmpdir(), 'vsctests', uuid.generateUuid()));
 		userDataHomeOnDisk = joinPath(rootResource, 'user');
@@ -315,7 +316,7 @@ suite('FileUserDataProvider - Watching', () => {
 
 	setup(() => {
 
-		environmentService = new BrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId: 'workspaceId', logsPath: URI.file('logFile') });
+		environmentService = new BrowserWorkbenchEnvironmentService({ remoteAuthority: 'remote', workspaceId: 'workspaceId', logsPath: URI.file('logFile') }, TestProductService);
 
 		const rootResource = URI.file(path.join(os.tmpdir(), 'vsctests', uuid.generateUuid()));
 		localUserDataResource = joinPath(rootResource, 'user');

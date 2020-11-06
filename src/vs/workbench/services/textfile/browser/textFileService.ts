@@ -5,9 +5,9 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { joinPath, dirname, basename, toLocalResource, extUri, extname } from 'vs/base/common/resources';
+import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
@@ -37,6 +37,7 @@ import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream } from 'vs/base/common/stream';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -65,7 +66,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IPathService private readonly pathService: IPathService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 
@@ -219,11 +221,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return undefined;
 	}
 
-	async saveAs(source: URI, target?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
+	async saveAs(source: URI, target?: URI, options?: ITextFileSaveAsOptions): Promise<URI | undefined> {
 
 		// Get to target resource
 		if (!target) {
-			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(source), options?.availableFileSystems);
+			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(options?.suggestedTarget ?? source), options?.availableFileSystems);
 		}
 
 		if (!target) {
@@ -231,7 +233,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Just save if target is same as models own resource
-		if (extUri.isEqual(source, target)) {
+		if (isEqual(source, target)) {
 			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
@@ -347,9 +349,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Confirm to overwrite if we have an untitled file with associated file where
 		// the file actually exists on disk and we are instructed to save to that file
 		// path. This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/Microsoft/vscode/issues/67946
+		// See https://github.com/microsoft/vscode/issues/67946
 		let write: boolean;
-		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme))) {
+		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme))) {
 			write = await this.confirmOverwrite(target);
 		} else {
 			write = true;
@@ -420,7 +422,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			return resource;
 		}
 
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this.environmentService.remoteAuthority;
 
 		// Otherwise try to suggest a path that can be saved
 		let suggestedFilename: string | undefined = undefined;
@@ -457,7 +459,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Try to place where last active file was if any
 		// Otherwise fallback to user home
-		return joinPath(this.fileDialogService.defaultFilePath() || (await this.pathService.userHome()), suggestedFilename);
+		return joinPath(await this.fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
 	suggestFilename(mode: string, untitledName: string) {

@@ -6,7 +6,7 @@
 import 'vs/css!./media/editordroptarget';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
-import { IEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -25,6 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -34,7 +35,7 @@ class DropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
 
-	private static readonly MAX_FILE_UPLOAD_SIZE = 100 * 1024 * 1024; // 100mb
+	private static readonly MAX_FILE_UPLOAD_SIZE = 100 * ByteSize.MB;
 
 	private container: HTMLElement | undefined;
 	private overlay: HTMLElement | undefined;
@@ -319,7 +320,7 @@ class DropOverlay extends Themable {
 								// Try to come up with a good file path for the untitled
 								// editor by asking the file dialog service for the default
 								let proposedFilePath: URI | undefined = undefined;
-								const defaultFilePath = this.fileDialogService.defaultFilePath();
+								const defaultFilePath = await this.fileDialogService.defaultFilePath();
 								if (defaultFilePath) {
 									proposedFilePath = joinPath(defaultFilePath, name);
 								}
@@ -500,10 +501,13 @@ class DropOverlay extends Themable {
 	}
 
 	private getOverlayOffsetHeight(): number {
+
+		// With tabs and opened editors: use the area below tabs as drop target
 		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
-			return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
+			return this.groupView.titleDimensions.offset;
 		}
 
+		// Without tabs or empty group: use entire editor area as drop target
 		return 0;
 	}
 
@@ -580,7 +584,7 @@ export class EditorDropTarget extends Themable {
 		if (
 			!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
 			!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) &&
-			event.dataTransfer && !event.dataTransfer.types.length // see https://github.com/Microsoft/vscode/issues/25789
+			event.dataTransfer && !event.dataTransfer.types.length // see https://github.com/microsoft/vscode/issues/25789
 		) {
 			event.dataTransfer.dropEffect = 'none';
 			return; // unsupported transfer

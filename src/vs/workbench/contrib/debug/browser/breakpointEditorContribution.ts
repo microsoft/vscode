@@ -174,7 +174,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!this.debugService.getConfigurationManager().hasDebuggers()) {
+			if (!this.debugService.getAdapterManager().hasDebuggers()) {
 				return;
 			}
 
@@ -183,7 +183,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				return;
 			}
-			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(model);
+			const canSetBreakpoints = this.debugService.canSetBreakpointsIn(model);
 			const lineNumber = e.target.position.lineNumber;
 			const uri = model.uri;
 
@@ -240,7 +240,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }], `debugEditorGutter`);
+					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
 			}
 		}));
@@ -252,13 +252,13 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
 			 */
 			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
-				if (!this.debugService.getConfigurationManager().hasDebuggers()) {
+				if (!this.debugService.getAdapterManager().hasDebuggers()) {
 					return;
 				}
 
 				let showBreakpointHintAtLineNumber = -1;
 				const model = this.editor.getModel();
-				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
+				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.canSetBreakpointsIn(model) &&
 					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 					const data = e.target.detail as IMarginData;
 					if (!data.isAfterLines) {
@@ -349,7 +349,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				undefined,
 				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }], `debugEditorContextMenu`)
+				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
 			));
 			actions.push(new Action(
 				'addConditionalBreakpoint',
@@ -583,7 +583,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			if (this.breakpoint) {
 				await this.debugService.removeBreakpoints(this.breakpoint.getId());
 			} else {
-				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }], 'debugEditorInlineWidget');
+				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {

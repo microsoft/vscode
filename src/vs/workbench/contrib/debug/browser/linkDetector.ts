@@ -39,7 +39,7 @@ export class LinkDetector {
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPathService private readonly pathService: IPathService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		// noop
 	}
@@ -98,7 +98,7 @@ export class LinkDetector {
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
 		const uri = URI.parse(url);
-		this.decorateLink(link, () => this.openerService.open(uri, { allowTunneling: !!this.workbenchEnvironmentService.configuration.remoteAuthority }));
+		this.decorateLink(link, () => this.openerService.open(uri, { allowTunneling: !!this.environmentService.remoteAuthority }));
 		return link;
 	}
 
