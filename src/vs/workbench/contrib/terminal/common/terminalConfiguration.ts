@@ -211,7 +211,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
 				localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
 				localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
-				localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl) and this will only be enabled for new terminals (not hot swappable like the other renderers).")
+				localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl).")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
