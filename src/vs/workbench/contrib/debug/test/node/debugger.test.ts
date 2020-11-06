@@ -22,7 +22,6 @@ suite('Debug - Debugger', () => {
 	const debuggerContribution = {
 		type: 'mock',
 		label: 'Mock Debug',
-		enableBreakpointsFor: { 'languageIds': ['markdown'] },
 		program: './out/mock/mockDebug.js',
 		args: ['arg1', 'arg2'],
 		configurationAttributes: {
