@@ -31,14 +31,14 @@ class CheckoutItem implements QuickPickItem {
 
 	constructor(protected ref: Ref) { }
 
-	async run(repository: Repository): Promise<void> {
+	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		const ref = this.ref.name;
 
 		if (!ref) {
 			return;
 		}
 
-		await repository.checkout(ref);
+		await repository.checkout(ref, opts);
 	}
 }
 
@@ -114,31 +114,21 @@ class RebaseItem implements QuickPickItem {
 }
 
 class CreateBranchItem implements QuickPickItem {
-
-	constructor(private cc: CommandCenter) { }
-
 	get label(): string { return '$(plus) ' + localize('create branch', 'Create new branch...'); }
 	get description(): string { return ''; }
-
 	get alwaysShow(): boolean { return true; }
-
-	async run(repository: Repository): Promise<void> {
-		await this.cc.branch(repository);
-	}
 }
 
 class CreateBranchFromItem implements QuickPickItem {
-
-	constructor(private cc: CommandCenter) { }
-
 	get label(): string { return '$(plus) ' + localize('create branch from', 'Create new branch from...'); }
 	get description(): string { return ''; }
-
 	get alwaysShow(): boolean { return true; }
+}
 
-	async run(repository: Repository): Promise<void> {
-		await this.cc.branch(repository);
-	}
+class CheckoutDetachedItem implements QuickPickItem {
+	get label(): string { return '$(debug-disconnect) ' + localize('checkout detached', 'Checkout detached...'); }
+	get description(): string { return ''; }
+	get alwaysShow(): boolean { return true; }
 }
 
 class HEADItem implements QuickPickItem {
@@ -1739,20 +1729,43 @@ export class CommandCenter {
 	}
 
 	@command('git.checkout', { repository: true })
-	async checkout(repository: Repository, treeish: string): Promise<boolean> {
+	async checkout(repository: Repository, treeish?: string): Promise<boolean> {
 		if (typeof treeish === 'string') {
 			await repository.checkout(treeish);
 			return true;
 		}
 
-		const createBranch = new CreateBranchItem(this);
-		const createBranchFrom = new CreateBranchFromItem(this);
-		const picks = [createBranch, createBranchFrom, ...createCheckoutItems(repository)];
-		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
+		return this._checkout(repository);
+	}
+
+	@command('git.checkoutDetached', { repository: true })
+	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
+		if (typeof treeish === 'string') {
+			await repository.checkout(treeish, { detached: true });
+			return true;
+		}
+
+		return this._checkout(repository, { detached: true });
+	}
+
+	private async _checkout(repository: Repository, opts?: { detached?: boolean }): Promise<boolean> {
+		const createBranch = new CreateBranchItem();
+		const createBranchFrom = new CreateBranchFromItem();
+		const checkoutDetached = new CheckoutDetachedItem();
+		const picks: QuickPickItem[] = [];
+
+		if (!opts?.detached) {
+			picks.push(createBranch, createBranchFrom, checkoutDetached);
+		}
+
+		picks.push(...createCheckoutItems(repository));
 
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
-		quickpick.placeholder = placeHolder;
+		quickpick.placeholder = opts?.detached
+			? localize('select a ref to checkout detached', 'Select a ref to checkout in detached mode')
+			: localize('select a ref to checkout', 'Select a ref to checkout');
+
 		quickpick.show();
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
@@ -1766,8 +1779,10 @@ export class CommandCenter {
 			await this._branch(repository, quickpick.value);
 		} else if (choice === createBranchFrom) {
 			await this._branch(repository, quickpick.value, true);
+		} else if (choice === checkoutDetached) {
+			return this._checkout(repository, { detached: true });
 		} else {
-			await (choice as CheckoutItem).run(repository);
+			await (choice as CheckoutItem).run(repository, opts);
 		}
 
 		return true;
