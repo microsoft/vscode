@@ -150,7 +150,7 @@ export function workbenchInstantiationService(overrides?: {
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
-	instantiationService.stub(IFileDialogService, new TestFileDialogService());
+	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(IModeService, instantiationService.createInstance(ModeServiceImpl));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(configService));
@@ -389,9 +389,12 @@ export class TestFileDialogService implements IFileDialogService {
 
 	private confirmResult!: ConfirmResult;
 
-	defaultFilePath(_schemeFilter?: string): URI | undefined { return undefined; }
-	defaultFolderPath(_schemeFilter?: string): URI | undefined { return undefined; }
-	defaultWorkspacePath(_schemeFilter?: string): URI | undefined { return undefined; }
+	constructor(
+		@IPathService private readonly pathService: IPathService
+	) { }
+	async defaultFilePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
+	async defaultFolderPath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
+	async defaultWorkspacePath(_schemeFilter?: string): Promise<URI> { return this.pathService.userHome(); }
 	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }
 	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> { return Promise.resolve(0); }

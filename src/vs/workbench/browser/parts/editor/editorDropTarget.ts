@@ -320,7 +320,7 @@ class DropOverlay extends Themable {
 								// Try to come up with a good file path for the untitled
 								// editor by asking the file dialog service for the default
 								let proposedFilePath: URI | undefined = undefined;
-								const defaultFilePath = this.fileDialogService.defaultFilePath();
+								const defaultFilePath = await this.fileDialogService.defaultFilePath();
 								if (defaultFilePath) {
 									proposedFilePath = joinPath(defaultFilePath, name);
 								}
