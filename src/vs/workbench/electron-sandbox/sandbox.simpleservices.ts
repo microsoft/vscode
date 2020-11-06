@@ -698,6 +698,7 @@ class SimpleTaskService implements ITaskService {
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
 	getTasksForGroup(group: string): Promise<Task[]> { throw new Error('Method not implemented.'); }
 	getRecentlyUsedTasks(): LinkedMap<string, string> { throw new Error('Method not implemented.'); }
+	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void { throw new Error('Method not implemented.'); }
 	migrateRecentTasks(tasks: Task[]): Promise<void> { throw new Error('Method not implemented.'); }
 	createSorter(): TaskSorter { throw new Error('Method not implemented.'); }
 	getTaskDescription(task: CustomTask | ContributedTask | InMemoryTask | ConfiguringTask): string | undefined { throw new Error('Method not implemented.'); }
