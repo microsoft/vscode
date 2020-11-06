@@ -68,7 +68,6 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 		// but use a sub-string in which a word must occur
 		let start = column - config.maxLen / 2;
 		if (start < 0) {
-			textOffset += column;
 			start = 0;
 		} else {
 			textOffset += start;
@@ -86,19 +85,21 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	for (let i = 1; ; i++) {
 		// check time budget
 		if (Date.now() - t1 >= config.timeBudget) {
-			// break;
+			break;
 		}
 
 		// reset the index at which the regexp should start matching, also know where it
 		// should stop so that subsequent search don't repeat previous searches
 		const regexIndex = pos - config.windowSize * i;
 		wordDefinition.lastIndex = Math.max(0, regexIndex);
-		match = _findRegexMatchEnclosingPosition(wordDefinition, text, pos, prevRegexIndex);
+		const thisMatch = _findRegexMatchEnclosingPosition(wordDefinition, text, pos, prevRegexIndex);
 
-		// stop: found something
-		if (match) {
+		if (!thisMatch && match) {
+			// stop: we have something
 			break;
 		}
+
+		match = thisMatch;
 
 		// stop: searched at start
 		if (regexIndex <= 0) {
@@ -111,7 +112,7 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 		let result = {
 			word: match[0],
 			startColumn: textOffset + 1 + match.index!,
-			endColumn: textOffset + 1 + wordDefinition.lastIndex
+			endColumn: textOffset + 1 + match.index! + match[0].length
 		};
 		wordDefinition.lastIndex = 0;
 		return result;

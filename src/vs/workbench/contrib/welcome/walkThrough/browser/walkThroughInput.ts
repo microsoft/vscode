@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -11,19 +10,19 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { EndOfLinePreference } from 'vs/editor/common/model';
+import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
 
 export class WalkThroughModel extends EditorModel {
 
 	constructor(
-		private mainRef: IReference<ITextEditorModel>,
+		private mainRef: string,
 		private snippetRefs: IReference<ITextEditorModel>[]
 	) {
 		super();
 	}
 
 	get main() {
-		return this.mainRef.object;
+		return this.mainRef;
 	}
 
 	get snippets() {
@@ -32,7 +31,6 @@ export class WalkThroughModel extends EditorModel {
 
 	dispose() {
 		this.snippetRefs.forEach(ref => ref.dispose());
-		this.mainRef.dispose();
 		super.dispose();
 	}
 }
@@ -95,26 +93,25 @@ export class WalkThroughInput extends EditorInput {
 
 	resolve(): Promise<WalkThroughModel> {
 		if (!this.promise) {
-			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
-				.then(ref => {
-					if (strings.endsWith(this.resource.path, '.html')) {
-						return new WalkThroughModel(ref, []);
+			this.promise = requireToContent(this.options.resource)
+				.then(content => {
+					if (this.resource.path.endsWith('.html')) {
+						return new WalkThroughModel(content, []);
 					}
 
 					const snippets: Promise<IReference<ITextEditorModel>>[] = [];
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
+						i++;
+						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
-						return '';
+						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
 					};
-
-					const markdown = ref.object.textEditorModel.getValue(EndOfLinePreference.LF);
-					marked(markdown, { renderer });
+					content = marked(content, { renderer });
 
 					return Promise.all(snippets)
-						.then(refs => new WalkThroughModel(ref, refs));
+						.then(refs => new WalkThroughModel(content, refs));
 				});
 		}
 

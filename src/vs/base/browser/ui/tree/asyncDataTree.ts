@@ -15,8 +15,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { removeClasses, addClasses } from 'vs/base/browser/dom';
-import { values } from 'vs/base/common/map';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IThemable } from 'vs/base/common/styler';
@@ -111,10 +109,10 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			addClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.add(...treeItemLoadingIcon.classNamesArray);
 			return true;
 		} else {
-			removeClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.remove(...treeItemLoadingIcon.classNamesArray);
 			return false;
 		}
 	}
@@ -332,12 +330,13 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	get onDidChangeFocus(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeFocus, asTreeEvent); }
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
-	get onDidOpen(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidOpen, asTreeEvent); }
 
 	get onKeyDown(): Event<KeyboardEvent> { return this.tree.onKeyDown; }
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.tree.onContextMenu, asTreeContextMenuEvent); }
+	get onTap(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onTap, asTreeMouseEvent); }
+	get onPointer(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onPointer, asTreeMouseEvent); }
 	get onDidFocus(): Event<void> { return this.tree.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.tree.onDidBlur; }
 
@@ -346,7 +345,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
 	get filterOnType(): boolean { return this.tree.filterOnType; }
-	get openOnSingleClick(): boolean { return this.tree.openOnSingleClick; }
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) {
 		if (typeof this.tree.expandOnlyOnTwistieClick === 'boolean') {
 			return this.tree.expandOnlyOnTwistieClick;
@@ -407,6 +405,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	updateOptions(options: IAsyncDataTreeOptionsUpdate = {}): void {
 		this.tree.updateOptions(options);
+	}
+
+	get options(): IAsyncDataTreeOptions<T, TFilterData> {
+		return this.tree.options as IAsyncDataTreeOptions<T, TFilterData>;
 	}
 
 	// Widget
@@ -669,11 +671,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return nodes.map(n => n!.element as T);
 	}
 
-	open(elements: T[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.getDataNode(e));
-		this.tree.open(nodes, browserEvent);
-	}
-
 	reveal(element: T, relativeTop?: number): void {
 		this.tree.reveal(this.getDataNode(element), relativeTop);
 	}
@@ -905,7 +902,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return childAsyncDataTreeNode;
 		});
 
-		for (const node of values(nodesToForget)) {
+		for (const node of nodesToForget.values()) {
 			dfs(node, node => this.nodes.delete(node.element as T));
 		}
 
@@ -1056,10 +1053,10 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			addClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.add(...treeItemLoadingIcon.classNamesArray);
 			return true;
 		} else {
-			removeClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.remove(...treeItemLoadingIcon.classNamesArray);
 			return false;
 		}
 	}

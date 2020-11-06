@@ -14,7 +14,8 @@
 
 	require.config({
 		baseUrl: monacoBaseUrl,
-		catchError: true
+		catchError: true,
+		createTrustedScriptURL: (value: string) => value,
 	});
 
 	let loadCode = function (moduleId: string) {

@@ -15,7 +15,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -258,7 +258,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('view states', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL);
+		storageService.store2(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -278,7 +278,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('view states and when contexts', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL);
+		storageService.store2(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -308,7 +308,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('view states and when contexts multiple views', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL);
+		storageService.store2(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -380,6 +380,88 @@ suite('ViewContainerModel', () => {
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
 		assert.ok(!targetEvent.called, 'remove event should not be called since it is already hidden');
+	});
+
+	test('add event is not triggered if view was set visible (when visible) and not active', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		const key = contextKeyService.createKey('showview1', true);
+		key.set(false);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
+
+		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		testObject.setVisible('view1', true);
+		assert.ok(!targetEvent.called, 'add event should not be called since it is already visible');
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
+	});
+
+	test('remove event is not triggered if view was hidden and not active', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		const key = contextKeyService.createKey('showview1', true);
+		key.set(false);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
+
+		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		testObject.setVisible('view1', false);
+		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
+	});
+
+	test('add event is not triggered if view was set visible (when not visible) and not active', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		const key = contextKeyService.createKey('showview1', true);
+		key.set(false);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
+
+		testObject.setVisible('view1', false);
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
+
+		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		testObject.setVisible('view1', true);
+		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
 	});
 
 });

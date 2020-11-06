@@ -10,5 +10,6 @@
 }
 
 .codicon-animation-spin {
-	animation: codicon-spin 1.5s linear infinite;
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.5s steps(30) infinite;
 }

@@ -3,15 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
-// TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
-((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - terminal', () => {
+// Disable terminal tests:
+// - Web https://github.com/microsoft/vscode/issues/92826
+// - Remote https://github.com/microsoft/vscode/issues/96057
+((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
+	let extensionContext: ExtensionContext;
+
 	suiteSetup(async () => {
+		// Trigger extension activation and grab the context as some tests depend on it
+		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
+		extensionContext = (global as any).testExtensionContext;
+
+		const config = workspace.getConfiguration('terminal.integrated');
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
+		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
+		// Disable exit alerts as tests may trigger then and we're not testing the notifications
+		await config.update('showExitAlert', false, ConfigurationTarget.Global);
+		// Canvas may cause problems when running in a container
+		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
 	});
+
 	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
 
@@ -20,13 +34,13 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			disposables.length = 0;
 		});
 
-
 		test('sendText immediately after createTerminal should not throw', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -35,26 +49,32 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
-		test('echo works in the default shell', (done) => {
+		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
+				const dataDisposable = window.onDidWriteTerminalData(e => {
 					try {
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					data += e.data;
 					if (data.indexOf(expected) !== 0) {
+						dataDisposable.dispose();
 						terminal.dispose();
-						disposables.push(window.onDidCloseTerminal(() => done()));
+						disposables.push(window.onDidCloseTerminal(() => {
+							done();
+						}));
 					}
-				}));
+				});
+				disposables.push(dataDisposable);
 			}));
 			// Use a single character to avoid winpty/conpty issues with injected sequences
 			const expected = '`';
@@ -80,6 +100,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -93,12 +114,14 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.processId.then(id => {
 					try {
 						ok(id && id > 0);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					terminal.dispose();
 					disposables.push(window.onDidCloseTerminal(() => done()));
@@ -113,6 +136,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -122,6 +146,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				equal(terminal.name, 'a');
 			} catch (e) {
 				done(e);
+				return;
 			}
 		});
 
@@ -131,6 +156,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -142,10 +168,13 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			const terminal = window.createTerminal(options);
 			try {
 				equal(terminal.name, 'foo');
-				deepEqual(terminal.creationOptions, options);
-				throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+				const terminalOptions = terminal.creationOptions as TerminalOptions;
+				equal(terminalOptions.name, 'foo');
+				equal(terminalOptions.hideFromUser, true);
+				throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 			} catch (e) {
 				done(e);
+				return;
 			}
 		});
 
@@ -155,6 +184,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(term.name, 'b');
 				} catch (e) {
 					done(e);
+					return;
 				}
 				disposables.push(window.onDidCloseTerminal(() => done()));
 				terminal.dispose();
@@ -168,6 +198,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(term, terminal);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				disposables.push(window.onDidCloseTerminal(t => {
 					try {
@@ -263,6 +294,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						ok(window.terminals.indexOf(terminal) !== -1);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(() => {
 						// reg3.dispose();
@@ -317,7 +349,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 							term1Write.fire('write1');
 
 							// Wait until the data is written
-							await new Promise(resolve => { resolveOnceDataWritten = resolve; });
+							await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
 
 							term1Close.fire();
 
@@ -360,6 +392,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(term.name, 'c');
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(() => done()));
 					term.dispose();
@@ -425,13 +458,10 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, term);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					term.show();
 					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						if (e.dimensions.columns === 0 || e.dimensions.rows === 0) {
-							// HACK: Ignore the event if dimension(s) are zero (#83778)
-							return;
-						}
 						// The default pty dimensions have a chance to appear here since override
 						// dimensions happens after the terminal is created. If so just ignore and
 						// wait for the right dimensions
@@ -440,6 +470,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 								equal(e.terminal, terminal);
 							} catch (e) {
 								done(e);
+								return;
 							}
 							disposables.push(window.onDidCloseTerminal(() => done()));
 							terminal.dispose();
@@ -464,6 +495,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal.exitStatus, undefined);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(t => {
 						try {
@@ -494,6 +526,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal.exitStatus, undefined);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(t => {
 						try {
@@ -524,6 +557,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal.exitStatus, undefined);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(t => {
 						try {
@@ -541,7 +575,12 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(22),
+					open: () => {
+						// Wait 500ms as any exits that occur within 500ms of terminal launch are
+						// are counted as "exiting during launch" which triggers a notification even
+						// when showExitAlerts is true
+						setTimeout(() => closeEmitter.fire(22), 500);
+					},
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
@@ -553,6 +592,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, term);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					terminal.dispose();
 					disposables.push(window.onDidCloseTerminal(() => done()));
@@ -567,15 +607,17 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const terminal = window.createTerminal(options);
 				try {
 					equal(terminal.name, 'foo');
-					deepEqual(terminal.creationOptions, options);
-					throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+					const terminalOptions = terminal.creationOptions as ExtensionTerminalOptions;
+					equal(terminalOptions.name, 'foo');
+					equal(terminalOptions.pty, pty);
+					throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 				} catch (e) {
 					done(e);
 				}
 			});
 		});
 
-		suite('getEnvironmentVariableCollection', () => {
+		suite('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
@@ -588,6 +630,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
@@ -599,8 +642,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
@@ -633,6 +676,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
@@ -644,8 +688,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
@@ -677,6 +721,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
@@ -688,8 +733,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~a2~');
 				collection.clear();
@@ -718,6 +763,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
@@ -729,8 +775,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~b2~');
 				collection.delete('A');
@@ -749,8 +795,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			});
 
 			test('get and forEach should work', () => {
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');

@@ -18,6 +18,7 @@ export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFil
 	collapsible: boolean;
 	collapsed: boolean;
 	renderNodeCount: number;
+	visibility: TreeVisibility;
 	visible: boolean;
 	filterData: TFilterData | undefined;
 }
@@ -55,6 +56,10 @@ function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is Collap
 	return typeof (update as any).collapsible === 'boolean';
 }
 
+export interface IList<T> extends ISpliceable<T> {
+	updateElementHeight(index: number, height: number): void;
+}
+
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	readonly rootRef = [];
@@ -77,7 +82,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	constructor(
 		private user: string,
-		private list: ISpliceable<ITreeNode<T, TFilterData>>,
+		private list: IList<ITreeNode<T, TFilterData>>,
 		rootElement: T,
 		options: IIndexTreeModelOptions<T, TFilterData> = {}
 	) {
@@ -95,6 +100,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsible: false,
 			collapsed: false,
 			renderNodeCount: 0,
+			visibility: TreeVisibility.Visible,
 			visible: true,
 			filterData: undefined
 		};
@@ -185,6 +191,17 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
+
+		let node: IIndexTreeNode<T, TFilterData> | undefined = parentNode;
+
+		while (node) {
+			if (node.visibility === TreeVisibility.Recurse) {
+				this.refilter();
+				break;
+			}
+
+			node = node.parent;
+		}
 	}
 
 	rerender(location: number[]): void {
@@ -194,9 +211,18 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 
-		if (revealed) {
+		if (node.visible && revealed) {
 			this.list.splice(listIndex, 1, [node]);
 		}
+	}
+
+	updateElementHeight(location: number[], height: number): void {
+		if (location.length === 0) {
+			throw new TreeError(this.user, 'Invalid tree location');
+		}
+
+		const { listIndex } = this.getTreeNodeWithListIndex(location);
+		this.list.updateElementHeight(listIndex, height);
 	}
 
 	has(location: number[]): boolean {
@@ -355,11 +381,13 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			collapsible: typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : (typeof treeElement.collapsed !== 'undefined'),
 			collapsed: typeof treeElement.collapsed === 'undefined' ? this.collapseByDefault : treeElement.collapsed,
 			renderNodeCount: 1,
+			visibility: TreeVisibility.Visible,
 			visible: true,
 			filterData: undefined
 		};
 
 		const visibility = this._filterNode(node, parentVisibility);
+		node.visibility = visibility;
 
 		if (revealed) {
 			treeListElements.push(node);

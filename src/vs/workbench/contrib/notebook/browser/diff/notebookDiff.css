@@ -1,0 +1,120 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* .notebook-diff-editor {
+	display: flex;
+	flex-direction: row;
+	height: 100%;
+	width: 100%;
+}
+.notebook-diff-editor-modified,
+.notebook-diff-editor-original {
+	display: flex;
+	height: 100%;
+	width: 50%;
+} */
+
+.notebook-text-diff-editor .cell-body {
+	display: flex;
+	flex-direction: row;
+}
+
+.notebook-text-diff-editor .cell-body.right {
+	flex-direction: row-reverse;
+}
+
+.notebook-text-diff-editor .cell-body .diagonal-fill {
+	display: none;
+	width: 50%;
+}
+
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container {
+	width: 100%;
+	overflow: hidden;
+}
+
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container.diff,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {
+	/** 100% + diffOverviewWidth */
+	width: calc(100% + 30px);
+}
+
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container .monaco-diff-editor .diffOverview,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview {
+	display: none;
+}
+
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container {
+	box-sizing: border-box;
+}
+
+.notebook-text-diff-editor .cell-body.left .cell-diff-editor-container,
+.notebook-text-diff-editor .cell-body.right .cell-diff-editor-container {
+	display: inline-block;
+	width: 50%;
+}
+
+.notebook-text-diff-editor .cell-body.left .diagonal-fill,
+.notebook-text-diff-editor .cell-body.right .diagonal-fill {
+	display: inline-block;
+	width: 50%;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
+	display: flex;
+	height: 24px;
+	align-items: center;
+	cursor: default;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-folding-indicator .codicon,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-folding-indicator .codicon {
+	visibility: visible;
+	padding: 4px 0 0 10px;
+	cursor: pointer;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-toolbar,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-toolbar {
+	margin-left: auto;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status {
+	font-size: 12px;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span {
+	margin: 0 8px;
+	line-height: 21px;
+}
+
+.notebook-text-diff-editor {
+	overflow: hidden;
+}
+
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row,
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
+	outline: none !important;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .editor-input-toolbar-container {
+	position: absolute;
+	right: 16px;
+	top: 16px;
+	margin: 4px 2px;
+}

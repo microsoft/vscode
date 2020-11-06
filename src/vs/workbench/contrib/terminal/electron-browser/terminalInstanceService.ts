@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWindowsShellHelper, IShellLaunchConfig, ITerminalChildProcess, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/electron-browser/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
-import { Terminal as XTermTerminal } from 'xterm';
-import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
-import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { createVariableResolver, getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -27,7 +26,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
 let Unicode11Addon: typeof XTermUnicode11Addon;
-let WebLinksAddon: typeof XTermWebLinksAddon;
 let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
@@ -51,13 +49,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return Terminal;
 	}
 
-	public async getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon> {
-		if (!WebLinksAddon) {
-			WebLinksAddon = (await import('xterm-addon-web-links')).WebLinksAddon;
-		}
-		return WebLinksAddon;
-	}
-
 	public async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
 		if (!SearchAddon) {
 			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
@@ -79,12 +70,12 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return WebglAddon;
 	}
 
-	public createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {
-		return new WindowsShellHelper(shellProcessId, instance, xterm);
+	public createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper {
+		return new WindowsShellHelper(shellProcessId, xterm);
 	}
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {
@@ -102,8 +93,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			getSystemShell(platformOverride),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
-			lastActiveWorkspace,
-			this._configurationResolverService,
+			createVariableResolver(lastActiveWorkspace, this._configurationResolverService),
 			this._logService,
 			useAutomationShell,
 			platformOverride
@@ -112,8 +102,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
 			useAutomationShell,
-			lastActiveWorkspace,
-			this._configurationResolverService,
+			createVariableResolver(lastActiveWorkspace, this._configurationResolverService),
 			this._logService,
 			platformOverride
 		);

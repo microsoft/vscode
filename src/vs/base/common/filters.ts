@@ -392,7 +392,7 @@ export function anyScore(pattern: string, lowPattern: string, _patternPos: numbe
 
 //#region --- fuzzyScore ---
 
-export function createMatches(score: undefined | FuzzyScore, offset = 0): IMatch[] {
+export function createMatches(score: undefined | FuzzyScore): IMatch[] {
 	if (typeof score === 'undefined') {
 		return [];
 	}
@@ -404,10 +404,10 @@ export function createMatches(score: undefined | FuzzyScore, offset = 0): IMatch
 	for (let pos = wordStart; pos < _maxLen; pos++) {
 		if (matches[matches.length - (pos + 1)] === '1') {
 			const last = res[res.length - 1];
-			if (last && last.end === pos + offset) {
-				last.end = pos + offset + 1;
+			if (last && last.end === pos) {
+				last.end = pos + 1;
 			} else {
-				res.push({ start: pos + offset, end: pos + offset + 1 });
+				res.push({ start: pos, end: pos + 1 });
 			}
 		}
 	}
