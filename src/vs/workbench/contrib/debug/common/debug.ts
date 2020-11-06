@@ -616,8 +616,6 @@ export interface IPlatformSpecificAdapterContribution {
 export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
 	type: string;
 	label?: string;
-	// debug adapter executable
-	adapterExecutableCommand?: string;
 	win?: IPlatformSpecificAdapterContribution;
 	winx86?: IPlatformSpecificAdapterContribution;
 	windows?: IPlatformSpecificAdapterContribution;
@@ -644,7 +642,6 @@ export interface IDebugConfigurationProvider {
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	resolveDebugConfigurationWithSubstitutedVariables?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	provideDebugConfigurations?(folderUri: uri | undefined, token: CancellationToken): Promise<IConfig[]>;
-	debugAdapterExecutable?(folderUri: uri | undefined): Promise<IAdapterDescriptor>;		// TODO@AW legacy
 }
 
 export interface IDebugAdapterDescriptorFactory {

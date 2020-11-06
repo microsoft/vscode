@@ -155,7 +155,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve();
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
 			type: debugType,
@@ -174,12 +174,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (hasResolve2) {
 			provider.resolveDebugConfigurationWithSubstitutedVariables = (folder, config, token) => {
 				return this._proxy.$resolveDebugConfigurationWithSubstitutedVariables(handle, folder, config, token);
-			};
-		}
-		if (hasProvideDebugAdapter) {
-			console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
-			provider.debugAdapterExecutable = (folder) => {
-				return this._proxy.$legacyDebugAdapterExecutable(handle, folder);
 			};
 		}
 		this._debugConfigurationProviders.set(handle, provider);
