@@ -203,7 +203,6 @@ export class ConfigurationManager implements IConfigurationManager {
 					input.placeholder = nls.localize('selectConfiguration', "Select Launch Configuration");
 					input.show();
 
-					let chosenDidCancel = false;
 					const chosenPromise = new Promise<IDynamicPickItem | undefined>(resolve => {
 						disposables.add(input.onDidAccept(() => resolve(input.activeItems[0])));
 						disposables.add(input.onDidTriggerItemButton(async (context) => {
@@ -214,7 +213,6 @@ export class ConfigurationManager implements IConfigurationManager {
 							await (launch as Launch).writeConfiguration(config);
 							await this.selectConfiguration(launch, config.name);
 						}));
-						disposables.add(input.onDidHide(() => { chosenDidCancel = true; resolve(undefined); }));
 					});
 
 					const token = new CancellationTokenSource();
@@ -238,16 +236,9 @@ export class ConfigurationManager implements IConfigurationManager {
 					const nestedPicks = await Promise.all(picks);
 					const items = flatten(nestedPicks);
 
-					let chosen: IDynamicPickItem | undefined;
-
-					// If there's exactly one item to choose from, pick it automatically
-					if (items.length === 1 && !chosenDidCancel) {
-						chosen = items[0];
-					} else {
-						input.items = items;
-						input.busy = false;
-						chosen = await chosenPromise;
-					}
+					input.items = items;
+					input.busy = false;
+					const chosen = await chosenPromise;
 
 					disposables.dispose();
 
