@@ -366,7 +366,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
 	if (debugIconDisconnectColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-disconnect { color: ${debugIconDisconnectColor} !important; }`);
+		collector.addRule(`.monaco-workbench .debug-view-content .codicon-debug-disconnect, .monaco-workbench .debug-toolbar .codicon-debug-disconnect { color: ${debugIconDisconnectColor} !important; }`);
 	}
 
 	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
