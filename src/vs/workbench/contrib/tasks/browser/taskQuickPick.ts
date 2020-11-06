@@ -226,10 +226,10 @@ export class TaskQuickPick extends Disposable {
 
 	private async doPickerSecondLevel(picker: IQuickPick<TaskTwoLevelQuickPickEntry>, type: string) {
 		picker.busy = true;
-		picker.value = '';
 		if (type === SHOW_ALL) {
 			picker.items = (await this.taskService.tasks()).sort((a, b) => this.sorter.compare(a, b)).map(task => this.createTaskEntry(task));
 		} else {
+			picker.value = '';
 			picker.items = await this.getEntriesForProvider(type);
 		}
 		picker.busy = false;
