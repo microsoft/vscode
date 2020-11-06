@@ -1038,6 +1038,10 @@ declare module 'vscode' {
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
+
+	export interface TreeView<T> extends Disposable {
+		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+	}
 	//#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
