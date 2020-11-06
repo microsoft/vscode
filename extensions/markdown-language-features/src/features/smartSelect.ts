@@ -72,26 +72,26 @@ function getHeadersForPosition(toc: TocEntry[], position: vscode.Position): { he
 	};
 }
 
-function createHeaderRange(header: TocEntry, isClosestHeaderToPosition: boolean, onHeaderLine: boolean, parent?: vscode.SelectionRange, childStart?: vscode.Position): vscode.SelectionRange | undefined {
-	const contentRange = new vscode.Range(header.location.range.start.translate(1), header.location.range.end);
-	const headerPlusContentRange = header.location.range;
-	const partialContentRange = childStart && isClosestHeaderToPosition ? contentRange.with(undefined, childStart) : undefined;
-	if (onHeaderLine && isClosestHeaderToPosition && childStart) {
-		return new vscode.SelectionRange(header.location.range.with(undefined, childStart), new vscode.SelectionRange(header.location.range, parent));
+function createHeaderRange(header: TocEntry, isClosestHeaderToPosition: boolean, onHeaderLine: boolean, parent?: vscode.SelectionRange, startOfChildRange?: vscode.Position): vscode.SelectionRange | undefined {
+	const range = header.location.range;
+	const contentRange = new vscode.Range(range.start.translate(1), range.end);
+	if (onHeaderLine && isClosestHeaderToPosition && startOfChildRange) {
+		// selection was made on this header line, so select header and its content until the start of its first child
+		// then all of its content
+		return new vscode.SelectionRange(range.with(undefined, startOfChildRange), new vscode.SelectionRange(range, parent));
 	} else if (onHeaderLine && isClosestHeaderToPosition) {
-		return new vscode.SelectionRange(header.location.range, parent);
-	} else if (parent && parent.range.contains(headerPlusContentRange)) {
-		if (partialContentRange) {
-			return new vscode.SelectionRange(partialContentRange, new vscode.SelectionRange(contentRange, (new vscode.SelectionRange(headerPlusContentRange, parent))));
-		} else {
-			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(headerPlusContentRange, parent));
-		}
-	} else if (partialContentRange) {
-		return new vscode.SelectionRange(partialContentRange, new vscode.SelectionRange(contentRange, (new vscode.SelectionRange(headerPlusContentRange))));
+		// selection was made on this header line and no children so expand to all of its content
+		return new vscode.SelectionRange(range, parent);
+	} else if (isClosestHeaderToPosition && startOfChildRange) {
+		// selection was made within content and has child so select content
+		// of this header then all content then header
+		return new vscode.SelectionRange(contentRange.with(undefined, startOfChildRange), new vscode.SelectionRange(contentRange, (new vscode.SelectionRange(range, parent))));
 	} else {
-		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(headerPlusContentRange));
+		// no children and not on this header line so select content then header
+		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
 	}
 }
+
 function getTokensForPosition(tokens: Token[], position: vscode.Position): Token[] {
 	const enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && isBlockElement(token));
 	if (enclosingTokens.length === 0) {
