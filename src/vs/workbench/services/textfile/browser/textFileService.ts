@@ -459,7 +459,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Try to place where last active file was if any
 		// Otherwise fallback to user home
-		return joinPath(this.fileDialogService.defaultFilePath() || (await this.pathService.userHome()), suggestedFilename);
+		return joinPath(await this.fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
 	suggestFilename(mode: string, untitledName: string) {

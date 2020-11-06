@@ -53,7 +53,6 @@ import { IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/p
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -1021,7 +1020,6 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 	const fileService = accessor.get(IFileService);
 	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
-	const pathService = accessor.get(IPathService);
 	const explorerService = accessor.get(IExplorerService);
 	const progressService = accessor.get(IProgressService);
 
@@ -1229,13 +1227,8 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 			else {
 				progress.report({ message: explorerItem.name });
 
-				let defaultUri = explorerItem.isDirectory ? fileDialogService.defaultFolderPath(Schemas.file) : fileDialogService.defaultFilePath(Schemas.file);
-				if (!defaultUri) {
-					defaultUri = await pathService.userHome({ preferLocal: true });
-				}
-				if (defaultUri) {
-					defaultUri = resources.joinPath(defaultUri, explorerItem.name);
-				}
+				let defaultUri = explorerItem.isDirectory ? await fileDialogService.defaultFolderPath(Schemas.file) : await fileDialogService.defaultFilePath(Schemas.file);
+				defaultUri = resources.joinPath(defaultUri, explorerItem.name);
 
 				const destination = await fileDialogService.showSaveDialog({
 					availableFileSystems: [Schemas.file],
