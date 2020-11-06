@@ -82,7 +82,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	// RPC methods (MainThreadDebugServiceShape)
 
 	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterFactory(debugTypes, this));
+		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterFactory(debugTypes, this));
 	}
 
 	public $startBreakpointEvents(): void {
@@ -205,7 +205,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		};
 		this._debugAdapterDescriptorFactories.set(handle, provider);
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterDescriptorFactory(provider));
+		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterDescriptorFactory(provider));
 
 		return Promise.resolve(undefined);
 	}
@@ -214,7 +214,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const provider = this._debugAdapterDescriptorFactories.get(handle);
 		if (provider) {
 			this._debugAdapterDescriptorFactories.delete(handle);
-			this.debugService.getConfigurationManager().unregisterDebugAdapterDescriptorFactory(provider);
+			this.debugService.getAdapterManager().unregisterDebugAdapterDescriptorFactory(provider);
 		}
 	}
 
