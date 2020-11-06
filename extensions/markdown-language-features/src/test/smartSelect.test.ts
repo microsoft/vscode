@@ -335,7 +335,7 @@ suite('markdown.SmartSelect', () => {
 				`- content 2`,
 				`- content 2`));
 
-		assertNestedLineNumbersEqual(ranges![0], [9, 11], [8, 12], [7, 17], [1, 17], [0, 17]);
+		assertNestedLineNumbersEqual(ranges![0], [9, 11], [8, 12], [8, 12], [7, 17], [1, 17], [0, 17]);
 	});
 	test('Smart select fenced code block then list then rest of content on fenced line', async () => {
 		const ranges = await getSelectionRangesForDocument(
