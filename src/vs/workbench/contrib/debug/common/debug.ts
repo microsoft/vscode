@@ -677,7 +677,7 @@ export interface IConfigurationManager {
 		type: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, type?: string): Promise<void>;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfigOptions?: { type?: string }): Promise<void>;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
@@ -686,6 +686,8 @@ export interface IConfigurationManager {
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 
 	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
+
+	getRecentDynamicConfigurations(): { name: string, type: string }[];
 
 	/**
 	 * Allows to register on change of selected debug configuration.

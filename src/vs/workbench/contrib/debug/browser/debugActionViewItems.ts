@@ -188,34 +188,41 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		if (this.options.length === 0) {
-			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
-		} else {
-			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
-			disabledIdxs.push(this.options.length - 1);
-		}
-
-		this.providers.forEach(p => {
-			if (p.type === manager.selectedConfiguration.type) {
+		// Only take 3 elements from the recent dynamic configurations to not clutter the dropdown
+		manager.getRecentDynamicConfigurations().slice(0, 3).forEach(({ name, type }) => {
+			if (type === manager.selectedConfiguration.type && manager.selectedConfiguration.name === name) {
 				this.selected = this.options.length;
 			}
+			this.options.push({
+				label: name,
+				handler: async () => {
+					await manager.selectConfiguration(undefined, name, undefined, { type });
+					return true;
+				}
+			});
+		});
+
+		if (this.options.length === 0) {
+			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
+		}
+
+		this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
+		disabledIdxs.push(this.options.length - 1);
+
+		this.providers.forEach(p => {
 
 			this.options.push({
-				label: `${p.label}...`, handler: async () => {
+				label: `${p.label}...`,
+				handler: async () => {
 					const picked = await p.pick();
 					if (picked) {
-						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, p.type);
+						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, { type: p.type });
 						return true;
 					}
 					return false;
 				}
 			});
 		});
-
-		if (this.providers.length > 0) {
-			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
-			disabledIdxs.push(this.options.length - 1);
-		}
 
 		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
