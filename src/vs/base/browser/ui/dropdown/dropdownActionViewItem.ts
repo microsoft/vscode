@@ -140,24 +140,10 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	updateEnabled(): void {
-		if (this.getAction().enabled) {
-			if (this.actionItem) {
-				this.actionItem.classList.remove('disabled');
-			}
-
-			if (this.element) {
-				this.element.classList.remove('disabled');
-			}
-		} else {
-			if (this.actionItem) {
-				this.actionItem.classList.add('disabled');
-			}
-
-			if (this.element) {
-				this.element.classList.add('disabled');
-			}
-		}
+	protected updateEnabled(): void {
+		const disabled = !this.getAction().enabled;
+		this.actionItem?.classList.toggle('disabled', disabled);
+		this.element?.classList.toggle('disabled', disabled);
 	}
 }
 
