@@ -37,7 +37,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, distinct } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -49,6 +49,7 @@ const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
 // Debug type is only stored if a dynamic configuration is used for better restore
 const DEBUG_SELECTED_TYPE = 'debug.selectedtype';
+const DEBUG_RECENT_DYNAMIC_CONFIGURATIONS = 'debug.recentdynamicconfigurations';
 
 interface IDynamicPickItem { label: string, launch: ILaunch, config: IConfig }
 
@@ -95,9 +96,9 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
 		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
 		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
-			this.selectConfiguration(previousSelectedLaunch, previousSelectedName, undefined, previousSelectedType);
+			this.selectConfiguration(previousSelectedLaunch, previousSelectedName, undefined, { type: previousSelectedType });
 		} else if (this.launches.length > 0) {
-			this.selectConfiguration(undefined, previousSelectedName, undefined, previousSelectedType);
+			this.selectConfiguration(undefined, previousSelectedName, undefined, { type: previousSelectedType });
 		}
 	}
 
@@ -387,6 +388,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		return getVisibleAndSorted(all);
 	}
 
+	getRecentDynamicConfigurations(): { name: string, type: string }[] {
+		return JSON.parse(this.storageService.get(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, StorageScope.WORKSPACE, '[]'));
+	}
+
 	private registerListeners(): void {
 		debuggersExtPoint.setHandler((extensions, delta) => {
 			delta.added.forEach(added => {
@@ -522,7 +527,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return undefined;
 	}
 
-	async selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, type?: string): Promise<void> {
+	async selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfig?: { type?: string }): Promise<void> {
 		if (typeof launch === 'undefined') {
 			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
 			launch = this.getLaunch(rootUri);
@@ -542,30 +547,39 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		const names = launch ? launch.getConfigurationNames() : [];
-		if ((name && names.indexOf(name) >= 0) || config) {
+		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
-		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
-			// We could not find the previously used name. We should get all dynamic configurations from providers
+		} else if (dynamicConfig) {
+			// We could not find the previously used name and config is not passed. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
-			const providers = (await this.getDynamicProviders()).filter(p => p.type === type);
-			const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
-			const provider = activatedProviders.find(p => p && p.type === type);
-			let nameToSet = names.length ? names[0] : undefined;
-			if (provider && launch && launch.workspace) {
-				const token = new CancellationTokenSource();
-				const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
-				const dynamicConfig = dynamicConfigs.find(c => c.name === name);
-				if (dynamicConfig) {
-					config = dynamicConfig;
-					nameToSet = name;
+			let nameToSet = config ? config.name : names.length ? names[0] : undefined;
+			if (!config) {
+				const providers = (await this.getDynamicProviders()).filter(p => p.type === dynamicConfig.type);
+				const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
+				const provider = activatedProviders.find(p => p && p.type === dynamicConfig.type);
+				if (provider && launch && launch.workspace) {
+					const token = new CancellationTokenSource();
+					const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
+					const dynamicConfig = dynamicConfigs.find(c => c.name === name);
+					if (dynamicConfig) {
+						config = dynamicConfig;
+						nameToSet = name;
+					}
 				}
 			}
-
 			this.setSelectedLaunchName(nameToSet);
+
+			let recentDynamicProviders = this.getRecentDynamicConfigurations();
+			if (name && dynamicConfig.type) {
+				// We need to store the recently used dynamic configurations to be able to show them in UI #110009
+				recentDynamicProviders.unshift({ name, type: dynamicConfig.type });
+				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
+				this.storageService.store2(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
+			}
 		}
 
 		this.selectedConfig = config;
-		this.selectedType = type || this.selectedConfig?.type;
+		this.selectedType = dynamicConfig?.type || this.selectedConfig?.type;
 		this.storageService.store2(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
 		if (configForType) {
