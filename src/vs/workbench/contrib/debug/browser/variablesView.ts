@@ -207,8 +207,8 @@ export class VariablesView extends ViewPane {
 			this.variableEvaluateName.set(!!variable.evaluateName);
 			this.breakWhenValueChangesSupported.reset();
 			if (session && session.capabilities.supportsDataBreakpoints) {
-				const response = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataBreakpointId = response?.dataId;
+				dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
+				const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
 				this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
 			}
 
