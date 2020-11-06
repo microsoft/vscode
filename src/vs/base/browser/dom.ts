@@ -661,6 +661,43 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 	return false;
 }
 
+const parentFlowToDataKey = 'parentFlowToElementId';
+
+/**
+ * Set an explicit parent to use for nodes that are not part of the
+ * regular dom structure.
+ */
+export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: Element): void {
+	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
+}
+
+/**
+ * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
+ * parents set by `setParentFlowTo`.
+ */
+export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
+	let node: Node | null = testChild;
+	while (node) {
+		if (node === testAncestor) {
+			return true;
+		}
+
+		if (node instanceof HTMLElement) {
+			const flowToParentId = node.dataset[parentFlowToDataKey];
+			if (typeof flowToParentId === 'string') {
+				const flowToParentElement = document.getElementById(flowToParentId);
+				if (flowToParentElement) {
+					node = flowToParentElement;
+					continue;
+				}
+			}
+		}
+		node = node.parentNode;
+	}
+
+	return false;
+}
+
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (node.classList.contains(clazz)) {
