@@ -797,6 +797,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return tasks;
 	}
 
+	public removeRecentlyUsedTask(taskRecentlyUsedKey: string) {
+		if (this.getRecentlyUsedTasks().has(taskRecentlyUsedKey)) {
+			this.getRecentlyUsedTasks().delete(taskRecentlyUsedKey);
+			this.saveRecentlyUsedTasks();
+		}
+	}
+
 	private setTaskLRUCacheLimit() {
 		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
 		if (this._recentlyUsedTasks) {
