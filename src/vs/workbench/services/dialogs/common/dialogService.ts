@@ -12,44 +12,26 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 export class DialogService extends Disposable implements IDialogService {
 	_serviceBrand: undefined;
 
-	private _model: IDialogsModel = this._register(new DialogsModel());
-	get model(): IDialogsModel { return this._model; }
+	readonly model: IDialogsModel = this._register(new DialogsModel());
 
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		const handle = this.model.show({ confirmArgs: { confirmation } });
-
-		console.log('showing confirm');
-
-		return handle.result.then(res => {
-			return res as IConfirmationResult;
-		});
+		return await handle.result as IConfirmationResult;
 	}
 
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
+	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
 		const handle = this.model.show({ showArgs: { severity, message, buttons, options } });
-
-		console.log('showing show');
-
-
-		return handle.result.then(res => {
-			return res as IShowResult;
-		});
+		return await handle.result as IShowResult;
 	}
 
-	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
-		console.log('showing input');
+	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
 		const handle = this.model.show({ inputArgs: { severity, message, buttons, inputs, options } });
-
-		return handle.result.then(res => {
-			return res as IInputResult;
-		});
+		return await handle.result as IInputResult;
 	}
 
-	about(): Promise<void> {
-		console.log('showing about');
-		const handle = this.model.show({ aboutArgs: {} });
-
-		return handle.result.then();
+	async about(): Promise<void> {
+		const handle = this.model.show({});
+		await handle.result;
 	}
 }
 

@@ -14,7 +14,7 @@ export interface IDialogViewItem {
 
 export interface IDialogHandle {
 	item: IDialogViewItem;
-	result: Promise<IDialogResult>;
+	result: Promise<IDialogResult | undefined>;
 }
 
 export interface IDialogsModel {
@@ -26,15 +26,13 @@ export interface IDialogsModel {
 }
 
 export class DialogsModel extends Disposable implements IDialogsModel {
-	private readonly _dialogs: IDialogViewItem[] = [];
-	get dialogs(): IDialogViewItem[] { return this._dialogs; }
-
+	readonly dialogs: IDialogViewItem[] = [];
 
 	private readonly _onDidShowDialog = this._register(new Emitter<void>());
 	readonly onDidShowDialog = this._onDidShowDialog.event;
 
 	show(dialog: IDialog): IDialogHandle {
-		let resolver: any;
+		let resolver: (value?: IDialogResult) => void;
 
 		const item: IDialogViewItem = {
 			args: dialog,

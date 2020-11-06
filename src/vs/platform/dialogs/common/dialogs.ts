@@ -41,15 +41,10 @@ export interface IInputDialogArgs {
 	options?: IDialogOptions;
 }
 
-export interface IAboutDialogArgs {
-
-}
-
 export interface IDialog {
 	confirmArgs?: IConfirmDialogArgs;
 	showArgs?: IShowDialogArgs;
 	inputArgs?: IInputDialogArgs;
-	aboutArgs?: IAboutDialogArgs
 }
 
 export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
@@ -200,7 +195,6 @@ export interface IInput {
 
 /**
  * A handler to bring up modal dialogs.
- *
  */
 export interface IDialogHandler {
 	/**

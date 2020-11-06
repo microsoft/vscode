@@ -57,9 +57,7 @@ export class DialogHandlerContribution implements IWorkbenchContribution {
 			this.currentDialog = this.model.dialogs[0];
 
 			let result: IDialogResult | undefined = undefined;
-			if (this.currentDialog.args.aboutArgs) {
-				await this.nativeImpl.about();
-			} else if (this.currentDialog.args.confirmArgs) {
+			if (this.currentDialog.args.confirmArgs) {
 				const args = this.currentDialog.args.confirmArgs;
 				result = this.useCustomDialog ? await this.customImpl.confirm(args.confirmation) : await this.nativeImpl.confirm(args.confirmation);
 			} else if (this.currentDialog.args.inputArgs) {
@@ -72,6 +70,8 @@ export class DialogHandlerContribution implements IWorkbenchContribution {
 				result = this.useCustomDialog ?
 					await this.customImpl.show(args.severity, args.message, args.buttons, args.options) :
 					await this.nativeImpl.show(args.severity, args.message, args.buttons, args.options);
+			} else {
+				await this.nativeImpl.about();
 			}
 
 			this.currentDialog.close(result);
