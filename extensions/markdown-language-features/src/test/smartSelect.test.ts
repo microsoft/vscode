@@ -416,9 +416,85 @@ suite('markdown.SmartSelect', () => {
 				`- level ${CURSOR}1`));
 		assertNestedLineNumbersEqual(ranges![0], [3, 3], [0, 3]);
 	});
+	test('Smart select without multiple ranges', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				``,
+				`- ${CURSOR}paragraph`,
+				`- content`));
+
+		assertNestedLineNumbersEqual(ranges![0], [3, 3], [3, 4], [1, 4], [0, 4]);
+	});
+	test('Smart select on second level of a list', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`* level 0`,
+				`	* level 1`,
+				`	* level 1`,
+				`		* level 2`,
+				`	* level 1`,
+				`	* level ${CURSOR}1`,
+				`* level 0`));
+
+		assertNestedLineNumbersEqual(ranges![0], [5, 5], [1, 5], [0, 5], [0, 6]);
+	});
+	test('Smart select on third level of a list', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`* level 0`,
+				`	* level 1`,
+				`	* level 1`,
+				`		* level ${CURSOR}2`,
+				`		* level 2`,
+				`	* level 1`,
+				`	* level 1`,
+				`* level 0`));
+		assertNestedLineNumbersEqual(ranges![0], [3, 3], [3, 4], [2, 4], [1, 6], [0, 6], [0, 7]);
+	});
+	test('Smart select level 2 then level 1', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`* level 1`,
+				`	* level ${CURSOR}2`,
+				`	* level 2`,
+				`* level 1`));
+		assertNestedLineNumbersEqual(ranges![0], [1, 1], [1, 2], [0, 2], [0, 3]);
+	});
+	test('Smart select bold', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`stuff here **new${CURSOR}item** and here`
+			));
+
+		assertNestedRangesEqual(ranges![0], [0, 2, 0, 7], [0, 11, 0, 22], [0, 0, 0, 30]);
+	});
+	test('Smart select link', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`stuff here [text](${CURSOR}https://google.com) and here`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
+	test('Smart select [text]', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`stuff here [te${CURSOR}xt](https://google.com) and here`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
 });
 
 function assertNestedLineNumbersEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {
+	const lineage = getLineage(range);
+	assert.strictEqual(lineage.length, expectedRanges.length, `expected depth: ${expectedRanges.length}, but was ${lineage.length}`);
+	for (let i = 0; i < lineage.length; i++) {
+		assertLineNumbersEqual(lineage[i], expectedRanges[i][0], expectedRanges[i][1], `parent at a depth of ${i}`);
+	}
+}
+
+function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number, number, number][]) {
 	const lineage = getLineage(range);
 	assert.strictEqual(lineage.length, expectedRanges.length, `expected depth: ${expectedRanges.length}, but was ${lineage.length}`);
 	for (let i = 0; i < lineage.length; i++) {
