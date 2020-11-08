@@ -484,6 +484,104 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
 	});
+	test('Smart select [text] under header in list', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list`,
+				`paragraph`,
+				`## sub header`,
+				`- list`,
+				`- stuff here [te${CURSOR}xt](https://google.com) and here`,
+				`- list`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
+	test('Smart select link under header in list', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list`,
+				`paragraph`,
+				`## sub header`,
+				`- list`,
+				`- stuff here [text](${CURSOR}https://google.com) and here`,
+				`- list`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
+	test('Smart select bold under header in list', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list`,
+				`paragraph`,
+				`## sub header`,
+				`- list`,
+				`- stuff here [text]**${CURSOR}https://google.com** and here`,
+				`- list`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
+	test('Smart select [text] under header in list on [', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list`,
+				`paragraph`,
+				`## sub header`,
+				`- list`,
+				`- stuff here ${CURSOR}[text](https://google.com) and here`,
+				`- list`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
+	test('Smart select link under header in list on (', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list`,
+				`paragraph`,
+				`## sub header`,
+				`- list`,
+				`- stuff here [text]${CURSOR}(https://google.com) and here`,
+				`- list`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
+	test('Smart select bold under header in list on **', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list`,
+				`paragraph`,
+				`## sub header`,
+				`- list`,
+				`- stuff here [text]*${CURSOR}*https://google.com** and here`,
+				`- list`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
+	test('Smart select bold within list where multiple bold exist', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`# main header 1`,
+				``,
+				`- list`,
+				`paragraph`,
+				`## sub header`,
+				`- list`,
+				`- stuff here [text]*${CURSOR}*https://google.com** and **here**`,
+				`- list`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
 });
 
 function assertNestedLineNumbersEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {

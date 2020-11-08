@@ -27,20 +27,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		return inlineRange || blockRange || headerRange;
 	}
 	private async getInlineSelectionRange(document: vscode.TextDocument, position: vscode.Position, blockRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
-		const tokens = await this.engine.parse(document);
-
-		const inlineTokens = getInlineTokensForPosition(tokens, position);
-
-		if (inlineTokens.length === 0) {
-			return undefined;
-		}
-
-		let currentRange: vscode.SelectionRange | undefined = blockRange ? blockRange : createInlineRange(inlineTokens.shift()!, document, position);
-
-		for (let i = 0; i < inlineTokens.length; i++) {
-			currentRange = createInlineRange(inlineTokens[i], document, position, currentRange);
-		}
-		return currentRange;
+		return createInlineRange(document, position, blockRange);
 	}
 
 	private async getBlockSelectionRange(document: vscode.TextDocument, position: vscode.Position, headerRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
@@ -118,15 +105,6 @@ function getBlockTokensForPosition(tokens: Token[], position: vscode.Position): 
 	return sortedTokens;
 }
 
-function getInlineTokensForPosition(tokens: Token[], position: vscode.Position): Token[] {
-	const enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && !isBlockElement(token));
-	if (enclosingTokens.length === 0) {
-		return [];
-	}
-	const sortedTokens = enclosingTokens.sort((token1, token2) => (token2.map[1] - token2.map[0]) - (token1.map[1] - token1.map[0]));
-	return sortedTokens;
-}
-
 function createBlockRange(block: Token, document: vscode.TextDocument, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	if (block.type === 'fence') {
 		return createFencedRange(block, cursorLine, document, parent);
@@ -149,51 +127,60 @@ function createBlockRange(block: Token, document: vscode.TextDocument, cursorLin
 	}
 }
 
+function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+	const line = document.lineAt(cursorPosition.line).text;
 
-function createInlineRange(inline: Token, document: vscode.TextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	if (cursorPosition.line === inline.map[0]) {
-		const line = document.lineAt(inline.map[0]).text;
-		const containsBold = new RegExp(/\\*\\*([^\\s]+.*[^\\s]+)\\*\\*/g);
-		const containsSquareBrackets = new RegExp(/\\[[^\\s]+.*[^\\s]\\]/g);
-		// const containsParens = new RegExp(/\\([^\\s]+.*[^\\s]\\)/g);
-		if (line.match(containsBold)) {
-			let startIndex = line.indexOf('**');
-			let endIndex = line.lastIndexOf('**');
-			if (startIndex + 1 < cursorPosition.character && endIndex > cursorPosition.character) {
-				// cursor within the content so select content first then **s on both sides
-				const contentRange = new vscode.Range(cursorPosition.line, startIndex + 2, cursorPosition.line, endIndex);
-				const range = new vscode.Range(cursorPosition.line, startIndex, cursorPosition.line, endIndex + 2);
-				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-			} else if (startIndex === cursorPosition.character
-				|| startIndex + 1 === cursorPosition.character
-				|| endIndex === cursorPosition.character
-				|| endIndex + 1 === cursorPosition.character) {
-				// cursor within the **s on one of the sides so select all of the content
-				const range = new vscode.Range(cursorPosition.line, startIndex, cursorPosition.line, endIndex + 2);
+	let startBold = line.substring(0, cursorPosition.character + 1).lastIndexOf('**');
+	let endBold = cursorPosition.character + 1 + line.substring(cursorPosition.character + 1).indexOf('**');
+
+	if (startBold >= 0 && endBold >= 0) {
+		const range = new vscode.Range(cursorPosition.line, startBold, cursorPosition.line, endBold);
+		if (cursorPosition.character > startBold && cursorPosition.character < endBold) {
+			// cursor within the content so select content first then **s on both sides
+			const contentRange = new vscode.Range(cursorPosition.line, startBold + 2, cursorPosition.line, endBold);
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+		} else {
+			// cursor within the **s on one of the sides so select all of the content
+			return new vscode.SelectionRange(range, parent);
+		}
+	}
+
+	let startBracket = line.substring(0, cursorPosition.character + 1).lastIndexOf('[');
+	let endBracket = cursorPosition.character + 1 + line.substring(cursorPosition.character + 1).indexOf(']');
+
+	if (startBracket >= 0 && endBracket >= 0) {
+		const range = new vscode.Range(cursorPosition.line, startBracket, cursorPosition.line, endBracket);
+		if (cursorPosition.character > startBracket && cursorPosition.character < endBracket) {
+			// within the content so select content then include brackets
+			const contentRange = new vscode.Range(cursorPosition.line, startBracket + 1, cursorPosition.line, endBracket);
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+		} else {
+			// cursor on one of the brackets
+			if (cursorPosition.character === startBracket) {
+				return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, startBracket, cursorPosition.line, endBracket + 1), parent);
+			} else {
 				return new vscode.SelectionRange(range, parent);
 			}
 		}
+	}
 
-		if (line.match(containsSquareBrackets)) {
-			const startIndex = line.indexOf('[');
-			const endIndex = line.lastIndexOf(']');
-			if (startIndex <= cursorPosition.character && endIndex >= cursorPosition.character) {
-				const contentRange = new vscode.Range(cursorPosition.line, startIndex + 1, cursorPosition.line, endIndex - 1);
-				const range = new vscode.Range(cursorPosition.line, startIndex, cursorPosition.line, endIndex + 1);
-				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+	let startParens = line.substring(0, cursorPosition.character + 1).lastIndexOf('(');
+	let endParens = cursorPosition.character + 1 + line.substring(cursorPosition.character + 1).indexOf(')');
+
+	if (startParens >= 0 && endParens >= 0) {
+		const range = new vscode.Range(cursorPosition.line, startParens, cursorPosition.line, endParens);
+		if (cursorPosition.character > startParens && cursorPosition.character < endParens) {
+			// within the content so select content then include parens
+			const contentRange = new vscode.Range(cursorPosition.line, startParens + 1, cursorPosition.line, endParens);
+			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+		} else {
+			// cursor on one of the parens
+			if (cursorPosition.character === startParens) {
+				return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, startParens, cursorPosition.line, endParens + 1), parent);
+			} else {
+				return new vscode.SelectionRange(range, parent);
 			}
 		}
-		// 	} else if (line.match(containsParens)) {
-		// 		const startIndex = line.indexOf('(');
-		// 		const endIndex = line.lastIndexOf(')');
-		// 		if (startIndex <= cursorPosition.character && endIndex >= cursorPosition.character) {
-		// 			const contentRange = new vscode.Range(cursorPosition.line, startIndex + 1, cursorPosition.line, endIndex - 1);
-		// 			const range = new vscode.Range(cursorPosition.line, startIndex, cursorPosition.line, endIndex + 1);
-		// 			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-		// 		}
-		// 	}
-		// }
-
 	}
 	return undefined;
 }
