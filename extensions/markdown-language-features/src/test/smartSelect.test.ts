@@ -467,15 +467,15 @@ suite('markdown.SmartSelect', () => {
 			joinLines(
 				`stuff here **new${CURSOR}item** and here`
 			));
-
-		assertNestedRangesEqual(ranges![0], [0, 2, 0, 7], [0, 11, 0, 22], [0, 0, 0, 30]);
+		//
+		assertNestedRangesEqual(ranges![0], [0, 13, 0, 30], [0, 11, 0, 30], [0, 0, 0, 41]);
 	});
 	test('Smart select link', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
-				`stuff here [text](${CURSOR}https://google.com) and here`
+				`stuff here [text](https${CURSOR}://google.com) and here`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+		assertNestedRangesEqual(ranges![0], [0, 11, 0, 18], [0, 0, 0, 56]);
 	});
 	test('Smart select [text]', async () => {
 		const ranges = await getSelectionRangesForDocument(
