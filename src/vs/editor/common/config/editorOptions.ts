@@ -3041,7 +3041,7 @@ export interface ISuggestOptions {
 	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
-	showStatusDetailsInline?: boolean;
+	showInlineDetails?: boolean;
 	/**
 	 * Show method-suggestions.
 	 */
@@ -3165,7 +3165,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
-			showStatusDetailsInline: true,
+			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3238,10 +3238,10 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
 
-				'editor.suggest.showStatusDetailsInline': {
+				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
-					default: defaults.showStatusDetailsInline,
-					description: nls.localize('suggest.showStatusDetailsInline', "Controls whether sugget details show inline with the label or only in the details widget")
+					default: defaults.showInlineDetails,
+					description: nls.localize('suggest.showInlineDetails', "Controls whether sugget details show inline with the label or only in the details widget")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
@@ -3408,7 +3408,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
-			showStatusDetailsInline: EditorBooleanOption.boolean(input.showStatusDetailsInline, this.defaultValue.showStatusDetailsInline),
+			showInlineDetails: EditorBooleanOption.boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
