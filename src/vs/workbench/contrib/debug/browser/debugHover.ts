@@ -80,6 +80,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private treeContainer!: HTMLElement;
 	private toDispose: lifecycle.IDisposable[];
 	private scrollbar!: DomScrollableElement;
+	private tip!: HTMLElement;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -100,6 +101,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
+		this.tip = dom.append(this.complexValueContainer, $('.tip'));
 		const dataSource = new DebugHoverDataSource();
 
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
@@ -116,10 +118,10 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
 		this.valueContainer.setAttribute('role', 'tooltip');
+		this.tip.innerText = 'Quick tip: Hold alt key to switch to editor hover';
 		this.scrollbar = new DomScrollableElement(this.valueContainer, { horizontal: ScrollbarVisibility.Hidden });
 		this.domNode.appendChild(this.scrollbar.getDomNode());
 		this.toDispose.push(this.scrollbar);
-
 		this.editor.applyFontInfo(this.domNode);
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder, editorHoverForeground }, colors => {
