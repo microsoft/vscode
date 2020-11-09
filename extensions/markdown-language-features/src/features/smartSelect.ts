@@ -203,7 +203,7 @@ function createGroupRange(lineText: string, cursorChar: number, cursorLine: numb
 				// within the content so select content then include brackets / parens
 				const contentRange = new vscode.Range(cursorLine, start + 1, cursorLine, end);
 				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-			} if (cursorChar === start || cursorChar === end + 1) {
+			} if (cursorChar === start) {
 				return new vscode.SelectionRange(range, parent);
 			}
 		}
