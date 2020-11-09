@@ -33,7 +33,7 @@ import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
-import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType, IViewModel, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -499,6 +499,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._onViewZonesChanged();
 		}));
 
+		this._register(editor.onDidChangeConfiguration((e) => {
+			if (!editor.getModel()) {
+				return;
+			}
+			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.wrappingInfo)) {
+				this._updateDecorationsRunner.schedule();
+			}
+		}));
+
 		this._register(editor.onDidChangeModelContent(() => {
 			if (this._isVisible) {
 				this._beginUpdateDecorationsSoon();
@@ -549,8 +558,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.fontInfo) && editor.getModel()) {
-				this._onViewZonesChanged();
+			if (!editor.getModel()) {
+				return;
+			}
+			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.wrappingInfo)) {
+				this._updateDecorationsRunner.schedule();
 			}
 		}));
 
@@ -1435,27 +1447,29 @@ class ForeignViewZonesIterator {
 
 abstract class ViewZonesComputer {
 
-	private readonly _lineChanges: editorCommon.ILineChange[];
-	private readonly _originalForeignVZ: IEditorWhitespace[];
-	private readonly _originalLineHeight: number;
-	private readonly _modifiedForeignVZ: IEditorWhitespace[];
-	private readonly _modifiedLineHeight: number;
-
 	constructor(
-		lineChanges: editorCommon.ILineChange[],
-		originalForeignVZ: IEditorWhitespace[],
-		modifiedForeignVZ: IEditorWhitespace[],
-		originalEditor: CodeEditorWidget,
-		modifiedEditor: CodeEditorWidget
+		private readonly _lineChanges: editorCommon.ILineChange[],
+		private readonly _originalForeignVZ: IEditorWhitespace[],
+		private readonly _modifiedForeignVZ: IEditorWhitespace[],
+		private readonly _originalEditor: CodeEditorWidget,
+		private readonly _modifiedEditor: CodeEditorWidget
 	) {
-		this._lineChanges = lineChanges;
-		this._originalForeignVZ = originalForeignVZ;
-		this._originalLineHeight = originalEditor.getOption(EditorOption.lineHeight);
-		this._modifiedForeignVZ = modifiedForeignVZ;
-		this._modifiedLineHeight = modifiedEditor.getOption(EditorOption.lineHeight);
+	}
+
+	private static _getViewLineCount(editor: CodeEditorWidget, startLineNumber: number, endLineNumber: number): number {
+		const model = editor.getModel();
+		const viewModel = editor._getViewModel();
+		if (model && viewModel) {
+			const viewRange = getViewRange(model, viewModel, startLineNumber, endLineNumber);
+			return (viewRange.endLineNumber - viewRange.startLineNumber + 1);
+		}
+
+		return (endLineNumber - startLineNumber + 1);
 	}
 
 	public getViewZones(): IEditorsZones {
+		const originalLineHeight = this._originalEditor.getOption(EditorOption.lineHeight);
+		const modifiedLineHeight = this._modifiedEditor.getOption(EditorOption.lineHeight);
 		const result: { original: IMyViewZone[]; modified: IMyViewZone[]; } = {
 			original: [],
 			modified: []
@@ -1493,9 +1507,8 @@ abstract class ViewZonesComputer {
 			if (lineChange !== null) {
 				originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
 				modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
-
-				lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
-				lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
+				lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? ViewZonesComputer._getViewLineCount(this._originalEditor, lineChange.originalStartLineNumber, lineChange.originalEndLineNumber) : 0);
+				lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? ViewZonesComputer._getViewLineCount(this._modifiedEditor, lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber) : 0);
 				originalEndEquivalentLineNumber = Math.max(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber);
 				modifiedEndEquivalentLineNumber = Math.max(lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber);
 			} else {
@@ -1528,7 +1541,7 @@ abstract class ViewZonesComputer {
 
 				stepOriginal.push({
 					afterLineNumber: viewZoneLineNumber,
-					heightInLines: modifiedForeignVZ.current.height / this._modifiedLineHeight,
+					heightInLines: modifiedForeignVZ.current.height / modifiedLineHeight,
 					domNode: null,
 					marginDomNode: marginDomNode
 				});
@@ -1545,7 +1558,7 @@ abstract class ViewZonesComputer {
 				}
 				stepModified.push({
 					afterLineNumber: viewZoneLineNumber,
-					heightInLines: originalForeignVZ.current.height / this._originalLineHeight,
+					heightInLines: originalForeignVZ.current.height / originalLineHeight,
 					domNode: null
 				});
 				originalForeignVZ.advance();
@@ -1820,6 +1833,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		};
 
 		const originalModel = originalEditor.getModel()!;
+		const originalViewModel = originalEditor._getViewModel()!;
 
 		for (const lineChange of lineChanges) {
 
@@ -1832,11 +1846,8 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER, DECORATIONS.charDeleteWholeLine));
 				}
 
-				result.overviewZones.push(new OverviewRulerZone(
-					lineChange.originalStartLineNumber,
-					lineChange.originalEndLineNumber,
-					overviewZoneColor
-				));
+				const viewRange = getViewRange(originalModel, originalViewModel, lineChange.originalStartLineNumber, lineChange.originalEndLineNumber);
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
@@ -1879,6 +1890,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		};
 
 		const modifiedModel = modifiedEditor.getModel()!;
+		const modifiedViewModel = modifiedEditor._getViewModel()!;
 
 		for (const lineChange of lineChanges) {
 
@@ -1891,11 +1903,9 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER, DECORATIONS.charInsertWholeLine));
 				}
-				result.overviewZones.push(new OverviewRulerZone(
-					lineChange.modifiedStartLineNumber,
-					lineChange.modifiedEndLineNumber,
-					overviewZoneColor
-				));
+
+				const viewRange = getViewRange(modifiedModel, modifiedViewModel, lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber);
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
@@ -2004,6 +2014,10 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 			overviewZones: []
 		};
 
+		const originalEditor = this._dataSource.getOriginalEditor();
+		const originalModel = originalEditor.getModel()!;
+		const originalViewModel = originalEditor._getViewModel()!;
+
 		for (const lineChange of lineChanges) {
 
 			// Add overview zones in the overview ruler
@@ -2013,11 +2027,8 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 					options: DECORATIONS.lineDeleteMargin
 				});
 
-				result.overviewZones.push(new OverviewRulerZone(
-					lineChange.originalStartLineNumber,
-					lineChange.originalEndLineNumber,
-					overviewZoneColor
-				));
+				const viewRange = getViewRange(originalModel, originalViewModel, lineChange.originalStartLineNumber, lineChange.originalEndLineNumber);
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
 			}
 		}
 
@@ -2034,6 +2045,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 		};
 
 		const modifiedModel = modifiedEditor.getModel()!;
+		const modifiedViewModel = modifiedEditor._getViewModel()!;
 
 		for (const lineChange of lineChanges) {
 
@@ -2044,11 +2056,8 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 					options: (renderIndicators ? DECORATIONS.lineInsertWithSign : DECORATIONS.lineInsert)
 				});
 
-				result.overviewZones.push(new OverviewRulerZone(
-					lineChange.modifiedStartLineNumber,
-					lineChange.modifiedEndLineNumber,
-					overviewZoneColor
-				));
+				const viewRange = getViewRange(modifiedModel, modifiedViewModel, lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber);
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
@@ -2252,6 +2261,13 @@ function createFakeLinesDiv(): HTMLElement {
 	const r = document.createElement('div');
 	r.className = 'diagonal-fill';
 	return r;
+}
+
+function getViewRange(model: ITextModel, viewModel: IViewModel, startLineNumber: number, endLineNumber: number): Range {
+	return viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(
+		startLineNumber, model.getLineMinColumn(startLineNumber),
+		endLineNumber, model.getLineMaxColumn(endLineNumber)
+	));
 }
 
 registerThemingParticipant((theme, collector) => {
