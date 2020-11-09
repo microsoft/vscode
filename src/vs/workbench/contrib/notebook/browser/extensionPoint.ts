@@ -6,7 +6,6 @@
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 namespace NotebookEditorContribution {
@@ -19,7 +18,7 @@ namespace NotebookEditorContribution {
 export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.viewType]: string;
 	readonly [NotebookEditorContribution.displayName]: string;
-	readonly [NotebookEditorContribution.selector]?: readonly NotebookSelector[];
+	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
 	readonly [NotebookEditorContribution.priority]?: string;
 }
 

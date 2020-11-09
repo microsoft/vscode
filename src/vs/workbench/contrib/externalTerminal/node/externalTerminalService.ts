@@ -11,9 +11,9 @@ import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
 import { IExternalTerminalService, IExternalTerminalConfiguration, IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminal';
+import { FileAccess } from 'vs/base/common/network';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -144,7 +144,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = getPathFromAmdModule(require, `vs/workbench/contrib/externalTerminal/node/${script}.scpt`);
+				const scriptpath = FileAccess.asFileUri(`vs/workbench/contrib/externalTerminal/node/${script}.scpt`, require).fsPath;
 
 				const osaArgs = [
 					scriptpath,

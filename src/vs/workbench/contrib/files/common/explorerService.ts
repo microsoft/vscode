@@ -9,23 +9,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService, IFilesConfiguration, SortOrder, IExplorerView } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
-import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
 import { dirname } from 'vs/base/common/resources';
-import { memoize } from 'vs/base/common/decorators';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
-
-function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
-	const scope = root ? { resource: root } : undefined;
-	const configuration = scope ? configurationService.getValue<IFilesConfiguration>(scope) : configurationService.getValue<IFilesConfiguration>();
-
-	return configuration?.files?.exclude || Object.create(null);
-}
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class ExplorerService implements IExplorerService {
 	declare readonly _serviceBrand: undefined;
@@ -41,15 +31,15 @@ export class ExplorerService implements IExplorerService {
 
 	constructor(
 		@IFileService private fileService: IFileService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IEditorService private editorService: IEditorService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 
-		this.model = new ExplorerModel(this.contextService, this.fileService);
+		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService);
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 		this.disposables.add(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
@@ -92,18 +82,6 @@ export class ExplorerService implements IExplorerService {
 			return [];
 		}
 		return this.view.getContext(respectMultiSelection);
-	}
-
-	// Memoized locals
-	@memoize private get fileEventsFilter(): ResourceGlobMatcher {
-		const fileEventsFilter = this.instantiationService.createInstance(
-			ResourceGlobMatcher,
-			(root?: URI) => getFileEventsExcludes(this.configurationService, root),
-			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
-		);
-		this.disposables.add(fileEventsFilter);
-
-		return fileEventsFilter;
 	}
 
 	// IExplorerService methods
@@ -169,7 +147,7 @@ export class ExplorerService implements IExplorerService {
 		}
 		const rootUri = workspaceFolder.uri;
 
-		const root = this.roots.find(r => r.resource.toString() === rootUri.toString())!;
+		const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, rootUri))!;
 
 		try {
 			const stat = await this.fileService.resolve(rootUri, options);
@@ -193,7 +171,7 @@ export class ExplorerService implements IExplorerService {
 		this.model.roots.forEach(r => r.forgetChildren());
 		if (this.view) {
 			await this.view.refresh(true);
-			const resource = this.editorService.activeEditor ? this.editorService.activeEditor.resource : undefined;
+			const resource = this.editorService.activeEditor?.resource;
 			const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
 			if (reveal && resource && autoReveal) {
@@ -244,7 +222,7 @@ export class ExplorerService implements IExplorerService {
 			const newParentResource = dirname(newElement.resource);
 
 			// Handle Rename
-			if (oldParentResource.toString() === newParentResource.toString()) {
+			if (this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource)) {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(async modelElement => {
 					// Rename File (Model)
@@ -278,7 +256,7 @@ export class ExplorerService implements IExplorerService {
 					const parent = element.parent;
 					// Remove Element from Parent (Model)
 					parent.removeChild(element);
-					this.view?.focusNextIfItemFocused(element);
+					this.view?.focusNeighbourIfItemFocused(element);
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}
@@ -292,92 +270,24 @@ export class ExplorerService implements IExplorerService {
 		// be fired first over the other or not at all.
 		setTimeout(async () => {
 			// Filter to the ones we care
-			const shouldRefresh = () => {
-				e = this.filterToViewRelevantEvents(e);
-				// Handle added files/folders
-				const added = e.getAdded();
-				if (added.length) {
+			const types = [FileChangeType.ADDED, FileChangeType.DELETED];
+			if (this._sortOrder === SortOrder.Modified) {
+				types.push(FileChangeType.UPDATED);
+			}
 
-					// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-					const ignoredPaths: Set<string> = new Set();
-					for (let i = 0; i < added.length; i++) {
-						const change = added[i];
-
-						// Find parent
-						const parent = dirname(change.resource);
-
-						// Continue if parent was already determined as to be ignored
-						if (ignoredPaths.has(parent.toString())) {
-							continue;
-						}
-
-						// Compute if parent is visible and added file not yet part of it
-						const parentStat = this.model.findClosest(parent);
-						if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
-							return true;
-						}
-
-						// Keep track of path that can be ignored for faster lookup
-						if (!parentStat || !parentStat.isDirectoryResolved) {
-							ignoredPaths.add(parent.toString());
-						}
-					}
+			const allResolvedDirectories: ExplorerItem[] = [];
+			this.roots.forEach(r => {
+				allResolvedDirectories.push(r);
+				if (this.view) {
+					getAllNonFilteredDescendants(r, allResolvedDirectories, this.view);
 				}
+			});
 
-				// Handle deleted files/folders
-				const deleted = e.getDeleted();
-				if (deleted.length) {
-
-					// Check deleted: Refresh if deleted file/folder part of resolved root
-					for (let j = 0; j < deleted.length; j++) {
-						const del = deleted[j];
-						const item = this.model.findClosest(del.resource);
-						if (item && item.parent) {
-							return true;
-						}
-					}
-				}
-
-				// Handle updated files/folders if we sort by modified
-				if (this._sortOrder === SortOrder.Modified) {
-					const updated = e.getUpdated();
-
-					// Check updated: Refresh if updated file/folder part of resolved root
-					for (let j = 0; j < updated.length; j++) {
-						const upd = updated[j];
-						const item = this.model.findClosest(upd.resource);
-
-						if (item && item.parent) {
-							return true;
-						}
-					}
-				}
-
-				return false;
-			};
-
-			if (shouldRefresh()) {
+			const shouldRefresh = allResolvedDirectories.some(r => e.affects(r.resource, ...types));
+			if (shouldRefresh) {
 				await this.refresh(false);
 			}
 		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
-	}
-
-	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
-		return e.filter(change => {
-			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrder.Modified) {
-				return false; // we only are about updated if we sort by modified time
-			}
-
-			if (!this.contextService.isInsideWorkspace(change.resource)) {
-				return false; // exclude changes for resources outside of workspace
-			}
-
-			if (this.fileEventsFilter.matches(change.resource)) {
-				return false; // excluded via files.exclude setting
-			}
-
-			return true;
-		});
 	}
 
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
@@ -393,5 +303,16 @@ export class ExplorerService implements IExplorerService {
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+}
+
+function getAllNonFilteredDescendants(item: ExplorerItem, result: ExplorerItem[], view: IExplorerView): void {
+	for (let [_name, child] of item.children) {
+		if (view.isItemVisible(child)) {
+			if (child.isDirectory && child.isDirectoryResolved) {
+				result.push(child);
+				getAllNonFilteredDescendants(child, result, view);
+			}
+		}
 	}
 }

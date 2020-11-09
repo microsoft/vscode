@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { writeFileSync, writeFile, readFile, readdir, exists, rimraf, rename, RimRafMode } from 'vs/base/node/pfs';
 import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -38,7 +38,7 @@ export class BackupMainService implements IBackupMainService {
 	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !platform.isLinux) };
 
 	constructor(
-		@IEnvironmentService environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService environmentService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -57,9 +57,6 @@ export class BackupMainService implements IBackupMainService {
 		// read empty workspaces backups first
 		if (backups.emptyWorkspaceInfos) {
 			this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
-		} else if (Array.isArray(backups.emptyWorkspaces)) {
-			// read legacy entries
-			this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaces.map(emptyWindow => ({ backupFolder: emptyWindow })));
 		}
 
 		// read workspace backups
@@ -67,8 +64,6 @@ export class BackupMainService implements IBackupMainService {
 		try {
 			if (Array.isArray(backups.rootURIWorkspaces)) {
 				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({ workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) }, remoteAuthority: workspace.remoteAuthority }));
-			} else if (Array.isArray(backups.rootWorkspaces)) {
-				rootWorkspaces = backups.rootWorkspaces.map(workspace => ({ workspace: { id: workspace.id, configPath: URI.file(workspace.configPath) } }));
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
@@ -81,18 +76,6 @@ export class BackupMainService implements IBackupMainService {
 		try {
 			if (Array.isArray(backups.folderURIWorkspaces)) {
 				workspaceFolders = backups.folderURIWorkspaces.map(folder => URI.parse(folder));
-			} else if (Array.isArray(backups.folderWorkspaces)) {
-				// migrate legacy folder paths
-				workspaceFolders = [];
-				for (const folderPath of backups.folderWorkspaces) {
-					const oldFolderHash = this.getLegacyFolderHash(folderPath);
-					const folderUri = URI.file(folderPath);
-					const newFolderHash = this.getFolderHash(folderUri);
-					if (newFolderHash !== oldFolderHash) {
-						await this.moveBackupFolder(this.getBackupPath(newFolderHash), this.getBackupPath(oldFolderHash));
-					}
-					workspaceFolders.push(folderUri);
-				}
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
@@ -168,23 +151,6 @@ export class BackupMainService implements IBackupMainService {
 		if (fs.existsSync(moveFromPath)) {
 			try {
 				fs.renameSync(moveFromPath, backupPath);
-			} catch (ex) {
-				this.logService.error(`Backup: Could not move backup folder to new location: ${ex.toString()}`);
-			}
-		}
-	}
-
-	private async moveBackupFolder(backupPath: string, moveFromPath: string): Promise<void> {
-
-		// Target exists: make sure to convert existing backups to empty window backups
-		if (await exists(backupPath)) {
-			await this.convertToEmptyWindowBackup(backupPath);
-		}
-
-		// When we have data to migrate from, move it over to the target location
-		if (await exists(moveFromPath)) {
-			try {
-				await rename(moveFromPath, backupPath);
 			} catch (ex) {
 				this.logService.error(`Backup: Could not move backup folder to new location: ${ex.toString()}`);
 			}
@@ -475,8 +441,7 @@ export class BackupMainService implements IBackupMainService {
 		return {
 			rootURIWorkspaces: this.workspaces.map(workspace => ({ id: workspace.workspace.id, configURIPath: workspace.workspace.configPath.toString(), remoteAuthority: workspace.remoteAuthority })),
 			folderURIWorkspaces: this.folders.map(folder => folder.toString()),
-			emptyWorkspaceInfos: this.emptyWindows,
-			emptyWorkspaces: this.emptyWindows.map(emptyWindow => emptyWindow.backupFolder)
+			emptyWorkspaceInfos: this.emptyWindows
 		};
 	}
 
@@ -495,9 +460,5 @@ export class BackupMainService implements IBackupMainService {
 		}
 
 		return crypto.createHash('md5').update(key).digest('hex');
-	}
-
-	protected getLegacyFolderHash(folderPath: string): string {
-		return crypto.createHash('md5').update(platform.isLinux ? folderPath : folderPath.toLowerCase()).digest('hex');
 	}
 }

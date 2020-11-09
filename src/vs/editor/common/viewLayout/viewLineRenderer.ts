@@ -348,8 +348,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 
 		let containsForeignElements = ForeignElementType.None;
 
-		// This is basically for IE's hit test to work
-		let content: string = '<span><span>\u00a0</span></span>';
+		let content: string = '<span><span></span></span>';
 
 		if (input.lineDecorations.length > 0) {
 			// This line is empty, but it contains inline decorations

@@ -157,11 +157,9 @@ export class ContextView extends Disposable {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
 				this.container.appendChild(this.shadowRootHostElement);
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
-				this.shadowRoot.innerHTML = `
-					<style>
-						${SHADOW_ROOT_CSS}
-					</style>
-				`;
+				const style = document.createElement('style');
+				style.textContent = SHADOW_ROOT_CSS;
+				this.shadowRoot.appendChild(style);
 				this.shadowRoot.appendChild(this.view);
 				this.shadowRoot.appendChild(DOM.$('slot'));
 			} else {
@@ -295,10 +293,10 @@ export class ContextView extends Disposable {
 
 		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
 
-		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
-		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		DOM.toggleClass(this.view, 'fixed', this.useFixedPosition);
+		this.view.classList.remove('top', 'bottom', 'left', 'right');
+		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+		this.view.classList.add(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		this.view.classList.toggle('fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
 		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;

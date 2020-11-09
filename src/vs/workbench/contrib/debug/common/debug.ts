@@ -21,11 +21,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -348,7 +347,7 @@ export interface IStackFrame extends ITreeElement {
 	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
-	openInEditor(editorService: IEditorService, uriIdentityService: IUriIdentityService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditorPane | undefined>;
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditorPane | undefined>;
 	equals(other: IStackFrame): boolean;
 }
 
@@ -380,6 +379,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly logMessage?: string;
 	readonly verified: boolean;
 	readonly supported: boolean;
+	readonly sessionsThatVerified: string[];
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
 
@@ -438,12 +438,14 @@ export interface IViewModel extends ITreeElement {
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
 	setSelectedExpression(expression: IExpression | undefined): void;
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
+	updateViews(): void;
 
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression | undefined>;
+	onWillUpdateViews: Event<void>;
 }
 
 export interface IEvaluate {
@@ -537,6 +539,7 @@ export interface IConfig extends IEnvConfig {
 	linux?: IEnvConfig;
 
 	// internals
+	__configurationTarget?: ConfigurationTarget;
 	__sessionId?: string;
 	__restart?: any;
 	__autoAttach?: boolean;
@@ -613,8 +616,6 @@ export interface IPlatformSpecificAdapterContribution {
 export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
 	type: string;
 	label?: string;
-	// debug adapter executable
-	adapterExecutableCommand?: string;
 	win?: IPlatformSpecificAdapterContribution;
 	winx86?: IPlatformSpecificAdapterContribution;
 	windows?: IPlatformSpecificAdapterContribution;
@@ -626,7 +627,6 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 
 	// supported languages
 	languages?: string[];
-	enableBreakpointsFor?: { languageIds: string[] };
 
 	// debug configuration support
 	configurationAttributes?: any;
@@ -641,7 +641,6 @@ export interface IDebugConfigurationProvider {
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	resolveDebugConfigurationWithSubstitutedVariables?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	provideDebugConfigurations?(folderUri: uri | undefined, token: CancellationToken): Promise<IConfig[]>;
-	debugAdapterExecutable?(folderUri: uri | undefined): Promise<IAdapterDescriptor>;		// TODO@AW legacy
 }
 
 export interface IDebugAdapterDescriptorFactory {
@@ -658,10 +657,6 @@ export interface ITerminalLauncher {
 }
 
 export interface IConfigurationManager {
-	/**
-	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
-	 */
-	canSetBreakpointsIn(model: EditorIModel): boolean;
 
 	/**
 	 * Returns an object containing the selected launch configuration and the selected configuration name. Both these fields can be null (no folder workspace).
@@ -670,43 +665,45 @@ export interface IConfigurationManager {
 		launch: ILaunch | undefined;
 		config: IConfig | undefined;
 		name: string | undefined;
+		// Type is used when matching dynamic configurations to their corresponding provider
+		type: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): Promise<void>;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfigOptions?: { type?: string }): Promise<void>;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
-
-	hasDebuggers(): boolean;
-
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
-
 	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
+	getRecentDynamicConfigurations(): { name: string, type: string }[];
 
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
 	onDidSelectConfiguration: Event<void>;
 
-	onDidRegisterDebugger: Event<void>;
-
-	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
-
-	isDebuggerInterestedInLanguage(language: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
-	getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
 
-	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable;
-	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
-
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
+}
+
+export interface IAdapterManager {
+
+	onDidRegisterDebugger: Event<void>;
+
+	hasDebuggers(): boolean;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
+	isDebuggerInterestedInLanguage(language: string): boolean;
 
+	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterFactory: IDebugAdapterFactory): IDisposable;
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined;
+	registerDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): IDisposable;
+	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
@@ -791,9 +788,14 @@ export interface IDebugService {
 	onDidEndSession: Event<IDebugSession>;
 
 	/**
-	 * Gets the current configuration manager.
+	 * Gets the configuration manager.
 	 */
 	getConfigurationManager(): IConfigurationManager;
+
+	/**
+	 * Gets the adapter manager.
+	 */
+	getAdapterManager(): IAdapterManager;
 
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
@@ -801,9 +803,14 @@ export interface IDebugService {
 	focusStackFrame(focusedStackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, explicit?: boolean): Promise<void>;
 
 	/**
+	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
+	 */
+	canSetBreakpointsIn(model: EditorIModel): boolean;
+
+	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): Promise<IBreakpoint[]>;
+	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce?: boolean): Promise<IBreakpoint[]>;
 
 	/**
 	 * Updates the breakpoints.

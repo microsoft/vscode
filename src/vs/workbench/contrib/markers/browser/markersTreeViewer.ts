@@ -691,14 +691,14 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.validActions.map(codeAction => new Action(
-			codeAction.command ? codeAction.command.id : codeAction.title,
-			codeAction.title,
+		return codeActions.validActions.map(item => new Action(
+			item.action.command ? item.action.command.id : item.action.title,
+			item.action.title,
 			undefined,
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item));
 			}));
 	}
 

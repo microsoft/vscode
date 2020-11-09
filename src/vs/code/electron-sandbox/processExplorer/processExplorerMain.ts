@@ -14,11 +14,12 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener, addClass, $ } from 'vs/base/browser/dom';
+import { addDisposableListener, $ } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -78,8 +79,6 @@ class ProcessExplorer {
 	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number): void {
 		const isRoot = (indent === 0);
 
-		const MB = 1024 * 1024;
-
 		let name = item.name;
 		if (isRoot) {
 			name = isLocal ? `${this.data.applicationName} main` : 'remote agent';
@@ -95,7 +94,7 @@ class ProcessExplorer {
 		const memory = this.data.platform === 'win32' ? item.mem : (totalMem * (item.mem / 100));
 		processes.push({
 			cpu: item.load,
-			memory: (memory / MB),
+			memory: (memory / ByteSize.MB),
 			pid: item.pid.toFixed(0),
 			name,
 			formattedName,
@@ -321,7 +320,7 @@ class ProcessExplorer {
 			content.push(`.highest { color: ${styles.highlightForeground}; }`);
 		}
 
-		styleTag.innerHTML = content.join('\n');
+		styleTag.textContent = content.join('\n');
 		if (document.head) {
 			document.head.appendChild(styleTag);
 		}
@@ -417,13 +416,22 @@ class ProcessExplorer {
 
 export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
-	addClass(document.body, platformClass); // used by our fonts
+	document.body.classList.add(platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
 	const processExplorer = new ProcessExplorer(windowId, data);
 
 	document.onkeydown = (e: KeyboardEvent) => {
 		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
+
+		// Cmd/Ctrl + w closes issue window
+		if (cmdOrCtrlKey && e.keyCode === 87) {
+			e.stopPropagation();
+			e.preventDefault();
+
+			processExplorer.dispose();
+			ipcRenderer.send('vscode:closeProcessExplorer');
+		}
 
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
@@ -435,13 +443,4 @@ export function startup(windowId: number, data: ProcessExplorerData): void {
 			zoomOut();
 		}
 	};
-
-	// Cmd/Ctrl + w closes process explorer
-	window.addEventListener('keydown', e => {
-		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-		if (cmdOrCtrlKey && e.keyCode === 87) {
-			processExplorer.dispose();
-			ipcRenderer.send('vscode:closeProcessExplorer');
-		}
-	});
 }

@@ -436,7 +436,6 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 	}
 
 	protected _getTargetFromEvent(element: any): any | undefined {
-		// todo@joh
 		if (element && !IWorkspaceFolder.isIWorkspaceFolder(element) && !(element as IFileStat).isDirectory) {
 			return new FileElement((element as IFileStat).resource, FileKind.FILE);
 		}

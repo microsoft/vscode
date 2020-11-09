@@ -11,7 +11,6 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 
-import { endsWith } from 'vs/base/common/strings';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
@@ -289,7 +288,7 @@ function noProxyFromEnv(envValue?: string) {
 		return () => false;
 	}
 	return (hostname: string, port: string) => filters.some(({ domain, port: filterPort }) => {
-		return endsWith(`.${hostname.toLowerCase()}`, domain) && (!filterPort || port === filterPort);
+		return `.${hostname.toLowerCase()}`.endsWith(domain) && (!filterPort || port === filterPort);
 	});
 }
 
@@ -469,9 +468,12 @@ let _caCertificates: ReturnType<typeof readCaCertificates> | Promise<undefined>;
 async function getCaCertificates(extHostLogService: ILogService) {
 	if (!_caCertificates) {
 		_caCertificates = readCaCertificates()
-			.then(res => res && res.certs.length ? res : undefined)
+			.then(res => {
+				extHostLogService.debug('ProxyResolver#getCaCertificates count', res && res.certs.length);
+				return res && res.certs.length ? res : undefined;
+			})
 			.catch(err => {
-				extHostLogService.error('ProxyResolver#getCertificates', toErrorMessage(err));
+				extHostLogService.error('ProxyResolver#getCaCertificates error', toErrorMessage(err));
 				return undefined;
 			});
 	}

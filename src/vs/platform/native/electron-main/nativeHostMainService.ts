@@ -8,12 +8,12 @@ import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-m
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isRootUser } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isRootUser, isLinux } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { dirExists } from 'vs/base/node/pfs';
@@ -22,14 +22,23 @@ import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 'os';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { virtualMachineHint } from 'vs/base/node/id';
+import { ILogService } from 'vs/platform/log/common/log';
+import { dirname, join } from 'vs/base/common/path';
+import product from 'vs/platform/product/common/product';
+import { memoize } from 'vs/base/common/decorators';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
-export class NativeHostMainService implements INativeHostMainService {
+interface ChunkedPassword {
+	content: string;
+	hasNextChunk: boolean;
+}
+
+export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -37,9 +46,12 @@ export class NativeHostMainService implements INativeHostMainService {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		this.registerListeners();
 	}
 
@@ -47,16 +59,10 @@ export class NativeHostMainService implements INativeHostMainService {
 
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
-			let colorScheme: ColorScheme;
-			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-				colorScheme = ColorScheme.HIGH_CONTRAST;
-			} else if (nativeTheme.shouldUseDarkColors) {
-				colorScheme = ColorScheme.DARK;
-			} else {
-				colorScheme = ColorScheme.LIGHT;
-			}
-
-			this._onColorSchemeChange.fire(colorScheme);
+			this._onDidChangeColorScheme.fire({
+				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
+				dark: nativeTheme.shouldUseDarkColors
+			});
 		});
 	}
 
@@ -69,21 +75,24 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	//#region Events
 
-	readonly onWindowOpen = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidOpenWindow = Event.map(this.windowsMainService.onWindowOpened, window => window.id);
 
-	readonly onWindowMaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowUnmaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onWindowBlur = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowFocus = Event.any(
+	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidFocusWindow = Event.any(
 		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
 	);
 
-	readonly onOSResume = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-	private readonly _onColorSchemeChange = new Emitter<ColorScheme>();
-	readonly onColorSchemeChange = this._onColorSchemeChange.event;
+	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
+	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+
+	private readonly _onDidChangePassword = this._register(new Emitter<void>());
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	//#endregion
 
@@ -206,6 +215,23 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 	}
 
+	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			const [windowWidth, windowHeight] = window.win.getSize();
+			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
+			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
+			const [newWindowWidth, newWindowHeight] = [Math.max(windowWidth, newMinWindowWidth), Math.max(windowHeight, newMinWindowHeight)];
+
+			if (minWindowWidth !== newMinWindowWidth || minWindowHeight !== newMinWindowHeight) {
+				window.win.setMinimumSize(newMinWindowWidth, newMinWindowHeight);
+			}
+			if (windowWidth !== newWindowWidth || windowHeight !== newWindowHeight) {
+				window.win.setSize(newWindowWidth, newWindowHeight);
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog
@@ -308,16 +334,25 @@ export class NativeHostMainService implements INativeHostMainService {
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		shell.openExternal(url);
+		if (isLinux && process.env.SNAP && process.env.SNAP_REVISION) {
+			NativeHostMainService._safeSnapOpenExternal(url);
+		} else {
+			shell.openExternal(url);
+		}
 
 		return true;
 	}
 
-	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.updateTouchBar(items);
-		}
+	private static _safeSnapOpenExternal(url: string): void {
+		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
+		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
+		delete process.env['GDK_PIXBUF_MODULE_FILE'];
+		delete process.env['GDK_PIXBUF_MODULEDIR'];
+
+		shell.openExternal(url);
+
+		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
+		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
 
 	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
@@ -333,6 +368,69 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 
 		return isAdmin;
+	}
+
+	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void> {
+		const sudoPrompt = await import('sudo-prompt');
+
+		return new Promise<void>((resolve, reject) => {
+			const sudoCommand: string[] = [`"${this.cliPath}"`];
+			if (options?.overwriteReadonly) {
+				sudoCommand.push('--file-chmod');
+			}
+
+			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
+
+			const promptOptions = {
+				name: product.nameLong.replace('-', ''),
+				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
+			};
+
+			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
+				if (stdout) {
+					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+				}
+
+				if (stderr) {
+					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
+				}
+
+				if (error) {
+					reject(error);
+				} else {
+					resolve(undefined);
+				}
+			});
+		});
+	}
+
+	@memoize
+	private get cliPath(): string {
+
+		// Windows
+		if (isWindows) {
+			if (this.environmentService.isBuilt) {
+				return join(dirname(process.execPath), 'bin', `${product.applicationName}.cmd`);
+			}
+
+			return join(this.environmentService.appRoot, 'scripts', 'code-cli.bat');
+		}
+
+		// Linux
+		if (isLinux) {
+			if (this.environmentService.isBuilt) {
+				return join(dirname(process.execPath), 'bin', `${product.applicationName}`);
+			}
+
+			return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
+		}
+
+		// macOS
+		if (this.environmentService.isBuilt) {
+			return join(this.environmentService.appRoot, 'bin', 'code');
+		}
+
+		return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
 	}
 
 	async getOSStatistics(): Promise<IOSStatistics> {
@@ -369,7 +467,7 @@ export class NativeHostMainService implements INativeHostMainService {
 	//#endregion
 
 
-	//#region clipboard
+	//#region Clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
 		return clipboard.readText(type);
@@ -427,6 +525,13 @@ export class NativeHostMainService implements INativeHostMainService {
 		Menu.sendActionToFirstResponder('toggleTabBar:');
 	}
 
+	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			window.updateTouchBar(items);
+		}
+	}
+
 	//#endregion
 
 	//#region Lifecycle
@@ -445,7 +550,7 @@ export class NativeHostMainService implements INativeHostMainService {
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			return this.lifecycleMainService.reload(window, options?.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
+			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options?.disableExtensions } : undefined);
 		}
 	}
 
@@ -523,6 +628,109 @@ export class NativeHostMainService implements INativeHostMainService {
 		if (window && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
+	}
+
+	//#endregion
+
+	//#region Registry (windows)
+
+	async windowsGetStringRegKey(windowId: number | undefined, hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> {
+		if (!isWindows) {
+			return undefined;
+		}
+
+		const Registry = await import('vscode-windows-registry');
+		try {
+			return Registry.GetStringRegKey(hive, path, name);
+		} catch {
+			return undefined;
+		}
+	}
+
+	//#endregion
+
+	//#region Credentials
+
+	private static readonly MAX_PASSWORD_LENGTH = 2500;
+	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
+
+	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		const password = await keytar.getPassword(service, account);
+		if (password) {
+			try {
+				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+				if (!content || !hasNextChunk) {
+					return password;
+				}
+
+				let index = 1;
+				while (hasNextChunk) {
+					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
+					const result: ChunkedPassword = JSON.parse(nextChunk!);
+					content += result.content;
+					hasNextChunk = result.hasNextChunk;
+				}
+
+				return content;
+			} catch {
+				return password;
+			}
+		}
+
+		return password;
+	}
+
+	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
+		const keytar = await import('keytar');
+
+		if (isWindows && password.length > NativeHostMainService.MAX_PASSWORD_LENGTH) {
+			let index = 0;
+			let chunk = 0;
+			let hasNextChunk = true;
+			while (hasNextChunk) {
+				const passwordChunk = password.substring(index, index + NativeHostMainService.PASSWORD_CHUNK_SIZE);
+				index += NativeHostMainService.PASSWORD_CHUNK_SIZE;
+				hasNextChunk = password.length - index > 0;
+
+				const content: ChunkedPassword = {
+					content: passwordChunk,
+					hasNextChunk: hasNextChunk
+				};
+
+				await keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
+				chunk++;
+			}
+
+		} else {
+			await keytar.setPassword(service, account, password);
+		}
+
+		this._onDidChangePassword.fire();
+	}
+
+	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
+		const keytar = await import('keytar');
+
+		const didDelete = await keytar.deletePassword(service, account);
+		if (didDelete) {
+			this._onDidChangePassword.fire();
+		}
+
+		return didDelete;
+	}
+
+	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		return keytar.findPassword(service);
+	}
+
+	async findCredentials(windowId: number | undefined, service: string): Promise<Array<{ account: string, password: string }>> {
+		const keytar = await import('keytar');
+
+		return keytar.findCredentials(service);
 	}
 
 	//#endregion

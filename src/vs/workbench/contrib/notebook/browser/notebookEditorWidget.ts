@@ -169,7 +169,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._activeKernel = kernel;
 		this._activeKernelResolvePromise = undefined;
 
-		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
 		memento[this.viewModel!.viewType] = this._activeKernel?.id;
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
@@ -305,7 +305,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	protected getMemento(scope: StorageScope): MementoObject {
-		return this._memento.getMemento(scope);
+		return this._memento.legacygetMemento(scope);
 	}
 
 	public get isNotebookEditor() {
@@ -370,8 +370,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		while (container
 			&&
 			container !== this._body) {
-
-			if (DOM.hasClass(container as HTMLElement, 'output')) {
+			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('output')) {
 				return true;
 			}
 
@@ -385,7 +384,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const id = generateUuid();
 		this._overlayContainer.id = `notebook-${id}`;
 		this._overlayContainer.className = 'notebookOverlay';
-		DOM.addClass(this._overlayContainer, 'notebook-editor');
+		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
 		this.layoutService.container.appendChild(this._overlayContainer);
@@ -428,18 +427,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _createBody(parent: HTMLElement): void {
 		this._body = document.createElement('div');
-		DOM.addClass(this._body, 'cell-list-container');
+		this._body.classList.add('cell-list-container');
 		this._createCellList();
 		DOM.append(parent, this._body);
 
 		this._overflowContainer = document.createElement('div');
-		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
-		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
 	}
 
 	private _createCellList(): void {
-		DOM.addClass(this._body, 'cell-list-container');
+		this._body.classList.add('cell-list-container');
 
 		this._dndController = this._register(new CellDragAndDropController(this, this._body));
 		const getScopedContextKeyService = (container?: HTMLElement) => this._list!.contextKeyService.createScoped(container);
@@ -512,7 +510,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webviewTransparentCover.style.display = 'none';
 
 		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._overlayContainer, (e: StandardMouseEvent) => {
-			if (DOM.hasClass(e.target, 'slider') && this._webviewTransparentCover) {
+			if (e.target.classList.contains('slider') && this._webviewTransparentCover) {
 				this._webviewTransparentCover.style.display = 'block';
 			}
 		}));
@@ -704,6 +702,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							lineNumber: selection.startLineNumber,
 							column: selection.startColumn
 						});
+						await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
 					}
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
@@ -728,7 +727,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
-		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+		const provider = this.notebookService.getContributedNotebookProvider(textModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(textModel.viewType, textModel.uri, tokenSource.token);
 
 		if (tokenSource.token.isCancellationRequested) {
@@ -770,7 +769,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private async _setKernelsFromProviders(provider: NotebookProviderInfo, kernels: INotebookKernelInfo2[], tokenSource: CancellationTokenSource) {
 		const rawAssociations = this.configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId) || [];
 		const userSetKernelProvider = rawAssociations.filter(e => e.viewType === this.viewModel?.viewType)[0]?.kernelProvider;
-		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
 
 		if (userSetKernelProvider) {
 			const filteredKernels = kernels.filter(kernel => kernel.extension.value === userSetKernelProvider);
@@ -816,7 +815,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				|| kernelsFromSameExtension.find(kernel => kernel.id === cachedKernelId)
 				|| kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
-			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			if (this.activeKernel) {
+				await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			}
 
 			if (tokenSource.token.isCancellationRequested) {
 				return;
@@ -862,8 +863,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const notebookMetadata = this.viewModel!.metadata;
 		this._editorEditable?.set(!!notebookMetadata?.editable);
 		this._editorRunnable?.set(!!notebookMetadata?.runnable);
-		DOM.toggleClass(this._overlayContainer, 'notebook-editor-editable', !!notebookMetadata?.editable);
-		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!notebookMetadata?.editable);
+		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
+		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 
 		this._notebookExecuting?.set(notebookMetadata.runState === NotebookRunState.Running);
 	}
@@ -1148,8 +1149,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._overlayContainer.style.visibility = 'visible';
 		this._overlayContainer.style.display = 'block';
 		this._overlayContainer.style.position = 'absolute';
-		this._overlayContainer.style.top = `${this._shadowElementViewInfo!.top}px`;
-		this._overlayContainer.style.left = `${this._shadowElementViewInfo!.left}px`;
+
+		const containerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
+		this._overlayContainer.style.top = `${this._shadowElementViewInfo!.top - (containerRect?.top || 0)}px`;
+		this._overlayContainer.style.left = `${this._shadowElementViewInfo!.left - (containerRect?.left || 0)}px`;
 		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo!.width}px`;
 		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo!.height}px`;
 
@@ -1771,15 +1774,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	toggleClassName(className: string) {
-		DOM.toggleClass(this._overlayContainer, className);
+		this._overlayContainer.classList.toggle(className);
 	}
 
 	addClassName(className: string) {
-		DOM.addClass(this._overlayContainer, className);
+		this._overlayContainer.classList.add(className);
 	}
 
 	removeClassName(className: string) {
-		DOM.removeClass(this._overlayContainer, className);
+		this._overlayContainer.classList.remove(className);
 	}
 
 
@@ -1865,7 +1868,7 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('notebook.cellToolbarSeparator', "The color of the seperator in the cell bottom toolbar"));
+}, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),
@@ -2218,6 +2221,27 @@ class DecorationCSSRules {
 					.monaco-workbench .notebookOverlay .monaco-list .${this.className}.markdown-cell-row.focused:after {
 						border-color: ${borderColor} !important;
 					}`);
+
+			this._styleSheet.insertRule(`
+					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before,
+					.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.${this.className}:after {
+						content: "";
+						position: absolute;
+						width: 100%;
+						height: 1px;
+						border-bottom: 1px solid ${borderColor};
+						bottom: 0px;
+					`);
+
+			this._styleSheet.insertRule(`
+					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-top:before,
+					.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.${this.className}:before {
+						content: "";
+						position: absolute;
+						width: 100%;
+						height: 1px;
+						border-top: 1px solid ${borderColor};
+					`);
 
 			// more specific rule for `.focused` can override existing rules
 			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-top:before,

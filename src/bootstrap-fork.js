@@ -81,7 +81,7 @@ function pipeLoggingToParent() {
 		// to start the stacktrace where the console message was being written
 		if (process.env.VSCODE_LOG_STACK === 'true') {
 			const stack = new Error().stack;
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+			argsArray.push({ __$stack: stack?.split('\n').slice(3).join('\n') });
 		}
 
 		try {
@@ -114,7 +114,7 @@ function pipeLoggingToParent() {
 	 */
 	function safeSend(arg) {
 		try {
-			process.send(arg);
+			process.send?.(arg);
 		} catch (error) {
 			// Can happen if the parent channel is closed meanwhile
 		}

@@ -67,7 +67,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('iframe');
 		element.className = `webview ${options.customClasses || ''}`;
-		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock');
+		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 		element.style.border = 'none';
 		element.style.width = '100%';
 		element.style.height = '100%';
@@ -139,7 +139,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+			const remoteAuthority = this.environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 			const extensionLocation = this.extension?.location;
 
@@ -190,7 +190,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private async localLocalhost(origin: string) {
-		const authority = this.environmentService.configuration.remoteAuthority;
+		const authority = this.environmentService.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
 		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 		return this._send('did-load-localhost', {

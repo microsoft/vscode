@@ -157,3 +157,14 @@ export interface CrashReporterStartOptions {
 	 */
 	globalExtra?: Record<string, string>;
 }
+
+/**
+ * Additional information around a `app.on('login')` event.
+ */
+export interface AuthInfo {
+	isProxy: boolean;
+	scheme: string;
+	host: string;
+	port: number;
+	realm: string;
+}

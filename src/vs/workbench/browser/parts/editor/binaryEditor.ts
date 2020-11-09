@@ -20,7 +20,7 @@ import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/commo
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { BinarySize } from 'vs/platform/files/common/files';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
@@ -96,7 +96,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
 		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.resource, size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, binaryContainer, scrollbar, {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
-			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
+			openExternalClb: this.environmentService.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
 			metadataClb: meta => this.handleMetadataChanged(meta)
 		});
 	}
@@ -182,7 +182,7 @@ interface ResourceViewerDelegate {
 
 class ResourceViewer {
 
-	private static readonly MAX_OPEN_INTERNAL_SIZE = BinarySize.MB * 200; // max size until we offer an action to open internally
+	private static readonly MAX_OPEN_INTERNAL_SIZE = ByteSize.MB * 200; // max size until we offer an action to open internally
 
 	static show(
 		descriptor: IResourceDescriptor,
@@ -211,7 +211,7 @@ class FileTooLargeFileView {
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		const size = BinarySize.formatSize(descriptorSize);
+		const size = ByteSize.formatSize(descriptorSize);
 		delegate.metadataClb(size);
 
 		clearNode(container);
@@ -233,7 +233,7 @@ class FileSeemsBinaryFileView {
 		scrollbar: DomScrollableElement,
 		delegate: ResourceViewerDelegate
 	) {
-		delegate.metadataClb(typeof descriptor.size === 'number' ? BinarySize.formatSize(descriptor.size) : '');
+		delegate.metadataClb(typeof descriptor.size === 'number' ? ByteSize.formatSize(descriptor.size) : '');
 
 		clearNode(container);
 

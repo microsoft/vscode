@@ -51,6 +51,7 @@ export interface IProductConfiguration {
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webEndpointUrl?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -147,6 +148,7 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
+	important?: boolean;
 	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 

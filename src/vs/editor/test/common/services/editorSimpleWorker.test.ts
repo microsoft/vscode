@@ -167,8 +167,9 @@ suite('EditorSimpleWorker', () => {
 				assert.ok(false);
 				return;
 			}
-			assert.equal(result.length, 1);
-			assert.equal(result, 'foobar');
+			assert.equal(result.words.length, 1);
+			assert.equal(typeof result.duration, 'number');
+			assert.equal(result.words[0], 'foobar');
 		});
 	});
 

@@ -18,7 +18,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { extUri } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
@@ -86,7 +86,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		// Once the text file model is created, we keep it inside
 		// the input to be able to implement some methods properly
-		if (extUri.isEqual(model.resource, this.resource)) {
+		if (isEqual(model.resource, this.resource)) {
 			this.model = model;
 
 			this.registerModelListeners(model);
@@ -123,7 +123,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	getTitle(verbosity: Verbosity): string {
-		return this.decorateLabel(super.getTitle(verbosity));
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				return this.decorateLabel(super.getName());
+			case Verbosity.MEDIUM:
+			case Verbosity.LONG:
+				return this.decorateLabel(super.getTitle(verbosity));
+		}
 	}
 
 	private decorateLabel(label: string): string {
@@ -282,7 +288,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
-		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
+		return this.instantiationService.createInstance(BinaryEditorModel, this.preferredResource, this.getName()).load();
 	}
 
 	isResolved(): boolean {
@@ -303,7 +309,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
 		for (const editorPane of this.editorService.visibleEditorPanes) {
-			if (editorPane.group.id === group && extUri.isEqual(editorPane.input.resource, this.resource)) {
+			if (editorPane.group.id === group && isEqual(editorPane.input.resource, this.resource)) {
 				if (isTextEditorPane(editorPane)) {
 					return editorPane.getViewState();
 				}
@@ -319,7 +325,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 
 		if (otherInput instanceof FileEditorInput) {
-			return extUri.isEqual(otherInput.resource, this.resource);
+			return isEqual(otherInput.resource, this.resource);
 		}
 
 		return false;

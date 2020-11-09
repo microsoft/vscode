@@ -8,14 +8,13 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
@@ -71,8 +70,8 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 		return undefined;
 	}
 
-	get colorScheme() {
-		return ColorScheme.LIGHT;
+	get colorScheme(): IColorScheme {
+		return { dark: false, highContrast: false };
 	}
 }
 
@@ -83,6 +82,7 @@ interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
 
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
+	debugRenderer: boolean;
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
@@ -101,6 +101,12 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 		return this._configuration;
 	}
+
+	@memoize
+	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+
+	@memoize
+	get sessionId(): string { return this.configuration.sessionId; }
 
 	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }
@@ -146,9 +152,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get sync(): 'on' | 'off' | undefined { return undefined; }
 
 	@memoize
-	get enableSyncByDefault(): boolean { return !!this.options.enableSyncByDefault; }
-
-	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
@@ -162,6 +165,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
+
+	@memoize
+	get extHostLogsPath(): URI { return joinPath(this.options.logsPath, 'exthost'); }
 
 	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 	get debugExtensionHost(): IExtensionHostDebugParams {
@@ -204,6 +210,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
 	}
 
+	get debugRenderer(): boolean {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.debugRenderer;
+	}
+
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	private get webviewEndpoint(): string {
@@ -227,10 +241,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return `${uri.scheme}://${uri.authority}`;
 	}
 
+	@memoize
+	get telemetryLogResource(): URI { return joinPath(this.options.logsPath, 'telemetry.log'); }
 	get disableTelemetry(): boolean { return false; }
 
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
+
+	get skipReleaseNotes(): boolean { return false; }
 
 	private payload: Map<string, string> | undefined;
 
@@ -253,6 +271,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				port: null,
 				break: false
 			},
+			debugRenderer: false,
 			isExtensionDevelopment: false,
 			extensionDevelopmentLocationURI: undefined
 		};
@@ -267,6 +286,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'extensionTestsPath':
 						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
+						break;
+					case 'debugRenderer':
+						extensionHostDebugEnvironment.debugRenderer = value === 'true';
 						break;
 					case 'debugId':
 						extensionHostDebugEnvironment.params.debugId = value;
@@ -287,6 +309,4 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 		return extensionHostDebugEnvironment;
 	}
-
-	get skipReleaseNotes(): boolean { return false; }
 }

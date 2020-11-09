@@ -6,7 +6,7 @@
 import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -24,7 +24,7 @@ export class NodeDebugHelperService implements IDebugHelperService {
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
 
 		const client = new TelemetryClient(
-			getPathFromAmdModule(require, 'bootstrap-fork'),
+			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'Debug Telemetry',
 				timeout: 1000 * 60 * 5,
@@ -42,7 +42,7 @@ export class NodeDebugHelperService implements IDebugHelperService {
 
 		return new TelemetryService({
 			appender,
-			sendErrorTelemetry: cleanRemoteAuthority(this.environmentService.configuration.remoteAuthority) !== 'other'
+			sendErrorTelemetry: cleanRemoteAuthority(this.environmentService.remoteAuthority) !== 'other'
 		}, configurationService);
 	}
 }

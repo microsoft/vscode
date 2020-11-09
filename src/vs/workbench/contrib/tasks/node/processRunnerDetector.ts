@@ -379,7 +379,7 @@ export class ProcessRunnerDetector {
 		if (taskName === test) {
 			taskInfo.index = index;
 			taskInfo.exact = 3;
-		} else if ((Strings.startsWith(taskName, test) || Strings.endsWith(taskName, test)) && taskInfo.exact < 3) {
+		} else if ((taskName.startsWith(test) || taskName.endsWith(test)) && taskInfo.exact < 3) {
 			taskInfo.index = index;
 			taskInfo.exact = 2;
 		} else if (taskName.indexOf(test) !== -1 && taskInfo.exact < 2) {

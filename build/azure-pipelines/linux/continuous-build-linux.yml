@@ -35,6 +35,12 @@ steps:
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+
+- script: |
     yarn electron x64
   displayName: Download Electron
 

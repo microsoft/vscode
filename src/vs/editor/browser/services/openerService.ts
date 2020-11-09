@@ -180,7 +180,7 @@ export class OpenerService implements IOpenerService {
 
 	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
 
-		//todo@joh IExternalUriResolver should support `uri: URI | string`
+		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
 		const { resolved } = await this.resolveExternalUri(uri, options);
 

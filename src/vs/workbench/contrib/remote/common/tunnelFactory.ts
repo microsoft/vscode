@@ -11,10 +11,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		const tunnelFactory = workbenchEnvironmentService.options?.tunnelProvider?.tunnelFactory;
+		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
 			this._register(tunnelService.setTunnelProvider({
 				forwardPort: (tunnelOptions: TunnelOptions): Promise<RemoteTunnel> | undefined => {

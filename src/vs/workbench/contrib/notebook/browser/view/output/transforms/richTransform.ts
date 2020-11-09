@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import { dirname } from 'vs/base/common/resources';
@@ -175,8 +175,8 @@ class RichRenderer implements IOutputTransformContribution {
 		const data = output.data['text/markdown'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
-		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, dirname(notebookUri));
-		mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }).element);
+		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
+		mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
 		container.appendChild(mdOutput);
 
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
@@ -186,7 +186,7 @@ class RichRenderer implements IOutputTransformContribution {
 		const image = document.createElement('img');
 		image.src = `data:image/png;base64,${output.data['image/png']}`;
 		const display = document.createElement('div');
-		DOM.addClasses(display, 'display');
+		display.classList.add('display');
 		display.appendChild(image);
 		container.appendChild(display);
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
@@ -196,7 +196,7 @@ class RichRenderer implements IOutputTransformContribution {
 		const image = document.createElement('img');
 		image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
 		const display = document.createElement('div');
-		DOM.addClasses(display, 'display');
+		display.classList.add('display');
 		display.appendChild(image);
 		container.appendChild(display);
 		return { type: RenderOutputType.None, hasDynamicHeight: true };

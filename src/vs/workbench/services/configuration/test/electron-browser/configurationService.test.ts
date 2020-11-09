@@ -53,6 +53,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { Event } from 'vs/base/common/event';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -1218,15 +1219,12 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
-		await new Promise<void>(async (c) => {
-			const disposable = testObject.onDidChangeConfiguration(e => {
-				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
-				assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
-				disposable.dispose();
-				c();
-			});
+		const e = await new Promise<IConfigurationChangeEvent>(async (c) => {
+			Event.once(testObject.onDidChangeConfiguration)(c);
 			await fileService.del(workspaceSettingsResource);
 		});
+		assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
+		assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
 	});
 });
 

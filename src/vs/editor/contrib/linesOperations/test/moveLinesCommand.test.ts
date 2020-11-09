@@ -329,6 +329,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 		mode.dispose();
 	});
 
+
 	test('move line should still work as before if there is no indentation rules', () => {
 		testMoveLinesUpWithIndentCommand(
 			null!,
@@ -349,5 +350,57 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 			],
 			new Selection(2, 1, 2, 1)
 		);
+	});
+});
+
+class EnterRulesMode extends MockMode {
+	private static readonly _id = new LanguageIdentifier('moveLinesEnterMode', 8);
+	constructor() {
+		super(EnterRulesMode._id);
+		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+			indentationRules: {
+				decreaseIndentPattern: /^\s*\[$/,
+				increaseIndentPattern: /^\s*\]$/,
+			},
+			brackets: [
+				['{', '}']
+			]
+		}));
+	}
+}
+
+suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
+
+	test('issue #54829. move block across block', () => {
+		let mode = new EnterRulesMode();
+
+		testMoveLinesDownWithIndentCommand(
+			mode.getLanguageIdentifier(),
+
+			[
+				'if (true) {',
+				'    if (false) {',
+				'        if (1) {',
+				'            console.log(\'b\');',
+				'        }',
+				'        console.log(\'a\');',
+				'    }',
+				'}'
+			],
+			new Selection(3, 9, 5, 10),
+			[
+				'if (true) {',
+				'    if (false) {',
+				'        console.log(\'a\');',
+				'        if (1) {',
+				'            console.log(\'b\');',
+				'        }',
+				'    }',
+				'}'
+			],
+			new Selection(4, 9, 6, 10),
+		);
+
+		mode.dispose();
 	});
 });

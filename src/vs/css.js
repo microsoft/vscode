@@ -97,7 +97,14 @@ var CSSLoaderPlugin;
         function CSSPlugin() {
             this._cssLoader = new BrowserCSSLoader();
         }
-        CSSPlugin.prototype.load = function (name, req, load) {
+        CSSPlugin.prototype.load = function (name, req, load, config) {
+            config = config || {};
+            var cssConfig = config['vs/css'] || {};
+            if (cssConfig.disabled) {
+                // the plugin is asked to not create any style sheets
+                load({});
+                return;
+            }
             var cssUrl = req.toUrl(name + '.css');
             this._cssLoader.load(name, cssUrl, function (contents) {
                 load({});

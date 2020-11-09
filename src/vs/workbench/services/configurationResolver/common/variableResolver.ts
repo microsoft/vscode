@@ -278,7 +278,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						const dirname = paths.dirname(getFilePath());
 						if (folderUri || argument) {
-							return paths.relative(this.fsPath(getFolderUri()), dirname);
+							const relative = paths.relative(this.fsPath(getFolderUri()), dirname);
+							return relative.length === 0 ? '.' : relative;
 						}
 						return dirname;
 
@@ -306,6 +307,12 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						const basename = paths.basename(getFilePath());
 						return (basename.slice(0, basename.length - paths.extname(basename).length));
+
+					case 'fileDirnameBasename':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
+						return paths.basename(paths.dirname(getFilePath()));
 
 					case 'execPath':
 						const ep = this._context.getExecPath();

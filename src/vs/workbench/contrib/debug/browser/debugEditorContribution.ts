@@ -34,8 +34,12 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
 import { domEvent } from 'vs/base/browser/event';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { Event } from 'vs/base/common/event';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
-const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
@@ -184,6 +188,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService private readonly hostService: IHostService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
@@ -243,7 +249,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
-		if (stackFrame && model.uri.toString() === stackFrame.source.uri.toString()) {
+		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
 			if (this.altListener) {
 				this.altListener.dispose();
 			}
@@ -252,11 +258,21 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
 				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
 					this.altPressed = true;
+					const debugHoverWasVisible = this.hoverWidget.isVisible();
 					this.hoverWidget.hide();
 					this.enableEditorHover();
-					const listener = domEvent(document, 'keyup')(keyupEvent => {
-						const standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
-						if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
+					if (debugHoverWasVisible && this.hoverRange) {
+						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
+						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
+					}
+
+					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, domEvent(document, 'keyup'))(keyupEvent => {
+						let standardKeyboardEvent = undefined;
+						if (keyupEvent instanceof KeyboardEvent) {
+							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
+						}
+						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
 							this.altPressed = false;
 							this.editor.updateOptions({ hover: { enabled: false } });
 							listener.dispose();
@@ -267,6 +283,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			this.editor.updateOptions({ hover: { enabled: false } });
 		} else {
+			this.altListener?.dispose();
 			this.enableEditorHover();
 		}
 	}
@@ -292,7 +309,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	async showHover(range: Range, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
-		if (sf && model && sf.source.uri.toString() === model.uri.toString() && !this.altPressed) {
+		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
 			return this.hoverWidget.showAt(range, focus);
 		}
 	}
@@ -301,7 +318,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const model = this.editor.getModel();
 		if (model) {
 			this.applyHoverConfiguration(model, sf);
-			if (sf && sf.source.uri.toString() === model.uri.toString()) {
+			if (sf && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
 				await this.toggleExceptionWidget();
 			} else {
 				this.hideHoverWidget();
@@ -313,11 +330,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get showHoverScheduler(): RunOnceScheduler {
+		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
 			if (this.hoverRange) {
 				this.showHover(this.hoverRange, false);
 			}
-		}, HOVER_DELAY);
+		}, hoverOption.delay);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -325,18 +343,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
+		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
 			if (!this.hoverWidget.isHovered()) {
 				this.hoverWidget.hide();
 			}
-		}, 2 * HOVER_DELAY);
+		}, hoverOption.delay);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
 	}
 
 	private hideHoverWidget(): void {
-		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.isVisible()) {
+		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.willBeVisible()) {
 			this.hideHoverScheduler.schedule();
 		}
 		this.showHoverScheduler.cancel();
@@ -404,7 +423,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
+		const sameUri = this.uriIdentityService.extUri.isEqual(exceptionSf.source.uri, model.uri);
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
