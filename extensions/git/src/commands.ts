@@ -1786,25 +1786,20 @@ export class CommandCenter {
 
 	@command('git.checkout', { repository: true })
 	async checkout(repository: Repository, treeish?: string): Promise<boolean> {
-		if (typeof treeish === 'string') {
-			await repository.checkout(treeish);
-			return true;
-		}
-
-		return this._checkout(repository);
+		return this._checkout(repository, { treeish });
 	}
 
 	@command('git.checkoutDetached', { repository: true })
 	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
-		if (typeof treeish === 'string') {
-			await repository.checkout(treeish, { detached: true });
+		return this._checkout(repository, { detached: true, treeish });
+	}
+
+	private async _checkout(repository: Repository, opts?: { detached?: boolean, treeish?: string }): Promise<boolean> {
+		if (typeof opts?.treeish === 'string') {
+			await repository.checkout(opts?.treeish, opts);
 			return true;
 		}
 
-		return this._checkout(repository, { detached: true });
-	}
-
-	private async _checkout(repository: Repository, opts?: { detached?: boolean }): Promise<boolean> {
 		const createBranch = new CreateBranchItem();
 		const createBranchFrom = new CreateBranchFromItem();
 		const checkoutDetached = new CheckoutDetachedItem();
@@ -1838,7 +1833,28 @@ export class CommandCenter {
 		} else if (choice === checkoutDetached) {
 			return this._checkout(repository, { detached: true });
 		} else {
-			await (choice as CheckoutItem).run(repository, opts);
+			const item = choice as CheckoutItem;
+
+			try {
+				await item.run(repository, opts);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+					throw err;
+				}
+
+				const force = localize('force', "Force Checkout");
+				const stash = localize('stashcheckout', "Stash & Checkout");
+				const choice = await window.showWarningMessage(localize('local changes', "Your local changes would be overwritten by checkout."), { modal: true }, force, stash);
+
+				if (choice === force) {
+					await this.cleanAll(repository);
+					await item.run(repository, opts);
+				} else if (choice === stash) {
+					await this.stash(repository);
+					await item.run(repository, opts);
+					await this.stashPopLatest(repository);
+				}
+			}
 		}
 
 		return true;
