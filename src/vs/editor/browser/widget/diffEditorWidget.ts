@@ -1456,8 +1456,8 @@ abstract class ViewZonesComputer {
 		private readonly _lineChanges: editorCommon.ILineChange[],
 		private readonly _originalForeignVZ: IEditorWhitespace[],
 		private readonly _modifiedForeignVZ: IEditorWhitespace[],
-		private readonly _originalEditor: CodeEditorWidget,
-		private readonly _modifiedEditor: CodeEditorWidget
+		protected readonly _originalEditor: CodeEditorWidget,
+		protected readonly _modifiedEditor: CodeEditorWidget
 	) {
 	}
 
@@ -2156,12 +2156,22 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 
 }
 
+interface InlineModifiedViewZone extends IMyViewZone {
+	shouldNotShrink: boolean;
+	afterLineNumber: number;
+	heightInLines: number;
+	minWidthInPx: number;
+	domNode: HTMLElement;
+	marginDomNode: HTMLElement;
+	diff: IDiffLinesChange;
+}
+
 class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private readonly _originalModel: ITextModel;
-	private readonly _modifiedEditorOptions: IComputedEditorOptions;
-	private readonly _modifiedEditorTabSize: number;
 	private readonly _renderIndicators: boolean;
+	private _pendingLineChange: editorCommon.ILineChange[] = [];
+	private _pendingViewZones: InlineModifiedViewZone[] = [];
 
 	constructor(
 		lineChanges: editorCommon.ILineChange[],
@@ -2173,9 +2183,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor);
 		this._originalModel = originalEditor.getModel()!;
-		this._modifiedEditorOptions = modifiedEditor.getOptions();
-		this._modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
 		this._renderIndicators = renderIndicators;
+	}
+
+	public getViewZones(): IEditorsZones {
+		const result = super.getViewZones();
+		this._finalize();
+		return result;
 	}
 
 	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null {
@@ -2197,54 +2211,17 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 
 	protected _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
-		const decorations: InlineDecoration[] = [];
-		if (lineChange.charChanges) {
-			for (const charChange of lineChange.charChanges) {
-				if (isChangeOrDelete(charChange)) {
-					decorations.push(new InlineDecoration(
-						new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
-						'char-delete',
-						InlineDecorationType.Regular
-					));
-				}
-			}
-		}
-
-		const sb = createStringBuilder(10000);
-		const marginDomNode = document.createElement('div');
-		const layoutInfo = this._modifiedEditorOptions.get(EditorOption.layoutInfo);
-		const fontInfo = this._modifiedEditorOptions.get(EditorOption.fontInfo);
-		const lineDecorationsWidth = layoutInfo.decorationsWidth;
-
-		const lineHeight = this._modifiedEditorOptions.get(EditorOption.lineHeight);
-		const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		let maxCharsPerLine = 0;
-		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this._originalModel, this._modifiedEditorOptions, this._modifiedEditorTabSize, lineNumber, decorations, sb));
-
-			if (this._renderIndicators) {
-				const index = lineNumber - lineChange.originalStartLineNumber;
-				const marginElement = document.createElement('div');
-				marginElement.className = `delete-sign ${diffRemoveIcon.classNames}`;
-				marginElement.setAttribute('style', `position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;`);
-				marginDomNode.appendChild(marginElement);
-			}
-		}
-		maxCharsPerLine += this._modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
-
 		const domNode = document.createElement('div');
 		domNode.className = `view-lines line-delete ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`;
-		domNode.innerHTML = sb.build();
-		Configuration.applyFontInfoSlow(domNode, fontInfo);
 
+		const marginDomNode = document.createElement('div');
 		marginDomNode.className = 'inline-deleted-margin-view-zone';
-		Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
 
-		return {
+		const viewZone: InlineModifiedViewZone = {
 			shouldNotShrink: true,
 			afterLineNumber: (lineChange.modifiedEndLineNumber === 0 ? lineChange.modifiedStartLineNumber : lineChange.modifiedStartLineNumber - 1),
 			heightInLines: lineChangeOriginalLength,
-			minWidthInPx: (maxCharsPerLine * typicalHalfwidthCharacterWidth),
+			minWidthInPx: 0,
 			domNode: domNode,
 			marginDomNode: marginDomNode,
 			diff: {
@@ -2255,6 +2232,63 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				originalModel: this._originalModel
 			}
 		};
+
+		this._pendingLineChange.push(lineChange);
+		this._pendingViewZones.push(viewZone);
+
+		return viewZone;
+	}
+
+	private _finalize(): void {
+		const modifiedEditorOptions = this._modifiedEditor.getOptions();
+		const modifiedEditorTabSize = this._modifiedEditor.getModel()!.getOptions().tabSize;
+		const layoutInfo = modifiedEditorOptions.get(EditorOption.layoutInfo);
+		const fontInfo = modifiedEditorOptions.get(EditorOption.fontInfo);
+		const lineDecorationsWidth = layoutInfo.decorationsWidth;
+		const lineHeight = modifiedEditorOptions.get(EditorOption.lineHeight);
+		const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
+		const scrollBeyondLastColumn = modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
+
+		for (let i = 0; i < this._pendingLineChange.length; i++) {
+			const lineChange = this._pendingLineChange[i];
+			const viewZone = this._pendingViewZones[i];
+			const domNode = viewZone.domNode;
+			Configuration.applyFontInfoSlow(domNode, fontInfo);
+
+			const marginDomNode = viewZone.marginDomNode;
+			Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
+
+			const decorations: InlineDecoration[] = [];
+			if (lineChange.charChanges) {
+				for (const charChange of lineChange.charChanges) {
+					if (isChangeOrDelete(charChange)) {
+						decorations.push(new InlineDecoration(
+							new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
+							'char-delete',
+							InlineDecorationType.Regular
+						));
+					}
+				}
+			}
+
+			const sb = createStringBuilder(10000);
+			let maxCharsPerLine = 0;
+			for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
+				maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this._originalModel, modifiedEditorOptions, modifiedEditorTabSize, lineNumber, decorations, sb));
+
+				if (this._renderIndicators) {
+					const index = lineNumber - lineChange.originalStartLineNumber;
+					const marginElement = document.createElement('div');
+					marginElement.className = `delete-sign ${diffRemoveIcon.classNames}`;
+					marginElement.setAttribute('style', `position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;`);
+					marginDomNode.appendChild(marginElement);
+				}
+			}
+			maxCharsPerLine += scrollBeyondLastColumn;
+
+			domNode.innerHTML = sb.build();
+			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
+		}
 	}
 
 	private _renderOriginalLine(count: number, originalModel: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
