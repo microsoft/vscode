@@ -177,21 +177,6 @@ suite('HTML Folding', async () => {
 	// 	await assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
 	// });
 
-	test('Embedded Javascript - BackTick Folding', async () => {
-		const input = [
-			/*0*/'<html>',
-			/*1*/'<head>',
-			/*2*/'<script>',
-			/*3*/'const a = `32',
-			/*4*/'sdsdsd',
-			/*5*/'sdsds`',
-			/*6*/'</script>',
-			/*7*/'</head>',
-			/*8*/'</html>',
-		];
-		await await assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5)]);
-	});
-
 	test('Test limit', async () => {
 		const input = [
 			/* 0*/'<div>',
