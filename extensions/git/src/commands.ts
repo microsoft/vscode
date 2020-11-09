@@ -70,11 +70,6 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-interface RefTypeAndCheckoutItem {
-	refType: RefType;
-	checkoutItemCtor: { new(ref: Ref): CheckoutItem; };
-}
-
 class BranchDeleteItem implements QuickPickItem {
 
 	private get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
@@ -212,37 +207,53 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 
 function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
-	const checkoutTypeString = config.get<string>('checkoutType');
+	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
+	let checkoutTypes: string[];
 
-	const checkoutTypeOptions = ['local', 'remote', 'tags'];
-	const checkoutTypes = checkoutTypeString?.trim().split(',').map(type => type.trim()).filter(type => checkoutTypeOptions.includes(type));
+	if (checkoutTypeConfig === 'all' || !checkoutTypeConfig || checkoutTypeConfig.length === 0) {
+		checkoutTypes = ['local', 'remote', 'tags'];
+	} else if (typeof checkoutTypeConfig === 'string') {
+		checkoutTypes = [checkoutTypeConfig];
+	} else {
+		checkoutTypes = checkoutTypeConfig;
+	}
 
-	const results: CheckoutItem[] = [];
-	const seens = new Set<string>();
-	(checkoutTypes && checkoutTypes.length ? checkoutTypes : checkoutTypeOptions).forEach(type => {
-		if (seens.has(type)) {
-			return;
+	const processors = checkoutTypes.map(getCheckoutProcessor)
+		.filter(p => !!p) as CheckoutProcessor[];
+
+	for (const ref of repository.refs) {
+		for (const processor of processors) {
+			processor.onRef(ref);
 		}
-		seens.add(type);
+	}
 
-		const { refType, checkoutItemCtor } = getRefTypeAndCheckoutItem(type);
-		results.push(...repository.refs.filter(ref => ref.type === refType).map(ref => new checkoutItemCtor(ref)));
-	});
-
-	return results;
+	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items), []);
 }
 
-function getRefTypeAndCheckoutItem(type: string): RefTypeAndCheckoutItem {
+class CheckoutProcessor {
+
+	private refs: Ref[] = [];
+	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(r)); }
+	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem }) { }
+
+	onRef(ref: Ref): void {
+		if (ref.type === this.type) {
+			this.refs.push(ref);
+		}
+	}
+}
+
+function getCheckoutProcessor(type: string): CheckoutProcessor | undefined {
 	switch (type) {
 		case 'local':
-			return { refType: RefType.Head, checkoutItemCtor: CheckoutItem };
+			return new CheckoutProcessor(RefType.Head, CheckoutItem);
 		case 'remote':
-			return { refType: RefType.RemoteHead, checkoutItemCtor: CheckoutRemoteHeadItem };
+			return new CheckoutProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
 		case 'tags':
-			return { refType: RefType.Tag, checkoutItemCtor: CheckoutTagItem };
-		default:
-			throw new Error(`Unexpected type: ${type}`);
+			return new CheckoutProcessor(RefType.Tag, CheckoutTagItem);
 	}
+
+	return undefined;
 }
 
 function sanitizeRemoteName(name: string) {
