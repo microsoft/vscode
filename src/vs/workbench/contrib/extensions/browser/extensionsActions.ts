@@ -167,7 +167,7 @@ export abstract class ExtensionAction extends Action implements IExtensionContai
 	abstract update(): void;
 }
 
-export abstract class ActionWithDropDownAction extends ExtensionAction {
+export class ActionWithDropDownAction extends ExtensionAction {
 
 	private action: IAction | undefined;
 
@@ -577,7 +577,7 @@ export class LocalInstallAction extends InstallInOtherServerAction {
 
 export class UninstallAction extends ExtensionAction {
 
-	private static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
+	static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
 	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
 
 	private static readonly UninstallClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall`;
@@ -832,7 +832,7 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 	}
 }
 
-export function getContextMenuActions(extension: IExtension | undefined | null, instantiationService: IInstantiationService): IAction[][] {
+export function getContextMenuActions(extension: IExtension | undefined | null, inExtensionEditor: boolean, instantiationService: IInstantiationService): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
 		const scopedContextKeyService = accessor.get(IContextKeyService).createScoped();
 		const menuService = accessor.get(IMenuService);
@@ -845,6 +845,7 @@ export function getContextMenuActions(extension: IExtension | undefined | null, 
 			scopedContextKeyService.createKey<boolean>('isExtensionRecommended', !!extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]);
 			scopedContextKeyService.createKey<boolean>('isExtensionWorkspaceRecommended', extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]?.reasonId === ExtensionRecommendationReason.Workspace);
 			scopedContextKeyService.createKey<boolean>('isUserIgnoredRecommendation', extensionIgnoredRecommendationsService.globalIgnoredRecommendations.some(e => e === extension.identifier.id.toLowerCase()));
+			scopedContextKeyService.createKey<boolean>('inExtensionEditor', inExtensionEditor);
 			if (extension.state === ExtensionState.Installed) {
 				scopedContextKeyService.createKey<string>('extensionStatus', 'installed');
 			}
@@ -917,7 +918,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			this.instantiationService.createInstance(InstallAnotherVersionAction)
 		]);
 
-		getContextMenuActions(this.extension, this.instantiationService).forEach(actions => groups.push(actions));
+		getContextMenuActions(this.extension, false, this.instantiationService).forEach(actions => groups.push(actions));
 
 		groups.forEach(group => group.forEach(extensionAction => {
 			if (extensionAction instanceof ExtensionAction) {
@@ -940,6 +941,51 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			const state = this.extension.state;
 			this.enabled = state === ExtensionState.Installed;
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
+			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
+		}
+	}
+}
+
+export class ExtensionEditorManageExtensionAction extends ExtensionDropDownAction {
+
+	private static readonly ID = 'extensionEditor.manageExtension';
+
+	private static readonly Class = `${ExtensionAction.ICON_ACTION_CLASS} manage codicon-gear`;
+	private static readonly HideManageExtensionClass = `${ExtensionEditorManageExtensionAction.Class} hide`;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionService private readonly extensionService: IExtensionService
+	) {
+
+		super(ExtensionEditorManageExtensionAction.ID, '', '', true, true, instantiationService);
+		this.tooltip = localize('manage', "Manage");
+		this.update();
+	}
+
+	async getActionGroups(runningExtensions: IExtensionDescription[]): Promise<IAction[][]> {
+		const groups: IAction[][] = [];
+		getContextMenuActions(this.extension, true, this.instantiationService).forEach(actions => groups.push(actions));
+		groups.forEach(group => group.forEach(extensionAction => {
+			if (extensionAction instanceof ExtensionAction) {
+				extensionAction.extension = this.extension;
+			}
+		}));
+		return groups;
+	}
+
+	async run(): Promise<any> {
+		const runtimeExtensions = await this.extensionService.getExtensions();
+		return super.run({ actionGroups: await this.getActionGroups(runtimeExtensions), disposeActionsOnHide: true });
+	}
+
+	update(): void {
+		this.class = ExtensionEditorManageExtensionAction.HideManageExtensionClass;
+		this.enabled = false;
+		if (this.extension) {
+			const state = this.extension.state;
+			this.enabled = state === ExtensionState.Installed;
+			this.class = this.enabled || state === ExtensionState.Uninstalling ? ExtensionEditorManageExtensionAction.Class : ExtensionEditorManageExtensionAction.HideManageExtensionClass;
 			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
 		}
 	}
@@ -981,12 +1027,12 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL);
+		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && this.extension.state !== ExtensionState.Uninstalling && this.extension.state !== ExtensionState.Installing;
 	}
 
 	run(): Promise<any> {
