@@ -11,6 +11,7 @@ ports:
 
 tasks:
   - init: |
+      git pull https://github.com/microsoft/vscode.git
       yarn
       yarn compile
     command: ./scripts/code.sh
