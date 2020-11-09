@@ -129,80 +129,12 @@ function createBlockRange(block: Token, document: vscode.TextDocument, cursorLin
 
 function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	const lineText = document.lineAt(cursorPosition.line).text;
-
-	// find closest ** that occurs before cursor position
-	let startBold = lineText.substring(0, cursorPosition.character).lastIndexOf('**');
-
-	// find closest ** that occurs after the start **
-	const endBoldIndex = lineText.substring(startBold + 2).indexOf('**');
-	let endBold = startBold + 2 + lineText.substring(startBold + 2).indexOf('**');
-
-	if (startBold >= 0 && endBoldIndex >= 0 && startBold + 1 < endBold && startBold <= cursorPosition.character && endBold >= cursorPosition.character) {
-		const range = new vscode.Range(cursorPosition.line, startBold, cursorPosition.line, endBold + 2);
-		// **content cursor content** so select content then ** on both sides
-		const contentRange = new vscode.Range(cursorPosition.line, startBold + 2, cursorPosition.line, endBold);
-		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-	} else if (startBold >= 0) {
-		// **content**cursor or **content*cursor*
-		// find end ** from end of start ** to end of line (since the cursor is within the end stars)
-		let adjustedEnd = startBold + 2 + lineText.substring(startBold + 2).indexOf('**');
-		startBold = lineText.substring(0, adjustedEnd - 2).lastIndexOf('**');
-		if (adjustedEnd >= 0 && cursorPosition.character === adjustedEnd || cursorPosition.character === adjustedEnd + 1) {
-			if (lineText.charAt(adjustedEnd + 1) === '*') {
-				// *cursor* so need to extend end to include the second *
-				adjustedEnd += 1;
-			}
-			return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, startBold, cursorPosition.line, adjustedEnd + 1), parent);
-		}
-	} else if (endBold > 0) {
-		// cursor**content** or *cursor*content**
-		// find start ** from start of string to cursor + 2 (since the cursor is within the start stars)
-		const adjustedStart = lineText.substring(0, cursorPosition.character + 2).lastIndexOf('**');
-		endBold = adjustedStart + 2 + lineText.substring(adjustedStart + 2).indexOf('**');
-		if (adjustedStart >= 0 && adjustedStart === cursorPosition.character || adjustedStart === cursorPosition.character - 1) {
-			return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, adjustedStart, cursorPosition.line, endBold + 2), parent);
-		}
-	}
-
-	const startBracket = lineText.substring(0, cursorPosition.character + 1).lastIndexOf('[');
-	let endBracket = lineText.substring(cursorPosition.character).indexOf(']');
-
-	if (startBracket >= 0 && endBracket >= 0) {
-		endBracket += cursorPosition.character;
-		// ensure there's no closing bracket before endBracket
-		const intermediateBracket = lineText.substring(startBracket, endBracket).indexOf(']');
-		if (intermediateBracket < 0) {
-			const range = new vscode.Range(cursorPosition.line, startBracket, cursorPosition.line, endBracket + 1);
-			if (cursorPosition.character > startBracket && cursorPosition.character <= endBracket) {
-				// within the content so select content then include brackets
-				const contentRange = new vscode.Range(cursorPosition.line, startBracket + 1, cursorPosition.line, endBracket);
-				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-			} if (cursorPosition.character === startBracket || cursorPosition.character === endBracket + 1) {
-				return new vscode.SelectionRange(range, parent);
-			}
-		}
-	}
-
-	const startParens = lineText.substring(0, cursorPosition.character + 1).lastIndexOf('(');
-	let endParens = lineText.substring(cursorPosition.character).indexOf(')');
-
-	if (startParens >= 0 && endParens >= 0) {
-		endParens += cursorPosition.character;
-		// ensure there's no closing ) before endParens
-		const intermediateParens = lineText.substring(startParens, endParens - 1).indexOf(')');
-		if (intermediateParens < 0) {
-			const range = new vscode.Range(cursorPosition.line, startParens, cursorPosition.line, endParens + 1);
-			if (cursorPosition.character > startParens && cursorPosition.character <= endParens) {
-				// within the content so select content then include parens
-				const contentRange = new vscode.Range(cursorPosition.line, startParens + 1, cursorPosition.line, endParens);
-				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-			} else if (cursorPosition.character === startParens || cursorPosition.character === endParens + 1) {
-				return new vscode.SelectionRange(range, new vscode.SelectionRange(range, parent));
-			}
-		}
-	}
-	return undefined;
+	const boldSelection = createBoldRange(lineText, cursorPosition.character, cursorPosition.line, parent);
+	const bracketSelection = createGroupRange(lineText, cursorPosition.character, cursorPosition.line, true, parent);
+	const parenSelection = createGroupRange(lineText, cursorPosition.character, cursorPosition.line, false, parent);
+	return boldSelection || bracketSelection || parenSelection;
 }
+
 function createFencedRange(token: Token, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
 	const startLine = token.map[0];
 	const endLine = token.map[1] - 1;
@@ -218,6 +150,65 @@ function createFencedRange(token: Token, cursorLine: number, document: vscode.Te
 			return new vscode.SelectionRange(fenceRange, parent);
 		}
 	}
+}
+
+function createBoldRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+	// find closest ** that occurs before cursor position
+	let startBold = lineText.substring(0, cursorChar).lastIndexOf('**');
+
+	// find closest ** that occurs after the start **
+	const endBoldIndex = lineText.substring(startBold + 2).indexOf('**');
+	let endBold = startBold + 2 + lineText.substring(startBold + 2).indexOf('**');
+
+	if (startBold >= 0 && endBoldIndex >= 0 && startBold + 1 < endBold && startBold <= cursorChar && endBold >= cursorChar) {
+		const range = new vscode.Range(cursorLine, startBold, cursorLine, endBold + 2);
+		// **content cursor content** so select content then ** on both sides
+		const contentRange = new vscode.Range(cursorLine, startBold + 2, cursorLine, endBold);
+		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+	} else if (startBold >= 0) {
+		// **content**cursor or **content*cursor*
+		// find end ** from end of start ** to end of line (since the cursor is within the end stars)
+		let adjustedEnd = startBold + 2 + lineText.substring(startBold + 2).indexOf('**');
+		startBold = lineText.substring(0, adjustedEnd - 2).lastIndexOf('**');
+		if (adjustedEnd >= 0 && cursorChar === adjustedEnd || cursorChar === adjustedEnd + 1) {
+			if (lineText.charAt(adjustedEnd + 1) === '*') {
+				// *cursor* so need to extend end to include the second *
+				adjustedEnd += 1;
+			}
+			return new vscode.SelectionRange(new vscode.Range(cursorLine, startBold, cursorLine, adjustedEnd + 1), parent);
+		}
+	} else if (endBold > 0) {
+		// cursor**content** or *cursor*content**
+		// find start ** from start of string to cursor + 2 (since the cursor is within the start stars)
+		const adjustedStart = lineText.substring(0, cursorChar + 2).lastIndexOf('**');
+		endBold = adjustedStart + 2 + lineText.substring(adjustedStart + 2).indexOf('**');
+		if (adjustedStart >= 0 && adjustedStart === cursorChar || adjustedStart === cursorChar - 1) {
+			return new vscode.SelectionRange(new vscode.Range(cursorLine, adjustedStart, cursorLine, endBold + 2), parent);
+		}
+	}
+	return undefined;
+}
+
+function createGroupRange(lineText: string, cursorChar: number, cursorLine: number, isBracket: boolean, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+	const start = lineText.substring(0, cursorChar + 1).lastIndexOf(isBracket ? '[' : '(');
+	let end = lineText.substring(cursorChar).indexOf(isBracket ? ']' : ')');
+
+	if (start >= 0 && end >= 0) {
+		end += cursorChar;
+		// ensure there's no closing bracket or paren before end
+		const intermediate = lineText.substring(start, end).indexOf(isBracket ? ']' : ')');
+		if (intermediate < 0) {
+			const range = new vscode.Range(cursorLine, start, cursorLine, end + 1);
+			if (cursorChar > start && cursorChar <= end) {
+				// within the content so select content then include brackets / parens
+				const contentRange = new vscode.Range(cursorLine, start + 1, cursorLine, end);
+				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+			} if (cursorChar === start || cursorChar === end + 1) {
+				return new vscode.SelectionRange(range, parent);
+			}
+		}
+	}
+	return undefined;
 }
 
 function isList(token: Token): boolean {
