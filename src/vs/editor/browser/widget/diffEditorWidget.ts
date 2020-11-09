@@ -2219,10 +2219,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		const lineHeight = this._modifiedEditorOptions.get(EditorOption.lineHeight);
 		const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		let maxCharsPerLine = 0;
-		const originalContent: string[] = [];
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
 			maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this._originalModel, this._modifiedEditorOptions, this._modifiedEditorTabSize, lineNumber, decorations, sb));
-			originalContent.push(this._originalModel.getLineContent(lineNumber));
 
 			if (this._renderIndicators) {
 				const index = lineNumber - lineChange.originalStartLineNumber;
@@ -2254,7 +2252,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				originalEndLineNumber: lineChange.originalEndLineNumber,
 				modifiedStartLineNumber: lineChange.modifiedStartLineNumber,
 				modifiedEndLineNumber: lineChange.modifiedEndLineNumber,
-				originalContent: originalContent
+				originalModel: this._originalModel
 			}
 		};
 	}

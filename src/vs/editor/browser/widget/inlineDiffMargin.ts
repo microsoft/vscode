@@ -14,13 +14,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Codicon } from 'vs/base/common/codicons';
+import { ITextModel } from 'vs/editor/common/model';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;
 	readonly originalEndLineNumber: number;
 	readonly modifiedStartLineNumber: number;
 	readonly modifiedEndLineNumber: number;
-	readonly originalContent: string[];
+	readonly originalModel: ITextModel;
 }
 
 export class InlineDiffMargin extends Disposable {
@@ -45,12 +46,12 @@ export class InlineDiffMargin extends Disposable {
 	}
 
 	constructor(
-		private _viewZoneId: string,
-		private _marginDomNode: HTMLElement,
-		public editor: CodeEditorWidget,
-		public diff: IDiffLinesChange,
-		private _contextMenuService: IContextMenuService,
-		private _clipboardService: IClipboardService
+		private readonly _viewZoneId: string,
+		private readonly _marginDomNode: HTMLElement,
+		public readonly editor: CodeEditorWidget,
+		public readonly diff: IDiffLinesChange,
+		private readonly _contextMenuService: IContextMenuService,
+		private readonly _clipboardService: IClipboardService
 	) {
 		super();
 
@@ -79,7 +80,9 @@ export class InlineDiffMargin extends Disposable {
 			undefined,
 			true,
 			async () => {
-				await this._clipboardService.writeText(diff.originalContent.join(lineFeed) + lineFeed);
+				const range = new Range(diff.originalStartLineNumber, 1, diff.originalEndLineNumber + 1, 1);
+				const deletedText = diff.originalModel.getValueInRange(range);
+				await this._clipboardService.writeText(deletedText);
 			}
 		));
 
@@ -92,7 +95,8 @@ export class InlineDiffMargin extends Disposable {
 				undefined,
 				true,
 				async () => {
-					await this._clipboardService.writeText(diff.originalContent[currentLineNumberOffset]);
+					const lineContent = diff.originalModel.getLineContent(diff.originalStartLineNumber + currentLineNumberOffset);
+					await this._clipboardService.writeText(lineContent);
 				}
 			);
 
@@ -102,13 +106,15 @@ export class InlineDiffMargin extends Disposable {
 		const readOnly = editor.getOption(EditorOption.readOnly);
 		if (!readOnly) {
 			actions.push(new Action('diff.inline.revertChange', nls.localize('diff.inline.revertChange.label', "Revert this change"), undefined, true, async () => {
+				const range = new Range(diff.originalStartLineNumber, 1, diff.originalEndLineNumber, diff.originalModel.getLineMaxColumn(diff.originalEndLineNumber));
+				const deletedText = diff.originalModel.getValueInRange(range);
 				if (diff.modifiedEndLineNumber === 0) {
 					// deletion only
 					const column = editor.getModel()!.getLineMaxColumn(diff.modifiedStartLineNumber);
 					editor.executeEdits('diffEditor', [
 						{
 							range: new Range(diff.modifiedStartLineNumber, column, diff.modifiedStartLineNumber, column),
-							text: lineFeed + diff.originalContent.join(lineFeed)
+							text: lineFeed + deletedText
 						}
 					]);
 				} else {
@@ -116,7 +122,7 @@ export class InlineDiffMargin extends Disposable {
 					editor.executeEdits('diffEditor', [
 						{
 							range: new Range(diff.modifiedStartLineNumber, 1, diff.modifiedEndLineNumber, column),
-							text: diff.originalContent.join(lineFeed)
+							text: deletedText
 						}
 					]);
 				}
