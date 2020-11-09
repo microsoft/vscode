@@ -107,7 +107,7 @@ crashReporter.start({
 // to ensure that no 'logs' folder is created on disk at a
 // location outside of the portable directory
 // (https://github.com/microsoft/vscode/issues/56651)
-if (portable.isPortable) {
+if (portable?.isPortable) {
 	app.setAppLogsPath(path.join(userDataPath, 'logs'));
 }
 
@@ -145,7 +145,7 @@ const nodeCachedDataDir = getNodeCachedDir();
  * Support user defined locale: load it early before app('ready')
  * to have more things running in parallel.
  *
- * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>} nlsConfig | undefined
+ * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration> | undefined}
  */
 let nlsConfigurationPromise = undefined;
 
@@ -359,7 +359,7 @@ function getArgvConfigPath() {
 
 /**
  * @param {NativeParsedArgs} cliArgs
- * @returns {string}
+ * @returns {string | null}
  */
 function getJSFlags(cliArgs) {
 	const jsFlags = [];
@@ -387,7 +387,7 @@ function getUserDataPath(cliArgs) {
 		return path.join(portable.portableDataPath, 'user-data');
 	}
 
-	return path.resolve(cliArgs['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+	return path.resolve(cliArgs['user-data-dir'] || paths.getDefaultUserDataPath());
 }
 
 /**
@@ -468,12 +468,14 @@ function getNodeCachedDir() {
 		}
 
 		async ensureExists() {
-			try {
-				await mkdirp(this.value);
+			if (typeof this.value === 'string') {
+				try {
+					await mkdirp(this.value);
 
-				return this.value;
-			} catch (error) {
-				// ignore
+					return this.value;
+				} catch (error) {
+					// ignore
+				}
 			}
 		}
 

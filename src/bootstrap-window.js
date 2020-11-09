@@ -41,7 +41,7 @@
 		 * extensionDevelopmentPath?: string[],
 		 * extensionTestsPath?: string,
 		 * userEnv?: { [key: string]: string | undefined },
-		 * appRoot?: string,
+		 * appRoot: string,
 		 * nodeCachedDataDir?: string
 		 * }} */
 		const configuration = JSON.parse(args['config'] || '{}') || {};
@@ -61,7 +61,7 @@
 		const enableDeveloperTools = (safeProcess.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 		let developerToolsUnbind;
 		if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
+			developerToolsUnbind = registerDeveloperKeybindings(options?.disallowReloadKeybinding);
 		}
 
 		// Correctly inherit the parent's environment (TODO@sandbox non-sandboxed only)
@@ -182,7 +182,7 @@
 	}
 
 	/**
-	 * @param {boolean} disallowReloadKeybinding
+	 * @param {boolean | undefined} disallowReloadKeybinding
 	 * @returns {() => void}
 	 */
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
@@ -203,6 +203,7 @@
 		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
 		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
+		/** @type {((e: any) => void) | undefined} */
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
