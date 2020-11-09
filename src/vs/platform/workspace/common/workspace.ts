@@ -10,6 +10,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
+import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -144,7 +145,7 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>();
+	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(!isLinux);
 	private _folders!: WorkspaceFolder[];
 
 	constructor(
@@ -195,7 +196,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>();
+		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(!isLinux);
 		for (const folder of this.folders) {
 			this._foldersMap.set(folder.uri, folder);
 		}
