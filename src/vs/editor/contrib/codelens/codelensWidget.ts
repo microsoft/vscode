@@ -18,20 +18,20 @@ import { renderCodicons } from 'vs/base/browser/codicons';
 
 class CodeLensViewZone implements IViewZone {
 
-	readonly heightInLines: number;
 	readonly suppressMouseDown: boolean;
 	readonly domNode: HTMLElement;
 
 	afterLineNumber: number;
+	heightInPx: number;
 
 	private _lastHeight?: number;
 	private readonly _onHeight: () => void;
 
-	constructor(afterLineNumber: number, onHeight: () => void) {
+	constructor(afterLineNumber: number, heightInPx: number, onHeight: () => void) {
 		this.afterLineNumber = afterLineNumber;
-		this._onHeight = onHeight;
+		this.heightInPx = heightInPx;
 
-		this.heightInLines = 1;
+		this._onHeight = onHeight;
 		this.suppressMouseDown = true;
 		this.domNode = document.createElement('div');
 	}
@@ -193,6 +193,7 @@ export class CodeLensWidget {
 		className: string,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: IViewZoneChangeAccessor,
+		heightInPx: number,
 		updateCallback: () => void
 	) {
 		this._editor = editor;
@@ -224,7 +225,7 @@ export class CodeLensWidget {
 			}
 		});
 
-		this._viewZone = new CodeLensViewZone(range!.startLineNumber - 1, updateCallback);
+		this._viewZone = new CodeLensViewZone(range!.startLineNumber - 1, heightInPx, updateCallback);
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 
 		if (lenses.length > 0) {
@@ -275,6 +276,14 @@ export class CodeLensWidget {
 				options: ModelDecorationOptions.EMPTY
 			}, id => this._decorationIds[i] = id);
 		});
+	}
+
+	updateHeight(height: number, viewZoneChangeAccessor: IViewZoneChangeAccessor): void {
+		this._viewZone.heightInPx = height;
+		viewZoneChangeAccessor.layoutZone(this._viewZoneId);
+		if (this._contentWidget) {
+			this._editor.layoutContentWidget(this._contentWidget);
+		}
 	}
 
 	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {
