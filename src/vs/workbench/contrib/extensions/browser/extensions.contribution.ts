@@ -918,7 +918,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 					menu: {
 						id: MenuId.ExtensionContext,
 						group: '2_configure',
-						when: CONTEXT_SYNC_ENABLEMENT
+						when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate())
 					},
 				});
 			}
