@@ -207,18 +207,53 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 
 function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
-	const checkoutType = config.get<string>('checkoutType') || 'all';
-	const includeTags = checkoutType === 'all' || checkoutType === 'tags';
-	const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
+	let checkoutTypes: string[];
 
-	const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-		.map(ref => new CheckoutItem(ref));
-	const tags = (includeTags ? repository.refs.filter(ref => ref.type === RefType.Tag) : [])
-		.map(ref => new CheckoutTagItem(ref));
-	const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-		.map(ref => new CheckoutRemoteHeadItem(ref));
+	if (checkoutTypeConfig === 'all' || !checkoutTypeConfig || checkoutTypeConfig.length === 0) {
+		checkoutTypes = ['local', 'remote', 'tags'];
+	} else if (typeof checkoutTypeConfig === 'string') {
+		checkoutTypes = [checkoutTypeConfig];
+	} else {
+		checkoutTypes = checkoutTypeConfig;
+	}
 
-	return [...heads, ...tags, ...remoteHeads];
+	const processors = checkoutTypes.map(getCheckoutProcessor)
+		.filter(p => !!p) as CheckoutProcessor[];
+
+	for (const ref of repository.refs) {
+		for (const processor of processors) {
+			processor.onRef(ref);
+		}
+	}
+
+	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items), []);
+}
+
+class CheckoutProcessor {
+
+	private refs: Ref[] = [];
+	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(r)); }
+	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem }) { }
+
+	onRef(ref: Ref): void {
+		if (ref.type === this.type) {
+			this.refs.push(ref);
+		}
+	}
+}
+
+function getCheckoutProcessor(type: string): CheckoutProcessor | undefined {
+	switch (type) {
+		case 'local':
+			return new CheckoutProcessor(RefType.Head, CheckoutItem);
+		case 'remote':
+			return new CheckoutProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
+		case 'tags':
+			return new CheckoutProcessor(RefType.Tag, CheckoutTagItem);
+	}
+
+	return undefined;
 }
 
 function sanitizeRemoteName(name: string) {
