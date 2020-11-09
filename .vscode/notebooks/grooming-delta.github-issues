@@ -158,7 +158,22 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-chrome-debug",
+    "value": "# vscode-test"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-test is:issue closed:>$since"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "repo:microsoft/vscode-test is:issue created:>$since"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# vscode-chrome-debug (deprecated)",
     "editable": true
   },
   {
