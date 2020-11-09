@@ -12,68 +12,10 @@ import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDe
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-
-export class OutputPosition {
-	outputLineIndex: number;
-	outputOffset: number;
-
-	constructor(outputLineIndex: number, outputOffset: number) {
-		this.outputLineIndex = outputLineIndex;
-		this.outputOffset = outputOffset;
-	}
-}
-
-export class LineBreakData {
-	constructor(
-		public breakOffsets: number[],
-		public breakOffsetsVisibleColumn: number[],
-		public wrappedTextIndentLength: number
-	) { }
-
-	public static getInputOffsetOfOutputPosition(breakOffsets: number[], outputLineIndex: number, outputOffset: number): number {
-		if (outputLineIndex === 0) {
-			return outputOffset;
-		} else {
-			return breakOffsets[outputLineIndex - 1] + outputOffset;
-		}
-	}
-
-	public static getOutputPositionOfInputOffset(breakOffsets: number[], inputOffset: number): OutputPosition {
-		let low = 0;
-		let high = breakOffsets.length - 1;
-		let mid = 0;
-		let midStart = 0;
-
-		while (low <= high) {
-			mid = low + ((high - low) / 2) | 0;
-
-			const midStop = breakOffsets[mid];
-			midStart = mid > 0 ? breakOffsets[mid - 1] : 0;
-
-			if (inputOffset < midStart) {
-				high = mid - 1;
-			} else if (inputOffset >= midStop) {
-				low = mid + 1;
-			} else {
-				break;
-			}
-		}
-
-		return new OutputPosition(mid, inputOffset - midStart);
-	}
-}
-
-export interface ILineBreaksComputer {
-	/**
-	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
-	 */
-	addRequest(lineText: string, previousLineBreakData: LineBreakData | null): void;
-	finalize(): (LineBreakData | null)[];
-}
 
 export interface ILineBreaksComputerFactory {
 	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;

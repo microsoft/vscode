@@ -1122,6 +1122,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (isCodeLensEnabled) {
 			result.codeLens = true;
 		}
+		if (!this._renderSideBySide) {
+			// do not wrap hidden editor
+			result.wordWrap = 'off';
+			result.wordWrapMinified = false;
+		}
 		result.readOnly = !isEditable;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return result;
@@ -1471,7 +1476,7 @@ abstract class ViewZonesComputer {
 		const originalLineHeight = this._originalEditor.getOption(EditorOption.lineHeight);
 		const modifiedLineHeight = this._modifiedEditor.getOption(EditorOption.lineHeight);
 		const originalHasWrapping = (this._originalEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1);
-		const modifiedHasWrapping = (this._originalEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1);
+		const modifiedHasWrapping = (this._modifiedEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1);
 		const hasWrapping = (originalHasWrapping || modifiedHasWrapping);
 		const originalModel = this._originalEditor.getModel()!;
 		const originalCoordinatesConverter = this._originalEditor._getViewModel()!.coordinatesConverter;
