@@ -912,8 +912,10 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			this.instantiationService.createInstance(DisableGloballyAction, runningExtensions),
 			this.instantiationService.createInstance(DisableForWorkspaceAction, runningExtensions)
 		]);
-		groups.push([this.instantiationService.createInstance(UninstallAction)]);
-		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
+		groups.push([
+			this.instantiationService.createInstance(UninstallAction),
+			this.instantiationService.createInstance(InstallAnotherVersionAction)
+		]);
 
 		getContextMenuActions(this.extension, this.instantiationService).forEach(actions => groups.push(actions));
 
