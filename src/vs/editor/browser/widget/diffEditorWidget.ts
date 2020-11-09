@@ -296,6 +296,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._modifiedCodeLens = Boolean(options.modifiedCodeLens);
 		}
 
+		if (typeof options.isInEmbeddedEditor !== 'undefined') {
+			this._contextKeyService.createKey('isInEmbeddedDiffEditor', options.isInEmbeddedEditor);
+		} else {
+			this._contextKeyService.createKey('isInEmbeddedDiffEditor', false);
+		}
+
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
