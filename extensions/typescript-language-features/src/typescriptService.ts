@@ -13,6 +13,11 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
 import { TelemetryReporter } from './utils/telemetry';
 
+export enum ServerType {
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+}
+
 export namespace ServerResponse {
 
 	export class Cancelled {
@@ -140,9 +145,14 @@ export interface ITypeScriptServiceClient {
 	/**
 	 * Tries to ensure that a vscode document is open on the TS server.
 	 *
-	 * Returns the normalized path.
+	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
 	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
+
+	/**
+	 * Checks if `resource` has a given capability.
+	 */
+	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 

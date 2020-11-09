@@ -13,11 +13,17 @@
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
  *   fakeLoad?: boolean,
  *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
+ *   onElectron?: boolean
  * }} WebviewHost
  */
 
 (function () {
 	'use strict';
+
+	const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
+		navigator.userAgent &&
+		navigator.userAgent.indexOf('CriOS') === -1 &&
+		navigator.userAgent.indexOf('FxiOS') === -1;
 
 	/**
 	 * Use polling to track focus of main webview and iframes within the webview
@@ -53,7 +59,7 @@
 
 	const defaultCssRules = `
 	body {
-		background-color: var(--vscode-editor-background);
+		background-color: transparent;
 		color: var(--vscode-editor-foreground);
 		font-family: var(--vscode-font-family);
 		font-weight: var(--vscode-font-weight);
@@ -137,7 +143,7 @@
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
-			const acquireVsCodeApi = (function() {
+			globalThis.acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
 				const targetOrigin = '*';
 				let acquired = false;
@@ -281,8 +287,14 @@
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
 			// if needed
-			if (isCopyPasteOrCut(e) || isUndoRedo(e)) {
+			if (isUndoRedo(e)) {
 				e.preventDefault();
+			} else if (isCopyPasteOrCut(e)) {
+				if (host.onElectron) {
+					e.preventDefault();
+				} else {
+					return; // let the browser handle this
+				}
 			}
 
 			host.postMessage('did-keydown', {
@@ -381,7 +393,7 @@
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-			defaultStyles.innerHTML = defaultCssRules;
+			defaultStyles.textContent = defaultCssRules;
 			newDocument.head.prepend(defaultStyles);
 
 			applyStyles(newDocument, newDocument.body);
@@ -480,7 +492,7 @@
 				const newFrame = document.createElement('iframe');
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
-				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
+				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
 				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.
@@ -514,7 +526,7 @@
 					}, 0);
 				}
 
-				if (host.fakeLoad) {
+				if (host.fakeLoad && !options.allowScripts && isSafari) {
 					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
 					// Use polling instead.
 					const interval = setInterval(() => {
@@ -524,7 +536,7 @@
 							return;
 						}
 
-						if (newFrame.contentDocument.readyState === 'complete') {
+						if (newFrame.contentDocument.readyState !== 'loading') {
 							clearInterval(interval);
 							onFrameLoaded(newFrame.contentDocument);
 						}
@@ -542,7 +554,7 @@
 				 */
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
-						// Workaround for https://github.com/Microsoft/vscode/issues/12865
+						// Workaround for https://github.com/microsoft/vscode/issues/12865
 						// check new scrollY and reset if necessary
 						setInitialScrollPosition(contentDocument.body, contentWindow);
 					}

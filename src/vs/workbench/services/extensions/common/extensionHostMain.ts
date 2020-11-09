@@ -21,6 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -59,15 +60,16 @@ export class ExtensionHostMain {
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
-		// todo@joh
 		// ugly self - inject
+		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
+		this._disposables.add(terminalService);
+
 		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 		this._disposables.add(logService);
 
 		logService.info('extension host started');
 		logService.trace('initData', initData);
 
-		// todo@joh
 		// ugly self - inject
 		// must call initialize *after* creating the extension service
 		// because `initialize` itself creates instances that depend on it

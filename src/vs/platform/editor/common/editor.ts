@@ -19,6 +19,11 @@ export interface IEditorModel {
 	load(): Promise<IEditorModel>;
 
 	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean;
+
+	/**
 	 * Dispose associated resources
 	 */
 	dispose(): void;

@@ -189,9 +189,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.tracer.updateConfiguration();
 
 			if (this.serverState.type === ServerState.Type.Running) {
-				if (this._configuration.checkJs !== oldConfiguration.checkJs
-					|| this._configuration.experimentalDecorators !== oldConfiguration.experimentalDecorators
-				) {
+				if (!this._configuration.implictProjectConfiguration.isEqualTo(oldConfiguration.implictProjectConfiguration)) {
 					this.setCompilerOptionsForInferredProjects(this._configuration);
 				}
 
@@ -532,7 +530,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
-				// @ts-expect-error, remove after 4.0 protocol update
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
 			},
 			watchOptions
@@ -637,6 +634,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public normalizedPath(resource: vscode.Uri): string | undefined {
+		if (fileSchemes.disabledSchemes.has(resource.scheme)) {
+			return undefined;
+		}
+
 		switch (resource.scheme) {
 			case fileSchemes.file:
 				{
@@ -648,10 +649,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 					// Both \ and / must be escaped in regular expressions
 					return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
-				}
-			case fileSchemes.git:
-				{
-					return undefined;
 				}
 			default:
 				{
@@ -666,10 +663,26 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	public toOpenedFilePath(document: vscode.TextDocument): string | undefined {
 		if (!this.bufferSyncSupport.ensureHasBuffer(document.uri)) {
-			console.error(`Unexpected resource ${document.uri}`);
+			if (!fileSchemes.disabledSchemes.has(document.uri.scheme)) {
+				console.error(`Unexpected resource ${document.uri}`);
+			}
 			return undefined;
 		}
 		return this.toPath(document.uri) || undefined;
+	}
+
+	public hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean {
+		switch (capability) {
+			case ClientCapability.Semantic:
+				{
+					return fileSchemes.semanticSupportedSchemes.includes(resource.scheme);
+				}
+			case ClientCapability.Syntax:
+			case ClientCapability.EnhancedSyntax:
+				{
+					return true;
+				}
+		}
 	}
 
 	public toResource(filepath: string): vscode.Uri {
@@ -830,6 +843,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					break;
 				}
 			case EventName.projectsUpdatedInBackground:
+				this.loadingIndicator.reset();
+
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
@@ -1007,7 +1022,7 @@ class ServerInitializingIndicator extends Disposable {
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
 			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-		}, () => new Promise((resolve, reject) => {
+		}, () => new Promise<void>((resolve, reject) => {
 			this._task = { project: projectName, resolve, reject };
 		}));
 	}

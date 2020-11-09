@@ -49,13 +49,13 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	}
 
 	private async openInternal(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
-		if (input instanceof FileEditorInput) {
+		if (input instanceof FileEditorInput && this.group) {
+
+			// Enforce to open the input as text to enable our text based viewer
 			input.setForceOpenAsText();
-			if (this.group !== undefined) {
-				await openEditorWith(input, undefined, options, this.group, this.editorService, this.configurationService, this.quickInputService);
-			} else {
-				await this.editorService.openEditor(input, options, this.group);
-			}
+
+			// If more editors are installed that can handle this input, show a picker
+			await openEditorWith(input, undefined, options, this.group, this.editorService, this.configurationService, this.quickInputService);
 		}
 	}
 

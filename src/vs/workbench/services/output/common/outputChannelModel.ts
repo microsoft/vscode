@@ -209,12 +209,23 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	loadModel(): Promise<ITextModel> {
-		this.loadModelPromise = this.fileService.readFile(this.file, { position: this.startOffset })
-			.then(content => {
-				this.endOffset = this.startOffset + content.value.byteLength;
-				this.etag = content.etag;
-				return this.createModel(content.value.toString());
-			});
+		this.loadModelPromise = new Promise<ITextModel>(async (c, e) => {
+			try {
+				let content = '';
+				if (await this.fileService.exists(this.file)) {
+					const fileContent = await this.fileService.readFile(this.file, { position: this.startOffset });
+					this.endOffset = this.startOffset + fileContent.value.byteLength;
+					this.etag = fileContent.etag;
+					content = fileContent.value.toString();
+				} else {
+					this.startOffset = 0;
+					this.endOffset = 0;
+				}
+				c(this.createModel(content));
+			} catch (error) {
+				e(error);
+			}
+		});
 		return this.loadModelPromise;
 	}
 

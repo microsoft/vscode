@@ -9,12 +9,12 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class WindowDriver extends BaseWindowDriver {
 
 	constructor(
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super();
 	}
@@ -31,15 +31,15 @@ class WindowDriver extends BaseWindowDriver {
 	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
 		const { x, y } = await this._getElementXY(selector, offset);
 
-		await this.electronService.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		await this.nativeHostService.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 		await timeout(10);
 
-		await this.electronService.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
+		await this.nativeHostService.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
 		await timeout(100);
 	}
 
 	async openDevTools(): Promise<void> {
-		await this.electronService.openDevTools({ mode: 'detach' });
+		await this.nativeHostService.openDevTools({ mode: 'detach' });
 	}
 }
 

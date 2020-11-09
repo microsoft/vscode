@@ -19,7 +19,9 @@ const unixLinks = [
 	'./foo',
 	'../foo',
 	'/foo/bar',
-	'foo/bar'
+	'/foo/bar+more',
+	'foo/bar',
+	'foo/bar+more',
 ];
 
 const windowsLinks = [
@@ -33,10 +35,12 @@ const windowsLinks = [
 	'~/foo',
 	'c:/foo/bar',
 	'c:\\foo\\bar',
+	'c:\\foo\\bar+more',
 	'c:\\foo/bar\\baz',
 	'foo/bar',
 	'foo/bar',
-	'foo\\bar'
+	'foo\\bar',
+	'foo\\bar+more',
 ];
 
 interface LinkFormatInfo {

@@ -10,7 +10,7 @@ import { readdirSync } from 'vs/base/node/pfs';
 import { promisify } from 'util';
 
 /**
- * Copied from: https://github.com/Microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
+ * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
  *
  * Given an absolute, normalized, and existing file path 'realcase' returns the exact path that the file has on disk.
  * On a case insensitive file system, the returned path might differ from the original path by character casing.

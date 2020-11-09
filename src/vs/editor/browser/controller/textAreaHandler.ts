@@ -125,6 +125,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
@@ -178,14 +179,7 @@ export class TextAreaHandler extends ViewPart {
 					mode
 				};
 			},
-
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-
-				if (browser.isIPad) {
-					// Do not place anything in the textarea for the iPad
-					return TextAreaState.EMPTY;
-				}
-
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
@@ -382,6 +376,7 @@ export class TextAreaHandler extends ViewPart {
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (platform.isWeb && e.hasChanged(EditorOption.readOnly)) {
 			if (options.get(EditorOption.readOnly)) {

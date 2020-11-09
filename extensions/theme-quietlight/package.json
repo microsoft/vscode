@@ -11,7 +11,8 @@
 	"contributes": {
 		"themes": [
 			{
-				"label": "Quiet Light",
+				"id": "Quiet Light",
+				"label": "%themeLabel%",
 				"uiTheme": "vs",
 				"path": "./themes/quietlight-color-theme.json"
 			}

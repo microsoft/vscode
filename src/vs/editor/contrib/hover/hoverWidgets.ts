@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -35,7 +34,7 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 
 	protected set isVisible(value: boolean) {
 		this._isVisible = value;
-		dom.toggleClass(this._hover.containerDomNode, 'hidden', !this._isVisible);
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 	}
 
 	constructor(
@@ -203,7 +202,7 @@ export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	protected set isVisible(value: boolean) {
 		this._isVisible = value;
-		dom.toggleClass(this._domNode, 'hidden', !this._isVisible);
+		this._domNode.classList.toggle('hidden', !this._isVisible);
 	}
 
 	public getId(): string {

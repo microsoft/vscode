@@ -33,7 +33,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
 	}
 
-	public async registerWebview(id: string, webContentsId: number | undefined, windowId: number, metadata: RegisterWebviewMetadata): Promise<void> {
+	public async registerWebview(id: string, windowId: number, metadata: RegisterWebviewMetadata): Promise<void> {
 		const extensionLocation = metadata.extensionLocation ? URI.from(metadata.extensionLocation) : undefined;
 
 		this.protocolProvider.registerWebview(id, {
@@ -43,7 +43,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 			localResourceRoots: metadata.localResourceRoots.map(x => URI.from(x))
 		});
 
-		this.portMappingProvider.registerWebview(id, webContentsId, {
+		this.portMappingProvider.registerWebview(id, {
 			extensionLocation,
 			mappings: metadata.portMappings,
 			resolvedAuthority: metadata.remoteConnectionData,

@@ -956,6 +956,12 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 		}
 
+		// See https://github.com/microsoft/vscode/issues/108880
+		if (this._OS === OperatingSystem.Macintosh && binding.ctrlKey && !binding.metaKey && !binding.altKey && constantKeyCode === KeyCode.US_MINUS) {
+			// ctrl+- and ctrl+shift+- render very similarly in native macOS menus, leading to confusion
+			return null;
+		}
+
 		if (constantKeyCode !== -1) {
 			return this._getElectronLabelForKeyCode(constantKeyCode);
 		}
@@ -1016,7 +1022,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			|| (keyCode === KeyCode.PageUp)
 		) {
 			// "Dispatch" on keyCode for these key codes to workaround issues with remote desktoping software
-			// where the scan codes appear to be incorrect (see https://github.com/Microsoft/vscode/issues/24107)
+			// where the scan codes appear to be incorrect (see https://github.com/microsoft/vscode/issues/24107)
 			const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[keyCode];
 			if (immutableScanCode !== -1) {
 				code = immutableScanCode;

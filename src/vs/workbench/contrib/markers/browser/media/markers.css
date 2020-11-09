@@ -65,7 +65,7 @@
 }
 
 .panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
-	max-width: 600px;
+	max-width: 400px;
 	min-width: 300px;
 	margin-right: 10px;
 }

@@ -10,6 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Counter } from 'vs/base/common/numbers';
+import { isLinux } from 'vs/base/common/platform';
 import { basename, basenameOrAuthority, dirname, isEqual, relativePath } from 'vs/base/common/resources';
 import { compare } from 'vs/base/common/strings';
 import { withUndefinedAsNull } from 'vs/base/common/types';
@@ -116,7 +117,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	}
 
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
-	private readonly _structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>();
+	private readonly _structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(!isLinux);
 
 	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null, private _isUntitled: boolean) {
 		super(id, folders.map(f => new WorkspaceFolder(f)), configuration);

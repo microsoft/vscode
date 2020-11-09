@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions, ITerminalLaunchError, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -23,8 +23,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
-	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
 
@@ -43,9 +43,9 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private readonly _onRequestLatency = this._register(new Emitter<void>());
 	public readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
 
-	private _pendingInitialCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
-	private _pendingCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
-	private _pendingLatencyRequests: ((value?: number | Thenable<number>) => void)[] = [];
+	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
+	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
+	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
 
 	constructor(
 		public terminalId: number,

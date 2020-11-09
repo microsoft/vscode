@@ -42,6 +42,7 @@ suite('ExtHostWorkspace', function () {
 		engines: undefined!,
 		extensionLocation: undefined!,
 		isBuiltin: false,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		version: undefined!
 	};

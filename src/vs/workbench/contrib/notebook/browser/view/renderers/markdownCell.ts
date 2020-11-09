@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { renderCodicons } from 'vs/base/common/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -109,13 +109,13 @@ export class StatefulMarkdownCell extends Disposable {
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					DOM.addClass(templateData.container, options.className);
+					templateData.rootContainer.classList.add(options.className);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					DOM.removeClass(templateData.container, options.className);
+					templateData.rootContainer.classList.remove(options.className);
 				}
 			});
 		}));
@@ -124,7 +124,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				DOM.addClass(templateData.container, options.className);
+				templateData.rootContainer.classList.add(options.className);
 			}
 		});
 
@@ -177,7 +177,7 @@ export class StatefulMarkdownCell extends Disposable {
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 			editorHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
-			this.templateData.editorContainer.innerHTML = '';
+			this.templateData.editorContainer.innerText = '';
 
 			// create a special context key service that set the inCompositeEditor-contextkey
 			const editorContextKeyService = this.contextKeyService.createScoped();
@@ -190,7 +190,7 @@ export class StatefulMarkdownCell extends Disposable {
 					width: width,
 					height: editorHeight
 				},
-				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {});
 			this.templateData.currentEditor = this.editor;
 
@@ -241,7 +241,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.renderedEditors.delete(this.viewCell);
 
-		this.markdownContainer.innerHTML = '';
+		this.markdownContainer.innerText = '';
 		this.viewCell.clearHTML();
 		const markdownRenderer = this.viewCell.getMarkdownRenderer();
 		const renderedHTML = this.viewCell.getHTML();
@@ -255,13 +255,13 @@ export class StatefulMarkdownCell extends Disposable {
 			this.relayoutCell();
 		} else {
 			// first time, readonly mode
-			this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
+			this.localDisposables.add(markdownRenderer.onDidRenderCodeBlock(() => {
 				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
 				this.relayoutCell();
 			}));
 
 			this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
-				this.markdownContainer.innerHTML = '';
+				this.markdownContainer.innerText = '';
 				this.viewCell.clearHTML();
 				const renderedHTML = this.viewCell.getHTML();
 				if (renderedHTML) {
@@ -282,7 +282,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private layoutEditor(dimension: DOM.IDimension): void {
 		this.editor?.layout(dimension);
-		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
+		this.templateData.statusBar.layout(dimension.width);
 	}
 
 	private onCellEditorWidthChange(): void {
@@ -312,13 +312,13 @@ export class StatefulMarkdownCell extends Disposable {
 	setFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
-				this.templateData.foldingIndicator.innerHTML = '';
+				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
-				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
+				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons('$(chevron-right)'));
 				break;
 			case CellFoldingState.Expanded:
-				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
+				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons('$(chevron-down)'));
 				break;
 
 			default:

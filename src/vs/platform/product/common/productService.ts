@@ -23,9 +23,11 @@ export interface IBuiltInExtension {
 }
 
 export type ConfigurationSyncStore = {
+	web?: Partial<Omit<ConfigurationSyncStore, 'web'>>,
 	url: string,
-	insidersUrl?: string,
-	stableUrl?: string,
+	insidersUrl: string,
+	stableUrl: string,
+	canSwitch: boolean,
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>
 };
 
@@ -49,6 +51,7 @@ export interface IProductConfiguration {
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webEndpointUrl?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -71,7 +74,7 @@ export interface IProductConfiguration {
 	};
 
 	readonly extensionTips?: { [id: string]: string; };
-	readonly extensionImportantTips?: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly extensionImportantTips?: IStringDictionary<ImportantExtensionTip>;
 	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip; };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
@@ -127,6 +130,8 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 }
 
+export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
+
 export interface IAppCenterConfiguration {
 	readonly 'win32-ia32': string;
 	readonly 'win32-x64': string;
@@ -143,6 +148,7 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
+	important?: boolean;
 	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 

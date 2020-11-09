@@ -9,8 +9,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { IWebviewService, WebviewExtensionDescription, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
-import { reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory, DeserializedWebview } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory, DeserializedWebview } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputFactory';
+import { IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export interface CustomDocumentBackupData {

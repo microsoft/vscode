@@ -19,6 +19,7 @@ import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGro
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 //#region --- NEW world
 
@@ -228,9 +229,14 @@ const newCommands: ApiCommand[] = [
 			}
 			return typeConverters.WorkspaceEdit.to(value);
 		})
+	),
+	// --- links
+	new ApiCommand(
+		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
+		[ApiCommandArgument.Uri, new ApiCommandArgument('linkResolveCount', '(optional) Number of links that should be resolved, only when links are unresolved.', v => typeof v === 'number' || typeof v === 'undefined', v => v)],
+		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
 	)
 ];
-
 
 //#endregion
 
@@ -277,6 +283,8 @@ export class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'rangeOrSelection', description: 'Range in a text document. Some refactoring provider requires Selection object.', constraint: types.Range },
 				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
+				{ name: 'itemResolveCount', description: '(optional) Number of code actions to resolve (too large numbers slow down code actions)', constraint: (value: any) => value === undefined || typeof value === 'number' }
+
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
@@ -289,13 +297,6 @@ export class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
 
-		this._register('vscode.executeLinkProvider', this._executeDocumentLinkProvider, {
-			description: 'Execute document link provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
-			],
-			returns: 'A promise that resolves to an array of DocumentLink-instances.'
-		});
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
 			description: 'Execute document color provider.',
 			args: [
@@ -310,6 +311,12 @@ export class ExtHostApiCommands {
 				{ name: 'context', description: 'Context object with uri and range' }
 			],
 			returns: 'A promise that resolves to an array of ColorPresentation objects.'
+		});
+
+		this._register('vscode.resolveNotebookContentProviders', this._resolveNotebookContentProviders, {
+			description: 'Resolve Notebook Content Providers',
+			args: [],
+			returns: 'A promise that resolves to an array of NotebookContentProvider static info objects.'
 		});
 
 		// -----------------------------------------------------------------
@@ -438,13 +445,14 @@ export class ExtHostApiCommands {
 	}
 
 
-	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string, itemResolveCount?: number): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
 			rangeOrSelection: types.Selection.isSelection(rangeOrSelection)
 				? typeConverters.Selection.from(rangeOrSelection)
 				: typeConverters.Range.from(rangeOrSelection),
-			kind
+			kind,
+			itemResolveCount,
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
@@ -478,12 +486,28 @@ export class ExtHostApiCommands {
 					typeConverters.Range.to(item.range),
 					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
 			}));
-
 	}
 
-	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[] | undefined> {
-		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
-			.then(tryMapWith(typeConverters.DocumentLink.to));
+	private _resolveNotebookContentProviders(): Promise<{
+		viewType: string;
+		displayName: string;
+		filenamePattern: vscode.NotebookFilenamePattern[];
+		options: vscode.NotebookDocumentContentOptions;
+	}[] | undefined> {
+		return this._commands.executeCommand<{
+			viewType: string;
+			displayName: string;
+			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
+			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
+		}[]>('_resolveNotebookContentProvider')
+			.then(tryMapWith(item => {
+				return {
+					viewType: item.viewType,
+					displayName: item.displayName,
+					options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
+					filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
+				};
+			}));
 	}
 }
 

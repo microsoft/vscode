@@ -22,7 +22,7 @@ export class SkipList<K, V> implements Map<K, V> {
 	readonly [Symbol.toStringTag] = 'SkipList';
 
 	private _maxLevel: number;
-	private _level: number = 1;
+	private _level: number = 0;
 	private _header: Node<K, V>;
 	private _size: number = 0;
 
@@ -122,7 +122,7 @@ export class SkipList<K, V> implements Map<K, V> {
 
 	private static _search<K, V>(list: SkipList<K, V>, searchKey: K, comparator: Comparator<K>) {
 		let x = list._header;
-		for (let i = list._level; i >= 0; i--) {
+		for (let i = list._level - 1; i >= 0; i--) {
 			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {
 				x = x.forward[i];
 			}
@@ -137,7 +137,7 @@ export class SkipList<K, V> implements Map<K, V> {
 	private static _insert<K, V>(list: SkipList<K, V>, searchKey: K, value: V, comparator: Comparator<K>) {
 		let update: Node<K, V>[] = [];
 		let x = list._header;
-		for (let i = list._level; i >= 0; i--) {
+		for (let i = list._level - 1; i >= 0; i--) {
 			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {
 				x = x.forward[i];
 			}
@@ -152,13 +152,13 @@ export class SkipList<K, V> implements Map<K, V> {
 			// insert
 			let lvl = SkipList._randomLevel(list);
 			if (lvl > list._level) {
-				for (let i = list._level + 1; i <= lvl; i++) {
+				for (let i = list._level; i < lvl; i++) {
 					update[i] = list._header;
 				}
 				list._level = lvl;
 			}
 			x = new Node<K, V>(lvl, searchKey, value);
-			for (let i = 0; i <= lvl; i++) {
+			for (let i = 0; i < lvl; i++) {
 				x.forward[i] = update[i].forward[i];
 				update[i].forward[i] = x;
 			}
@@ -177,7 +177,7 @@ export class SkipList<K, V> implements Map<K, V> {
 	private static _delete<K, V>(list: SkipList<K, V>, searchKey: K, comparator: Comparator<K>) {
 		let update: Node<K, V>[] = [];
 		let x = list._header;
-		for (let i = list._level; i >= 0; i--) {
+		for (let i = list._level - 1; i >= 0; i--) {
 			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {
 				x = x.forward[i];
 			}
@@ -194,7 +194,7 @@ export class SkipList<K, V> implements Map<K, V> {
 			}
 			update[i].forward[i] = x.forward[i];
 		}
-		while (list._level >= 1 && list._header.forward[list._level] === NIL) {
+		while (list._level > 0 && list._header.forward[list._level - 1] === NIL) {
 			list._level -= 1;
 		}
 		return true;

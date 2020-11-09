@@ -6,11 +6,14 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
+import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+
+type RegionFilter = (r: FoldingRegion) => boolean;
+type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
+
 
 export class FoldingModel extends Disposable {
 	private _viewModel: NotebookViewModel | null = null;
@@ -73,7 +76,70 @@ export class FoldingModel extends Disposable {
 		this.recompute();
 	}
 
-	public setCollapsed(index: number, newState: boolean) {
+	getRegionAtLine(lineNumber: number): FoldingRegion | null {
+		if (this._regions) {
+			let index = this._regions.findRange(lineNumber);
+			if (index >= 0) {
+				return this._regions.toRegion(index);
+			}
+		}
+		return null;
+	}
+
+	getRegionsInside(region: FoldingRegion | null, filter?: RegionFilter | RegionFilterWithLevel): FoldingRegion[] {
+		let result: FoldingRegion[] = [];
+		let index = region ? region.regionIndex + 1 : 0;
+		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
+
+		if (filter && filter.length === 2) {
+			const levelStack: FoldingRegion[] = [];
+			for (let i = index, len = this._regions.length; i < len; i++) {
+				let current = this._regions.toRegion(i);
+				if (this._regions.getStartLineNumber(i) < endLineNumber) {
+					while (levelStack.length > 0 && !current.containedBy(levelStack[levelStack.length - 1])) {
+						levelStack.pop();
+					}
+					levelStack.push(current);
+					if (filter(current, levelStack.length)) {
+						result.push(current);
+					}
+				} else {
+					break;
+				}
+			}
+		} else {
+			for (let i = index, len = this._regions.length; i < len; i++) {
+				let current = this._regions.toRegion(i);
+				if (this._regions.getStartLineNumber(i) < endLineNumber) {
+					if (!filter || (filter as RegionFilter)(current)) {
+						result.push(current);
+					}
+				} else {
+					break;
+				}
+			}
+		}
+		return result;
+	}
+
+	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {
+		let result: FoldingRegion[] = [];
+		if (this._regions) {
+			let index = this._regions.findRange(lineNumber);
+			let level = 1;
+			while (index >= 0) {
+				let current = this._regions.toRegion(index);
+				if (!filter || filter(current, level)) {
+					result.push(current);
+				}
+				level++;
+				index = current.parentIndex;
+			}
+		}
+		return result;
+	}
+
+	setCollapsed(index: number, newState: boolean) {
 		this._regions.setCollapsed(index, newState);
 	}
 

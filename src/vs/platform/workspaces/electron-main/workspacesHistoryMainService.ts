@@ -17,8 +17,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { isEqual, dirname, originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { exists } from 'vs/base/node/pfs';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -67,7 +66,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
@@ -336,7 +335,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
-			// by the user! See https://github.com/Microsoft/vscode/issues/15052
+			// by the user! See https://github.com/microsoft/vscode/issues/15052
 			let toRemove: URI[] = [];
 			for (let item of app.getJumpListSettings().removedItems) {
 				const args = item.args;

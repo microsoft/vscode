@@ -61,7 +61,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 3, 0, 3);
 			await expandEmmetAbbreviation(null);
-			assert.equal(editor.document.getText(), '<img src=\"\" alt=\"\">');
+			assert.strictEqual(editor.document.getText(), '<img src=\"\" alt=\"\">');
 			return Promise.resolve();
 		});
 	});
@@ -72,14 +72,14 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (!completionPromise) {
-				assert.equal(!completionPromise, false, `Got unexpected undefined instead of a completion promise`);
+				assert.strictEqual(!completionPromise, false, `Got unexpected undefined instead of a completion promise`);
 				return Promise.resolve();
 			}
 			const completionList = await completionPromise;
-			assert.equal(completionList && completionList.items && completionList.items.length > 0, true);
+			assert.strictEqual(completionList && completionList.items && completionList.items.length > 0, true);
 			if (completionList) {
-				assert.equal(completionList.items[0].label, 'img');
-				assert.equal(((<string>completionList.items[0].documentation) || '').replace(/\|/g, ''), '<img src=\"\" alt=\"\">');
+				assert.strictEqual(completionList.items[0].label, 'img');
+				assert.strictEqual(((<string>completionList.items[0].documentation) || '').replace(/\|/g, ''), '<img src=\"\" alt=\"\">');
 			}
 			return Promise.resolve();
 		});
@@ -161,7 +161,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			await expandEmmetAbbreviation(null);
-			assert.equal(editor.document.getText(), htmlContents);
+			assert.strictEqual(editor.document.getText(), htmlContents);
 			return Promise.resolve();
 		});
 	});
@@ -171,7 +171,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -180,7 +180,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			await expandEmmetAbbreviation(null);
-			assert.equal(editor.document.getText(), htmlContents);
+			assert.strictEqual(editor.document.getText(), htmlContents);
 			return Promise.resolve();
 		});
 	});
@@ -190,7 +190,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -200,7 +200,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(fileContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation(null);
-			assert.equal(editor.document.getText(), fileContents);
+			assert.strictEqual(editor.document.getText(), fileContents);
 			return Promise.resolve();
 		});
 	});
@@ -211,7 +211,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -219,12 +219,12 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	test('Expand css when inside style tag (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(13, 16, 13, 19);
-			let expandPromise = expandEmmetAbbreviation({ language: 'css' });
+			const expandPromise = expandEmmetAbbreviation({ language: 'css' });
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
 			await expandPromise;
-			assert.equal(editor.document.getText(), htmlContents.replace('m10', 'margin: 10px;'));
+			assert.strictEqual(editor.document.getText(), htmlContents.replace('m10', 'margin: 10px;'));
 			return Promise.resolve();
 		});
 	});
@@ -238,19 +238,19 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (!completionPromise) {
-				assert.equal(1, 2, `Problem with expanding m10`);
+				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
 			}
 
 			const completionList = await completionPromise;
 			if (!completionList || !completionList.items || !completionList.items.length) {
-				assert.equal(1, 2, `Problem with expanding m10`);
+				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
 			}
 			const emmetCompletionItem = completionList.items[0];
-			assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-			assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+			assert.strictEqual(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+			assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
 			return Promise.resolve();
 		});
 	});
@@ -259,7 +259,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(13, 14, 13, 14);
 			await expandEmmetAbbreviation(null);
-			assert.equal(editor.document.getText(), htmlContents);
+			assert.strictEqual(editor.document.getText(), htmlContents);
 			return Promise.resolve();
 		});
 	});
@@ -268,12 +268,12 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		const styleAttributeContent = '<div style="m10" class="hello"></div>';
 		return withRandomFileEditor(styleAttributeContent, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 15, 0, 15);
-			let expandPromise = expandEmmetAbbreviation(null);
+			const expandPromise = expandEmmetAbbreviation(null);
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
 			await expandPromise;
-			assert.equal(editor.document.getText(), styleAttributeContent.replace('m10', 'margin: 10px;'));
+			assert.strictEqual(editor.document.getText(), styleAttributeContent.replace('m10', 'margin: 10px;'));
 			return Promise.resolve();
 		});
 	});
@@ -287,19 +287,19 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (!completionPromise) {
-				assert.equal(1, 2, `Problem with expanding m10`);
+				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
 			}
 
 			const completionList = await completionPromise;
 			if (!completionList || !completionList.items || !completionList.items.length) {
-				assert.equal(1, 2, `Problem with expanding m10`);
+				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
 			}
 			const emmetCompletionItem = completionList.items[0];
-			assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-			assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+			assert.strictEqual(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+			assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
 			return Promise.resolve();
 		});
 	});
@@ -307,12 +307,12 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	test('Expand html when inside script tag with html type (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(21, 12, 21, 12);
-			let expandPromise = expandEmmetAbbreviation(null);
+			const expandPromise = expandEmmetAbbreviation(null);
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
 			await expandPromise;
-			assert.equal(editor.document.getText(), htmlContents.replace('span.hello', '<span class="hello"></span>'));
+			assert.strictEqual(editor.document.getText(), htmlContents.replace('span.hello', '<span class="hello"></span>'));
 			return Promise.resolve();
 		});
 	});
@@ -326,18 +326,18 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (!completionPromise) {
-				assert.equal(1, 2, `Problem with expanding span.hello`);
+				assert.strictEqual(1, 2, `Problem with expanding span.hello`);
 				return Promise.resolve();
 			}
 
 			const completionList = await completionPromise;
 			if (!completionList || !completionList.items || !completionList.items.length) {
-				assert.equal(1, 2, `Problem with expanding span.hello`);
+				assert.strictEqual(1, 2, `Problem with expanding span.hello`);
 				return Promise.resolve();
 			}
 			const emmetCompletionItem = completionList.items[0];
-			assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
-			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			assert.strictEqual(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
+			assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			return Promise.resolve();
 		});
 	});
@@ -346,7 +346,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 12, 24, 12);
 			await expandEmmetAbbreviation(null);
-			assert.equal(editor.document.getText(), htmlContents);
+			assert.strictEqual(editor.document.getText(), htmlContents);
 			return Promise.resolve();
 		});
 	});
@@ -356,7 +356,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			editor.selection = new Selection(24, 12, 24, 12);
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
@@ -365,12 +365,12 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': 'html' }, ConfigurationTarget.Global);
 		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 10, 24, 10);
-			let expandPromise = expandEmmetAbbreviation(null);
+			const expandPromise = expandEmmetAbbreviation(null);
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
 			await expandPromise;
-			assert.equal(editor.document.getText(), htmlContents.replace('span.bye', '<span class="bye"></span>'));
+			assert.strictEqual(editor.document.getText(), htmlContents.replace('span.bye', '<span class="bye"></span>'));
 		});
 		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
 	});
@@ -384,17 +384,17 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			const cancelSrc = new CancellationTokenSource();
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (!completionPromise) {
-				assert.equal(1, 2, `Problem with expanding span.bye`);
+				assert.strictEqual(1, 2, `Problem with expanding span.bye`);
 				return Promise.resolve();
 			}
 			const completionList = await completionPromise;
 			if (!completionList || !completionList.items || !completionList.items.length) {
-				assert.equal(1, 2, `Problem with expanding span.bye`);
+				assert.strictEqual(1, 2, `Problem with expanding span.bye`);
 				return Promise.resolve();
 			}
 			const emmetCompletionItem = completionList.items[0];
-			assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item (${emmetCompletionItem.label}) doesnt match.`);
-			assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			assert.strictEqual(emmetCompletionItem.label, abbreviation, `Label of completion item (${emmetCompletionItem.label}) doesnt match.`);
+			assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			return Promise.resolve();
 		});
 		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
@@ -433,7 +433,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('ul.nav', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.equal(editor.document.getText(), '<ul className="nav"></ul>');
+			assert.strictEqual(editor.document.getText(), '<ul className="nav"></ul>');
 			return Promise.resolve();
 		});
 	});
@@ -442,7 +442,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+			assert.strictEqual(editor.document.getText(), '<img src="" alt=""/>');
 			return Promise.resolve();
 		});
 	});
@@ -452,7 +452,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.equal(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
+			assert.strictEqual(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
 			return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 		});
 	});
@@ -461,7 +461,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'xml', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'xml' });
-			assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+			assert.strictEqual(editor.document.getText(), '<img src="" alt=""/>');
 			return Promise.resolve();
 		});
 	});
@@ -470,7 +470,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'html' });
-			assert.equal(editor.document.getText(), '<img src="" alt="">');
+			assert.strictEqual(editor.document.getText(), '<img src="" alt="">');
 			return Promise.resolve();
 		});
 	});
@@ -479,7 +479,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('if (foo < 10) { span.bar', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 27, 0, 27);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.equal(editor.document.getText(), 'if (foo < 10) { <span className="bar"></span>');
+			assert.strictEqual(editor.document.getText(), 'if (foo < 10) { <span className="bar"></span>');
 			return Promise.resolve();
 		});
 	});
@@ -505,15 +505,15 @@ suite('Tests for jsx, xml and xsl', () => {
 function testExpandAbbreviation(syntax: string, selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
 	return withRandomFileEditor(htmlContents, syntax, async (editor, _doc) => {
 		editor.selection = selection;
-		let expandPromise = expandEmmetAbbreviation(null);
+		const expandPromise = expandEmmetAbbreviation(null);
 		if (!expandPromise) {
 			if (!shouldFail) {
-				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
+				assert.strictEqual(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
 			}
 			return Promise.resolve();
 		}
 		await expandPromise;
-		assert.equal(editor.document.getText(), htmlContents.replace(abbreviation, expandedText));
+		assert.strictEqual(editor.document.getText(), htmlContents.replace(abbreviation, expandedText));
 		return Promise.resolve();
 	});
 }
@@ -525,7 +525,7 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 		if (!completionPromise) {
 			if (!shouldFail) {
-				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
+				assert.strictEqual(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
 			}
 			return Promise.resolve();
 		}
@@ -533,13 +533,13 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 		const completionList = await completionPromise;
 		if (!completionList || !completionList.items || !completionList.items.length) {
 			if (!shouldFail) {
-				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
+				assert.strictEqual(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
 			}
 			return Promise.resolve();
 		}
 		const emmetCompletionItem = completionList.items[0];
-		assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
-		assert.equal(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+		assert.strictEqual(emmetCompletionItem.label, abbreviation, `Label of completion item doesnt match.`);
+		assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 		return Promise.resolve();
 	});
 }
@@ -549,7 +549,7 @@ function testNoCompletion(syntax: string, fileContents: string, selection: Selec
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
 		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-		assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+		assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 		return Promise.resolve();
 	});
 }
