@@ -136,10 +136,13 @@ export interface ITerminalConfiguration {
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
 	localEchoLatencyThreshold: number;
+	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
 }
+
+export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
