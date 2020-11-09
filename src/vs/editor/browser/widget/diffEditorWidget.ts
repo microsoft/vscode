@@ -1365,8 +1365,6 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 	}
 
 	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[]): IEditorsDiffDecorationsWithZones {
-		const originalEditor = this._dataSource.getOriginalEditor();
-		const modifiedEditor = this._dataSource.getModifiedEditor();
 		// Get view zones
 		modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
@@ -1374,11 +1372,11 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 		originalWhitespaces = originalWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
 		});
-		const zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
+		const zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, renderIndicators);
 
 		// Get decorations & overview ruler zones
-		const originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
-		const modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
+		const originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators);
+		const modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators);
 
 		return {
 			original: {
@@ -1394,9 +1392,9 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 		};
 	}
 
-	protected abstract _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones;
-	protected abstract _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations;
-	protected abstract _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations;
+	protected abstract _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], renderIndicators: boolean): IEditorsZones;
+	protected abstract _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
+	protected abstract _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
 
 	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	public abstract layout(): number;
@@ -1443,12 +1441,18 @@ abstract class ViewZonesComputer {
 	private readonly _modifiedForeignVZ: IEditorWhitespace[];
 	private readonly _modifiedLineHeight: number;
 
-	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], originalLineHeight: number, modifiedForeignVZ: IEditorWhitespace[], modifiedLineHeight: number) {
+	constructor(
+		lineChanges: editorCommon.ILineChange[],
+		originalForeignVZ: IEditorWhitespace[],
+		modifiedForeignVZ: IEditorWhitespace[],
+		originalEditor: CodeEditorWidget,
+		modifiedEditor: CodeEditorWidget
+	) {
 		this._lineChanges = lineChanges;
 		this._originalForeignVZ = originalForeignVZ;
-		this._originalLineHeight = originalLineHeight;
+		this._originalLineHeight = originalEditor.getOption(EditorOption.lineHeight);
 		this._modifiedForeignVZ = modifiedForeignVZ;
-		this._modifiedLineHeight = modifiedLineHeight;
+		this._modifiedLineHeight = modifiedEditor.getOption(EditorOption.lineHeight);
 	}
 
 	public getViewZones(): IEditorsZones {
@@ -1489,6 +1493,7 @@ abstract class ViewZonesComputer {
 			if (lineChange !== null) {
 				originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
 				modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
+
 				lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
 				lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
 				originalEndEquivalentLineNumber = Math.max(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber);
@@ -1798,12 +1803,15 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		return this._dataSource.getHeight();
 	}
 
-	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsZones {
-		const c = new SideBySideViewZonesComputer(lineChanges, originalForeignVZ, originalEditor.getOption(EditorOption.lineHeight), modifiedForeignVZ, modifiedEditor.getOption(EditorOption.lineHeight));
+	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[]): IEditorsZones {
+		const originalEditor = this._dataSource.getOriginalEditor();
+		const modifiedEditor = this._dataSource.getModifiedEditor();
+		const c = new SideBySideViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor);
 		return c.getViewZones();
 	}
 
-	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+		const originalEditor = this._dataSource.getOriginalEditor();
 		const overviewZoneColor = String(this._removeColor);
 
 		const result: IEditorDiffDecorations = {
@@ -1861,7 +1869,8 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		return result;
 	}
 
-	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+		const modifiedEditor = this._dataSource.getModifiedEditor();
 		const overviewZoneColor = String(this._insertColor);
 
 		const result: IEditorDiffDecorations = {
@@ -1922,8 +1931,14 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 class SideBySideViewZonesComputer extends ViewZonesComputer {
 
-	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], originalLineHeight: number, modifiedForeignVZ: IEditorWhitespace[], modifiedLineHeight: number) {
-		super(lineChanges, originalForeignVZ, originalLineHeight, modifiedForeignVZ, modifiedLineHeight);
+	constructor(
+		lineChanges: editorCommon.ILineChange[],
+		originalForeignVZ: IEditorWhitespace[],
+		modifiedForeignVZ: IEditorWhitespace[],
+		originalEditor: CodeEditorWidget,
+		modifiedEditor: CodeEditorWidget,
+	) {
+		super(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor);
 	}
 
 	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null {
@@ -1974,12 +1989,14 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 		// Nothing to do..
 	}
 
-	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: CodeEditorWidget, modifiedEditor: CodeEditorWidget, renderIndicators: boolean): IEditorsZones {
+	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], renderIndicators: boolean): IEditorsZones {
+		const originalEditor = this._dataSource.getOriginalEditor();
+		const modifiedEditor = this._dataSource.getModifiedEditor();
 		const computer = new InlineViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor, renderIndicators);
 		return computer.getViewZones();
 	}
 
-	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
 		const overviewZoneColor = String(this._removeColor);
 
 		const result: IEditorDiffDecorations = {
@@ -2007,7 +2024,8 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 		return result;
 	}
 
-	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+		const modifiedEditor = this._dataSource.getModifiedEditor();
 		const overviewZoneColor = String(this._insertColor);
 
 		const result: IEditorDiffDecorations = {
@@ -2079,8 +2097,15 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private readonly _modifiedEditorTabSize: number;
 	private readonly _renderIndicators: boolean;
 
-	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
-		super(lineChanges, originalForeignVZ, originalEditor.getOption(EditorOption.lineHeight), modifiedForeignVZ, modifiedEditor.getOption(EditorOption.lineHeight));
+	constructor(
+		lineChanges: editorCommon.ILineChange[],
+		originalForeignVZ: IEditorWhitespace[],
+		modifiedForeignVZ: IEditorWhitespace[],
+		originalEditor: CodeEditorWidget,
+		modifiedEditor: CodeEditorWidget,
+		renderIndicators: boolean
+	) {
+		super(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor);
 		this._originalModel = originalEditor.getModel()!;
 		this._modifiedEditorOptions = modifiedEditor.getOptions();
 		this._modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
