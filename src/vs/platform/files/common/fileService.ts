@@ -193,7 +193,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// lazy trie to check for recursive resolving
 			if (!trie) {
-				trie = TernarySearchTree.forUris<true>();
+				trie = TernarySearchTree.forUris<true>(!this.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive));
 				trie.set(resource, true);
 				if (isNonEmptyArray(resolveTo)) {
 					resolveTo.forEach(uri => trie!.set(uri, true));
