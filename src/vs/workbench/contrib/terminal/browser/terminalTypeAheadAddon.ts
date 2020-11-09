@@ -8,10 +8,11 @@ import { Color } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { XTermAttributes, XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
 
 const ESC = '\x1b';
@@ -1178,11 +1179,16 @@ class TypeAheadStyle implements IDisposable {
 	}
 }
 
+const compileExcludeRegexp = (programs = DEFAULT_LOCAL_ECHO_EXCLUDE) =>
+	new RegExp(`\\b(${programs.map(escapeRegExpCharacters).join('|')})\\b`, 'i');
+
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private typeaheadStyle?: TypeAheadStyle;
 	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
+	private excludeProgramRe = compileExcludeRegexp(this.config.config.localEchoExcludePrograms);
 	protected lastRow?: { y: number; startingX: number };
-	private timeline?: PredictionTimeline;
+	protected timeline?: PredictionTimeline;
+	private terminalTitle = '';
 	public stats?: PredictionStats;
 
 	/**
@@ -1206,6 +1212,10 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		timeline.setShowPredictions(this.typeaheadThreshold === 0);
 		this._register(terminal.onData(e => this.onUserData(e)));
+		this._register(terminal.onTitleChange(title => {
+			this.terminalTitle = title;
+			this.reevaluatePredictorState(stats, timeline);
+		}));
 		this._register(terminal.onResize(() => {
 			timeline.setShowPredictions(false);
 			timeline.clearCursor();
@@ -1214,6 +1224,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		this._register(this.config.onConfigChanged(() => {
 			style.onUpdate(this.config.config.localEchoStyle);
 			this.typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
+			this.excludeProgramRe = compileExcludeRegexp(this.config.config.localEchoExcludePrograms);
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
@@ -1260,8 +1271,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	 * terminal cursor is not updated, causes issues.
 	 */
 	@debounce(100)
-	private reevaluatePredictorState(stats: PredictionStats, timeline: PredictionTimeline) {
-		if (this.typeaheadThreshold < 0) {
+	protected reevaluatePredictorState(stats: PredictionStats, timeline: PredictionTimeline) {
+		this.reevaluatePredictorStateNow(stats, timeline);
+	}
+
+	protected reevaluatePredictorStateNow(stats: PredictionStats, timeline: PredictionTimeline) {
+		if (this.excludeProgramRe.test(this.terminalTitle)) {
+			timeline.setShowPredictions(false);
+		} else if (this.typeaheadThreshold < 0) {
 			timeline.setShowPredictions(false);
 		} else if (this.typeaheadThreshold === 0) {
 			timeline.setShowPredictions(true);
