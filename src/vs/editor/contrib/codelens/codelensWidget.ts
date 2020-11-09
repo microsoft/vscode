@@ -25,9 +25,9 @@ class CodeLensViewZone implements IViewZone {
 	afterLineNumber: number;
 
 	private _lastHeight?: number;
-	private readonly _onHeight: Function;
+	private readonly _onHeight: () => void;
 
-	constructor(afterLineNumber: number, onHeight: Function) {
+	constructor(afterLineNumber: number, onHeight: () => void) {
 		this.afterLineNumber = afterLineNumber;
 		this._onHeight = onHeight;
 
@@ -179,8 +179,8 @@ export class CodeLensWidget {
 
 	private readonly _editor: IActiveCodeEditor;
 	private readonly _className: string;
-	private readonly _viewZone!: CodeLensViewZone;
-	private readonly _viewZoneId!: string;
+	private readonly _viewZone: CodeLensViewZone;
+	private readonly _viewZoneId: string;
 
 	private _contentWidget?: CodeLensContentWidget;
 	private _decorationIds: string[];
@@ -193,7 +193,7 @@ export class CodeLensWidget {
 		className: string,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: IViewZoneChangeAccessor,
-		updateCallback: Function
+		updateCallback: () => void
 	) {
 		this._editor = editor;
 		this._className = className;
