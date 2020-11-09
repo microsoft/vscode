@@ -292,6 +292,7 @@ export const enum Operation {
 	Fetch = 'Fetch',
 	Pull = 'Pull',
 	Push = 'Push',
+	CherryPick = 'CherryPick',
 	Sync = 'Sync',
 	Show = 'Show',
 	Stage = 'Stage',
@@ -1059,6 +1060,10 @@ export class Repository implements Disposable {
 
 	async renameBranch(name: string): Promise<void> {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
+	}
+
+	async cherryPick(commitHash: string): Promise<void> {
+		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
 
 	async move(from: string, to: string): Promise<void> {

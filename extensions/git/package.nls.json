@@ -52,6 +52,7 @@
 	"command.branchFrom": "Create Branch From...",
 	"command.deleteBranch": "Delete Branch...",
 	"command.renameBranch": "Rename Branch...",
+	"command.cherryPick": "Cherry Pick...",
 	"command.merge": "Merge Branch...",
 	"command.rebase": "Rebase Branch...",
 	"command.createTag": "Create Tag",
