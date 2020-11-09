@@ -582,6 +582,13 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
 	});
+	test('Smart select [] in a paragraph with another [] and ()', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`This[extension](https://marketplace.visualstudio.com/items?itemName=meganrogge.template-string-converter)  addresses this [requ${CURSOR}est](https://github.com/microsoft/vscode/issues/56704) to convert Javascript/Typescript quotes to backticks when `${` has been entered within a string.`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+	});
 });
 
 function assertNestedLineNumbersEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {

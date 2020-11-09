@@ -134,9 +134,10 @@ function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode
 	let startBold = line.substring(0, cursorPosition.character).lastIndexOf('**');
 
 	// find closest ** that occurs after the start **
+	let endBoldIndex = line.substring(startBold + 2).indexOf('**');
 	let endBold = startBold + 2 + line.substring(startBold + 2).indexOf('**');
 
-	if (startBold >= 0 && endBold >= 0 && startBold + 1 < endBold && startBold <= cursorPosition.character && endBold >= cursorPosition.character) {
+	if (startBold >= 0 && endBoldIndex >= 0 && startBold + 1 < endBold && startBold <= cursorPosition.character && endBold >= cursorPosition.character) {
 		const range = new vscode.Range(cursorPosition.line, startBold, cursorPosition.line, endBold + 2);
 		// **content cursor content** so select content then ** on both sides
 		const contentRange = new vscode.Range(cursorPosition.line, startBold + 2, cursorPosition.line, endBold);
@@ -146,57 +147,57 @@ function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode
 		// find end ** from end of start ** to end of line (since the cursor is within the end stars)
 		let adjustedEnd = startBold + 2 + line.substring(startBold + 2).indexOf('**');
 		startBold = line.substring(0, adjustedEnd - 2).lastIndexOf('**');
-		if (adjustedEnd >= 0) {
+		if (adjustedEnd >= 0 && cursorPosition.character === adjustedEnd || cursorPosition.character === adjustedEnd + 1) {
 			if (document.lineAt(cursorPosition.line).text.charAt(adjustedEnd + 1) === '*') {
 				// *cursor* so need to extend end to include the second *
 				adjustedEnd += 1;
 			}
 			return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, startBold, cursorPosition.line, adjustedEnd + 1), parent);
 		}
-	} else if (endBold >= 0) {
+	} else if (endBold > 0) {
 		// cursor**content** or *cursor*content**
 		// find start ** from start of string to cursor + 2 (since the cursor is within the start stars)
 		const adjustedStart = line.substring(0, cursorPosition.character + 2).lastIndexOf('**');
 		endBold = adjustedStart + 2 + line.substring(adjustedStart + 2).indexOf('**');
-		if (adjustedStart >= 0) {
+		if (adjustedStart >= 0 && adjustedStart === cursorPosition.character || adjustedStart === cursorPosition.character - 1) {
 			return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, adjustedStart, cursorPosition.line, endBold + 2), parent);
 		}
 	}
 
 	let startBracket = line.substring(0, cursorPosition.character + 1).lastIndexOf('[');
-	let endBracket = cursorPosition.character + 1 + line.substring(cursorPosition.character + 1).indexOf(']');
+	let endBracket = line.substring(cursorPosition.character).indexOf(']');
 
 	if (startBracket >= 0 && endBracket >= 0) {
-		const range = new vscode.Range(cursorPosition.line, startBracket, cursorPosition.line, endBracket + 1);
-		if (cursorPosition.character > startBracket && cursorPosition.character < endBracket) {
-			// within the content so select content then include brackets
-			const contentRange = new vscode.Range(cursorPosition.line, startBracket + 1, cursorPosition.line, endBracket);
-			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-		} else {
-			// cursor on one of the brackets
-			if (cursorPosition.character === startBracket) {
+		endBracket += cursorPosition.character;
+		// ensure there's no closing bracket before endBracket
+		let intermediateBracket = line.substring(startBracket, endBracket).indexOf(']');
+		if (intermediateBracket < 0) {
+			const range = new vscode.Range(cursorPosition.line, startBracket, cursorPosition.line, endBracket + 1);
+			if (cursorPosition.character > startBracket && cursorPosition.character <= endBracket) {
+				// within the content so select content then include brackets
+				const contentRange = new vscode.Range(cursorPosition.line, startBracket + 1, cursorPosition.line, endBracket);
+				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+			} if (cursorPosition.character === startBracket || cursorPosition.character === endBracket + 1) {
 				return new vscode.SelectionRange(range, parent);
-			} else {
-				return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, startBracket, cursorPosition.line, endBracket), parent);
 			}
 		}
 	}
 
 	let startParens = line.substring(0, cursorPosition.character + 1).lastIndexOf('(');
-	let endParens = cursorPosition.character + 1 + line.substring(cursorPosition.character + 1).indexOf(')');
+	let endParens = line.substring(cursorPosition.character).indexOf(')');
 
 	if (startParens >= 0 && endParens >= 0) {
-		const range = new vscode.Range(cursorPosition.line, startParens, cursorPosition.line, endParens + 1);
-		if (cursorPosition.character > startParens && cursorPosition.character < endParens) {
-			// within the content so select content then include parens
-			const contentRange = new vscode.Range(cursorPosition.line, startParens + 1, cursorPosition.line, endParens);
-			return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-		} else {
-			// cursor on one of the parens
-			if (cursorPosition.character === startParens) {
-				return new vscode.SelectionRange(range, parent);
-			} else {
-				return new vscode.SelectionRange(new vscode.Range(cursorPosition.line, startParens, cursorPosition.line, endParens), parent);
+		endParens += cursorPosition.character;
+		// ensure there's no closing ) before endParens
+		let intermediateParens = line.substring(startParens, endParens - 1).indexOf(')');
+		if (intermediateParens < 0) {
+			const range = new vscode.Range(cursorPosition.line, startParens, cursorPosition.line, endParens + 1);
+			if (cursorPosition.character > startParens && cursorPosition.character <= endParens) {
+				// within the content so select content then include parens
+				const contentRange = new vscode.Range(cursorPosition.line, startParens + 1, cursorPosition.line, endParens);
+				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+			} else if (cursorPosition.character === startParens || cursorPosition.character === endParens + 1) {
+				return new vscode.SelectionRange(range, new vscode.SelectionRange(range, parent));
 			}
 		}
 	}
