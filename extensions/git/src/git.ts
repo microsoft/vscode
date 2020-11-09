@@ -1649,7 +1649,7 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		const args = ['push'];
 
 		if (forcePushMode === ForcePushMode.ForceWithLease) {
@@ -1662,8 +1662,12 @@ export class Repository {
 			args.push('-u');
 		}
 
-		if (tags) {
+		if (followTags) {
 			args.push('--follow-tags');
+		}
+
+		if (tags) {
+			args.push('--tags');
 		}
 
 		if (remote) {

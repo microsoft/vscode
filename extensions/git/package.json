@@ -380,6 +380,11 @@
         "category": "Git"
       },
       {
+        "command": "git.pushTags",
+        "title": "%command.pushTags%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushWithTags",
         "title": "%command.pushFollowTags%",
         "category": "Git"
@@ -783,6 +788,10 @@
         {
           "command": "git.pushWithTagsForce",
           "when": "config.git.enabled && !git.missing && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.pushTags",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.addRemote",

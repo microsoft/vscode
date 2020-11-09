@@ -1221,6 +1221,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
 	}
 
+	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
+		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
+	}
+
 	async blame(path: string): Promise<string> {
 		return await this.run(Operation.Blame, () => this.repository.blame(path));
 	}
@@ -1440,9 +1444,9 @@ export class Repository implements Disposable {
 		return ignored;
 	}
 
-	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
+	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		try {
-			await this.repository.push(remote, refspec, setUpstream, tags, forcePushMode);
+			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
 			if (!remote || !refspec) {
 				throw err;
