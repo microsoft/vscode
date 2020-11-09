@@ -19,7 +19,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Codicon } from 'vs/base/common/codicons';
 
 export class CloseCurrentWindowAction extends Action {
@@ -30,13 +30,13 @@ export class CloseCurrentWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<void> {
-		this.electronService.closeWindow();
+		this.nativeHostService.closeWindow();
 	}
 }
 
@@ -130,13 +130,13 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.electronService.reload({ disableExtensions: true });
+		await this.nativeHostService.reload({ disableExtensions: true });
 
 		return true;
 	}
@@ -162,7 +162,7 @@ export abstract class BaseSwitchWindow extends Action {
 		private readonly keybindingService: IKeybindingService,
 		private readonly modelService: IModelService,
 		private readonly modeService: IModeService,
-		private readonly electronService: IElectronService
+		private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
@@ -170,9 +170,9 @@ export abstract class BaseSwitchWindow extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const currentWindowId = this.electronService.windowId;
+		const currentWindowId = this.nativeHostService.windowId;
 
-		const windows = await this.electronService.getWindows();
+		const windows = await this.nativeHostService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
 		const picks = windows.map(win => {
 			const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
@@ -194,13 +194,13 @@ export abstract class BaseSwitchWindow extends Action {
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.electronService.closeWindowById(context.item.payload);
+				await this.nativeHostService.closeWindowById(context.item.payload);
 				context.removeItem();
 			}
 		});
 
 		if (pick) {
-			this.electronService.focusWindow({ windowId: pick.payload });
+			this.nativeHostService.focusWindow({ windowId: pick.payload });
 		}
 	}
 }
@@ -217,9 +217,9 @@ export class SwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		super(id, label, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, quickInputService, keybindingService, modelService, modeService, nativeHostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -239,9 +239,9 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		super(id, label, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, quickInputService, keybindingService, modelService, modeService, nativeHostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -250,25 +250,25 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 }
 
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).newWindowTab();
+	return accessor.get(INativeHostService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).showPreviousWindowTab();
+	return accessor.get(INativeHostService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).showNextWindowTab();
+	return accessor.get(INativeHostService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).moveWindowTabToNewWindow();
+	return accessor.get(INativeHostService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).mergeAllWindowTabs();
+	return accessor.get(INativeHostService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).toggleWindowTabsBar();
+	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };

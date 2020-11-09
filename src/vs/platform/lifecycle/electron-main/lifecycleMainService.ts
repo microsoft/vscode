@@ -13,7 +13,7 @@ import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -86,7 +86,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Reload a window. All lifecycle event handlers are triggered.
 	 */
-	reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void>;
+	reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void>;
 
 	/**
 	 * Unload a window for the provided reason. All lifecycle event handlers are triggered.
@@ -366,7 +366,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	async reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void> {
+	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {
 
 		// Only reload when the window has not vetoed this
 		const veto = await this.unload(window, UnloadReason.RELOAD);
@@ -379,7 +379,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		this.logService.trace(`Lifecycle#unload() - window ID ${window.id}`);
@@ -432,17 +432,17 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
-		return new Promise<boolean>(c => {
+		return new Promise<boolean>(resolve => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
 			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
 
 			ipc.once(okChannel, () => {
-				c(false); // no veto
+				resolve(false); // no veto
 			});
 
 			ipc.once(cancelChannel, () => {
-				c(true); // veto
+				resolve(true); // veto
 			});
 
 			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });

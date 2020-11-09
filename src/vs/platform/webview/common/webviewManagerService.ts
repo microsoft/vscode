@@ -14,7 +14,7 @@ export const IWebviewManagerService = createDecorator<IWebviewManagerService>('w
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
-	registerWebview(id: string, webContentsId: number | undefined, windowId: number, metadata: RegisterWebviewMetadata): Promise<void>;
+	registerWebview(id: string, windowId: number, metadata: RegisterWebviewMetadata): Promise<void>;
 	unregisterWebview(id: string): Promise<void>;
 	updateWebviewMetadata(id: string, metadataDelta: Partial<RegisterWebviewMetadata>): Promise<void>;
 

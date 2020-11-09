@@ -12,7 +12,7 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionViewItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionViewItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Dimension, $, addDisposableListener, EventType, EventHelper, toggleClass, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -226,7 +226,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			orientation: this.options.orientation,
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
-			preventLoopNavigation: this.options.preventLoopNavigation
+			preventLoopNavigation: this.options.preventLoopNavigation,
+			ignoreOrientationForPreviousAndNextKey: true,
+			triggerKeys: { keyDown: true }
 		}));
 
 		// Contextmenu for composites
@@ -285,8 +287,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean): Before2D | undefined {
-		toggleClass(element, 'dragged-over-head', showFeedback && front);
-		toggleClass(element, 'dragged-over-tail', showFeedback && !front);
+		element.classList.toggle('dragged-over-head', showFeedback && front);
+		element.classList.toggle('dragged-over-tail', showFeedback && !front);
 
 		if (!showFeedback) {
 			return undefined;

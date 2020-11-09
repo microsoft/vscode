@@ -14,8 +14,7 @@ import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-
-const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class KeybindingsReferenceAction extends Action2 {
 
@@ -26,7 +25,7 @@ class KeybindingsReferenceAction extends Action2 {
 		super({
 			id: KeybindingsReferenceAction.ID,
 			title: { value: nls.localize('keybindingsReference', "Keyboard Shortcuts Reference"), original: 'Keyboard Shortcuts Reference' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -56,7 +55,7 @@ class OpenDocumentationUrlAction extends Action2 {
 		super({
 			id: OpenDocumentationUrlAction.ID,
 			title: { value: nls.localize('openDocumentationUrl', "Documentation"), original: 'Documentation' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}
@@ -80,7 +79,7 @@ class OpenIntroductoryVideosUrlAction extends Action2 {
 		super({
 			id: OpenIntroductoryVideosUrlAction.ID,
 			title: { value: nls.localize('openIntroductoryVideosUrl', "Introductory Videos"), original: 'Introductory Videos' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}
@@ -104,7 +103,7 @@ class OpenTipsAndTricksUrlAction extends Action2 {
 		super({
 			id: OpenTipsAndTricksUrlAction.ID,
 			title: { value: nls.localize('openTipsAndTricksUrl', "Tips and Tricks"), original: 'Tips and Tricks' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}
@@ -128,7 +127,7 @@ class OpenNewsletterSignupUrlAction extends Action2 {
 		super({
 			id: OpenNewsletterSignupUrlAction.ID,
 			title: { value: nls.localize('newsletterSignup', "Signup for the VS Code Newsletter"), original: 'Signup for the VS Code Newsletter' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}
@@ -153,7 +152,7 @@ class OpenTwitterUrlAction extends Action2 {
 		super({
 			id: OpenTwitterUrlAction.ID,
 			title: { value: nls.localize('openTwitterUrl', "Join Us on Twitter"), original: 'Join Us on Twitter' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}
@@ -177,7 +176,7 @@ class OpenRequestFeatureUrlAction extends Action2 {
 		super({
 			id: OpenRequestFeatureUrlAction.ID,
 			title: { value: nls.localize('openUserVoiceUrl', "Search Feature Requests"), original: 'Search Feature Requests' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}
@@ -201,7 +200,7 @@ class OpenLicenseUrlAction extends Action2 {
 		super({
 			id: OpenLicenseUrlAction.ID,
 			title: { value: nls.localize('openLicenseUrl', "View License"), original: 'View License' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}
@@ -230,7 +229,7 @@ class OpenPrivacyStatementUrlAction extends Action2 {
 		super({
 			id: OpenPrivacyStatementUrlAction.ID,
 			title: { value: nls.localize('openPrivacyStatement', "Privacy Statement"), original: 'Privacy Statement' },
-			category: helpCategory,
+			category: CATEGORIES.Help,
 			f1: true
 		});
 	}

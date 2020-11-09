@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
+import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -18,11 +18,18 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { assign } from 'vs/base/common/objects';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { productService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { productService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+// import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { mock } from 'vs/base/test/common/mock';
+import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -51,7 +58,13 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			extensionManagementService,
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
-			productService
+			productService,
+			instantiationService.get(IUserDataAutoSyncEnablementService) || instantiationService.stub(IUserDataAutoSyncEnablementService, <Partial<IUserDataAutoSyncEnablementService>>{ isEnabled() { return false; } }),
+			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService),
+			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
+			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
+			instantiationService.get(IHostService),
+			new class extends mock<IExtensionBisectService>() { isDisabledByBisect() { return false; } }
 		);
 	}
 
@@ -371,6 +384,48 @@ suite('ExtensionEnablementService Test', () => {
 		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { localizations: [{ languageId: 'gr', translations: [{ id: 'vscode', path: 'path' }] }] })), false);
 	});
 
+	test('test canChangeEnablement return true for auth extension', () => {
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return true for auth extension when user data sync account does not depends on it', () => {
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'b' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return true for auth extension when user data sync account depends on it but auto sync is off', () => {
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'a' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return false for auth extension and user data sync account depends on it and auto sync is on', () => {
+		instantiationService.stub(IUserDataAutoSyncEnablementService, <Partial<IUserDataAutoSyncEnablementService>>{ isEnabled() { return true; } });
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'a' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
+	});
+
+	test('test canChangeWorkspaceEnablement return true', () => {
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), true);
+	});
+
+	test('test canChangeWorkspaceEnablement return false if there is no workspace', () => {
+		instantiationService.stub(IWorkspaceContextService, 'getWorkbenchState', WorkbenchState.EMPTY);
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), false);
+	});
+
+	test('test canChangeWorkspaceEnablement return false for auth extension', () => {
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
+	});
+
 	test('test canChangeEnablement return false when extensions are disabled in environment', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
@@ -548,7 +603,7 @@ function anExtensionManagementServerService(localExtensionManagementServer: IExt
 			if (extension.location.scheme === Schemas.file) {
 				return localExtensionManagementServer;
 			}
-			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === Schemas.vscodeRemote) {
 				return remoteExtensionManagementServer;
 			}
 			return webExtensionManagementServer;
@@ -562,11 +617,13 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions, type
 
 function aLocalExtension2(id: string, manifest: any = {}, properties: any = {}): ILocalExtension {
 	const [publisher, name] = id.split('.');
-	properties = assign({
+	manifest = { name, publisher, ...manifest };
+	properties = {
 		identifier: { id },
 		galleryIdentifier: { id, uuid: undefined },
-		type: ExtensionType.User
-	}, properties);
-	manifest = assign({ name, publisher }, manifest);
+		type: ExtensionType.User,
+		...properties
+	};
+	properties.isBuiltin = properties.type === ExtensionType.System;
 	return <ILocalExtension>Object.create({ manifest, ...properties });
 }

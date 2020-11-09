@@ -12,7 +12,7 @@ import * as bom from 'gulp-bom';
 import * as sourcemaps from 'gulp-sourcemaps';
 import * as tsb from 'gulp-tsb';
 import * as path from 'path';
-import * as monacodts from '../monaco/api';
+import * as monacodts from './monaco-api';
 import * as nls from './nls';
 import { createReporter } from './reporter';
 import * as util from './util';

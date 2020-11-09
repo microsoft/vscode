@@ -32,7 +32,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 
@@ -87,7 +87,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null = null;
 	if (showBreakpointsInOverviewRuler) {
 		overviewRulerDecoration = {
-			color: 'rgb(124, 40, 49)',
+			color: themeColorFromId(debugIconBreakpointForeground),
 			position: OverviewRulerLane.Left
 		};
 	}
@@ -167,18 +167,23 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.registerListeners();
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
+		this.registerListeners();
+		this.setDecorationsScheduler.schedule();
 	}
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
+			if (!this.debugService.getAdapterManager().hasDebuggers()) {
+				return;
+			}
+
 			const data = e.target.detail as IMarginData;
 			const model = this.editor.getModel();
 			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				return;
 			}
-			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(model);
+			const canSetBreakpoints = this.debugService.canSetBreakpointsIn(model);
 			const lineNumber = e.target.position.lineNumber;
 			const uri = model.uri;
 
@@ -235,7 +240,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }], `debugEditorGutter`);
+					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
 			}
 		}));
@@ -247,9 +252,13 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
 			 */
 			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
+				if (!this.debugService.getAdapterManager().hasDebuggers()) {
+					return;
+				}
+
 				let showBreakpointHintAtLineNumber = -1;
 				const model = this.editor.getModel();
-				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
+				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.canSetBreakpointsIn(model) &&
 					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 					const data = e.target.detail as IMarginData;
 					if (!data.isAfterLines) {
@@ -340,7 +349,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				undefined,
 				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }], `debugEditorContextMenu`)
+				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
 			));
 			actions.push(new Action(
 				'addConditionalBreakpoint',
@@ -574,7 +583,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			if (this.breakpoint) {
 				await this.debugService.removeBreakpoints(this.breakpoint.getId());
 			} else {
-				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }], 'debugEditorInlineWidget');
+				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
@@ -618,7 +627,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			return null;
 		}
 		// Workaround: since the content widget can not be placed before the first column we need to force the left position
-		dom.toggleClass(this.domNode, 'line-start', this.range.startColumn === 1);
+		this.domNode.classList.toggle('line-start', this.range.startColumn === 1);
 
 		return {
 			position: { lineNumber: this.range.startLineNumber, column: this.range.startColumn - 1 },

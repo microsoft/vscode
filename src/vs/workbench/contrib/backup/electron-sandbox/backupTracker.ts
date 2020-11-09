@@ -8,35 +8,65 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfirmResult, IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
+	// Delay creation of backups when working copy changes to avoid too much
+	// load on the backup service when the user is typing into the editor
+	private static readonly BACKUP_SCHEDULE_DELAY = 1000;
+
+	// Disable backup for when a short auto-save delay is configured with
+	// the rationale that the auto save will trigger a save periodically
+	// anway and thus creating frequent backups is not useful
+	//
+	// This will only apply to working copies that are not untitled where
+	// auto save is actually saving.
+	private static readonly DISABLE_BACKUP_AUTO_SAVE_THRESHOLD = 1500;
+
 	constructor(
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, logService, lifecycleService);
+		super(backupFileService, workingCopyService, logService, lifecycleService);
+	}
+
+	protected shouldScheduleBackup(workingCopy: IWorkingCopy): boolean {
+		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
+			return true; // always backup untitled
+		}
+
+		const autoSaveConfiguration = this.filesConfigurationService.getAutoSaveConfiguration();
+		if (typeof autoSaveConfiguration.autoSaveDelay === 'number' && autoSaveConfiguration.autoSaveDelay < NativeBackupTracker.DISABLE_BACKUP_AUTO_SAVE_THRESHOLD) {
+			return false; // skip backup when auto save is already enabled with a low delay
+		}
+
+		return true;
+	}
+
+	protected getBackupScheduleDelay(): number {
+		return NativeBackupTracker.BACKUP_SCHEDULE_DELAY;
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -128,7 +158,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				case ShutdownReason.CLOSE:
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-					} else if (await this.electronService.getWindowCount() > 1 || isMacintosh) {
+					} else if (await this.nativeHostService.getWindowCount() > 1 || isMacintosh) {
 						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
 					} else {
 						doBackup = true; // backup if last window is closed on win/linux where the application quits right after
@@ -166,7 +196,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 
 				// Backup does not exist
 				else {
-					const backup = await workingCopy.backup();
+					const backup = await workingCopy.backup(CancellationToken.None);
 					await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta);
 
 					backups.push(workingCopy);

@@ -26,6 +26,7 @@ export interface IToolBarOptions {
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
+	renderDropdownAsChildElement?: boolean;
 }
 
 /**
@@ -71,9 +72,9 @@ export class ToolBar extends Disposable {
 							actionViewItemProvider: this.options.actionViewItemProvider,
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
-							classNames: toolBarMoreIcon.classNames,
+							classNames: toolBarMoreIcon.classNamesArray,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: true
+							menuAsChild: !!this.options.renderDropdownAsChildElement
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
@@ -91,10 +92,9 @@ export class ToolBar extends Disposable {
 				}
 
 				if (action instanceof SubmenuAction) {
-					const actions = Array.isArray(action.actions) ? action.actions : action.actions();
 					const result = new DropdownMenuActionViewItem(
 						action,
-						actions,
+						action.actions,
 						contextMenuProvider,
 						{
 							actionViewItemProvider: this.options.actionViewItemProvider,

@@ -20,13 +20,19 @@ export interface IResolveResult {
 }
 
 export class KeybindingResolver {
+	private readonly _log: (str: string) => void;
 	private readonly _defaultKeybindings: ResolvedKeybindingItem[];
 	private readonly _keybindings: ResolvedKeybindingItem[];
 	private readonly _defaultBoundCommands: Map<string, boolean>;
 	private readonly _map: Map<string, ResolvedKeybindingItem[]>;
 	private readonly _lookupMap: Map<string, ResolvedKeybindingItem[]>;
 
-	constructor(defaultKeybindings: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[]) {
+	constructor(
+		defaultKeybindings: ResolvedKeybindingItem[],
+		overrides: ResolvedKeybindingItem[],
+		log: (str: string) => void
+	) {
+		this._log = log;
 		this._defaultKeybindings = defaultKeybindings;
 
 		this._defaultBoundCommands = new Map<string, boolean>();
@@ -254,6 +260,7 @@ export class KeybindingResolver {
 	}
 
 	public resolve(context: IContext, currentChord: string | null, keypress: string): IResolveResult | null {
+		this._log(`| Resolving ${keypress}${currentChord ? ` chorded from ${currentChord}` : ``}`);
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
 		if (currentChord !== null) {
@@ -262,6 +269,7 @@ export class KeybindingResolver {
 			const candidates = this._map.get(currentChord);
 			if (typeof candidates === 'undefined') {
 				// No chords starting with `currentChord`
+				this._log(`\\ No keybinding entries.`);
 				return null;
 			}
 
@@ -277,6 +285,7 @@ export class KeybindingResolver {
 			const candidates = this._map.get(keypress);
 			if (typeof candidates === 'undefined') {
 				// No bindings with `keypress`
+				this._log(`\\ No keybinding entries.`);
 				return null;
 			}
 
@@ -285,11 +294,13 @@ export class KeybindingResolver {
 
 		let result = this._findCommand(context, lookupMap);
 		if (!result) {
+			this._log(`\\ From ${lookupMap.length} keybinding entries, no when clauses matched the context.`);
 			return null;
 		}
 
 		// TODO@chords
 		if (currentChord === null && result.keypressParts.length > 1 && result.keypressParts[1] !== null) {
+			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return {
 				enterChord: true,
 				leaveChord: false,
@@ -299,6 +310,7 @@ export class KeybindingResolver {
 			};
 		}
 
+		this._log(`\\ From ${lookupMap.length} keybinding entries, matched ${result.command}, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 		return {
 			enterChord: false,
 			leaveChord: result.keypressParts.length > 1,
@@ -361,4 +373,24 @@ export class KeybindingResolver {
 
 		return unboundCommands;
 	}
+}
+
+function printWhenExplanation(when: ContextKeyExpression | undefined): string {
+	if (!when) {
+		return `no when condition`;
+	}
+	return `${when.serialize()}`;
+}
+
+function printSourceExplanation(kb: ResolvedKeybindingItem): string {
+	if (kb.isDefault) {
+		if (kb.extensionId) {
+			return `built-in extension ${kb.extensionId}`;
+		}
+		return `built-in`;
+	}
+	if (kb.extensionId) {
+		return `user extension ${kb.extensionId}`;
+	}
+	return `user`;
 }

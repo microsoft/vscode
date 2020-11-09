@@ -33,7 +33,7 @@ export interface ReadableStreamEvents<T> {
 
 /**
  * A interface that emulates the API shape of a node.js readable
- * stream for use in desktop and web environments.
+ * stream for use in native and web environments.
  */
 export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 
@@ -60,7 +60,7 @@ export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 
 /**
  * A interface that emulates the API shape of a node.js readable
- * for use in desktop and web environments.
+ * for use in native and web environments.
  */
 export interface Readable<T> {
 
@@ -73,7 +73,7 @@ export interface Readable<T> {
 
 /**
  * A interface that emulates the API shape of a node.js writeable
- * stream for use in desktop and web environments.
+ * stream for use in native and web environments.
  */
 export interface WriteableStream<T> extends ReadableStream<T> {
 

@@ -504,7 +504,7 @@ export function spreadGlobComponents(globArg: string): string[] {
 
 export function unicodeEscapesToPCRE2(pattern: string): string {
 	// Match \u1234
-	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/g;
+	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/gi;
 
 	while (pattern.match(unicodePattern)) {
 		pattern = pattern.replace(unicodePattern, `$1\\x{$2}`);
@@ -512,7 +512,7 @@ export function unicodeEscapesToPCRE2(pattern: string): string {
 
 	// Match \u{1234}
 	// \u with 5-6 characters will be left alone because \x only takes 4 characters.
-	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/g;
+	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/gi;
 	while (pattern.match(unicodePatternWithBraces)) {
 		pattern = pattern.replace(unicodePatternWithBraces, `$1\\x{$2}`);
 	}

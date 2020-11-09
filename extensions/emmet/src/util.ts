@@ -8,7 +8,7 @@ import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
-import * as EmmetHelper from 'vscode-emmet-helper2';
+import * as EmmetHelper from 'vscode-emmet-helper';
 import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
 
 let _emmetHelper: typeof EmmetHelper;
@@ -26,7 +26,7 @@ export function getEmmetHelper() {
 	// Lazy load vscode-emmet-helper instead of importing it
 	// directly to reduce the start-up time of the extension
 	if (!_emmetHelper) {
-		_emmetHelper = require('vscode-emmet-helper2');
+		_emmetHelper = require('vscode-emmet-helper');
 	}
 	updateEmmetExtensionsPath();
 	return _emmetHelper;
@@ -35,12 +35,12 @@ export function getEmmetHelper() {
 /**
  * Update Emmet Helper to use user snippets from the extensionsPath setting
  */
-export function updateEmmetExtensionsPath() {
+export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	if (!_emmetHelper) {
 		return;
 	}
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-	if (_currentExtensionsPath !== extensionsPath) {
+	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
 		if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
 			return;
@@ -646,4 +646,10 @@ export function isNumber(obj: any): obj is number {
 
 export function toLSTextDocument(doc: vscode.TextDocument): LSTextDocument {
 	return LSTextDocument.create(doc.uri.toString(), doc.languageId, doc.version, doc.getText());
+}
+
+export function getPathBaseName(path: string): string {
+	const pathAfterSlashSplit = path.split('/').pop();
+	const pathAfterBackslashSplit = pathAfterSlashSplit ? pathAfterSlashSplit.split('\\').pop() : '';
+	return pathAfterBackslashSplit ?? '';
 }

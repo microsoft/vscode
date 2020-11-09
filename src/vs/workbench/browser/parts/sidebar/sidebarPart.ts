@@ -35,6 +35,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -308,7 +309,7 @@ class FocusSideBarAction extends Action2 {
 		super({
 			id: 'workbench.action.focusSideBar',
 			title: { value: nls.localize('focusSideBar', "Focus into Side Bar"), original: 'Focus into Side Bar' },
-			category: { value: nls.localize('view', "View"), original: 'View' },
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

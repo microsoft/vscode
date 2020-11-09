@@ -24,9 +24,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUndoRedoService, IUndoRedoElement, IPastFutureElements, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
-import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
+import { EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
@@ -118,23 +118,6 @@ export interface EditStackPastFutureElements {
 	future: EditStackElement[];
 }
 
-export function isEditStackPastFutureElements(undoElements: IPastFutureElements): undoElements is EditStackPastFutureElements {
-	return (isEditStackElements(undoElements.past) && isEditStackElements(undoElements.future));
-}
-
-function isEditStackElements(elements: IUndoRedoElement[]): elements is EditStackElement[] {
-	for (const element of elements) {
-		if (element instanceof SingleModelEditStackElement) {
-			continue;
-		}
-		if (element instanceof MultiModelEditStackElement) {
-			continue;
-		}
-		return false;
-	}
-	return true;
-}
-
 class DisposedModelInfo {
 	constructor(
 		public readonly uri: URI,
@@ -146,6 +129,15 @@ class DisposedModelInfo {
 		public readonly versionId: number,
 		public readonly alternativeVersionId: number,
 	) { }
+}
+
+function schemaShouldMaintainUndoRedoElements(resource: URI) {
+	return (
+		resource.scheme === Schemas.file
+		|| resource.scheme === Schemas.vscodeRemote
+		|| resource.scheme === Schemas.userData
+		|| resource.scheme === 'fake-fs' // for tests
+	);
 }
 
 export class ModelServiceImpl extends Disposable implements IModelService {
@@ -525,7 +517,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData))) {
+		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && schemaShouldMaintainUndoRedoElements(resource))) {
 			const elements = this._undoRedoService.getElements(resource);
 			if (elements.past.length > 0 || elements.future.length > 0) {
 				for (const element of elements.past) {

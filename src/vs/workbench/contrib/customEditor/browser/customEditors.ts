@@ -29,7 +29,7 @@ import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, Cust
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId, defaultEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -96,10 +96,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return [...this._contributedEditors];
 	}
 
-	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void): boolean {
+	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void | Promise<void>): boolean | Promise<void> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof CustomEditorInput) {
-			f(activeEditor);
+			const result = f(activeEditor);
+			if (result) {
+				return result;
+			}
 			return true;
 		}
 		return false;
@@ -454,11 +457,6 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
 				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
 
-				const defaultEditorOverride: IOpenEditorOverrideEntry = {
-					...defaultEditorOverrideEntry,
-					active: this._fileEditorInputFactory.isFileEditorInput(currentEditor),
-				};
-
 				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
 					return {
 						id: entry.id,
@@ -470,11 +468,6 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 
 				if (typeof options?.override === 'string') {
 					// A specific override was requested. Only return it.
-
-					if (options.override === defaultEditorOverride.id) {
-						return [defaultEditorOverride];
-					}
-
 					const matchingEditor = this.customEditorService.getCustomEditor(options.override);
 					return matchingEditor ? [toOverride(matchingEditor)] : [];
 				}
@@ -485,12 +478,9 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 					return [];
 				}
 
-				return [
-					defaultEditorOverride,
-					...customEditors.allEditors
-						.filter(entry => entry.id !== defaultCustomEditor.id)
-						.map(toOverride)
-				];
+				return customEditors.allEditors
+					.filter(entry => entry.id !== defaultCustomEditor.id)
+					.map(toOverride);
 			}
 		}));
 	}

@@ -140,6 +140,12 @@ suite('Replace Pattern test', () => {
 		assert.equal('cat ()', actual);
 	});
 
+	test('case operations', () => {
+		let testObject = new ReplacePattern('a\\u$1l\\u\\l\\U$2M$3n', { pattern: 'a(l)l(good)m(e)n', isRegExp: true });
+		let actual = testObject.getReplaceString('allgoodmen');
+		assert.equal('aLlGoODMen', actual);
+	});
+
 	test('get replace string for no matches', () => {
 		let testObject = new ReplacePattern('hello', { pattern: 'bla', isRegExp: true });
 		let actual = testObject.getReplaceString('foo');

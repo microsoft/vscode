@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function setupTerminalMenu() {
@@ -38,7 +38,8 @@ export function setupTerminalMenu() {
 			title: nls.localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
 			precondition: ContextKeyExpr.has('terminalIsOpen')
 		},
-		order: 2
+		order: 2,
+		when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 	});
 
 	// Run
@@ -49,7 +50,8 @@ export function setupTerminalMenu() {
 			id: TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
 			title: nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
 		},
-		order: 3
+		order: 3,
+		when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 	});
 	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		group: runGroup,
@@ -57,6 +59,7 @@ export function setupTerminalMenu() {
 			id: TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
 			title: nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
 		},
-		order: 4
+		order: 4,
+		when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 	});
 }

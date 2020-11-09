@@ -15,7 +15,7 @@
 			"extensions": [ ".dockerfile", ".containerfile" ],
 			"filenames": [ "Dockerfile", "Containerfile" ],
 			"filenamePatterns": [ "Dockerfile.*", "Containerfile.*" ],
-			"aliases": [ "Dockerfile", "Containerfile" ],
+			"aliases": [ "Docker", "Dockerfile", "Containerfile" ],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{

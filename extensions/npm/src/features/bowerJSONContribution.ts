@@ -33,7 +33,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return [{ language: 'json', scheme: '*', pattern: '**/bower.json' }, { language: 'json', scheme: '*', pattern: '**/.bower.json' }];
 	}
 
-	private onlineEnabled() {
+	private isEnabled() {
 		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
@@ -54,8 +54,11 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
-			if (currentWord.length > 0 && this.onlineEnabled()) {
+			if (currentWord.length > 0) {
 				const queryUrl = 'https://registry.bower.io/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
@@ -122,7 +125,10 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public collectValueSuggestions(_resource: string, location: Location, collector: ISuggestionsCollector): Thenable<any> {
+	public collectValueSuggestions(_resource: string, location: Location, collector: ISuggestionsCollector): Promise<any> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
 			const proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
@@ -132,7 +138,7 @@ export class BowerJSONContribution implements IJSONContribution {
 			proposal.documentation = 'The latest version of the package';
 			collector.add(proposal);
 		}
-		return Promise.resolve(null);
+		return null;
 	}
 
 	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
@@ -149,10 +155,6 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string | undefined> {
-		if (!this.onlineEnabled()) {
-			return Promise.resolve(undefined);
-		}
-
 		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
@@ -181,6 +183,9 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	public getInfoContribution(_resource: string, location: Location): Thenable<MarkdownString[] | null> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {

@@ -28,7 +28,7 @@ namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
 }
 namespace OnTypeRenameRequest {
-	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
+	export const type: RequestType<TextDocumentPositionParams, LspRange[] | null, any, any> = new RequestType('html/onTypeRename');
 }
 
 // experimental: semantic tokens
@@ -172,9 +172,14 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		disposable = languages.registerOnTypeRenameProvider(documentSelector, {
 			async provideOnTypeRenameRanges(document, position) {
 				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-				const response = await client.sendRequest(OnTypeRenameRequest.type, param);
-
-				return response || [];
+				return client.sendRequest(OnTypeRenameRequest.type, param).then(response => {
+					if (response) {
+						return {
+							ranges: response.map(r => client.protocol2CodeConverter.asRange(r))
+						};
+					}
+					return undefined;
+				});
 			}
 		});
 		toDispose.push(disposable);

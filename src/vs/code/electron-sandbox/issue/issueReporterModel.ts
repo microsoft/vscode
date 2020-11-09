@@ -102,8 +102,6 @@ ${this.getInfos()}
 			return 'Bug';
 		} else if (this._data.issueType === IssueType.PerformanceIssue) {
 			return 'Performance Issue';
-		} else if (this._data.issueType === IssueType.SettingsSearchIssue) {
-			return 'Settings Search Issue';
 		} else {
 			return 'Feature Request';
 		}
@@ -135,17 +133,6 @@ ${this.getInfos()}
 			}
 		}
 
-		if (this._data.issueType === IssueType.SettingsSearchIssue) {
-			if (this._data.includeSearchedExtensions) {
-				info += this.generateExtensionsMd();
-			}
-
-			if (this._data.includeSettingsSearchDetails) {
-				info += this.generateSettingSearchResultsMd();
-				info += '\n' + this.generateSettingsSearchResultDetailsMd();
-			}
-		}
-
 		return info;
 	}
 
@@ -163,7 +150,7 @@ ${this.getInfos()}
 |GPU Status|${Object.keys(this._data.systemInfo.gpuStatus).map(key => `${key}: ${this._data.systemInfo!.gpuStatus[key]}`).join('<br>')}|
 |Load (avg)|${this._data.systemInfo.load}|
 |Memory (System)|${this._data.systemInfo.memory}|
-|Process Argv|${this._data.systemInfo.processArgs}|
+|Process Argv|${this._data.systemInfo.processArgs.replace(/\\/g, '\\\\')}|
 |Screen Reader|${this._data.systemInfo.screenReader}|
 |VM|${this._data.systemInfo.vmHint}|`;
 
@@ -242,35 +229,6 @@ ${this._data.workspaceInfo};
 ${tableHeader}
 ${table}
 ${themeExclusionStr}
-
-</details>`;
-	}
-
-	private generateSettingsSearchResultDetailsMd(): string {
-		return `
-Query: ${this._data.query}
-Literal matches: ${this._data.filterResultCount}`;
-	}
-
-	private generateSettingSearchResultsMd(): string {
-		if (!this._data.actualSearchResults) {
-			return '';
-		}
-
-		if (!this._data.actualSearchResults.length) {
-			return `No fuzzy results`;
-		}
-
-		const tableHeader = `Setting|Extension|Score
----|---|---`;
-		const table = this._data.actualSearchResults.map(setting => {
-			return `${setting.key}|${setting.extensionId}|${String(setting.score).slice(0, 5)}`;
-		}).join('\n');
-
-		return `<details><summary>Results</summary>
-
-${tableHeader}
-${table}
 
 </details>`;
 	}

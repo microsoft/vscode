@@ -19,6 +19,10 @@ export class CellMenus {
 		return this.getMenu(MenuId.NotebookCellBetween, contextKeyService);
 	}
 
+	getCellTopInsertionMenu(contextKeyService: IContextKeyService): IMenu {
+		return this.getMenu(MenuId.NotebookCellListTop, contextKeyService);
+	}
+
 	private getMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
 

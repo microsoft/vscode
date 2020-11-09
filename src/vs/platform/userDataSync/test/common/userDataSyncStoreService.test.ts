@@ -39,6 +39,9 @@ suite('UserDataSyncStoreManagementService', () => {
 
 		const configuredStore: ConfigurationSyncStore = {
 			url: 'http://configureHost:3000',
+			stableUrl: 'http://configureHost:3000',
+			insidersUrl: 'http://configureHost:3000',
+			canSwitch: false,
 			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
 		};
 		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(JSON.stringify({
@@ -49,8 +52,9 @@ suite('UserDataSyncStoreManagementService', () => {
 		const expected: IUserDataSyncStore = {
 			url: URI.parse('http://configureHost:3000'),
 			defaultUrl: URI.parse('http://configureHost:3000'),
-			stableUrl: undefined,
-			insidersUrl: undefined,
+			stableUrl: URI.parse('http://configureHost:3000'),
+			insidersUrl: URI.parse('http://configureHost:3000'),
+			canSwitch: false,
 			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
 		};
 

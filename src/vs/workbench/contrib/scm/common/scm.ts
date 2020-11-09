@@ -9,9 +9,12 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
+import { IAction } from 'vs/base/common/actions';
+import { IMenu } from 'vs/platform/actions/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
+export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -31,6 +34,7 @@ export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
+	readonly contextValue?: string;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -79,11 +83,22 @@ export interface IInputValidator {
 	(value: string, cursorPosition: number): Promise<IInputValidation | undefined>;
 }
 
+export enum SCMInputChangeReason {
+	HistoryPrevious,
+	HistoryNext
+}
+
+export interface ISCMInputChangeEvent {
+	readonly value: string;
+	readonly reason?: SCMInputChangeReason;
+}
+
 export interface ISCMInput {
 	readonly repository: ISCMRepository;
 
-	value: string;
-	readonly onDidChange: Event<string>;
+	readonly value: string;
+	setValue(value: string, fromKeyboard: boolean): void;
+	readonly onDidChange: Event<ISCMInputChangeEvent>;
 
 	placeholder: string;
 	readonly onDidChangePlaceholder: Event<string>;
@@ -93,14 +108,14 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
+
+	showNextHistoryValue(): void;
+	showPreviousHistoryValue(): void;
 }
 
 export interface ISCMRepository extends IDisposable {
-	readonly selected: boolean;
-	readonly onDidChangeSelection: Event<boolean>;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
-	setSelected(selected: boolean): void;
 }
 
 export interface ISCMService {
@@ -111,4 +126,47 @@ export interface ISCMService {
 	readonly repositories: ISCMRepository[];
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+}
+
+export interface ISCMTitleMenu {
+	readonly actions: IAction[];
+	readonly secondaryActions: IAction[];
+	readonly onDidChangeTitle: Event<void>;
+	readonly menu: IMenu;
+}
+
+export interface ISCMRepositoryMenus {
+	readonly titleMenu: ISCMTitleMenu;
+	readonly repositoryMenu: IMenu;
+	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
+	getResourceMenu(resource: ISCMResource): IMenu;
+	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
+}
+
+export interface ISCMMenus {
+	readonly titleMenu: ISCMTitleMenu;
+	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
+}
+
+export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
+
+export interface ISCMViewVisibleRepositoryChangeEvent {
+	readonly added: Iterable<ISCMRepository>;
+	readonly removed: Iterable<ISCMRepository>;
+}
+
+export interface ISCMViewService {
+	readonly _serviceBrand: undefined;
+
+	readonly menus: ISCMMenus;
+
+	visibleRepositories: ISCMRepository[];
+	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+
+	isVisible(repository: ISCMRepository): boolean;
+	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+
+	readonly focusedRepository: ISCMRepository | undefined;
+	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
+	focus(repository: ISCMRepository): void;
 }

@@ -16,6 +16,7 @@ export interface IKeybindingItem {
 	when: ContextKeyExpression | null | undefined;
 	weight1: number;
 	weight2: number;
+	extensionId: string | null;
 }
 
 export interface IKeybindings {
@@ -51,6 +52,7 @@ export interface IKeybindingRule2 {
 	args?: any;
 	weight: number;
 	when: ContextKeyExpression | undefined;
+	extensionId?: string;
 }
 
 export const enum KeybindingWeight {
@@ -161,7 +163,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 					commandArgs: rule.args,
 					when: rule.when,
 					weight1: rule.weight,
-					weight2: 0
+					weight2: 0,
+					extensionId: rule.extensionId || null
 				};
 			}
 		}
@@ -219,7 +222,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			commandArgs: commandArgs,
 			when: when,
 			weight1: weight1,
-			weight2: weight2
+			weight2: weight2,
+			extensionId: null
 		});
 		this._cachedMergedKeybindings = null;
 	}

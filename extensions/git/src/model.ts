@@ -6,7 +6,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -260,7 +260,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 			// This can happen whenever `path` has the wrong case sensitivity in
 			// case insensitive file systems
-			// https://github.com/Microsoft/vscode/issues/33498
+			// https://github.com/microsoft/vscode/issues/33498
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 
 			if (this.getRepository(repositoryRoot)) {
@@ -372,7 +372,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
 		const active = window.activeTextEditor;
 		const repository = active && this.getRepository(active.document.fileName);
-		const index = firstIndex(picks, pick => pick.repository === repository);
+		const index = picks.findIndex(pick => pick.repository === repository);
 
 		// Move repository pick containing the active text editor to appear first
 		if (index > -1) {

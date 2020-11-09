@@ -19,9 +19,9 @@ import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platf
 import * as platform from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -92,7 +92,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			addressProvider: {
 				getAddress: async () => {
 					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,
@@ -205,8 +205,15 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		const [telemetryInfo, remoteInitData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 
 		// Collect all identifiers for extension ids which can be considered "resolved"
+		const remoteExtensions = new Set<string>();
+		remoteInitData.extensions.forEach((extension) => remoteExtensions.add(ExtensionIdentifier.toKey(extension.identifier.value)));
+
 		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
-		const hostExtensions = remoteInitData.allExtensions.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier);
+		const hostExtensions = (
+			remoteInitData.allExtensions
+				.filter(extension => !remoteExtensions.has(ExtensionIdentifier.toKey(extension.identifier.value)))
+				.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier)
+		);
 		const workspace = this._contextService.getWorkspace();
 		return {
 			commit: this._productService.commit,

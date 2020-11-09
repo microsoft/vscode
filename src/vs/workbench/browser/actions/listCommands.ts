@@ -560,7 +560,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
-			list.setSelection(range(list.length));
+			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			list.setSelection(range(list.length), fakeKeyboardEvent);
 		}
 
 		// Trees

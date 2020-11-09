@@ -1,5 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/master/classifier-deep/apply/apply-labels/deep-classifier-config.schema.json",
+	"vacation": [],
 	"assignees": {
 		"JacksonKearl": {"accuracy": 0.5}
 	},
@@ -80,9 +81,9 @@
 		"icon-brand": {"assign": []},
 		"icons-product": {"assign": ["misolori"]},
 		"install-update": {"assign": []},
-		"integrated-terminal": {"assign": ["Tyriar"]},
-		"integrated-terminal-conpty": {"assign": ["Tyriar"]},
-		"integrated-terminal-links": {"assign": ["Tyriar"]},
+		"integrated-terminal": {"assign": ["meganrogge"]},
+		"integrated-terminal-conpty": {"assign": ["meganrogge"]},
+		"integrated-terminal-links": {"assign": ["meganrogge"]},
 		"integration-test": {"assign": []},
 		"intellisense-config": {"assign": []},
 		"ipc": {"assign": ["joaomoreno"]},
@@ -133,7 +134,7 @@
 		"snippets": {"assign": ["jrieken"]},
 		"splitview": {"assign": ["joaomoreno"]},
 		"suggest": {"assign": ["jrieken"]},
-		"tasks": {"assign": ["alexr00"]},
+		"tasks": {"assign": ["alexr00"], "accuracy": 0.85},
 		"telemetry": {"assign": []},
 		"themes": {"assign": ["aeschli"]},
 		"timeline": {"assign": ["eamodio"]},
@@ -158,7 +159,7 @@
 		"workbench-electron": {"assign": ["deepak1556"]},
 		"workbench-feedback": {"assign": ["bpasero"]},
 		"workbench-history": {"assign": ["bpasero"]},
-		"workbench-hot-exit": {"assign": ["Tyriar"]},
+		"workbench-hot-exit": {"assign": []},
 		"workbench-launch": {"assign": []},
 		"workbench-link": {"assign": []},
 		"workbench-multiroot": {"assign": ["bpasero"]},

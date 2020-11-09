@@ -17,6 +17,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { isDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -25,6 +26,7 @@ export const Context = {
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
 	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
+	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined),
 	CanResolve: new RawContextKey('suggestionCanResolve', false),
 };
 
@@ -164,11 +166,23 @@ export function setSnippetSuggestSupport(support: modes.CompletionItemProvider):
 	return old;
 }
 
-class CompletionItemModel {
+export interface CompletionDurationEntry {
+	readonly providerName: string;
+	readonly elapsedProvider: number;
+	readonly elapsedOverall: number;
+}
+
+export interface CompletionDurations {
+	readonly entries: readonly CompletionDurationEntry[];
+	readonly elapsed: number;
+}
+
+export class CompletionItemModel {
 	constructor(
 		readonly items: CompletionItem[],
 		readonly needsClipboard: boolean,
-		readonly dispoables: IDisposable,
+		readonly durations: CompletionDurations,
+		readonly disposable: IDisposable,
 	) { }
 }
 
@@ -180,7 +194,7 @@ export async function provideSuggestionItems(
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItemModel> {
 
-	// const t1 = Date.now();
+	const sw = new StopWatch(true);
 	position = position.clone();
 
 	const word = model.getWordAtPosition(position);
@@ -189,9 +203,10 @@ export async function provideSuggestionItems(
 
 	const result: CompletionItem[] = [];
 	const disposables = new DisposableStore();
+	const durations: CompletionDurationEntry[] = [];
 	let needsClipboard = false;
 
-	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined) => {
+	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch) => {
 		if (!container) {
 			return;
 		}
@@ -214,6 +229,9 @@ export async function provideSuggestionItems(
 		if (isDisposable(container)) {
 			disposables.add(container);
 		}
+		durations.push({
+			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
+		});
 	};
 
 	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
@@ -225,8 +243,9 @@ export async function provideSuggestionItems(
 		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
 			return;
 		}
+		const sw = new StopWatch(true);
 		const list = await _snippetSuggestSupport.provideCompletionItems(model, position, context, token);
-		onCompletionList(_snippetSuggestSupport, list);
+		onCompletionList(_snippetSuggestSupport, list, sw);
 	})();
 
 	// add suggestions from contributed providers - providers are ordered in groups of
@@ -242,8 +261,9 @@ export async function provideSuggestionItems(
 				return;
 			}
 			try {
+				const sw = new StopWatch(true);
 				const list = await provider.provideCompletionItems(model, position, context, token);
-				onCompletionList(provider, list);
+				onCompletionList(provider, list, sw);
 			} catch (err) {
 				onUnexpectedExternalError(err);
 			}
@@ -260,11 +280,12 @@ export async function provideSuggestionItems(
 		disposables.dispose();
 		return Promise.reject<any>(canceled());
 	}
-	// console.log(`${result.length} items AFTER ${Date.now() - t1}ms`);
+
 	return new CompletionItemModel(
 		result.sort(getSuggestionComparator(options.snippetSortOrder)),
 		needsClipboard,
-		disposables
+		{ entries: durations, elapsed: sw.elapsed() },
+		disposables,
 	);
 }
 
@@ -343,7 +364,7 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', async (model, p
 		await Promise.all(resolving);
 		return result;
 	} finally {
-		setTimeout(() => completions.dispoables.dispose(), 100);
+		setTimeout(() => completions.disposable.dispose(), 100);
 	}
 });
 

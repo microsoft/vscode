@@ -14,7 +14,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos=repo:microsoft/vscode repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks \n$milestone=milestone:\"July 2020\"",
+    "value": "$repos=repo:microsoft/vscode repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks \n$milestone=milestone:\"October 2020\"",
     "editable": true
   },
   {
@@ -38,7 +38,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos $milestone is:closed  -assignee:@me label:bug -label:verified -label:*duplicate -author:@me -assignee:@me label:bug -label:verified -author:@me -author:aeschli -author:alexdima -author:alexr00 -author:bpasero -author:chrisdias -author:chrmarti -author:connor4312 -author:dbaeumer -author:deepak1556 -author:eamodio -author:egamma -author:gregvanl  -author:isidorn -author:JacksonKearl -author:joaomoreno -author:jrieken -author:lramos15 -author:lszomoru -author:misolori -author:mjbvz -author:rebornix -author:RMacfarlane -author:roblourens -author:sana-ajani -author:sandy081 -author:sbatten -author:Tyriar -author:weinand",
+    "value": "$repos $milestone is:closed  -assignee:@me label:bug -label:verified -label:*duplicate -author:@me -assignee:@me label:bug -label:verified -author:@me -author:aeschli -author:alexdima -author:alexr00 -author:bpasero -author:chrisdias -author:chrmarti -author:connor4312 -author:dbaeumer -author:deepak1556 -author:eamodio -author:egamma -author:gregvanl  -author:isidorn -author:JacksonKearl -author:joaomoreno -author:jrieken -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:rebornix -author:RMacfarlane -author:roblourens -author:sana-ajani -author:sandy081 -author:sbatten -author:Tyriar -author:weinand",
     "editable": false
   },
   {

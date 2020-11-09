@@ -6,7 +6,7 @@
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotebookTextModel, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_FOCUSED, INotebookEditor, NOTEBOOK_CELL_EDITOR_FOCUSED, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -17,6 +17,8 @@ export class CellContextKeyManager extends Disposable {
 	private viewType!: IContextKey<string>;
 	private cellEditable!: IContextKey<boolean>;
 	private cellRunnable!: IContextKey<boolean>;
+	private cellFocused!: IContextKey<boolean>;
+	private cellEditorFocused!: IContextKey<boolean>;
 	private cellRunState!: IContextKey<string>;
 	private cellHasOutputs!: IContextKey<boolean>;
 	private cellContentCollapsed!: IContextKey<boolean>;
@@ -28,6 +30,7 @@ export class CellContextKeyManager extends Disposable {
 
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
+		private readonly notebookEditor: INotebookEditor,
 		private readonly notebookTextModel: INotebookTextModel,
 		private element: BaseCellViewModel
 	) {
@@ -37,6 +40,8 @@ export class CellContextKeyManager extends Disposable {
 			this.cellType = NOTEBOOK_CELL_TYPE.bindTo(this.contextKeyService);
 			this.viewType = NOTEBOOK_VIEW_TYPE.bindTo(this.contextKeyService);
 			this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this.contextKeyService);
+			this.cellFocused = NOTEBOOK_CELL_FOCUSED.bindTo(this.contextKeyService);
+			this.cellEditorFocused = NOTEBOOK_CELL_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 			this.cellRunnable = NOTEBOOK_CELL_RUNNABLE.bindTo(this.contextKeyService);
 			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
 			this.cellRunState = NOTEBOOK_CELL_RUN_STATE.bindTo(this.contextKeyService);
@@ -57,6 +62,7 @@ export class CellContextKeyManager extends Disposable {
 		}
 
 		this.elementDisposables.add(element.model.onDidChangeMetadata(() => this.updateForCollapseState()));
+		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
 
 		this.element = element;
 		if (this.element instanceof MarkdownCellViewModel) {
@@ -66,6 +72,7 @@ export class CellContextKeyManager extends Disposable {
 		}
 
 		this.contextKeyService.bufferChangeEvents(() => {
+			this.updateForFocusState();
 			this.updateForMetadata();
 			this.updateForEditState();
 			this.updateForCollapseState();
@@ -85,10 +92,26 @@ export class CellContextKeyManager extends Disposable {
 				this.updateForEditState();
 			}
 
+			if (e.focusModeChanged) {
+				this.updateForFocusState();
+			}
+
 			// if (e.collapseStateChanged) {
 			// 	this.updateForCollapseState();
 			// }
 		});
+	}
+
+	private updateForFocusState() {
+		const activeCell = this.notebookEditor.getActiveCell();
+		this.cellFocused.set(this.notebookEditor.getActiveCell() === this.element);
+
+		if (activeCell === this.element) {
+			this.cellEditorFocused.set(this.element.focusMode === CellFocusMode.Editor);
+		} else {
+			this.cellEditorFocused.set(false);
+		}
+
 	}
 
 	private updateForMetadata() {
