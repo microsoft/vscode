@@ -115,6 +115,10 @@
 	text-overflow: ellipsis;
 }
 
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-text-button {
+	display: inline-block;	/* to enable ellipsis in text overflow */
+}
+
 /** Notification: Progress */
 
 .monaco-workbench .notifications-list-container .progress-bit {

@@ -8,6 +8,7 @@ export const constructorForDerivedNeedSuperCall = 'constructorForDerivedNeedSupe
 export const extendsInterfaceBecomesImplements = 'extendsInterfaceBecomesImplements';
 export const awaitInSyncFunction = 'fixAwaitInSyncFunction';
 export const classIncorrectlyImplementsInterface = 'fixClassIncorrectlyImplementsInterface';
+export const classDoesntImplementInheritedAbstractMember = 'fixClassDoesntImplementInheritedAbstractMember';
 export const unreachableCode = 'fixUnreachableCode';
 export const unusedIdentifier = 'unusedIdentifier';
 export const forgottenThisPropertyAccess = 'forgottenThisPropertyAccess';

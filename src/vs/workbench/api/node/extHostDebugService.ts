@@ -7,14 +7,13 @@ import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
 import * as env from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -39,16 +38,17 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostCommands commandService: IExtHostCommands
+		@IExtHostTerminalService private _terminalService: IExtHostTerminalService
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, commandService);
+		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
 	}
 
 	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
 		switch (adapter.type) {
 			case 'server':
 				return new SocketDebugAdapter(adapter);
+			case 'pipeServer':
+				return new NamedPipeDebugAdapter(adapter);
 			case 'executable':
 				return new ExecutableDebugAdapter(adapter, session.type);
 		}
@@ -88,6 +88,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			const configProvider = await this._configurationService.getConfigProvider();
 			const shell = this._terminalService.getDefaultShell(true, configProvider);
+			let cwdForPrepareCommand: string | undefined;
 
 			if (needNewTerminal || !this._integratedTerminalInstance) {
 
@@ -97,8 +98,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
 				};
-				delete (args as any).cwd; // TODO: remove this any cast
-				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
+				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options, true);
+			} else {
+				cwdForPrepareCommand = args.cwd;
 			}
 
 			const terminal = this._integratedTerminalInstance;
@@ -106,7 +108,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			terminal.show();
 
 			const shellProcessId = await this._integratedTerminalInstance.processId;
-			const command = prepareCommand(args, shell);
+			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
 			terminal.sendText(command, true);
 
 			return shellProcessId;
@@ -121,5 +123,4 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
 		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment);
 	}
-
 }

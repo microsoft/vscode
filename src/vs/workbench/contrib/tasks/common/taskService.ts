@@ -13,8 +13,13 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent, TaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export { ITaskSummary, Task, TaskTerminateResponse };
+
+export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true);
+export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false);
+export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false);
 
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
@@ -72,6 +77,7 @@ export interface ITaskService {
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
 	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
+	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
@@ -90,7 +96,7 @@ export interface ITaskService {
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
-	setJsonTasksSupported(areSuppored: Promise<boolean>): void;
+	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void;
 
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

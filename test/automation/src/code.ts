@@ -136,11 +136,11 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		options.workspacePath,
 		'--skip-release-notes',
 		'--disable-telemetry',
+		'--no-cached-data',
 		'--disable-updates',
 		'--disable-crash-reporter',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
-		`--disable-restore-windows`,
 		'--driver', handle
 	];
 

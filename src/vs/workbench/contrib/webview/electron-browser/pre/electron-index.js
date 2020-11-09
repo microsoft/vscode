@@ -24,6 +24,7 @@
 	 * @type {import('../../browser/pre/main').WebviewHost}
 	 */
 	const host = {
+		onElectron: true,
 		postMessage: (channel, data) => {
 			ipcRenderer.sendToHost(channel, data);
 		},
@@ -63,7 +64,7 @@
 			newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
 		},
 		rewriteCSP: (csp) => {
-			return csp;
+			return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
 		},
 	};
 

@@ -24,14 +24,14 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUndoRedoService, IUndoRedoElement, IPastFutureElements } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
-import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
+import { EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
 export interface IEditorSemanticHighlightingOptions {
-	enabled?: boolean;
+	enabled: true | false | 'configuredByTheme';
 }
 
 function MODEL_ID(resource: URI): string {
@@ -51,7 +51,7 @@ function computeModelSha1(model: ITextModel): string {
 
 
 class ModelData implements IDisposable {
-	public readonly model: ITextModel;
+	public readonly model: TextModel;
 
 	private _languageSelection: ILanguageSelection | null;
 	private _languageSelectionListener: IDisposable | null;
@@ -59,7 +59,7 @@ class ModelData implements IDisposable {
 	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
-		model: ITextModel,
+		model: TextModel,
 		onWillDispose: (model: ITextModel) => void,
 		onDidChangeLanguage: (model: ITextModel, e: IModelLanguageChangedEvent) => void
 	) {
@@ -118,26 +118,10 @@ export interface EditStackPastFutureElements {
 	future: EditStackElement[];
 }
 
-export function isEditStackPastFutureElements(undoElements: IPastFutureElements): undoElements is EditStackPastFutureElements {
-	return (isEditStackElements(undoElements.past) && isEditStackElements(undoElements.future));
-}
-
-function isEditStackElements(elements: IUndoRedoElement[]): elements is EditStackElement[] {
-	for (const element of elements) {
-		if (element instanceof SingleModelEditStackElement) {
-			continue;
-		}
-		if (element instanceof MultiModelEditStackElement) {
-			continue;
-		}
-		return false;
-	}
-	return true;
-}
-
 class DisposedModelInfo {
 	constructor(
 		public readonly uri: URI,
+		public readonly initialUndoRedoSnapshot: ResourceEditStackSnapshot | null,
 		public readonly time: number,
 		public readonly sharesUndoRedoStack: boolean,
 		public readonly heapSize: number,
@@ -145,6 +129,15 @@ class DisposedModelInfo {
 		public readonly versionId: number,
 		public readonly alternativeVersionId: number,
 	) { }
+}
+
+function schemaShouldMaintainUndoRedoElements(resource: URI) {
+	return (
+		resource.scheme === Schemas.file
+		|| resource.scheme === Schemas.vscodeRemote
+		|| resource.scheme === Schemas.userData
+		|| resource.scheme === 'fake-fs' // for tests
+	);
 }
 
 export class ModelServiceImpl extends Disposable implements IModelService {
@@ -362,7 +355,9 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			while (disposedModels.length > 0 && this._disposedModelsHeapSize > maxModelsHeapSize) {
 				const disposedModel = disposedModels.shift()!;
 				this._removeDisposedModel(disposedModel.uri);
-				this._undoRedoService.removeElements(disposedModel.uri);
+				if (disposedModel.initialUndoRedoSnapshot !== null) {
+					this._undoRedoService.restoreSnapshot(disposedModel.initialUndoRedoSnapshot);
+				}
 			}
 		}
 	}
@@ -390,9 +385,12 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 				if (sha1IsEqual) {
 					model._overwriteVersionId(disposedModelData.versionId);
 					model._overwriteAlternativeVersionId(disposedModelData.alternativeVersionId);
+					model._overwriteInitialUndoRedoSnapshot(disposedModelData.initialUndoRedoSnapshot);
 				}
 			} else {
-				this._undoRedoService.removeElements(resource);
+				if (disposedModelData.initialUndoRedoSnapshot !== null) {
+					this._undoRedoService.restoreSnapshot(disposedModelData.initialUndoRedoSnapshot);
+				}
 			}
 		}
 		const modelId = MODEL_ID(model.uri);
@@ -519,7 +517,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData))) {
+		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && schemaShouldMaintainUndoRedoElements(resource))) {
 			const elements = this._undoRedoService.getElements(resource);
 			if (elements.past.length > 0 || elements.future.length > 0) {
 				for (const element of elements.past) {
@@ -541,7 +539,10 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 		if (!maintainUndoRedoStack) {
 			if (!sharesUndoRedoStack) {
-				this._undoRedoService.removeElements(resource);
+				const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
+				if (initialUndoRedoSnapshot !== null) {
+					this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
+				}
 			}
 			modelData.model.dispose();
 			return;
@@ -550,7 +551,10 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const maxMemory = ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
 		if (!sharesUndoRedoStack && heapSize > maxMemory) {
 			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
-			this._undoRedoService.removeElements(resource);
+			const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
+			if (initialUndoRedoSnapshot !== null) {
+				this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
+			}
 			modelData.model.dispose();
 			return;
 		}
@@ -559,7 +563,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 		// We only invalidate the elements, but they remain in the undo-redo service.
 		this._undoRedoService.setElementsValidFlag(resource, false, (element) => (isEditStackElement(element) && element.matchesResource(resource)));
-		this._insertDisposedModel(new DisposedModelInfo(resource, Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
+		this._insertDisposedModel(new DisposedModelInfo(resource, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
 
 		modelData.model.dispose();
 	}
@@ -621,11 +625,11 @@ export interface ILineSequence {
 export const SEMANTIC_HIGHLIGHTING_SETTING_ID = 'editor.semanticHighlighting';
 
 export function isSemanticColoringEnabled(model: ITextModel, themeService: IThemeService, configurationService: IConfigurationService): boolean {
-	if (!themeService.getColorTheme().semanticHighlighting) {
-		return false;
+	const setting = configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri })?.enabled;
+	if (typeof setting === 'boolean') {
+		return setting;
 	}
-	const options = configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
-	return Boolean(options && options.enabled);
+	return themeService.getColorTheme().semanticHighlighting;
 }
 
 class SemanticColoringFeature extends Disposable {

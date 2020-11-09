@@ -21,7 +21,7 @@
 				},
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
-					"description": "Machine specific settings that should be copied into the container."
+					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -31,7 +31,7 @@
 							"null"
 						]
 					},
-					"description": "Remote environment variables."
+					"description": "Remote environment variables. If these are used in the Integrated Terminal, make sure the 'Terminal > Integrated: Inherit Env' setting is enabled."
 				},
 				"remoteUser": {
 					"type": "string",
@@ -42,9 +42,19 @@
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)$",
-						"errorMessage": "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'."
+						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
+				},
+				"userEnvProbe": {
+					"type": "string",
+					"enum": [
+						"none",
+						"loginShell",
+						"loginInteractiveShell",
+						"interactiveShell"
+					],
+					"description": "User environment probe to run. The default is none."
 				},
 				"postAttachCommand": {
 					"type": [

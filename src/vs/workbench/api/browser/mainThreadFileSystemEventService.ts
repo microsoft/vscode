@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,7 +20,6 @@ export class MainThreadFileSystemEventService {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 
@@ -57,14 +55,13 @@ export class MainThreadFileSystemEventService {
 
 		// BEFORE file operation
 		workingCopyFileService.addFileOperationParticipant({
-			participate: (target, source, operation, progress, timeout, token) => {
-				return proxy.$onWillRunFileOperation(operation, target, source, timeout, token);
+			participate: (files, operation, progress, timeout, token) => {
+				return proxy.$onWillRunFileOperation(operation, files, timeout, token);
 			}
 		});
 
 		// AFTER file operation
-		this._listener.add(textFileService.onDidCreateTextFile(e => proxy.$onDidRunFileOperation(FileOperation.CREATE, e.resource, undefined)));
-		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
+		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
 	dispose(): void {

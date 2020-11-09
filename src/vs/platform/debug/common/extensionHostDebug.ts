@@ -34,6 +34,10 @@ export interface ICloseSessionEvent {
 	sessionId: string;
 }
 
+export interface IOpenExtensionWindowResult {
+	rendererDebugPort?: number;
+}
+
 export interface IExtensionHostDebugService {
 	readonly _serviceBrand: undefined;
 
@@ -52,5 +56,5 @@ export interface IExtensionHostDebugService {
 	terminateSession(sessionId: string, subId?: string): void;
 	readonly onTerminateSession: Event<ITerminateSessionEvent>;
 
-	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void>;
+	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
 }

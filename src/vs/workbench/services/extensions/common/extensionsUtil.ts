@@ -20,6 +20,11 @@ export function prefersExecuteOnWorkspace(manifest: IExtensionManifest, productS
 	return (extensionKind.length > 0 && extensionKind[0] === 'workspace');
 }
 
+export function prefersExecuteOnWeb(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
+	const extensionKind = getExtensionKind(manifest, productService, configurationService);
+	return (extensionKind.length > 0 && extensionKind[0] === 'web');
+}
+
 export function canExecuteOnUI(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
 	const extensionKind = getExtensionKind(manifest, productService, configurationService);
 	return extensionKind.some(kind => kind === 'ui');
@@ -54,18 +59,29 @@ export function getExtensionKind(manifest: IExtensionManifest, productService: I
 		return toArray(result);
 	}
 
+	return deduceExtensionKind(manifest);
+}
+
+export function deduceExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
 	// Not an UI extension if it has main
 	if (manifest.main) {
+		if (manifest.browser) {
+			return ['workspace', 'web'];
+		}
 		return ['workspace'];
 	}
 
-	// Not an UI extension if it has dependencies or an extension pack
+	if (manifest.browser) {
+		return ['web'];
+	}
+
+	// Not an UI nor web extension if it has dependencies or an extension pack
 	if (isNonEmptyArray(manifest.extensionDependencies) || isNonEmptyArray(manifest.extensionPack)) {
 		return ['workspace'];
 	}
 
 	if (manifest.contributes) {
-		// Not an UI extension if it has no ui contributions
+		// Not an UI nor web extension if it has no ui contributions
 		for (const contribution of Object.keys(manifest.contributes)) {
 			if (!isUIExtensionPoint(contribution)) {
 				return ['workspace'];
@@ -73,7 +89,7 @@ export function getExtensionKind(manifest: IExtensionManifest, productService: I
 		}
 	}
 
-	return ['ui', 'workspace'];
+	return ['ui', 'workspace', 'web'];
 }
 
 let _uiExtensionPoints: Set<string> | null = null;

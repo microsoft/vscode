@@ -13,7 +13,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/base/test/common/mock';
-import { TestEditorService, TestEditorGroupsService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -27,6 +27,7 @@ import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogSer
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -67,6 +68,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		const fileService = new class extends mock<IFileService>() {
 			onDidRunOperation = Event.None;
+			onDidChangeFileSystemProviderCapabilities = Event.None;
+			onDidChangeFileSystemProviderRegistrations = Event.None;
 		};
 
 		new MainThreadDocumentsAndEditors(
@@ -92,6 +95,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 			TestEnvironmentService,
 			new TestWorkingCopyFileService(),
 			new UriIdentityService(fileService),
+			new class extends mock<IClipboardService>() {
+				readText() {
+					return Promise.resolve('clipboard_contents');
+				}
+			},
+			new TestPathService()
 		);
 	});
 

@@ -195,7 +195,7 @@ export function activate(context: vscode.ExtensionContext) {
 				proxyServer.listen(0, () => {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
-					res({ host: '127.0.0.1', port });
+					res(new vscode.ResolvedAuthority('127.0.0.1', port));
 				});
 				context.subscriptions.push({
 					dispose: () => {

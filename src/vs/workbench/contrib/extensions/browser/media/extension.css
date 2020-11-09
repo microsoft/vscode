@@ -67,7 +67,7 @@
 
 .extension-list-item > .details > .header-container > .header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
@@ -139,6 +139,15 @@
 	color: currentColor;
 }
 
+.extension-list-item > .details > .header-container > .header .sync-ignored {
+	display: flex;
+	margin-left: 6px;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
+	font-size: 100%;
+}
+
 .extension-list-item > .details > .description {
 	padding-right: 11px;
 }
@@ -154,7 +163,6 @@
 .extension-list-item > .details > .footer > .author {
 	flex: 1;
 	font-size: 90%;
-	opacity: 0.9;
 	font-weight: 600;
 }
 

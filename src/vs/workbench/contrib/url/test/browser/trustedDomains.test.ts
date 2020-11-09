@@ -10,10 +10,10 @@ import { URI } from 'vs/base/common/uri';
 import { extractGitHubRemotesFromGitConfig } from 'vs/workbench/contrib/url/browser/trustedDomains';
 
 function linkAllowedByRules(link: string, rules: string[]) {
-	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be protected by rules\n${JSON.stringify(rules)}`);
+	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
 }
 function linkNotAllowedByRules(link: string, rules: string[]) {
-	assert.ok(!isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should NOT be protected by rules\n${JSON.stringify(rules)}`);
+	assert.ok(!isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should NOT be allowed by rules\n${JSON.stringify(rules)}`);
 }
 
 suite('GitHub remote extraction', () => {
@@ -63,11 +63,6 @@ suite('Link protection domain matching', () => {
 	test('* star', () => {
 		linkAllowedByRules('https://a.x.org', ['https://*.x.org']);
 		linkAllowedByRules('https://a.b.x.org', ['https://*.x.org']);
-		linkAllowedByRules('https://a.x.org', ['https://a.x.*']);
-		linkAllowedByRules('https://a.x.org', ['https://a.*.org']);
-		linkAllowedByRules('https://a.x.org', ['https://*.*.org']);
-		linkAllowedByRules('https://a.b.x.org', ['https://*.b.*.org']);
-		linkAllowedByRules('https://a.a.b.x.org', ['https://*.b.*.org']);
 	});
 
 	test('no scheme', () => {
@@ -102,9 +97,28 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://github.com', ['https://github.com/foo/bar', 'https://github.com']);
 	});
 
+	test('ports', () => {
+		linkNotAllowedByRules('https://x.org:8080/foo/bar', ['https://x.org:8081/foo']);
+		linkAllowedByRules('https://x.org:8080/foo/bar', ['https://x.org:*/foo']);
+		linkAllowedByRules('https://x.org/foo/bar', ['https://x.org:*/foo']);
+		linkAllowedByRules('https://x.org:8080/foo/bar', ['https://x.org:8080/foo']);
+	});
+
+	test('ip addresses', () => {
+		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.7/']);
+		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.7']);
+		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.*']);
+
+		linkNotAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.*.6:*']);
+		linkAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.1.7:3000/']);
+		linkAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.1.7:*']);
+		linkAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.1.*:*']);
+		linkNotAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.*.6:*']);
+	});
+
 	test('case normalization', () => {
 		// https://github.com/microsoft/vscode/issues/99294
-		linkAllowedByRules('https://github.com/Microsoft/vscode/issues/new', ['https://github.com/microsoft']);
-		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/Microsoft']);
+		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
+		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
 	});
 });

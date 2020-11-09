@@ -28,7 +28,7 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Data Source', function () {
-		let result: SearchResult = instantiation.createInstance(SearchResult, null);
+		const result: SearchResult = instantiation.createInstance(SearchResult, null);
 		result.query = {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
@@ -58,20 +58,20 @@ suite('Search - Viewlet', () => {
 			}]
 		}]);
 
-		let fileMatch = result.matches()[0];
-		let lineMatch = fileMatch.matches()[0];
+		const fileMatch = result.matches()[0];
+		const lineMatch = fileMatch.matches()[0];
 
 		assert.equal(fileMatch.id(), 'file:///c%3A/foo');
 		assert.equal(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 	});
 
 	test('Comparer', () => {
-		let fileMatch1 = aFileMatch(isWindows ? 'C:\\foo' : '/c/foo');
-		let fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path' : '/c/with/path');
-		let fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\foo' : '/c/with/path/foo');
-		let lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
-		let lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
-		let lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const fileMatch1 = aFileMatch(isWindows ? 'C:\\foo' : '/c/foo');
+		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path' : '/c/with/path');
+		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\foo' : '/c/with/path/foo');
+		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
+		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
 
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
 		assert(searchMatchComparer(fileMatch2, fileMatch1) > 0);
@@ -84,10 +84,10 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Advanced Comparer', () => {
-		let fileMatch1 = aFileMatch(isWindows ? 'C:\\with\\path\\foo10' : '/c/with/path/foo10');
-		let fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path2\\foo1' : '/c/with/path2/foo1');
-		let fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.a' : '/c/with/path2/bar.a');
-		let fileMatch4 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.b' : '/c/with/path2/bar.b');
+		const fileMatch1 = aFileMatch(isWindows ? 'C:\\with\\path\\foo10' : '/c/with/path/foo10');
+		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path2\\foo1' : '/c/with/path2/foo1');
+		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.a' : '/c/with/path2/bar.a');
+		const fileMatch4 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.b' : '/c/with/path2/bar.b');
 
 		// By default, path < path2
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
@@ -98,7 +98,7 @@ suite('Search - Viewlet', () => {
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
-		let rawMatch: IFileMatch = {
+		const rawMatch: IFileMatch = {
 			resource: uri.file(path),
 			results: lineMatches
 		};

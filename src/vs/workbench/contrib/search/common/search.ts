@@ -9,7 +9,7 @@ import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workben
 import { SymbolKind, Location, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -96,7 +96,7 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 	const fileService = accessor.get(IFileService);
 
 	const resources = editorService.editors
-		.map(editor => toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }))
+		.map(editor => EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
 		.filter(resource => !!resource && !contextService.isInsideWorkspace(resource) && fileService.canHandleResource(resource));
 
 	return resources as URI[];

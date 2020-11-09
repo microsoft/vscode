@@ -11,7 +11,6 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 
@@ -65,13 +64,11 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 						return TriggerAction.CLOSE_PICKER;
 					},
 					accept: async () => {
-						if (StartAction.isEnabled(this.debugService)) {
-							this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
-							try {
-								await this.debugService.startDebugging(config.launch);
-							} catch (error) {
-								this.notificationService.error(error);
-							}
+						await configManager.selectConfiguration(config.launch, config.name);
+						try {
+							await this.debugService.startDebugging(config.launch);
+						} catch (error) {
+							this.notificationService.error(error);
 						}
 					}
 				});
@@ -89,6 +86,24 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			});
 		}
 
+		configManager.getRecentDynamicConfigurations().forEach(({ name, type }) => {
+			const highlights = matchesFuzzy(filter, name, true);
+			if (highlights) {
+				picks.push({
+					label: name,
+					highlights: { label: highlights },
+					accept: async () => {
+						await configManager.selectConfiguration(undefined, name, undefined, { type });
+						try {
+							await this.debugService.startDebugging(configManager.selectedConfiguration.launch, configManager.selectedConfiguration.config);
+						} catch (error) {
+							this.notificationService.error(error);
+						}
+					}
+				});
+			}
+		});
+
 		dynamicProviders.forEach(provider => {
 			picks.push({
 				label: `$(folder) ${provider.label}...`,
@@ -96,6 +111,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				accept: async () => {
 					const pick = await provider.pick();
 					if (pick) {
+						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: pick.config.type });
 						this.debugService.startDebugging(pick.launch, pick.config);
 					}
 				}

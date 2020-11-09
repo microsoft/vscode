@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext, IOpenUriOptions } from './extHost.protocol';
+import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IOpenUriOptions } from './extHost.protocol';
 import { WindowState } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -24,8 +26,8 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	private _state = ExtHostWindow.InitialState;
 	get state(): WindowState { return this._state; }
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadWindow);
+	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWindow);
 		this._proxy.$getWindowVisibility().then(isFocused => this.$onDidChangeWindowFocus(isFocused));
 	}
 
@@ -67,3 +69,6 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		return URI.from(result);
 	}
 }
+
+export const IExtHostWindow = createDecorator<IExtHostWindow>('IExtHostWindow');
+export interface IExtHostWindow extends ExtHostWindow, ExtHostWindowShape { }

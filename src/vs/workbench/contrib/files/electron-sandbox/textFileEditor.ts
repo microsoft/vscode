@@ -22,8 +22,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 /**
  * An implementation of editor for file system resources.
@@ -42,12 +42,12 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IExplorerService explorerService: IExplorerService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, configurationService);
+		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService);
 	}
 
 	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
@@ -59,7 +59,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 			throw createErrorWithActions(nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), {
 				actions: [
 					new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), undefined, true, () => {
-						return this.electronService.relaunch({
+						return this.nativeHostService.relaunch({
 							addArgs: [
 								`--max-memory=${memoryLimit}`
 							]

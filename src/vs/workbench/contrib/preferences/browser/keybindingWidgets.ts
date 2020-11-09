@@ -24,6 +24,7 @@ import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { timeout } from 'vs/base/common/async';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
@@ -219,7 +220,7 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): Promise<string | null> {
 		this._keybindingInputWidget.clear();
-		return new Promise<string | null>((c) => {
+		return new Promise<string | null>(async (c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
@@ -229,6 +230,11 @@ export class DefineKeybindingWidget extends Widget {
 				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
 				dom.clearNode(this._showExistingKeybindingsNode);
+
+				// Input is not getting focus without timeout in safari
+				// https://github.com/microsoft/vscode/issues/108817
+				await timeout(0);
+
 				this._keybindingInputWidget.focus();
 			}
 			const disposable = this._onHide.event(() => {

@@ -6,10 +6,10 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures } from './extHost.protocol';
 import { sortedDiff, equals } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import type * as vscode from 'vscode';
@@ -228,6 +228,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	private readonly _onDidUpdateResourceStates = new Emitter<void>();
 	readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
+
+	private _disposed = false;
+	get disposed(): boolean { return this._disposed; }
 	private readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -246,7 +249,13 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	get hideWhenEmpty(): boolean | undefined { return this._hideWhenEmpty; }
 	set hideWhenEmpty(hideWhenEmpty: boolean | undefined) {
 		this._hideWhenEmpty = hideWhenEmpty;
-		this._proxy.$updateGroup(this._sourceControlHandle, this.handle, { hideWhenEmpty });
+		this._proxy.$updateGroup(this._sourceControlHandle, this.handle, this.features);
+	}
+
+	get features(): SCMGroupFeatures {
+		return {
+			hideWhenEmpty: this.hideWhenEmpty
+		};
 	}
 
 	get resourceStates(): vscode.SourceControlResourceState[] { return [...this._resourceStates]; }
@@ -263,9 +272,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		private _sourceControlHandle: number,
 		private _id: string,
 		private _label: string,
-	) {
-		this._proxy.$registerGroup(_sourceControlHandle, this.handle, _id, _label);
-	}
+	) { }
 
 	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
 		return this._resourceStatesMap.get(handle);
@@ -311,8 +318,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const tooltip = (r.decorations && r.decorations.tooltip) || '';
 				const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 				const faded = r.decorations && !!r.decorations.faded;
+				const contextValue = r.contextValue || '';
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded] as SCMRawResource;
+				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
@@ -340,7 +348,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	dispose(): void {
-		this._proxy.$unregisterGroup(this._sourceControlHandle, this.handle);
+		this._disposed = true;
 		this._onDidDispose.fire();
 	}
 }
@@ -465,24 +473,50 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
 	}
 
+	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
 
 	createResourceGroup(id: string, label: string): ExtHostSourceControlResourceGroup {
 		const group = new ExtHostSourceControlResourceGroup(this._proxy, this._commands, this.handle, id, label);
-
-		const updateListener = group.onDidUpdateResourceStates(() => {
-			this.updatedResourceGroups.add(group);
-			this.eventuallyUpdateResourceStates();
-		});
-
-		Event.once(group.onDidDispose)(() => {
-			this.updatedResourceGroups.delete(group);
-			updateListener.dispose();
-			this._groups.delete(group.handle);
-		});
-
-		this._groups.set(group.handle, group);
+		const disposable = Event.once(group.onDidDispose)(() => this.createdResourceGroups.delete(group));
+		this.createdResourceGroups.set(group, disposable);
+		this.eventuallyAddResourceGroups();
 		return group;
+	}
+
+	@debounce(100)
+	eventuallyAddResourceGroups(): void {
+		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][] = [];
+		const splices: SCMRawResourceSplices[] = [];
+
+		for (const [group, disposable] of this.createdResourceGroups) {
+			disposable.dispose();
+
+			const updateListener = group.onDidUpdateResourceStates(() => {
+				this.updatedResourceGroups.add(group);
+				this.eventuallyUpdateResourceStates();
+			});
+
+			Event.once(group.onDidDispose)(() => {
+				this.updatedResourceGroups.delete(group);
+				updateListener.dispose();
+				this._groups.delete(group.handle);
+				this._proxy.$unregisterGroup(this.handle, group.handle);
+			});
+
+			groups.push([group.handle, group.id, group.label, group.features]);
+
+			const snapshot = group._takeResourceStateSnapshot();
+
+			if (snapshot.length > 0) {
+				splices.push([group.handle, snapshot]);
+			}
+
+			this._groups.set(group.handle, group);
+		}
+
+		this._proxy.$registerGroups(this.handle, groups, splices);
+		this.createdResourceGroups.clear();
 	}
 
 	@debounce(100)
@@ -536,7 +570,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
 
-	private _selectedSourceControlHandles = new Set<number>();
+	private _selectedSourceControlHandle: number | undefined;
 
 	constructor(
 		mainContext: IMainContext,
@@ -681,40 +715,18 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Promise<void> {
-		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
+	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void> {
+		this.logService.trace('ExtHostSCM#$setSelectedSourceControl', selectedSourceControlHandle);
 
-		const set = new Set<number>();
-
-		for (const handle of selectedSourceControlHandles) {
-			set.add(handle);
+		if (selectedSourceControlHandle !== undefined) {
+			this._sourceControls.get(selectedSourceControlHandle)?.setSelectionState(true);
 		}
 
-		set.forEach(handle => {
-			if (!this._selectedSourceControlHandles.has(handle)) {
-				const sourceControl = this._sourceControls.get(handle);
+		if (this._selectedSourceControlHandle !== undefined) {
+			this._sourceControls.get(this._selectedSourceControlHandle)?.setSelectionState(false);
+		}
 
-				if (!sourceControl) {
-					return;
-				}
-
-				sourceControl.setSelectionState(true);
-			}
-		});
-
-		this._selectedSourceControlHandles.forEach(handle => {
-			if (!set.has(handle)) {
-				const sourceControl = this._sourceControls.get(handle);
-
-				if (!sourceControl) {
-					return;
-				}
-
-				sourceControl.setSelectionState(false);
-			}
-		});
-
-		this._selectedSourceControlHandles = set;
+		this._selectedSourceControlHandle = selectedSourceControlHandle;
 		return Promise.resolve(undefined);
 	}
 }

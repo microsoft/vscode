@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { isFirefox } from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
@@ -20,7 +21,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -217,7 +217,7 @@ export namespace RevealLine_ {
 
 		const reveaLineArg: RawArguments = arg;
 
-		if (!types.isNumber(reveaLineArg.lineNumber)) {
+		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;
 		}
 
@@ -246,7 +246,7 @@ export namespace RevealLine_ {
 					'required': ['lineNumber'],
 					'properties': {
 						'lineNumber': {
-							'type': 'number',
+							'type': ['number', 'string'],
 						},
 						'at': {
 							'type': 'string',
@@ -262,7 +262,7 @@ export namespace RevealLine_ {
 	 * Arguments for reveal line command
 	 */
 	export interface RawArguments {
-		lineNumber?: number;
+		lineNumber?: number | string;
 		at?: string;
 	}
 
@@ -274,6 +274,54 @@ export namespace RevealLine_ {
 		Center: 'center',
 		Bottom: 'bottom'
 	};
+}
+
+abstract class EditorOrNativeTextInputCommand {
+
+	constructor(target: MultiCommand) {
+		// 1. handle case when focus is in editor.
+		target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+			// Only if editor text focus (i.e. not if editor has widget focus).
+			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+			if (focusedEditor && focusedEditor.hasTextFocus()) {
+				return this._runEditorCommand(accessor, focusedEditor, args);
+			}
+			return false;
+		});
+
+		// 2. handle case when focus is in some other `input` / `textarea`.
+		target.addImplementation(1000, (accessor: ServicesAccessor, args: any) => {
+			// Only if focused on an element that allows for entering text
+			const activeElement = <HTMLElement>document.activeElement;
+			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+				this.runDOMCommand();
+				return true;
+			}
+			return false;
+		});
+
+		// 3. (default) handle case when focus is somewhere else.
+		target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+			// Redirecting to active editor
+			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
+			if (activeEditor) {
+				activeEditor.focus();
+				return this._runEditorCommand(accessor, activeEditor, args);
+			}
+			return false;
+		});
+	}
+
+	public _runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): boolean | Promise<void> {
+		const result = this.runEditorCommand(accessor, editor, args);
+		if (result) {
+			return result;
+		}
+		return true;
+	}
+
+	public abstract runDOMCommand(): void;
+	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
 export namespace CoreNavigationCommands {
@@ -518,9 +566,9 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.ViewPortCenter:
 				case CursorMove_.Direction.ViewPortIfOutside:
 					return CursorMoveCommands.viewportMove(viewModel, cursors, args.direction, inSelectionMode, value);
+				default:
+					return null;
 			}
-
-			return null;
 		}
 	}
 
@@ -1557,7 +1605,8 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
 			const revealLineArg = <RevealLine_.RawArguments>args;
-			let lineNumber = (revealLineArg.lineNumber || 0) + 1;
+			const lineNumberArg = revealLineArg.lineNumber || 0;
+			let lineNumber = typeof lineNumberArg === 'number' ? (lineNumberArg + 1) : (parseInt(lineNumberArg) + 1);
 			if (lineNumber < 1) {
 				lineNumber = 1;
 			}
@@ -1594,25 +1643,37 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const SelectAll: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const SelectAll = new class extends EditorOrNativeTextInputCommand {
 		constructor() {
-			super({
-				id: 'selectAll',
-				precondition: undefined
-			});
+			super(SelectAllCommand);
 		}
+		public runDOMCommand(): void {
+			if (isFirefox) {
+				(<HTMLInputElement>document.activeElement).focus();
+				(<HTMLInputElement>document.activeElement).select();
+			}
 
+			document.execCommand('selectAll');
+		}
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+			const viewModel = editor._getViewModel();
+			if (!viewModel) {
+				// the editor has no view => has no cursors
+				return;
+			}
+			this.runCoreEditorCommand(viewModel, args);
+		}
 		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
-				args.source,
+				'keyboard',
 				CursorChangeReason.Explicit,
 				[
 					CursorMoveCommands.selectAll(viewModel, viewModel.getPrimaryCursorState())
 				]
 			);
 		}
-	});
+	}();
 
 	export const SetSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
@@ -1654,97 +1715,6 @@ registerColumnSelection(CoreNavigationCommands.CursorColumnSelectUp.id, KeyMod.S
 registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageUp.id, KeyMod.Shift | KeyCode.PageUp);
 registerColumnSelection(CoreNavigationCommands.CursorColumnSelectDown.id, KeyMod.Shift | KeyCode.DownArrow);
 registerColumnSelection(CoreNavigationCommands.CursorColumnSelectPageDown.id, KeyMod.Shift | KeyCode.PageDown);
-
-/**
- * A command that will:
- *  1. invoke a command on the focused editor.
- *  2. otherwise, invoke a browser built-in command on the `activeElement`.
- *  3. otherwise, invoke a command on the workbench active editor.
- */
-abstract class EditorOrNativeTextInputCommand extends Command {
-
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-
-		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			return this.runEditorCommand(accessor, focusedEditor, args);
-		}
-
-		// Ignore this action when user is focused on an element that allows for entering text
-		const activeElement = <HTMLElement>document.activeElement;
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-			return this.runDOMCommand();
-		}
-
-		// Redirecting to active editor
-		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
-		if (activeEditor) {
-			activeEditor.focus();
-			return this.runEditorCommand(accessor, activeEditor, args);
-		}
-	}
-
-	public abstract runDOMCommand(): void;
-	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void;
-}
-
-class SelectAllCommand extends EditorOrNativeTextInputCommand {
-	constructor() {
-		super({
-			id: 'editor.action.selectAll',
-			precondition: EditorContextKeys.textInputFocus,
-			kbOpts: {
-				weight: CORE_WEIGHT,
-				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_A
-			},
-			menuOpts: [{
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '1_basic',
-				title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
-				order: 1
-			}, {
-				menuId: MenuId.CommandPalette,
-				group: '',
-				title: nls.localize('selectAll', "Select All"),
-				order: 1
-			}]
-		});
-	}
-	public runDOMCommand(): void {
-		document.execCommand('selectAll');
-	}
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		args = args || {};
-		args.source = 'keyboard';
-		CoreNavigationCommands.SelectAll.runEditorCommand(accessor, editor, args);
-	}
-}
-
-class UndoCommand extends EditorOrNativeTextInputCommand {
-	public runDOMCommand(): void {
-		document.execCommand('undo');
-	}
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
-			return;
-		}
-		editor.getModel().undo();
-	}
-}
-
-class RedoCommand extends EditorOrNativeTextInputCommand {
-	public runDOMCommand(): void {
-		document.execCommand('redo');
-	}
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
-		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
-			return;
-		}
-		editor.getModel().redo();
-	}
-}
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
@@ -1881,53 +1851,35 @@ export namespace CoreEditingCommands {
 		}
 	});
 
-	export const Undo: UndoCommand = registerCommand(new UndoCommand({
-		id: 'undo',
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-		},
-		menuOpts: [{
-			menuId: MenuId.MenubarEditMenu,
-			group: '1_do',
-			title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
-			order: 1
-		}, {
-			menuId: MenuId.CommandPalette,
-			group: '',
-			title: nls.localize('undo', "Undo"),
-			order: 1
-		}]
-	}));
+	export const Undo = new class extends EditorOrNativeTextInputCommand {
+		constructor() {
+			super(UndoCommand);
+		}
+		public runDOMCommand(): void {
+			document.execCommand('undo');
+		}
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
+			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
+				return;
+			}
+			return editor.getModel().undo();
+		}
+	}();
 
-	export const DefaultUndo: UndoCommand = registerCommand(new UndoCommand({ id: 'default:undo', precondition: EditorContextKeys.writable }));
-
-	export const Redo: RedoCommand = registerCommand(new RedoCommand({
-		id: 'redo',
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
-		},
-		menuOpts: [{
-			menuId: MenuId.MenubarEditMenu,
-			group: '1_do',
-			title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
-			order: 2
-		}, {
-			menuId: MenuId.CommandPalette,
-			group: '',
-			title: nls.localize('redo', "Redo"),
-			order: 1
-		}]
-	}));
-
-	export const DefaultRedo: RedoCommand = registerCommand(new RedoCommand({ id: 'default:redo', precondition: EditorContextKeys.writable }));
+	export const Redo = new class extends EditorOrNativeTextInputCommand {
+		constructor() {
+			super(RedoCommand);
+		}
+		public runDOMCommand(): void {
+			document.execCommand('redo');
+		}
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
+			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
+				return;
+			}
+			return editor.getModel().redo();
+		}
+	}();
 }
 
 /**
@@ -1955,8 +1907,6 @@ class EditorHandlerCommand extends Command {
 		editor.trigger('keyboard', this._handlerId, args);
 	}
 }
-
-registerCommand(new SelectAllCommand());
 
 function registerOverwritableCommand(handlerId: string, description?: ICommandHandlerDescription): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));

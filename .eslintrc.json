@@ -7,7 +7,8 @@
     },
     "plugins": [
         "@typescript-eslint",
-        "jsdoc"
+        "jsdoc",
+        "mocha"
     ],
     "rules": {
         "constructor-super": "warn",
@@ -41,6 +42,7 @@
         "no-var": "warn",
         "jsdoc/no-types": "warn",
         "semi": "off",
+        "mocha/no-exclusive-tests": "warn",
         "@typescript-eslint/semi": "warn",
         "@typescript-eslint/naming-convention": [
             "warn",
@@ -519,7 +521,10 @@
                     "**/vs/workbench/services/**/common/**",
                     "**/vs/workbench/api/**/common/**",
                     "vscode-textmate",
-                    "vscode-oniguruma"
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "tas-client-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -548,7 +553,9 @@
                     "**/vs/workbench/api/{common,browser}/**",
                     "**/vs/workbench/services/**/{common,browser}/**",
                     "vscode-textmate",
-                    "vscode-oniguruma"
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -574,7 +581,11 @@
                     "**/vs/editor/**",
                     "**/vs/workbench/{common,browser,electron-sandbox}/**",
                     "**/vs/workbench/api/{common,browser,electron-sandbox}/**",
-                    "**/vs/workbench/services/**/{common,browser,electron-sandbox}/**"
+                    "**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
+                    "vscode-textmate",
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -626,7 +637,6 @@
             {
                 "target": "**/vs/workbench/contrib/extensions/browser/**",
                 "restrictions": [
-                    "semver-umd",
                     "vs/nls",
                     "vs/css!./**/*",
                     "**/vs/base/**/{common,browser}/**",
@@ -640,7 +650,6 @@
             {
                 "target": "**/vs/workbench/contrib/update/browser/update.ts",
                 "restrictions": [
-                    "semver-umd",
                     "vs/nls",
                     "vs/css!./**/*",
                     "**/vs/base/**/{common,browser}/**",
@@ -649,6 +658,20 @@
                     "**/vs/workbench/{common,browser}/**",
                     "**/vs/workbench/contrib/**/{common,browser}/**",
                     "**/vs/workbench/services/**/{common,browser}/**"
+                ]
+            },
+            {
+                "target": "**/vs/workbench/contrib/notebook/common/**",
+                "restrictions": [
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,worker}/**",
+                    "**/vs/platform/**/common/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/common/**",
+                    "**/vs/workbench/api/common/**",
+                    "**/vs/workbench/services/**/common/**",
+                    "**/vs/workbench/contrib/**/common/**"
                 ]
             },
             {
@@ -676,7 +699,11 @@
                     "**/vs/workbench/{common,browser}/**",
                     "**/vs/workbench/api/{common,browser}/**",
                     "**/vs/workbench/services/**/{common,browser}/**",
-                    "**/vs/workbench/contrib/**/{common,browser}/**"
+                    "**/vs/workbench/contrib/**/{common,browser}/**",
+                    "vscode-textmate",
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -705,7 +732,11 @@
                     "**/vs/workbench/{common,browser,electron-sandbox}/**",
                     "**/vs/workbench/api/{common,browser,electron-sandbox}/**",
                     "**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
-                    "**/vs/workbench/contrib/**/{common,browser,electron-sandbox}/**"
+                    "**/vs/workbench/contrib/**/{common,browser,electron-sandbox}/**",
+                    "vscode-textmate",
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -721,6 +752,18 @@
                     "**/vs/workbench/services/**/{common,browser,node,electron-sandbox,electron-browser}/**",
                     "**/vs/workbench/contrib/**/{common,browser,node,electron-sandbox,electron-browser}/**",
                     "*" // node modules
+                ]
+            },
+            {
+                "target": "**/vs/code/browser/**",
+                "restrictions": [
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/base/parts/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/code/**/{common,browser}/**",
+                    "**/vs/workbench/workbench.web.api"
                 ]
             },
             {
@@ -791,6 +834,18 @@
                     "**/vs/editor/**",
                     "**/vs/workbench/**/{common,browser}/**",
                     "**/vs/workbench/workbench.common.main"
+                ]
+            },
+            {
+                "target": "**/src/vs/workbench/workbench.web.api.ts",
+                "restrictions": [
+                    "vs/nls",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/base/parts/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/**/{common,browser}/**",
+                    "**/vs/workbench/workbench.web.main"
                 ]
             },
             {

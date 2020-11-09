@@ -8,9 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { localize } from 'vs/nls';
-import { isEqualOrParent, basename } from 'vs/base/common/resources';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const ILabelService = createDecorator<ILabelService>('labelService');
 
@@ -51,22 +49,5 @@ export interface ResourceLabelFormatting {
 	normalizeDriveLetter?: boolean;
 	workspaceSuffix?: string;
 	authorityPrefix?: string;
-}
-
-export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
-	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		return basename(workspace);
-	}
-
-	// Workspace: Untitled
-	if (isEqualOrParent(workspace.configPath, workspaceHome)) {
-		return localize('untitledWorkspace', "Untitled (Workspace)");
-	}
-
-	let filename = basename(workspace.configPath);
-	if (filename.endsWith(WORKSPACE_EXTENSION)) {
-		filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-	}
-
-	return localize('workspaceName', "{0} (Workspace)", filename);
+	stripPathStartingSeparator?: boolean;
 }

@@ -19,6 +19,11 @@ export interface IEditorModel {
 	load(): Promise<IEditorModel>;
 
 	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean;
+
+	/**
 	 * Dispose associated resources
 	 */
 	dispose(): void;
@@ -58,11 +63,6 @@ export interface IBaseResourceEditorInput {
 	 * looking at the scheme of the resource(s).
 	 */
 	readonly forceUntitled?: boolean;
-
-	/**
-	 * An optional id to override the editor used to edit the resource, e.g. custom editor.
-	 */
-	readonly overrideId?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
@@ -202,14 +202,12 @@ export interface IEditorOptions {
 	readonly ignoreError?: boolean;
 
 	/**
-	 * Does not use editor overrides while opening the editor
+	 * Allows to override the editor that should be used to display the input:
+	 * - `undefined`: let the editor decide for itself
+	 * - `false`: disable overrides
+	 * - `string`: specific override by id
 	 */
-	readonly ignoreOverrides?: boolean;
-
-	/**
-	 * An optional id to override the editor used to edit the resource, e.g. custom editor.
-	 */
-	readonly overrideId?: string;
+	readonly override?: false | string;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

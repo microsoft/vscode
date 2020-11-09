@@ -317,9 +317,10 @@ export class CursorMoveCommands {
 				// Move to the last non-whitespace column of the current view line
 				return this._moveToViewLastNonWhitespaceColumn(viewModel, cursors, inSelectionMode);
 			}
+			default:
+				return null;
 		}
 
-		return null;
 	}
 
 	public static viewportMove(viewModel: IViewModel, cursors: CursorState[], direction: CursorMove.ViewportDirection, inSelectionMode: boolean, value: number): PartialCursorState[] | null {
@@ -353,9 +354,9 @@ export class CursorMoveCommands {
 				}
 				return result;
 			}
+			default:
+				return null;
 		}
-
-		return null;
 	}
 
 	public static findPositionInViewportIfOutside(viewModel: IViewModel, cursor: CursorState, visibleViewRange: Range, inSelectionMode: boolean): PartialCursorState {

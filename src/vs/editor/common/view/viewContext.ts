@@ -6,15 +6,16 @@
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewLayout, IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { IColorTheme, ThemeType } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export class EditorTheme {
 
 	private _theme: IColorTheme;
 
-	public get type(): ThemeType {
+	public get type(): ColorScheme {
 		return this._theme.type;
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -34,12 +34,18 @@ export interface RunCommandPipeArgs {
 	args: any[];
 }
 
-export class CLIServer {
+export interface ICommandsExecuter {
+	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
+}
 
-	private _server: http.Server;
-	private _ipcHandlePath: string | undefined;
+export class CLIServerBase {
+	private readonly _server: http.Server;
 
-	constructor(@IExtHostCommands private _commands: IExtHostCommands, @ILogService private logService: ILogService) {
+	constructor(
+		private readonly _commands: ICommandsExecuter,
+		private readonly logService: ILogService,
+		private readonly _ipcHandlePath: string,
+	) {
 		this._server = http.createServer((req, res) => this.onRequest(req, res));
 		this.setup().catch(err => {
 			logService.error(err);
@@ -52,8 +58,6 @@ export class CLIServer {
 	}
 
 	private async setup(): Promise<string> {
-		this._ipcHandlePath = generateRandomPipeName();
-
 		try {
 			this._server.listen(this.ipcHandlePath);
 			this._server.on('error', err => this.logService.error(err));
@@ -174,5 +178,14 @@ export class CLIServer {
 		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
 			fs.unlinkSync(this._ipcHandlePath);
 		}
+	}
+}
+
+export class CLIServer extends CLIServerBase {
+	constructor(
+		@IExtHostCommands commands: IExtHostCommands,
+		@ILogService logService: ILogService
+	) {
+		super(commands, logService, createRandomIPCHandle());
 	}
 }

@@ -21,6 +21,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { TextSnapshotReadable, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -128,7 +129,7 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	private initialize(): BackupFileServiceImpl | InMemoryBackupFileService {
-		const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+		const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
 		if (backupWorkspaceResource) {
 			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService, this.logService);
 		}
@@ -140,7 +141,7 @@ export class BackupFileService implements IBackupFileService {
 
 		// Re-init implementation (unless we are running in-memory)
 		if (this.impl instanceof BackupFileServiceImpl) {
-			const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+			const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
 			if (backupWorkspaceResource) {
 				this.impl.initialize(backupWorkspaceResource);
 			} else {
@@ -157,8 +158,8 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.hasBackupSync(resource, versionId);
 	}
 
-	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		return this.impl.backup(resource, content, versionId, meta);
+	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T, token?: CancellationToken): Promise<void> {
+		return this.impl.backup(resource, content, versionId, meta, token);
 	}
 
 	discardBackup(resource: URI): Promise<void> {
@@ -232,8 +233,11 @@ class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 		return this.model.has(backupResource, versionId);
 	}
 
-	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T, token?: CancellationToken): Promise<void> {
 		const model = await this.ready;
+		if (token?.isCancellationRequested) {
+			return;
+		}
 
 		const backupResource = this.toBackupResource(resource);
 		if (model.has(backupResource, versionId, meta)) {
@@ -241,6 +245,10 @@ class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 		}
 
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+			if (token?.isCancellationRequested) {
+				return;
+			}
+
 			let preamble: string | undefined = undefined;
 
 			// With Metadata: URI + META-START + Meta + END
@@ -419,7 +427,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return this.backups.has(backupResource.toString());
 	}
 
-	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 		this.backups.set(backupResource.toString(), content || stringToSnapshot(''));
 	}
