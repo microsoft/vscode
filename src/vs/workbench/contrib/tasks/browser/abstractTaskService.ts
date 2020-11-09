@@ -19,8 +19,6 @@ import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LRUCache, Touch } from 'vs/base/common/map';
-
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -28,13 +26,13 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProgressService, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -213,7 +211,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
-	protected _areJsonTasksSupportedPromise: Promise<boolean> = Promise.resolve(false);
 
 	protected _taskSystem?: ITaskSystem;
 	protected _taskSystemListener?: IDisposable;
@@ -239,7 +236,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IModelService protected readonly modelService: IModelService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -249,7 +245,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IHostService private readonly _hostService: IHostService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IDialogService protected readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -309,7 +305,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.updateWorkspaceTasks(TaskRunSource.ConfigurationChange);
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);
-		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown())));
 		this._onDidStateChange = this._register(new Emitter());
 		this.registerCommands();
 		this.configurationResolverService.contributeVariable('defaultBuildTask', async (): Promise<string | undefined> => {
@@ -519,7 +514,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private disposeTaskSystemListeners(): void {
+	protected disposeTaskSystemListeners(): void {
 		if (this._taskSystemListener) {
 			this._taskSystemListener.dispose();
 		}
@@ -543,7 +538,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
-		this._taskSystemInfos.set(key, info);
+		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
+			this._taskSystemInfos.set(key, info);
+		}
+	}
+
+	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
+		if (this.environmentService.remoteAuthority) {
+			return this._taskSystemInfos.get(key);
+		}
+		return undefined;
 	}
 
 	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
@@ -793,6 +797,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return tasks;
 	}
 
+	public removeRecentlyUsedTask(taskRecentlyUsedKey: string) {
+		if (this.getRecentlyUsedTasks().has(taskRecentlyUsedKey)) {
+			this.getRecentlyUsedTasks().delete(taskRecentlyUsedKey);
+			this.saveRecentlyUsedTasks();
+		}
+	}
+
 	private setTaskLRUCacheLimit() {
 		const quickOpenHistoryLimit = this.configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
 		if (this._recentlyUsedTasks) {
@@ -837,7 +848,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
 		}
-		this.storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE);
+		this.storageService.store2(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private openDocumentation(): void {
@@ -973,7 +984,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			newValue = Object.create(null);
 		}
 		newValue[type] = true;
-		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue, ConfigurationTarget.USER);
+		return this.configurationService.updateValue(PROBLEM_MATCHER_NEVER_CONFIG, newValue);
 	}
 
 	private attachProblemMatcher(task: ContributedTask | CustomTask): Promise<Task | undefined> {
@@ -1585,10 +1596,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
-			this.pathService, this.viewDescriptorService, this.logService,
+			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
-					return this._taskSystemInfos.get(workspaceFolder.uri.scheme);
+					return this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 				} else if (this._taskSystemInfos.size > 0) {
 					return this._taskSystemInfos.values().next().value;
 				} else {
@@ -1883,8 +1894,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public setJsonTasksSupported(areSupported: Promise<boolean>) {
-		this._areJsonTasksSupportedPromise = areSupported;
+	private get jsonTasksSupported(): boolean {
+		return !!ShellExecutionSupportedContext.getValue(this.contextKeyService) && !!ProcessExecutionSupportedContext.getValue(this.contextKeyService);
 	}
 
 	private computeWorkspaceFolderTasks(workspaceFolder: IWorkspaceFolder, runSource: TaskRunSource = TaskRunSource.User): Promise<WorkspaceFolderTaskResult> {
@@ -1896,7 +1907,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return Promise.resolve({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
 				}
 				return ProblemMatcherRegistry.onReady().then(async (): Promise<WorkspaceFolderTaskResult> => {
-					let taskSystemInfo: TaskSystemInfo | undefined = this._taskSystemInfos.get(workspaceFolder.uri.scheme);
+					let taskSystemInfo: TaskSystemInfo | undefined = this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 					let problemReporter = new ProblemReporter(this._outputChannel);
 					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this.contextKeyService);
 					let hasErrors = false;
@@ -1917,10 +1928,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							customizedTasks.byIdentifier[task.configures._key] = task;
 						}
 					}
-					if (!(await this._areJsonTasksSupportedPromise) && (parseResult.custom.length > 0)) {
+					if (!this.jsonTasksSupported && (parseResult.custom.length > 0)) {
 						console.warn('Custom workspace tasks are not supported.');
 					}
-					return { workspaceFolder, set: { tasks: await this._areJsonTasksSupportedPromise ? parseResult.custom : [] }, configurations: customizedTasks, hasErrors };
+					return { workspaceFolder, set: { tasks: this.jsonTasksSupported ? parseResult.custom : [] }, configurations: customizedTasks, hasErrors };
 				});
 			});
 	}
@@ -1993,7 +2004,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!config) {
 			return false;
 		}
-		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this._taskSystemInfos.get(workspaceFolder.uri.scheme) : undefined;
+		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this.getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
 		let problemReporter = new ProblemReporter(this._outputChannel);
 		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this.contextKeyService, isRecentTask);
 		let hasErrors = false;
@@ -2010,7 +2021,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				customized[task.configures._key] = task;
 			}
 		}
-		if (!(await this._areJsonTasksSupportedPromise) && (parseResult.custom.length > 0)) {
+		if (!this.jsonTasksSupported && (parseResult.custom.length > 0)) {
 			console.warn('Custom workspace tasks are not supported.');
 		} else {
 			for (let task of parseResult.custom) {
@@ -2119,64 +2130,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, () => { thisCapture.runConfigureTasks(); return Promise.resolve(undefined); });
 			}
 		};
-	}
-
-	public beforeShutdown(): boolean | Promise<boolean> {
-		if (!this._taskSystem) {
-			return false;
-		}
-		if (!this._taskSystem.isActiveSync()) {
-			return false;
-		}
-		// The terminal service kills all terminal on shutdown. So there
-		// is nothing we can do to prevent this here.
-		if (this._taskSystem instanceof TerminalTaskSystem) {
-			return false;
-		}
-
-		let terminatePromise: Promise<IConfirmationResult>;
-		if (this._taskSystem.canAutoTerminate()) {
-			terminatePromise = Promise.resolve({ confirmed: true });
-		} else {
-			terminatePromise = this.dialogService.confirm({
-				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-				type: 'question'
-			});
-		}
-
-		return terminatePromise.then(res => {
-			if (res.confirmed) {
-				return this._taskSystem!.terminateAll().then((responses) => {
-					let success = true;
-					let code: number | undefined = undefined;
-					for (let response of responses) {
-						success = success && response.success;
-						// We only have a code in the old output runner which only has one task
-						// So we can use the first code.
-						if (code === undefined && response.code !== undefined) {
-							code = response.code;
-						}
-					}
-					if (success) {
-						this._taskSystem = undefined;
-						this.disposeTaskSystemListeners();
-						return false; // no veto
-					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-						return this.dialogService.confirm({
-							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
-							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
-							type: 'info'
-						}).then(res => !res.confirmed);
-					}
-					return true; // veto
-				}, (err) => {
-					return true; // veto
-				});
-			}
-
-			return true; // veto
-		});
 	}
 
 	private handleError(err: any): void {
@@ -2438,7 +2391,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				label: nls.localize('TaskService.notAgain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					this.storageService.store(AbstractTaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.storageService.store2(AbstractTaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE, StorageTarget.USER);
 					this._showIgnoreMessage = false;
 				}
 			}]
@@ -2533,7 +2486,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				this.showQuickPick(tasks ? tasks : taskResult!.tasks, placeholder,
 					{
-						label: nls.localize('TaskService.noEntryToRunSlow', 'No task to run found. Configure Tasks...'),
+						label: nls.localize('TaskService.noEntryToRunSlow', '$(plus) Configure a Task'),
 						task: null
 					},
 					true).
@@ -2543,7 +2496,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else {
 				this.showTwoLevelQuickPick(placeholder,
 					{
-						label: nls.localize('TaskService.noEntryToRun', 'No configured tasks. Configure Tasks...'),
+						label: nls.localize('TaskService.noEntryToRun', '$(plus) Configure a Task'),
 						task: null
 					}).
 					then(pickThen);

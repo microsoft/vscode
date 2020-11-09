@@ -66,6 +66,7 @@ export interface IExplorerView {
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
 	focusNeighbourIfItemFocused(item: ExplorerItem): void;
+	isItemVisible(item: ExplorerItem): boolean;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');

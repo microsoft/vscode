@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { VIEW_PANE_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -32,10 +32,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 	private focusedRepository: ISCMRepository | undefined = undefined;
 	private focusedProviderContextKey: IContextKey<string | undefined>;
 	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
-	private disposables: IDisposable[] = [];
+	private disposables = new DisposableStore();
+	private repositoryDisposables = new Set<IDisposable>();
 
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
@@ -53,6 +55,9 @@ export class SCMStatusController implements IWorkbenchContribution {
 		for (const repository of this.scmService.repositories) {
 			this.onDidAddRepository(repository);
 		}
+
+		this.scmViewService.onDidFocusRepository(this.focusRepository, this, this.disposables);
+		this.focusRepository(this.scmViewService.focusedRepository);
 
 		editorService.onDidActiveEditorChange(this.tryFocusRepositoryBasedOnActiveEditor, this, this.disposables);
 		this.renderActivityCount();
@@ -92,35 +97,18 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const selectedDisposable = Event.filter(repository.onDidChangeSelection, selected => selected)(() => this.focusRepository(repository));
-
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
 		const changeDisposable = onDidChange(() => this.renderActivityCount());
 
 		const onDidRemove = Event.filter(this.scmService.onDidRemoveRepository, e => e === repository);
 		const removeDisposable = onDidRemove(() => {
 			disposable.dispose();
-			this.disposables = this.disposables.filter(d => d !== removeDisposable);
-
-			if (this.scmService.repositories.length === 0) {
-				this.focusRepository(undefined);
-			}
-
+			this.repositoryDisposables.delete(disposable);
 			this.renderActivityCount();
 		});
 
-		const disposable = combinedDisposable(selectedDisposable, changeDisposable, removeDisposable);
-		this.disposables.push(disposable);
-
-		if (this.focusedRepository) {
-			return;
-		}
-
-		if (this.tryFocusRepositoryBasedOnActiveEditor()) {
-			return;
-		}
-
-		this.focusRepository(repository);
+		const disposable = combinedDisposable(changeDisposable, removeDisposable);
+		this.repositoryDisposables.add(disposable);
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
@@ -201,5 +189,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.statusBarDisposable.dispose();
 		this.badgeDisposable.dispose();
 		this.disposables = dispose(this.disposables);
+		dispose(this.repositoryDisposables.values());
+		this.repositoryDisposables.clear();
 	}
 }

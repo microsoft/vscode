@@ -8,8 +8,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -108,7 +108,7 @@ export class ExtensionsListView extends ViewPane {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionManagementService protected readonly extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensioManagementService protected readonly extensionManagementService: IWorkbenchExtensioManagementService,
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -816,7 +816,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	static isBuiltInExtensionsQuery(query: string): boolean {
-		return /@builtin$/i.test(query.trim());
+		return /^\s*@builtin$/i.test(query.trim());
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -887,7 +887,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IExperimentService experimentService: IExperimentService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensioManagementService extensionManagementService: IWorkbenchExtensioManagementService,
 		@IProductService productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
@@ -1063,7 +1063,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	private async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
-		await Promise.all(installableRecommendations.map(extension => this.extensionManagementService.installFromGallery(extension.gallery!)));
+		await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
 	}
 
 }

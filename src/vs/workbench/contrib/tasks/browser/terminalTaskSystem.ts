@@ -47,6 +47,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -204,6 +205,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private pathService: IPathService,
 		private viewDescriptorService: IViewDescriptorService,
 		private logService: ILogService,
+		private configurationService: IConfigurationService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
 
@@ -1019,9 +1021,17 @@ export class TerminalTaskSystem implements ITaskSystem {
 				if (!shellSpecified) {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
-						let index = shellArgs.indexOf('-l');
-						if (index !== -1) {
-							shellArgs.splice(index, 1);
+						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
+						const osxShellArgs = this.configurationService.inspect('terminal.integrated.shellArgs.osx');
+						if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
+							&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
+							&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
+							&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
+							&& (osxShellArgs.workspaceValue === undefined)) {
+							let index = shellArgs.indexOf('-l');
+							if (index !== -1) {
+								shellArgs.splice(index, 1);
+							}
 						}
 					}
 					toAdd.push('-c');
@@ -1085,6 +1095,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
 		}
+		shellLaunchConfig.isFeatureTerminal = true;
 		return shellLaunchConfig;
 	}
 
@@ -1118,7 +1129,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 				isExtensionTerminal: true,
 				waitOnExit,
 				name: this.createTerminalName(task),
-				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined
+				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined,
+				isFeatureTerminal: true
 			};
 		} else {
 			let resolvedResult: { command: CommandString, args: CommandString[] } = this.resolveCommandAndArgs(resolver, task.command);

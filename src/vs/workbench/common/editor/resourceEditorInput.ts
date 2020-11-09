@@ -55,6 +55,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	setName(name: string): void {
 		if (this.name !== name) {
 			this.name = name;
+
 			this._onDidChangeLabel.fire();
 		}
 	}

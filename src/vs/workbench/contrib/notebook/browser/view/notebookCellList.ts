@@ -21,7 +21,7 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 
@@ -115,6 +115,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
+		const notebookEditorCursorAtBeginEndContext = NOTEBOOK_EDITOR_CURSOR_BEGIN_END.bindTo(contextKeyService);
+		notebookEditorCursorAtBeginEndContext.set(false);
+
 		let cursorSelectionListener: IDisposable | null = null;
 		let textEditorAttachListener: IDisposable | null = null;
 
@@ -133,6 +136,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					notebookEditorCursorAtBoundaryContext.set('none');
 					break;
 			}
+
+			if (element.cursorAtBeginEnd()) {
+				notebookEditorCursorAtBeginEndContext.set(true);
+			} else {
+				notebookEditorCursorAtBeginEndContext.set(false);
+			}
+
 			return;
 		};
 
@@ -1040,6 +1050,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	layout(height?: number, width?: number): void {
 		this._isInLayout = true;
 		super.layout(height, width);
+		if (this.renderHeight === 0) {
+			this.view.domNode.style.visibility = 'hidden';
+		} else {
+			this.view.domNode.style.visibility = 'initial';
+		}
 		this._isInLayout = false;
 	}
 

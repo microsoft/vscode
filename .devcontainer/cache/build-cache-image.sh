@@ -15,7 +15,7 @@ if [ "${CONTAINER_IMAGE_REPOSITORY}" = "" ]; then
 	exit 1
 fi
 
-TAG="${BRANCH//\//-}"
+TAG="branch-${BRANCH//\//-}"
 echo "[$(date)] ${BRANCH} => ${TAG}"
 cd "${SCRIPT_PATH}/../.."
 

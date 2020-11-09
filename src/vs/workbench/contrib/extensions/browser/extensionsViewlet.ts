@@ -17,7 +17,7 @@ import { append, $, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, AutoUpdateConfigurationKey, CloseExtensionDetailsOnViewChangeKey } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, AutoUpdateConfigurationKey, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID } from '../common/extensions';
 import {
 	ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, SearchCategoryAction,
@@ -35,7 +35,7 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -60,6 +60,7 @@ import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -364,6 +365,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IExtensionService extensionService: IExtensionService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
@@ -379,7 +381,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchBuiltInExtensionsContextKey = SearchBuiltInExtensionsContext.bindTo(contextKeyService);
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this._register(this.viewletService.onDidViewletOpen(this.onViewletOpen, this));
-		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE);
+		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this.extensionManagementService.getInstalled().then(result => {
 			this.hasInstalledExtensionsContextKey.set(result.some(r => !r.isBuiltin));
@@ -475,7 +477,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 						try {
 							// Attempt to install the extension(s)
-							await this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run(vsixPaths);
+							await this.commandService.executeCommand(INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, vsixPaths);
 						}
 						catch (err) {
 							this.notificationService.error(err);
@@ -499,7 +501,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.root.classList.toggle('narrow', dimension.width <= 300);
 		}
 		if (this.searchBox) {
-			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
+			this.searchBox.layout(new Dimension(dimension.width - 34, 20));
 		}
 		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
@@ -550,12 +552,12 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		if (this.configurationService.getValue(AutoUpdateConfigurationKey)) {
 			actions.push(this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL));
 		} else {
-			actions.push(this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
+			actions.push(this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL, false), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
 		}
 
 		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL));
-		actions.push(this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL));
+		actions.push(this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL, false));
+		actions.push(this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL, false));
 
 		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL));

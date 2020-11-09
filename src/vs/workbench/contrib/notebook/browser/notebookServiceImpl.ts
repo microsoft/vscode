@@ -88,7 +88,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		super();
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		const mementoObject = this._memento.legacygetMemento(StorageScope.GLOBAL);
 		for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
 			this.add(new NotebookProviderInfo(info));
 		}
@@ -129,7 +129,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			}
 		}
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		const mementoObject = this._memento.legacygetMemento(StorageScope.GLOBAL);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
 
@@ -179,7 +179,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		}
 		this._contributedEditors.set(info.id, info);
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		const mementoObject = this._memento.legacygetMemento(StorageScope.GLOBAL);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
 	}
@@ -572,11 +572,15 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	async canResolve(viewType: string): Promise<boolean> {
 		if (!this._notebookProviders.has(viewType)) {
 			await this._extensionService.whenInstalledExtensionsRegistered();
-			// notebook providers/kernels/renderers might use `*` as activation event.
-			// TODO, only activate by `*` if this._notebookProviders.get(viewType).dynamicContribution === true
-			await this._extensionService.activateByEvent(`*`);
 			// this awaits full activation of all matching extensions
 			await this._extensionService.activateByEvent(`onNotebook:${viewType}`);
+			if (this._notebookProviders.has(viewType)) {
+				return true;
+			} else {
+				// notebook providers/kernels/renderers might use `*` as activation event.
+				// TODO, only activate by `*` if this._notebookProviders.get(viewType).dynamicContribution === true
+				await this._extensionService.activateByEvent(`*`);
+			}
 		}
 		return this._notebookProviders.has(viewType);
 	}

@@ -10,7 +10,6 @@ import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry
 
 export class TelemetryLogAppender extends Disposable implements ITelemetryAppender {
 
-	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
 	private readonly logger: ILogger;
 
 	constructor(
@@ -28,14 +27,7 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 	}
 
 	log(eventName: string, data: any): void {
-		let strippedData: { [key: string]: any } = {};
-		Object.keys(data).forEach(key => {
-			if (!this.commonPropertiesRegex.test(key)) {
-				strippedData[key] = data[key];
-			}
-		});
-		strippedData = validateTelemetryData(strippedData);
-		this.logger.trace(`telemetry/${eventName}`, strippedData);
+		this.logger.trace(`telemetry/${eventName}`, validateTelemetryData(data));
 	}
 }
 

@@ -56,6 +56,28 @@ export function escapeRegExpCharacters(value: string): string {
 }
 
 /**
+ * Counts how often `character` occurs inside `value`.
+ */
+export function count(value: string, character: string): number {
+	let result = 0;
+	const ch = character.charCodeAt(0);
+	for (let i = value.length - 1; i >= 0; i--) {
+		if (value.charCodeAt(i) === ch) {
+			result++;
+		}
+	}
+	return result;
+}
+
+export function truncate(value: string, maxLength: number, suffix = '…'): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	return `${value.substr(0, maxLength)}${suffix}`;
+}
+
+/**
  * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
@@ -192,6 +214,10 @@ export function regExpFlags(regexp: RegExp): string {
 		+ (regexp.ignoreCase ? 'i' : '')
 		+ (regexp.multiline ? 'm' : '')
 		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
+}
+
+export function splitLines(str: string): string[] {
+	return str.split(/\r\n|\r|\n/);
 }
 
 /**

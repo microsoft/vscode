@@ -25,7 +25,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { dirname, basename } from 'vs/base/common/path';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';

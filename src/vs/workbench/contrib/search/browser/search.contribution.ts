@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
@@ -571,12 +571,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					properties: {
 						query: { 'type': 'string' },
 						replace: { 'type': 'string' },
+						preserveCase: { 'type': 'boolean' },
 						triggerSearch: { 'type': 'boolean' },
 						filesToInclude: { 'type': 'string' },
 						filesToExclude: { 'type': 'string' },
 						isRegex: { 'type': 'boolean' },
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
+						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 					}
 				}
 			},
@@ -859,7 +861,7 @@ configurationRegistry.registerConfiguration({
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type that editor that can display search results. "includes, excludes, and flags" just refers to settings that affect search. For example, the "search.exclude" setting.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
+			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type of editor that can display search results. "includes, excludes, and flags" refers to the "files to include" and "files to exclude" input boxes, and the flags that control whether a query is case-sensitive or a regex.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
 		},
 		'search.searchEditor.defaultNumberOfContextLines': {
 			type: ['number', 'null'],

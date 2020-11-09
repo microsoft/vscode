@@ -23,6 +23,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
+		|| !!argv['install-builtin-extension']
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];

@@ -116,7 +116,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					return item;
 				}
 
@@ -674,7 +674,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 		const mode = this.modeService.create('json');
 		const originaloutputSource = this._getFormatedOutputJSON(
-			this.notebookEditor.textModel!.transientOptions
+			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
 				: this.cell.type === 'insert'
 					? this.cell.modified!.outputs || []
@@ -969,7 +969,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					return item;
 				}
 

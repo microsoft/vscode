@@ -19,8 +19,5 @@ module.exports = withDefaults({
 	output: {
 		path: path.join(__dirname, 'dist', 'node'),
 		filename: 'emmetNodeMain.js'
-	},
-	externals: {
-		'vscode-emmet-helper': 'commonjs vscode-emmet-helper',
-	},
+	}
 });

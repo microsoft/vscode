@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext } from 'vs/workbench/common/editor';
-import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { trackFocus, addDisposableListener, EventType, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -31,6 +31,9 @@ export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkin
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '');
 
 export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false);
+
+// Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
+export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false);
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -84,6 +87,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsMacNativeContext.bindTo(this.contextKeyService);
 
 		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.remoteAuthority) || '');
+
+		// Capabilities
+		HasWebFileSystemAccess.bindTo(this.contextKeyService).set(WebFileSystemAccess.supported(window));
 
 		// Development
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
