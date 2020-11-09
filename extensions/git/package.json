@@ -1662,21 +1662,27 @@
           "scope": "resource"
         },
         "git.checkoutType": {
-          "type": "string",
-          "enum": [
-            "all",
-            "local",
-            "tags",
-            "remote"
-          ],
-          "enumDescriptions": [
-            "%config.checkoutType.all%",
-            "%config.checkoutType.local%",
-            "%config.checkoutType.tags%",
-            "%config.checkoutType.remote%"
-          ],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "local",
+              "tags",
+              "remote"
+            ],
+            "enumDescriptions": [
+              "%config.checkoutType.local%",
+              "%config.checkoutType.tags%",
+              "%config.checkoutType.remote%"
+            ]
+          },
+          "uniqueItems": true,
           "markdownDescription": "%config.checkoutType%",
-          "default": "all"
+          "default": [
+            "local",
+            "remote",
+            "tags"
+          ]
         },
         "git.ignoreLegacyWarning": {
           "type": "boolean",
