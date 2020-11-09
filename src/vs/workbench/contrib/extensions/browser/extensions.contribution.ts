@@ -236,8 +236,8 @@ CommandsRegistry.registerCommand({
 			.then(async (extensions) => {
 				for (const extension of extensions) {
 					const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));
-					const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
-						: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.displayName || extension.name);
+					const message = requireReload ? localize('InstallVSIXAction.successReload', "Completed installing {0} extension from VSIX. Please reload Visual Studio Code to enable it.", extension.displayName || extension.name)
+						: localize('InstallVSIXAction.success', "Completed installing {0} extension from VSIX.", extension.displayName || extension.name);
 					const actions = requireReload ? [{
 						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
 						run: () => hostService.reload()
