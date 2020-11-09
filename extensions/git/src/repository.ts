@@ -1260,7 +1260,6 @@ export class Repository implements Disposable {
 				const supportCancellation = config.get<boolean>('supportCancellation');
 
 				const fn = async (cancellationToken?: CancellationToken) => {
-
 					// When fetchOnPull is enabled, fetch all branches when pulling
 					if (fetchOnPull) {
 						await this.repository.fetch({ all: true, cancellationToken });
