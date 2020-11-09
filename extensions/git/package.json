@@ -1797,11 +1797,11 @@
           "description": "%config.enableStatusBarSync%",
           "scope": "resource"
         },
-        "git.pushTags": {
+        "git.followTagsWhenSync": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%config.pushTags%"
+          "description": "%config.followTagsWhenSync%"
         },
         "git.promptToSaveFilesBeforeStash": {
           "type": "string",

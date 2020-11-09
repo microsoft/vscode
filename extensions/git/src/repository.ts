@@ -1255,7 +1255,7 @@ export class Repository implements Disposable {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
-				const pushTags = config.get<boolean>('pushTags');
+				const followTags = config.get<boolean>('followTagsWhenSync');
 				const supportCancellation = config.get<boolean>('supportCancellation');
 
 				const fn = fetchOnPull
@@ -1283,7 +1283,7 @@ export class Repository implements Disposable {
 				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
-					await this._push(remoteName, pushBranch, false, pushTags);
+					await this._push(remoteName, pushBranch, false, followTags);
 				}
 			});
 		});
