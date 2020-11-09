@@ -271,6 +271,7 @@ enum PushType {
 	Push,
 	PushTo,
 	PushFollowTags,
+	PushTags
 }
 
 interface PushOptions {
@@ -2222,6 +2223,10 @@ export class CommandCenter {
 			return;
 		}
 
+		if (pushOptions.pushType === PushType.PushTags) {
+			await repository.pushTags(undefined, forcePushMode);
+		}
+
 		if (!repository.HEAD || !repository.HEAD.name) {
 			if (!pushOptions.silent) {
 				window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
@@ -2301,6 +2306,11 @@ export class CommandCenter {
 	@command('git.pushToForce', { repository: true })
 	async pushToForce(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
+	}
+
+	@command('git.pushTags', { repository: true })
+	async pushTags(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTags });
 	}
 
 	@command('git.addRemote', { repository: true })
