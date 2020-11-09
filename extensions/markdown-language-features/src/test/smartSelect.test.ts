@@ -467,24 +467,23 @@ suite('markdown.SmartSelect', () => {
 			joinLines(
 				`stuff here **new${CURSOR}item** and here`
 			));
-		//
-		assertNestedRangesEqual(ranges![0], [0, 13, 0, 30], [0, 11, 0, 30], [0, 0, 0, 41]);
+		assertNestedRangesEqual(ranges![0], [0, 13, 0, 30], [0, 11, 0, 32], [0, 0, 0, 41]);
 	});
 	test('Smart select link', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`stuff here [text](https${CURSOR}://google.com) and here`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 11, 0, 18], [0, 0, 0, 56]);
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 46], [0, 17, 0, 47], [0, 0, 0, 56]);
 	});
-	test('Smart select [text]', async () => {
+	test('Smart select brackets', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`stuff here [te${CURSOR}xt](https://google.com) and here`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+		assertNestedRangesEqual(ranges![0], [0, 12, 0, 26], [0, 11, 0, 27], [0, 0, 0, 56]);
 	});
-	test('Smart select [text] under header in list', async () => {
+	test('Smart select brackets under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# main header 1`,
@@ -496,7 +495,7 @@ suite('markdown.SmartSelect', () => {
 				`- stuff here [te${CURSOR}xt](https://google.com) and here`,
 				`- list`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+		assertNestedRangesEqual(ranges![0], [6, 14, 6, 28], [6, 13, 6, 29], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
 	test('Smart select link under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -510,9 +509,9 @@ suite('markdown.SmartSelect', () => {
 				`- stuff here [text](${CURSOR}https://google.com) and here`,
 				`- list`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+		assertNestedRangesEqual(ranges![0], [6, 20, 6, 48], [6, 19, 6, 49], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
-	test('Smart select bold under header in list', async () => {
+	test('Smart select bold within list where multiple bold elements exists', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# main header 1`,
@@ -521,73 +520,17 @@ suite('markdown.SmartSelect', () => {
 				`paragraph`,
 				`## sub header`,
 				`- list`,
-				`- stuff here [text]**${CURSOR}https://google.com** and here`,
+				`- stuff here [text]**${CURSOR}items in here** and **here**`,
 				`- list`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+		assertNestedRangesEqual(ranges![0], [6, 21, 6, 44], [6, 19, 6, 46], [6, 0, 6, 60], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
-	test('Smart select [text] under header in list on [', async () => {
+	test('Smart select brackets in a paragraph with another set of brackets and a link', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
-				`# main header 1`,
-				``,
-				`- list`,
-				`paragraph`,
-				`## sub header`,
-				`- list`,
-				`- stuff here ${CURSOR}[text](https://google.com) and here`,
-				`- list`
+				`This[extension](https://marketplace.visualstudio.com/items?itemName=meganrogge.template-string-converter)  addresses this [requ${CURSOR}est](https://github.com/microsoft/vscode/issues/56704) to convert Javascript/Typescript quotes to backticks when has been entered within a string.`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
-	});
-	test('Smart select link under header in list on (', async () => {
-		const ranges = await getSelectionRangesForDocument(
-			joinLines(
-				`# main header 1`,
-				``,
-				`- list`,
-				`paragraph`,
-				`## sub header`,
-				`- list`,
-				`- stuff here [text]${CURSOR}(https://google.com) and here`,
-				`- list`
-			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
-	});
-	test('Smart select bold under header in list on **', async () => {
-		const ranges = await getSelectionRangesForDocument(
-			joinLines(
-				`# main header 1`,
-				``,
-				`- list`,
-				`paragraph`,
-				`## sub header`,
-				`- list`,
-				`- stuff here [text]*${CURSOR}*https://google.com** and here`,
-				`- list`
-			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
-	});
-	test('Smart select bold within list where multiple bold exist', async () => {
-		const ranges = await getSelectionRangesForDocument(
-			joinLines(
-				`# main header 1`,
-				``,
-				`- list`,
-				`paragraph`,
-				`## sub header`,
-				`- list`,
-				`- stuff here [text]*${CURSOR}*https://google.com** and **here**`,
-				`- list`
-			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
-	});
-	test('Smart select [] in a paragraph with another [] and ()', async () => {
-		const ranges = await getSelectionRangesForDocument(
-			joinLines(
-				`This[extension](https://marketplace.visualstudio.com/items?itemName=meganrogge.template-string-converter)  addresses this [requ${CURSOR}est](https://github.com/microsoft/vscode/issues/56704) to convert Javascript/Typescript quotes to backticks when `${` has been entered within a string.`
-			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 36], [0, 17, 0, 37]);
+		assertNestedRangesEqual(ranges![0], [0, 123, 0, 140], [0, 122, 0, 141], [0, 0, 0, 283]);
 	});
 });
 
@@ -601,9 +544,11 @@ function assertNestedLineNumbersEqual(range: vscode.SelectionRange, ...expectedR
 
 function assertNestedRangesEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number, number, number][]) {
 	const lineage = getLineage(range);
-	assert.strictEqual(lineage.length, expectedRanges.length, `expected depth: ${expectedRanges.length}, but was ${lineage.length}`);
+	assert.strictEqual(lineage.length, expectedRanges.length, `expected depth: ${expectedRanges.length}, but was ${lineage.length} ${getValues(lineage)}`);
 	for (let i = 0; i < lineage.length; i++) {
-		assertLineNumbersEqual(lineage[i], expectedRanges[i][0], expectedRanges[i][1], `parent at a depth of ${i}`);
+		assertLineNumbersEqual(lineage[i], expectedRanges[i][0], expectedRanges[i][2], `parent at a depth of ${i}`);
+		assert(lineage[i].range.start.character === expectedRanges[i][1], `parent at a depth of ${i} on start char`);
+		assert(lineage[i].range.end.character === expectedRanges[i][3], `parent at a depth of ${i} on end char`);
 	}
 }
 
@@ -614,6 +559,14 @@ function getLineage(range: vscode.SelectionRange): vscode.SelectionRange[] {
 		result.push(currentRange);
 		currentRange = currentRange.parent;
 	}
+	return result;
+}
+
+function getValues(ranges: vscode.SelectionRange[]): string[] {
+	let result: string[] = [];
+	ranges.forEach(range => {
+		result.push(range.range.start.line + ' ' + range.range.start.character + ' ' + range.range.end.line + ' ' + range.range.end.character);
+	});
 	return result;
 }
 

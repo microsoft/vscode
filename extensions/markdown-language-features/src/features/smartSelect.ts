@@ -134,7 +134,7 @@ function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode
 	let startBold = line.substring(0, cursorPosition.character).lastIndexOf('**');
 
 	// find closest ** that occurs after the start **
-	let endBoldIndex = line.substring(startBold + 2).indexOf('**');
+	const endBoldIndex = line.substring(startBold + 2).indexOf('**');
 	let endBold = startBold + 2 + line.substring(startBold + 2).indexOf('**');
 
 	if (startBold >= 0 && endBoldIndex >= 0 && startBold + 1 < endBold && startBold <= cursorPosition.character && endBold >= cursorPosition.character) {
@@ -164,13 +164,13 @@ function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode
 		}
 	}
 
-	let startBracket = line.substring(0, cursorPosition.character + 1).lastIndexOf('[');
+	const startBracket = line.substring(0, cursorPosition.character + 1).lastIndexOf('[');
 	let endBracket = line.substring(cursorPosition.character).indexOf(']');
 
 	if (startBracket >= 0 && endBracket >= 0) {
 		endBracket += cursorPosition.character;
 		// ensure there's no closing bracket before endBracket
-		let intermediateBracket = line.substring(startBracket, endBracket).indexOf(']');
+		const intermediateBracket = line.substring(startBracket, endBracket).indexOf(']');
 		if (intermediateBracket < 0) {
 			const range = new vscode.Range(cursorPosition.line, startBracket, cursorPosition.line, endBracket + 1);
 			if (cursorPosition.character > startBracket && cursorPosition.character <= endBracket) {
@@ -183,13 +183,13 @@ function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode
 		}
 	}
 
-	let startParens = line.substring(0, cursorPosition.character + 1).lastIndexOf('(');
+	const startParens = line.substring(0, cursorPosition.character + 1).lastIndexOf('(');
 	let endParens = line.substring(cursorPosition.character).indexOf(')');
 
 	if (startParens >= 0 && endParens >= 0) {
 		endParens += cursorPosition.character;
 		// ensure there's no closing ) before endParens
-		let intermediateParens = line.substring(startParens, endParens - 1).indexOf(')');
+		const intermediateParens = line.substring(startParens, endParens - 1).indexOf(')');
 		if (intermediateParens < 0) {
 			const range = new vscode.Range(cursorPosition.line, startParens, cursorPosition.line, endParens + 1);
 			if (cursorPosition.character > startParens && cursorPosition.character <= endParens) {
