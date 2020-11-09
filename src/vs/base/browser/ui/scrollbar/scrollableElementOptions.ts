@@ -118,7 +118,7 @@ export interface ScrollableElementCreationOptions {
 	 * Scroll gutter clicks move by page vs. jump to position.
 	 * Defaults to false.
 	 */
-	gutterClickMovesByPage?: boolean;
+	scrollByPage?: boolean;
 }
 
 export interface ScrollableElementChangeOptions {
@@ -151,5 +151,5 @@ export interface ScrollableElementResolvedOptions {
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;
-	gutterClickMovesByPage: boolean;
+	scrollByPage: boolean;
 }

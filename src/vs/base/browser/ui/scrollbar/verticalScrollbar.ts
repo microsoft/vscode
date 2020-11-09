@@ -34,7 +34,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			visibility: options.vertical,
 			extraScrollbarClassName: 'vertical',
 			scrollable: scrollable,
-			gutterClickMovesByPage: options.gutterClickMovesByPage
+			scrollByPage: options.scrollByPage
 		});
 
 		if (options.verticalHasArrows) {

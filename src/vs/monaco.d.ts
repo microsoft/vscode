@@ -3664,7 +3664,7 @@ declare namespace monaco.editor {
 		 * Scroll gutter clicks move by page vs jump to position.
 		 * Defaults to false.
 		 */
-		gutterClickMovesByPage?: boolean;
+		scrollByPage?: boolean;
 	}
 
 	export interface InternalEditorScrollbarOptions {
@@ -3680,7 +3680,7 @@ declare namespace monaco.editor {
 		readonly horizontalSliderSize: number;
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
-		readonly gutterClickMovesByPage: boolean;
+		readonly scrollByPage: boolean;
 	}
 
 	/**

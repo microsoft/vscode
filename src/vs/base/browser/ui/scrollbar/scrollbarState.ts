@@ -192,7 +192,7 @@ export class ScrollbarState {
 	 * Compute a desired `scrollPosition` such that `offset` ends up in the center of the slider.
 	 * `offset` is based on the same coordinate system as the `sliderPosition`.
 	 */
-	public getDesiredScrollPositionFromOffsetAbsolute(offset: number): number {
+	public getDesiredScrollPositionFromOffset(offset: number): number {
 		if (!this._computedIsNeeded) {
 			// no need for a slider
 			return 0;

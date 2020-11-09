@@ -2924,7 +2924,7 @@ export interface IEditorScrollbarOptions {
 	 * Scroll gutter clicks move by page vs jump to position.
 	 * Defaults to false.
 	 */
-	gutterClickMovesByPage?: boolean;
+	scrollByPage?: boolean;
 }
 
 export interface InternalEditorScrollbarOptions {
@@ -2940,7 +2940,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly horizontalSliderSize: number;
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
-	readonly gutterClickMovesByPage: boolean;
+	readonly scrollByPage: boolean;
 }
 
 function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
@@ -2972,7 +2972,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 				verticalSliderSize: 14,
 				handleMouseWheel: true,
 				alwaysConsumeMouseWheel: true,
-				gutterClickMovesByPage: false
+				scrollByPage: false
 			}
 		);
 	}
@@ -2997,7 +2997,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
-			gutterClickMovesByPage: EditorBooleanOption.boolean(input.gutterClickMovesByPage, this.defaultValue.gutterClickMovesByPage),
+			scrollByPage: EditorBooleanOption.boolean(input.scrollByPage, this.defaultValue.scrollByPage),
 		};
 	}
 }
