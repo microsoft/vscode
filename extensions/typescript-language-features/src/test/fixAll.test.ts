@@ -115,4 +115,25 @@ suite('TypeScript Fix All', () => {
 			`used();`
 		));
 	});
+
+	test('Remove unused should remove unused interfaces', async () => {
+		const editor = await createTestEditor(testDocumentUri,
+			`export const _ = 1;`,
+			`interface Foo {}`
+		);
+
+		await wait(2000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			testDocumentUri,
+			emptyRange,
+			vscode.CodeActionKind.Source.append('removeUnused')
+		);
+
+		await vscode.workspace.applyEdit(fixes![0].edit!);
+		assert.strictEqual(editor.document.getText(), joinLines(
+			`export const _ = 1;`,
+			``
+		));
+	});
 });

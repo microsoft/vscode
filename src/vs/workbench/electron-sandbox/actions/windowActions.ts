@@ -8,9 +8,9 @@ import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import * as browser from 'vs/base/browser/browser';
+import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -19,7 +19,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Codicon } from 'vs/base/common/codicons';
 
 export class CloseCurrentWindowAction extends Action {
@@ -30,13 +30,13 @@ export class CloseCurrentWindowAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<void> {
-		this.electronService.closeWindow();
+		this.nativeHostService.closeWindow();
 	}
 }
 
@@ -62,18 +62,9 @@ export abstract class BaseZoomAction extends Action {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
-		const applyZoom = () => {
-			webFrame.setZoomLevel(level);
-			browser.setZoomFactor(webFrame.getZoomFactor());
-			// See https://github.com/Microsoft/vscode/issues/26151
-			// Cannot be trusted because the webFrame might take some time
-			// until it really applies the new zoom level
-			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
-		};
-
 		await this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
 
-		applyZoom();
+		applyZoom(level);
 	}
 }
 
@@ -91,7 +82,7 @@ export class ZoomInAction extends BaseZoomAction {
 	}
 
 	async run(): Promise<void> {
-		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
+		this.setConfiguredZoomLevel(getZoomLevel() + 1);
 	}
 }
 
@@ -109,7 +100,7 @@ export class ZoomOutAction extends BaseZoomAction {
 	}
 
 	async run(): Promise<void> {
-		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
+		this.setConfiguredZoomLevel(getZoomLevel() - 1);
 	}
 }
 
@@ -139,13 +130,13 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.electronService.reload({ disableExtensions: true });
+		await this.nativeHostService.reload({ disableExtensions: true });
 
 		return true;
 	}
@@ -171,7 +162,7 @@ export abstract class BaseSwitchWindow extends Action {
 		private readonly keybindingService: IKeybindingService,
 		private readonly modelService: IModelService,
 		private readonly modeService: IModeService,
-		private readonly electronService: IElectronService
+		private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
@@ -179,9 +170,9 @@ export abstract class BaseSwitchWindow extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const currentWindowId = this.electronService.windowId;
+		const currentWindowId = this.nativeHostService.windowId;
 
-		const windows = await this.electronService.getWindows();
+		const windows = await this.nativeHostService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
 		const picks = windows.map(win => {
 			const resource = win.filename ? URI.file(win.filename) : win.folderUri ? win.folderUri : win.workspace ? win.workspace.configPath : undefined;
@@ -203,13 +194,13 @@ export abstract class BaseSwitchWindow extends Action {
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.electronService.closeWindowById(context.item.payload);
+				await this.nativeHostService.closeWindowById(context.item.payload);
 				context.removeItem();
 			}
 		});
 
 		if (pick) {
-			this.electronService.focusWindow({ windowId: pick.payload });
+			this.nativeHostService.focusWindow({ windowId: pick.payload });
 		}
 	}
 }
@@ -226,9 +217,9 @@ export class SwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		super(id, label, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, quickInputService, keybindingService, modelService, modeService, nativeHostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -248,9 +239,9 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IElectronService electronService: IElectronService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
-		super(id, label, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, quickInputService, keybindingService, modelService, modeService, nativeHostService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -259,25 +250,25 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 }
 
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).newWindowTab();
+	return accessor.get(INativeHostService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).showPreviousWindowTab();
+	return accessor.get(INativeHostService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).showNextWindowTab();
+	return accessor.get(INativeHostService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).moveWindowTabToNewWindow();
+	return accessor.get(INativeHostService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).mergeAllWindowTabs();
+	return accessor.get(INativeHostService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
-	return accessor.get(IElectronService).toggleWindowTabsBar();
+	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };

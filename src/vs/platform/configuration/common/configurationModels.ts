@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as json from 'vs/base/common/json';
-import { ResourceMap, values, getOrSet } from 'vs/base/common/map';
+import { ResourceMap, getOrSet } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, removeFromValueTree, toOverrides, IConfigurationValue, ConfigurationTarget, compare, IConfigurationChangeEvent, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
+import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+import { IOverrides, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, removeFromValueTree, toOverrides, IConfigurationValue, ConfigurationTarget, compare, IConfigurationChangeEvent, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -692,7 +692,7 @@ export class Configuration {
 		this.userConfiguration.freeze().keys.forEach(key => keys.add(key));
 		this._workspaceConfiguration.freeze().keys.forEach(key => keys.add(key));
 		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.freeze().keys.forEach(key => keys.add(key)));
-		return values(keys);
+		return [...keys.values()];
 	}
 
 	protected getAllKeysForOverrideIdentifier(overrideIdentifier: string): string[] {
@@ -701,7 +701,7 @@ export class Configuration {
 		this.userConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
 		this._workspaceConfiguration.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key));
 		this._folderConfigurations.forEach(folderConfiguraiton => folderConfiguraiton.getKeysForOverrideIdentifier(overrideIdentifier).forEach(key => keys.add(key)));
-		return values(keys);
+		return [...keys.values()];
 	}
 
 	static parse(data: IConfigurationData): Configuration {
@@ -738,8 +738,8 @@ export function mergeChanges(...changes: IConfigurationChange[]): IConfiguration
 		});
 	}
 	const overrides: [string, string[]][] = [];
-	overridesMap.forEach((keys, identifier) => overrides.push([identifier, values(keys)]));
-	return { keys: values(keysSet), overrides };
+	overridesMap.forEach((keys, identifier) => overrides.push([identifier, [...keys.values()]]));
+	return { keys: [...keysSet.values()], overrides };
 }
 
 export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
@@ -753,7 +753,7 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 		const keysSet = new Set<string>();
 		change.keys.forEach(key => keysSet.add(key));
 		change.overrides.forEach(([, keys]) => keys.forEach(key => keysSet.add(key)));
-		this.affectedKeys = values(keysSet);
+		this.affectedKeys = [...keysSet.values()];
 
 		const configurationModel = new ConfigurationModel();
 		this.affectedKeys.forEach(key => configurationModel.setValue(key, {}));

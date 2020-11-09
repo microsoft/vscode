@@ -10,7 +10,7 @@ export const IClipboardService = createDecorator<IClipboardService>('clipboardSe
 
 export interface IClipboardService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Writes text to the system clipboard.
@@ -46,14 +46,4 @@ export interface IClipboardService {
 	 * Find out if resources are copied to the clipboard.
 	 */
 	hasResources(): Promise<boolean>;
-
-
-	/** @deprecated */
-	readTextSync(): string | undefined;
-
-	/** @deprecated */
-	readFindTextSync(): string;
-
-	/** @deprecated */
-	writeFindTextSync(text: string): void;
 }

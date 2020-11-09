@@ -10,7 +10,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -33,6 +33,12 @@ steps:
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'vscode-build-cache'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
 - script: |
     yarn electron x64
@@ -63,7 +69,7 @@ steps:
   displayName: Run Unit Tests (Electron)
 
 - script: |
-    DISPLAY=:10 yarn test-browser --browser chromium
+    DISPLAY=:10 yarn test-browser --browser chromium --tfs "Browser Unit Tests"
   displayName: Run Unit Tests (Browser)
 
 - script: |

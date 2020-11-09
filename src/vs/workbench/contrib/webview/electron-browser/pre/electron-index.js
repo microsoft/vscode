@@ -16,7 +16,6 @@
 		};
 	}());
 
-	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
 	let isInDevelopmentMode = false;
@@ -25,6 +24,7 @@
 	 * @type {import('../../browser/pre/main').WebviewHost}
 	 */
 	const host = {
+		onElectron: true,
 		postMessage: (channel, data) => {
 			ipcRenderer.sendToHost(channel, data);
 		},

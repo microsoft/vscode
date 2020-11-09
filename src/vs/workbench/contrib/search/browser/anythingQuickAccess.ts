@@ -15,7 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { untildify } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
-import { toLocalResource, dirname, basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { toLocalResource, dirname, basenameOrAuthority } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -27,7 +27,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, IEditorInput, EditorInput } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorInput, EditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -46,9 +46,10 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon, stripCodicons } from 'vs/base/common/codicons';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -66,6 +67,10 @@ function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEd
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
 
 	static PREFIX = '';
+
+	private static readonly NO_RESULTS_PICK: IAnythingQuickPickItem = {
+		label: localize('noAnythingResults', "No matching results")
+	};
 
 	private static readonly MAX_RESULTS = 512;
 
@@ -130,7 +135,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				this.editorViewState = {
 					group: activeEditorPane.group,
 					editor: activeEditorPane.input,
-					state: withNullAsUndefined(getCodeEditor(activeEditorPane.getControl())?.saveViewState())
+					state: withNullAsUndefined(getIEditor(activeEditorPane.getControl())?.saveViewState())
 				};
 			}
 		}
@@ -169,13 +174,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IEditorService private readonly editorService: IEditorService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
-			noResultsPick: {
-				label: localize('noAnythingResults', "No matching results")
-			}
+			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
 	}
 
@@ -226,7 +230,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private decorateAndRevealSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable {
 		const activeEditor = this.editorService.activeEditor;
-		if (!isEqual(pick.resource, activeEditor?.resource)) {
+		if (!this.uriIdentityService.extUri.isEqual(pick.resource, activeEditor?.resource)) {
 			return Disposable.None; // active editor needs to be for resource
 		}
 
@@ -278,13 +282,15 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		this.pickState.lastFilter = filter;
 
 		// Remember our pick state before returning new picks
-		// unless an editor symbol is selected. We can use this
-		// state to return back to the global pick when the
-		// user is narrowing back out of editor symbols.
+		// unless we are inside an editor symbol filter or result.
+		// We can use this state to return back to the global pick
+		// when the user is narrowing back out of editor symbols.
 		const picks = this.pickState.picker?.items;
 		const activePick = this.pickState.picker?.activeItems[0];
 		if (picks && activePick) {
-			if (!isEditorSymbolQuickPickItem(activePick)) {
+			const activePickIsEditorSymbol = isEditorSymbolQuickPickItem(activePick);
+			const activePickIsNoResultsInEditorSymbols = activePick === AnythingQuickAccessProvider.NO_RESULTS_PICK && filter.indexOf(GotoSymbolQuickAccessProvider.PREFIX) >= 0;
+			if (!activePickIsEditorSymbol && !activePickIsNoResultsInEditorSymbols) {
 				this.pickState.lastGlobalPicks = {
 					items: picks,
 					active: activePick
@@ -491,22 +497,34 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Use absolute path result as only results if present
 		let fileMatches: Array<URI>;
 		if (absolutePathResult) {
-			fileMatches = [absolutePathResult];
+			if (excludes.has(absolutePathResult)) {
+				return []; // excluded
+			}
+
+			// Create a single result pick and make sure to apply full
+			// highlights to ensure the pick is displayed. Since a
+			// ~ might have been used for searching, our fuzzy scorer
+			// may otherwise not properly respect the pick as a result
+			const absolutePathPick = this.createAnythingPick(absolutePathResult, this.configuration);
+			absolutePathPick.highlights = {
+				label: [{ start: 0, end: absolutePathPick.label.length }],
+				description: absolutePathPick.description ? [{ start: 0, end: absolutePathPick.description.length }] : undefined
+			};
+
+			return [absolutePathPick];
 		}
 
 		// Otherwise run the file search (with a delayer if cache is not ready yet)
-		else {
-			if (this.pickState.fileQueryCache?.isLoaded) {
-				fileMatches = await this.doFileSearch(query, token);
-			} else {
-				fileMatches = await this.fileQueryDelayer.trigger(async () => {
-					if (token.isCancellationRequested) {
-						return [];
-					}
+		if (this.pickState.fileQueryCache?.isLoaded) {
+			fileMatches = await this.doFileSearch(query, token);
+		} else {
+			fileMatches = await this.fileQueryDelayer.trigger(async () => {
+				if (token.isCancellationRequested) {
+					return [];
+				}
 
-					return this.doFileSearch(query, token);
-				});
-			}
+				return this.doFileSearch(query, token);
+			});
 		}
 
 		if (token.isCancellationRequested) {
@@ -631,7 +649,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return;
 		}
 
-		const userHome = await this.pathService.userHome;
+		const userHome = await this.pathService.userHome();
 		const detildifiedQuery = untildify(query.original, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
 		if (token.isCancellationRequested) {
 			return;
@@ -645,7 +663,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (isAbsolutePathQuery) {
 			const resource = toLocalResource(
 				await this.pathService.fileURI(detildifiedQuery),
-				this.environmentService.configuration.remoteAuthority
+				this.environmentService.remoteAuthority,
+				this.pathService.defaultUriScheme
 			);
 
 			if (token.isCancellationRequested) {
@@ -681,7 +700,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				const resource = toLocalResource(
 					folder.toResource(query.original),
-					this.environmentService.configuration.remoteAuthority
+					this.environmentService.remoteAuthority,
+					this.pathService.defaultUriScheme
 				);
 
 				try {
@@ -844,7 +864,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		let isDirty: boolean | undefined = undefined;
 
 		if (resourceOrEditor instanceof EditorInput) {
-			resource = resourceOrEditor.resource;
+			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
 			label = resourceOrEditor.getName();
 			description = resourceOrEditor.getDescription();
 			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();

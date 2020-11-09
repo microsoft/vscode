@@ -5,7 +5,7 @@
 
 import { ILogService, LogLevel, AbstractLogService, ILoggerService, ILogger } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { dirname, joinPath, basename } from 'vs/base/common/resources';
@@ -13,11 +13,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
-const MAX_FILE_SIZE = 1024 * 1024 * 5;
+const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
 export class FileLogService extends AbstractLogService implements ILogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly initializePromise: Promise<void>;
 	private readonly queue: Queue<void>;
@@ -87,7 +87,13 @@ export class FileLogService extends AbstractLogService implements ILogService {
 	}
 
 	private async initialize(): Promise<void> {
-		await this.fileService.createFile(this.resource);
+		try {
+			await this.fileService.createFile(this.resource);
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_MODIFIED_SINCE) {
+				throw error;
+			}
+		}
 	}
 
 	private _log(level: LogLevel, message: string): void {
@@ -157,7 +163,7 @@ export class FileLogService extends AbstractLogService implements ILogService {
 
 export class FileLoggerService extends Disposable implements ILoggerService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly loggers = new Map<string, ILogger>();
 

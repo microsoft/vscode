@@ -8,52 +8,58 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup, IEditor, ICellEditOperation, NotebookCellOutputsSplice, IOrderedMimeType, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import {
+	INotebookTextModel, INotebookRendererInfo,
+	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter
+} from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
+import { IRelativePattern } from 'vs/base/common/glob';
+
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {
-	kernel: INotebookKernelInfoDto | undefined;
-	createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined>;
-	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
-	onDidReceiveMessage(editorId: string, message: any): void;
-	executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
-	removeNotebookDocument(notebook: INotebookTextModel): Promise<void>;
+	supportBackup: boolean;
+	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
+	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
+	resolveNotebookDocument(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }>;
+	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
+	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
+	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
+	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface INotebookService {
-	_serviceBrand: undefined;
-	modelManager: INotebookEditorModelManager;
+	readonly _serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
 	onDidChangeActiveEditor: Event<string | null>;
 	onDidChangeVisibleEditors: Event<string[]>;
 	onNotebookEditorAdd: Event<IEditor>;
-	onNotebookEditorRemove: Event<IEditor>;
-	onDidChangeKernels: Event<void>;
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
-	unregisterNotebookProvider(viewType: string): void;
-	registerNotebookRenderer(id: string, renderer: INotebookRendererInfo): void;
-	unregisterNotebookRenderer(id: string): void;
-	transformEditsOutputs(textModel: NotebookTextModel, edits: ICellEditOperation[]): Promise<void>;
-	transformSpliceOutputs(textModel: NotebookTextModel, splices: NotebookCellOutputsSplice[]): Promise<void>;
-	transformSingleOutput(textModel: NotebookTextModel, output: IProcessedOutput, rendererId: string, mimeType: string): Promise<IOrderedMimeType | undefined>;
-	registerNotebookKernel(kernel: INotebookKernelInfo): void;
-	unregisterNotebookKernel(id: string): void;
-	getContributedNotebookKernels(viewType: string, resource: URI): readonly INotebookKernelInfo[];
+	onNotebookEditorsRemove: Event<IEditor[]>;
+	onDidRemoveNotebookDocument: Event<URI>;
+	onDidAddNotebookDocument: Event<NotebookTextModel>;
+	onNotebookDocumentSaved: Event<URI>;
+	onDidChangeKernels: Event<URI | undefined>;
+	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined }>;
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
+
+	transformEditsOutputs(textModel: NotebookTextModel, edits: ICellEditOperation[]): void;
+	transformSpliceOutputs(textModel: NotebookTextModel, splices: NotebookCellOutputsSplice[]): void;
+	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable;
+	getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
+	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
-	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined>;
-	createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[], editorId?: string): Promise<NotebookTextModel | undefined>;
-	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
-	executeNotebookCell(viewType: string, uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
-	executeNotebook2(viewType: string, uri: URI, kernelId: string, token: CancellationToken): Promise<void>;
-	executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string, token: CancellationToken): Promise<void>;
-	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
+
+	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel>;
+	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
+	getNotebookTextModels(): Iterable<NotebookTextModel>;
+	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
@@ -61,14 +67,20 @@ export interface INotebookService {
 	updateVisibleNotebookEditor(editors: string[]): void;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	onDidReceiveMessage(viewType: string, editorId: string, message: any): void;
-	setToCopy(items: NotebookCellTextModel[]): void;
-	getToCopy(): NotebookCellTextModel[] | undefined;
+	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
+	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: unknown): void;
+	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
+	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
 
 	// editor events
+	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	addNotebookEditor(editor: IEditor): void;
 	removeNotebookEditor(editor: IEditor): void;
+	getNotebookEditor(editorId: string): IEditor | undefined;
 	listNotebookEditors(): readonly IEditor[];
+	listVisibleNotebookEditors(): readonly IEditor[];
 	listNotebookDocuments(): readonly NotebookTextModel[];
-
+	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
+	removeEditorDecorationType(key: string): void;
+	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;
 }

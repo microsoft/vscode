@@ -15,6 +15,7 @@
 	left: 0;
 	width: 16px;
 	height: 100%;
+	color: inherit;
 	box-sizing: border-box;
 	background-position: center center;
 	background-repeat: no-repeat;
@@ -39,14 +40,14 @@
 	padding-left: 4px;
 }
 
-.search-view .search-widget .monaco-inputbox > .wrapper > .mirror {
-	max-height: 134px;
-}
-
 /* NOTE: height is also used in searchWidget.ts as a constant*/
 .search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
 	overflow: initial;
 	height: 24px; /* set initial height before measure */
+}
+
+.search-view .search-widget .monaco-findInput .monaco-scrollable-element .scrollbar {
+	opacity: 0;
 }
 
 .search-view .monaco-inputbox > .wrapper > textarea.input {
@@ -57,10 +58,11 @@
 	display: none;
 }
 
-.search-view .search-widget .monaco-findInput {
+.search-view .search-widget .monaco-findInput,
+.search-view .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
-	width: 100%;
+	width: 100% !important;
 }
 
 .search-view .search-widget .replace-container {
@@ -102,12 +104,13 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	color: inherit;
 }
 
 .search-view .query-details {
 	min-height: 1em;
 	position: relative;
-	margin: 0 0 0 17px;
+	margin: 0 0 0 18px;
 }
 
 .search-view .query-details .more {
@@ -116,6 +119,7 @@
 	cursor: pointer;
 	width: 25px;
 	height: 16px;
+	color: inherit;
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 

@@ -3,32 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
-export class ToggleSharedProcessAction extends Action {
+class ToggleSharedProcessAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleSharedProcess';
-	static readonly LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
-
-	constructor(
-		id: string,
-		label: string,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.toggleSharedProcess',
+			title: { value: nls.localize('toggleSharedProcess', "Toggle Shared Process"), original: 'Toggle Shared Process' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
 	}
 
-	run(): Promise<void> {
-		return this.sharedProcessService.toggleSharedProcessWindow();
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(ISharedProcessService).toggleSharedProcessWindow();
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-
-const developerCategory = nls.localize('developer', "Developer");
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSharedProcessAction), 'Developer: Toggle Shared Process', developerCategory);
+registerAction2(ToggleSharedProcessAction);

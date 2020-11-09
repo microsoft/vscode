@@ -8,9 +8,10 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class LocalizationsService {
+// @ts-ignore: interface is implemented via proxy
+export class LocalizationsService implements ILocalizationsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,

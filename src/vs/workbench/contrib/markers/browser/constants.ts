@@ -17,6 +17,7 @@ export default {
 	MARKERS_VIEW_CLEAR_FILTER_TEXT: 'problems.action.clearFilterText',
 	MARKERS_VIEW_SHOW_MULTILINE_MESSAGE: 'problems.action.showMultilineMessage',
 	MARKERS_VIEW_SHOW_SINGLELINE_MESSAGE: 'problems.action.showSinglelineMessage',
+	MARKER_OPEN_ACTION_ID: 'problems.action.open',
 	MARKER_OPEN_SIDE_ACTION_ID: 'problems.action.openToSide',
 	MARKER_SHOW_PANEL_ID: 'workbench.action.showErrorsWarnings',
 	MARKER_SHOW_QUICK_FIX: 'problems.action.showQuickFixes',

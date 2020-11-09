@@ -3,91 +3,86 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
+import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
+import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
-export const ipcRenderer = (window as any).vscode.ipcRenderer as {
+export interface ISandboxNodeProcess extends INodeProcess {
 
 	/**
-	 * Listens to `channel`, when a new message arrives `listener` would be called with
-	 * `listener(event, args...)`.
+	 * The process.platform property returns a string identifying the operating system platform
+	 * on which the Node.js process is running.
 	 */
-	on(channel: string, listener: (event: unknown, ...args: any[]) => void): void;
+	platform: 'win32' | 'linux' | 'darwin';
 
 	/**
-	 * Adds a one time `listener` function for the event. This `listener` is invoked
-	 * only the next time a message is sent to `channel`, after which it is removed.
+	 * The type will always be Electron renderer.
 	 */
-	once(channel: string, listener: (event: unknown, ...args: any[]) => void): void;
+	type: 'renderer';
 
 	/**
-	 * Removes the specified `listener` from the listener array for the specified
-	 * `channel`.
+	 * A list of versions for the current node.js/electron configuration.
 	 */
-	removeListener(channel: string, listener: (event: unknown, ...args: any[]) => void): void;
+	versions: { [key: string]: string | undefined };
 
 	/**
-	 * Send an asynchronous message to the main process via `channel`, along with
-	 * arguments. Arguments will be serialized with the Structured Clone Algorithm,
-	 * just like `postMessage`, so prototype chains will not be included. Sending
-	 * Functions, Promises, Symbols, WeakMaps, or WeakSets will throw an exception.
+	 * The process.env property returns an object containing the user environment.
+	 */
+	env: IProcessEnvironment;
+
+	/**
+	 * The current working directory.
+	 */
+	cwd(): string;
+
+	/**
+	 * Returns the numeric user identity of the process.
+	 */
+	getuid(): number;
+
+	/**
+	 * Allows to await resolving the full process environment by checking for the shell environment
+	 * of the OS in certain cases (e.g. when the app is started from the Dock on macOS).
+	 */
+	whenEnvResolved(): Promise<void>;
+
+	/**
+	 * Adds callback to the "next tick queue". This queue is fully drained
+	 * after the current operation on the JavaScript stack runs to completion
+	 * and before the event loop is allowed to continue.
+	 */
+	nextTick(callback: (...args: any[]) => void, ...args: any[]): void;
+
+	/**
+	 * A listener on the process. Only a small subset of listener types are allowed.
+	 */
+	on: (type: string, callback: Function) => void;
+
+	/**
+	 * Resolves with a ProcessMemoryInfo
 	 *
-	 * > **NOTE**: Sending non-standard JavaScript types such as DOM objects or special
-	 * Electron objects is deprecated, and will begin throwing an exception starting
-	 * with Electron 9.
+	 * Returns an object giving memory usage statistics about the current process. Note
+	 * that all statistics are reported in Kilobytes. This api should be called after
+	 * app ready.
 	 *
-	 * The main process handles it by listening for `channel` with the `ipcMain`
-	 * module.
+	 * Chromium does not provide `residentSet` value for macOS. This is because macOS
+	 * performs in-memory compression of pages that haven't been recently used. As a
+	 * result the resident set size value is not what one would expect. `private`
+	 * memory is more representative of the actual pre-compression memory usage of the
+	 * process on macOS.
 	 */
-	send(channel: string, ...args: any[]): void;
-};
+	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
+}
 
-export const webFrame = (window as any).vscode.webFrame as {
+export interface ISandboxContext {
 
 	/**
-	 * The current zoom factor.
+	 * Wether the renderer runs with `sandbox` enabled or not.
 	 */
-	getZoomFactor(): number;
+	sandbox: boolean;
+}
 
-	/**
-	 * The current zoom level.
-	 */
-	getZoomLevel(): number;
-
-	/**
-	 * Changes the zoom level to the specified level. The original size is 0 and each
-	 * increment above or below represents zooming 20% larger or smaller to default
-	 * limits of 300% and 50% of original size, respectively.
-	 */
-	setZoomLevel(level: number): void;
-};
-
-export const crashReporter = (window as any).vscode.crashReporter as {
-
-	/**
-	 * You are required to call this method before using any other `crashReporter` APIs
-	 * and in each process (main/renderer) from which you want to collect crash
-	 * reports. You can pass different options to `crashReporter.start` when calling
-	 * from different processes.
-	 *
-	 * **Note** Child processes created via the `child_process` module will not have
-	 * access to the Electron modules. Therefore, to collect crash reports from them,
-	 * use `process.crashReporter.start` instead. Pass the same options as above along
-	 * with an additional one called `crashesDirectory` that should point to a
-	 * directory to store the crash reports temporarily. You can test this out by
-	 * calling `process.crash()` to crash the child process.
-	 *
-	 * **Note:** If you need send additional/updated `extra` parameters after your
-	 * first call `start` you can call `addExtraParameter` on macOS or call `start`
-	 * again with the new/updated `extra` parameters on Linux and Windows.
-	 *
-	 * **Note:** On macOS and windows, Electron uses a new `crashpad` client for crash
-	 * collection and reporting. If you want to enable crash reporting, initializing
-	 * `crashpad` from the main process using `crashReporter.start` is required
-	 * regardless of which process you want to collect crashes from. Once initialized
-	 * this way, the crashpad handler collects crashes from all processes. You still
-	 * have to call `crashReporter.start` from the renderer or child process, otherwise
-	 * crashes from them will get reported without `companyName`, `productName` or any
-	 * of the `extra` information.
-	 */
-	start(options: CrashReporterStartOptions): void;
-};
+export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
+export const webFrame: WebFrame = globals.vscode.webFrame;
+export const crashReporter: CrashReporter = globals.vscode.crashReporter;
+export const process: ISandboxNodeProcess = globals.vscode.process;
+export const context: ISandboxContext = globals.vscode.context;

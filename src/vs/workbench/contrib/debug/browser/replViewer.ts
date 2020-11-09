@@ -147,7 +147,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 
 	renderTemplate(container: HTMLElement): ISimpleReplElementTemplateData {
 		const data: ISimpleReplElementTemplateData = Object.create(null);
-		dom.addClass(container, 'output');
+		container.classList.add('output');
 		const expression = dom.append(container, $('.output.expression.value-and-source'));
 
 		data.container = container;
@@ -179,9 +179,9 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
 		templateData.value.appendChild(result);
 
-		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
+		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? this.labelService.getUriLabel(element.sourceData.source.uri) : '';
+		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
@@ -226,7 +226,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 	}
 
 	renderTemplate(container: HTMLElement): IRawObjectReplTemplateData {
-		dom.addClass(container, 'output');
+		container.classList.add('output');
 
 		const expression = dom.append(container, $('.output.expression'));
 		const name = dom.append(expression, $('span.name'));
@@ -362,10 +362,10 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 			return localize('replValueOutputAriaLabel', "{0}", element.value);
 		}
 		if (element instanceof RawObjectReplElement) {
-			return localize('replRawObjectAriaLabel', "Repl variable {0}, value {1}", element.name, element.value);
+			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof ReplGroup) {
-			return localize('replGroup', "Repl group {0}, read eval print loop, debug", element.name);
+			return localize('replGroup', "Debug console group {0}, read eval print loop, debug", element.name);
 		}
 
 		return '';
