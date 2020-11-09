@@ -425,7 +425,7 @@ export class CommandCenter {
 		}
 
 		if (!left) {
-			await commands.executeCommand<void>('vscode.open', right, opts, title);
+			await commands.executeCommand<void>('vscode.open', right, { ...opts, override: resource.type === Status.BOTH_MODIFIED ? false : undefined }, title);
 		} else {
 			await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 		}
@@ -828,7 +828,10 @@ export class CommandCenter {
 			try {
 				document = await workspace.openTextDocument(uri);
 			} catch (error) {
-				await commands.executeCommand('vscode.open', uri, opts);
+				await commands.executeCommand('vscode.open', uri, {
+					...opts,
+					override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
+				});
 				continue;
 			}
 
