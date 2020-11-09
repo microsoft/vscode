@@ -19,7 +19,7 @@
 	max-width: 700px;
 }
 
-.monaco-editor .debug-hover-widget .complex-value .title {
+.monaco-editor .debug-hover-widget .complex-value .title .tip {
 	padding-left: 15px;
 	padding-right: 2px;
 	font-size: 11px;
@@ -30,17 +30,6 @@
 	overflow: hidden;
 	white-space: pre;
 	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
-}
-
-.tip {
-	padding-left: 15px;
-	padding-right: 2px;
-	font-size: 11px;
-	line-height: 18px;
-	word-break: normal;
-	height: 18px;
-	white-space: pre;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {

@@ -118,7 +118,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
 		this.valueContainer.setAttribute('role', 'tooltip');
-		this.tip.innerText = 'Quick tip: Hold alt key to switch to editor hover';
+		this.tip.innerText = nls.localize('quickTip', 'Quick tip: Hold alt key to switch to editor language hover');
 		this.scrollbar = new DomScrollableElement(this.valueContainer, { horizontal: ScrollbarVisibility.Hidden });
 		this.domNode.appendChild(this.scrollbar.getDomNode());
 		this.toDispose.push(this.scrollbar);
