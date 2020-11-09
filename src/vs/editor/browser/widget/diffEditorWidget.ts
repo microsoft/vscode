@@ -132,7 +132,7 @@ class VisualEditorState {
 			for (let i = 0, length = newDecorations.zones.length; i < length; i++) {
 				const viewZone = <editorBrowser.IViewZone>newDecorations.zones[i];
 				viewZone.suppressMouseDown = true;
-				let zoneId = viewChangeAccessor.addZone(viewZone);
+				const zoneId = viewChangeAccessor.addZone(viewZone);
 				this._zones.push(zoneId);
 				this._zonesMap[String(zoneId)] = true;
 
@@ -897,8 +897,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public saveViewState(): editorCommon.IDiffEditorViewState {
-		let originalViewState = this._originalEditor.saveViewState();
-		let modifiedViewState = this._modifiedEditor.saveViewState();
+		const originalViewState = this._originalEditor.saveViewState();
+		const modifiedViewState = this._modifiedEditor.saveViewState();
 		return {
 			original: originalViewState,
 			modified: modifiedViewState
@@ -907,7 +907,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public restoreViewState(s: editorCommon.IDiffEditorViewState): void {
 		if (s.original && s.modified) {
-			let diffEditorState = <editorCommon.IDiffEditorViewState>s;
+			const diffEditorState = <editorCommon.IDiffEditorViewState>s;
 			this._originalEditor.restoreViewState(diffEditorState.original);
 			this._modifiedEditor.restoreViewState(diffEditorState.modified);
 		}
@@ -970,8 +970,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const height = this._elementSizeObserver.getHeight();
 		const reviewHeight = this._getReviewHeight();
 
-		let freeSpace = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH - 2 * DiffEditorWidget.ONE_OVERVIEW_WIDTH;
-		let layoutInfo = this._modifiedEditor.getLayoutInfo();
+		const freeSpace = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH - 2 * DiffEditorWidget.ONE_OVERVIEW_WIDTH;
+		const layoutInfo = this._modifiedEditor.getLayoutInfo();
 		if (layoutInfo) {
 			this._originalOverviewRuler.setLayout({
 				top: 0,
@@ -1031,7 +1031,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// The best method would be to call cancel on the Promise, but this is not
 		// yet supported, so using tokens for now.
 		this._diffComputationToken++;
-		let currentToken = this._diffComputationToken;
+		const currentToken = this._diffComputationToken;
 		this._setState(editorBrowser.DiffEditorState.ComputingDiff);
 
 		if (!this._editorWorkerService.canComputeDiff(currentOriginalModel.uri, currentModifiedModel.uri)) {
@@ -1079,10 +1079,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
 
-		let foreignOriginal = this._originalEditorState.getForeignViewZones(this._originalEditor.getWhitespaces());
-		let foreignModified = this._modifiedEditorState.getForeignViewZones(this._modifiedEditor.getWhitespaces());
+		const foreignOriginal = this._originalEditorState.getForeignViewZones(this._originalEditor.getWhitespaces());
+		const foreignModified = this._modifiedEditorState.getForeignViewZones(this._modifiedEditor.getWhitespaces());
 
-		let diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._ignoreTrimWhitespace, this._renderIndicators, foreignOriginal, foreignModified, this._originalEditor, this._modifiedEditor);
+		const diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._ignoreTrimWhitespace, this._renderIndicators, foreignOriginal, foreignModified, this._originalEditor, this._modifiedEditor);
 
 		try {
 			this._currentlyChangingViewZones = true;
@@ -1094,7 +1094,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _adjustOptionsForSubEditor(options: editorBrowser.IDiffEditorConstructionOptions): editorBrowser.IDiffEditorConstructionOptions {
-		let clonedOptions: editorBrowser.IDiffEditorConstructionOptions = objects.deepClone(options || {});
+		const clonedOptions: editorBrowser.IDiffEditorConstructionOptions = objects.deepClone(options || {});
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.wordWrap = 'off';
 		clonedOptions.wordWrapMinified = false;
@@ -1114,7 +1114,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _adjustOptionsForLeftHandSide(options: editorBrowser.IDiffEditorConstructionOptions, isEditable: boolean, isCodeLensEnabled: boolean): editorBrowser.IEditorConstructionOptions {
-		let result = this._adjustOptionsForSubEditor(options);
+		const result = this._adjustOptionsForSubEditor(options);
 		if (isCodeLensEnabled) {
 			result.codeLens = true;
 		}
@@ -1124,7 +1124,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _adjustOptionsForRightHandSide(options: editorBrowser.IDiffEditorConstructionOptions, isCodeLensEnabled: boolean): editorBrowser.IEditorConstructionOptions {
-		let result = this._adjustOptionsForSubEditor(options);
+		const result = this._adjustOptionsForSubEditor(options);
 		if (isCodeLensEnabled) {
 			result.codeLens = true;
 		}
@@ -1144,7 +1144,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const height = this._elementSizeObserver.getHeight();
 		const reviewHeight = this._getReviewHeight();
 
-		let splitPoint = this._strategy.layout();
+		const splitPoint = this._strategy.layout();
 
 		this._originalDomNode.style.width = splitPoint + 'px';
 		this._originalDomNode.style.left = '0px';
@@ -1172,7 +1172,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _layoutOverviewViewport(): void {
-		let layout = this._computeOverviewViewport();
+		const layout = this._computeOverviewViewport();
 		if (!layout) {
 			this._overviewViewportDomElement.setTop(0);
 			this._overviewViewportDomElement.setHeight(0);
@@ -1183,20 +1183,20 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _computeOverviewViewport(): { height: number; top: number; } | null {
-		let layoutInfo = this._modifiedEditor.getLayoutInfo();
+		const layoutInfo = this._modifiedEditor.getLayoutInfo();
 		if (!layoutInfo) {
 			return null;
 		}
 
-		let scrollTop = this._modifiedEditor.getScrollTop();
-		let scrollHeight = this._modifiedEditor.getScrollHeight();
+		const scrollTop = this._modifiedEditor.getScrollTop();
+		const scrollHeight = this._modifiedEditor.getScrollHeight();
 
-		let computedAvailableSize = Math.max(0, layoutInfo.height);
-		let computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
-		let computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
+		const computedAvailableSize = Math.max(0, layoutInfo.height);
+		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
+		const computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
-		let computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
-		let computedSliderPosition = Math.floor(scrollTop * computedRatio);
+		const computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
+		const computedSliderPosition = Math.floor(scrollTop * computedRatio);
 
 		return {
 			height: computedSliderSize,
@@ -1255,11 +1255,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			return null;
 		}
 
-		let min = 0, max = lineChanges.length - 1;
+		let min = 0;
+		let max = lineChanges.length - 1;
 		while (min < max) {
-			let mid = Math.floor((min + max) / 2);
-			let midStart = startLineNumberExtractor(lineChanges[mid]);
-			let midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Constants.MAX_SAFE_SMALL_INTEGER);
+			const mid = Math.floor((min + max) / 2);
+			const midStart = startLineNumberExtractor(lineChanges[mid]);
+			const midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Constants.MAX_SAFE_SMALL_INTEGER);
 
 			if (lineNumber < midStart) {
 				max = mid - 1;
@@ -1275,19 +1276,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _getEquivalentLineForOriginalLineNumber(lineNumber: number): number {
-		let lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.originalStartLineNumber);
+		const lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.originalStartLineNumber);
 
 		if (!lineChange) {
 			return lineNumber;
 		}
 
-		let originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
-		let modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
-		let lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
-		let lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
+		const originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
+		const modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
+		const lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
+		const lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
 
 
-		let delta = lineNumber - originalEquivalentLineNumber;
+		const delta = lineNumber - originalEquivalentLineNumber;
 
 		if (delta <= lineChangeOriginalLength) {
 			return modifiedEquivalentLineNumber + Math.min(delta, lineChangeModifiedLength);
@@ -1297,19 +1298,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _getEquivalentLineForModifiedLineNumber(lineNumber: number): number {
-		let lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.modifiedStartLineNumber);
+		const lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.modifiedStartLineNumber);
 
 		if (!lineChange) {
 			return lineNumber;
 		}
 
-		let originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
-		let modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
-		let lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
-		let lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
+		const originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
+		const modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
+		const lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
+		const lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
 
 
-		let delta = lineNumber - modifiedEquivalentLineNumber;
+		const delta = lineNumber - modifiedEquivalentLineNumber;
 
 		if (delta <= lineChangeModifiedLength) {
 			return originalEquivalentLineNumber + Math.min(delta, lineChangeOriginalLength);
@@ -1363,9 +1364,9 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 	}
 
 	public applyColors(theme: IColorTheme): boolean {
-		let newInsertColor = (theme.getColor(diffInserted) || defaultInsertColor).transparent(2);
-		let newRemoveColor = (theme.getColor(diffRemoved) || defaultRemoveColor).transparent(2);
-		let hasChanges = !newInsertColor.equals(this._insertColor) || !newRemoveColor.equals(this._removeColor);
+		const newInsertColor = (theme.getColor(diffInserted) || defaultInsertColor).transparent(2);
+		const newRemoveColor = (theme.getColor(diffRemoved) || defaultRemoveColor).transparent(2);
+		const hasChanges = !newInsertColor.equals(this._insertColor) || !newRemoveColor.equals(this._removeColor);
 		this._insertColor = newInsertColor;
 		this._removeColor = newRemoveColor;
 		return hasChanges;
@@ -1379,11 +1380,11 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 		originalWhitespaces = originalWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
 		});
-		let zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
+		const zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
 
 		// Get decorations & overview ruler zones
-		let originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
-		let modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
+		const originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
+		const modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalEditor, modifiedEditor);
 
 		return {
 			original: {
@@ -1457,7 +1458,7 @@ abstract class ViewZonesComputer {
 	}
 
 	public getViewZones(): IEditorsZones {
-		let result: { original: IMyViewZone[]; modified: IMyViewZone[]; } = {
+		const result: { original: IMyViewZone[]; modified: IMyViewZone[]; } = {
 			original: [],
 			modified: []
 		};
@@ -1469,13 +1470,13 @@ abstract class ViewZonesComputer {
 		let originalEndEquivalentLineNumber: number = 0;
 		let modifiedEndEquivalentLineNumber: number = 0;
 
-		let sortMyViewZones = (a: IMyViewZone, b: IMyViewZone) => {
+		const sortMyViewZones = (a: IMyViewZone, b: IMyViewZone) => {
 			return a.afterLineNumber - b.afterLineNumber;
 		};
 
-		let addAndCombineIfPossible = (destination: IMyViewZone[], item: IMyViewZone) => {
+		const addAndCombineIfPossible = (destination: IMyViewZone[], item: IMyViewZone) => {
 			if (item.domNode === null && destination.length > 0) {
-				let lastItem = destination[destination.length - 1];
+				const lastItem = destination[destination.length - 1];
 				if (lastItem.afterLineNumber === item.afterLineNumber && lastItem.domNode === null) {
 					lastItem.heightInLines += item.heightInLines;
 					return;
@@ -1484,12 +1485,12 @@ abstract class ViewZonesComputer {
 			destination.push(item);
 		};
 
-		let modifiedForeignVZ = new ForeignViewZonesIterator(this._modifiedForeignVZ);
-		let originalForeignVZ = new ForeignViewZonesIterator(this._originalForeignVZ);
+		const modifiedForeignVZ = new ForeignViewZonesIterator(this._modifiedForeignVZ);
+		const originalForeignVZ = new ForeignViewZonesIterator(this._originalForeignVZ);
 
 		// In order to include foreign view zones after the last line change, the for loop will iterate once more after the end of the `lineChanges` array
 		for (let i = 0, length = this._lineChanges.length; i <= length; i++) {
-			let lineChange = (i < length ? this._lineChanges[i] : null);
+			const lineChange = (i < length ? this._lineChanges[i] : null);
 
 			if (lineChange !== null) {
 				originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
@@ -1552,14 +1553,14 @@ abstract class ViewZonesComputer {
 			}
 
 			if (lineChange !== null && isChangeOrInsert(lineChange)) {
-				let r = this._produceOriginalFromDiff(lineChange, lineChangeOriginalLength, lineChangeModifiedLength);
+				const r = this._produceOriginalFromDiff(lineChange, lineChangeOriginalLength, lineChangeModifiedLength);
 				if (r) {
 					stepOriginal.push(r);
 				}
 			}
 
 			if (lineChange !== null && isChangeOrDelete(lineChange)) {
-				let r = this._produceModifiedFromDiff(lineChange, lineChangeOriginalLength, lineChangeModifiedLength);
+				const r = this._produceModifiedFromDiff(lineChange, lineChangeOriginalLength, lineChangeModifiedLength);
 				if (r) {
 					stepModified.push(r);
 				}
@@ -1578,11 +1579,11 @@ abstract class ViewZonesComputer {
 			stepModified = stepModified.sort(sortMyViewZones);
 
 			while (stepOriginalIndex < stepOriginal.length && stepModifiedIndex < stepModified.length) {
-				let original = stepOriginal[stepOriginalIndex];
-				let modified = stepModified[stepModifiedIndex];
+				const original = stepOriginal[stepOriginalIndex];
+				const modified = stepModified[stepModifiedIndex];
 
-				let originalDelta = original.afterLineNumber - originalEquivalentLineNumber;
-				let modifiedDelta = modified.afterLineNumber - modifiedEquivalentLineNumber;
+				const originalDelta = original.afterLineNumber - originalEquivalentLineNumber;
+				const modifiedDelta = modified.afterLineNumber - modifiedEquivalentLineNumber;
 
 				if (originalDelta < modifiedDelta) {
 					addAndCombineIfPossible(result.original, original);
@@ -1731,7 +1732,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 	}
 
 	public setEnableSplitViewResizing(enableSplitViewResizing: boolean): void {
-		let newDisableSash = (enableSplitViewResizing === false);
+		const newDisableSash = (enableSplitViewResizing === false);
 		if (this._disableSash !== newDisableSash) {
 			this._disableSash = newDisableSash;
 			this._sash.state = this._disableSash ? SashState.Disabled : SashState.Enabled;
@@ -1739,11 +1740,11 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 	}
 
 	public layout(sashRatio: number | null = this._sashRatio): number {
-		let w = this._dataSource.getWidth();
-		let contentWidth = w - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
+		const w = this._dataSource.getWidth();
+		const contentWidth = w - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
 		let sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
-		let midPoint = Math.floor(0.5 * contentWidth);
+		const midPoint = Math.floor(0.5 * contentWidth);
 
 		sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
 
@@ -1772,9 +1773,9 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 	}
 
 	private _onSashDrag(e: ISashEvent): void {
-		let w = this._dataSource.getWidth();
-		let contentWidth = w - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
-		let sashPosition = this.layout((this._startSashPosition! + (e.currentX - e.startX)) / contentWidth);
+		const w = this._dataSource.getWidth();
+		const contentWidth = w - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
+		const sashPosition = this.layout((this._startSashPosition! + (e.currentX - e.startX)) / contentWidth);
 
 		this._sashRatio = sashPosition / contentWidth;
 
@@ -1804,19 +1805,19 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 	}
 
 	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsZones {
-		let c = new SideBySideViewZonesComputer(lineChanges, originalForeignVZ, originalEditor.getOption(EditorOption.lineHeight), modifiedForeignVZ, modifiedEditor.getOption(EditorOption.lineHeight));
+		const c = new SideBySideViewZonesComputer(lineChanges, originalForeignVZ, originalEditor.getOption(EditorOption.lineHeight), modifiedForeignVZ, modifiedEditor.getOption(EditorOption.lineHeight));
 		return c.getViewZones();
 	}
 
 	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 		const overviewZoneColor = String(this._removeColor);
 
-		let result: IEditorDiffDecorations = {
+		const result: IEditorDiffDecorations = {
 			decorations: [],
 			overviewZones: []
 		};
 
-		let originalModel = originalEditor.getModel()!;
+		const originalModel = originalEditor.getModel()!;
 
 		for (const lineChange of lineChanges) {
 
@@ -1869,12 +1870,12 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 		const overviewZoneColor = String(this._insertColor);
 
-		let result: IEditorDiffDecorations = {
+		const result: IEditorDiffDecorations = {
 			decorations: [],
 			overviewZones: []
 		};
 
-		let modifiedModel = modifiedEditor.getModel()!;
+		const modifiedModel = modifiedEditor.getModel()!;
 
 		for (const lineChange of lineChanges) {
 
@@ -1980,14 +1981,14 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 	}
 
 	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones {
-		let computer = new InlineViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor, renderIndicators);
+		const computer = new InlineViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor, renderIndicators);
 		return computer.getViewZones();
 	}
 
 	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 		const overviewZoneColor = String(this._removeColor);
 
-		let result: IEditorDiffDecorations = {
+		const result: IEditorDiffDecorations = {
 			decorations: [],
 			overviewZones: []
 		};
@@ -2015,12 +2016,12 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
 		const overviewZoneColor = String(this._insertColor);
 
-		let result: IEditorDiffDecorations = {
+		const result: IEditorDiffDecorations = {
 			decorations: [],
 			overviewZones: []
 		};
 
-		let modifiedModel = modifiedEditor.getModel()!;
+		const modifiedModel = modifiedEditor.getModel()!;
 
 		for (const lineChange of lineChanges) {
 
@@ -2093,13 +2094,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 
 	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null {
-		let result = document.createElement('div');
+		const result = document.createElement('div');
 		result.className = 'inline-added-margin-view-zone';
 		return result;
 	}
 
 	protected _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
-		let marginDomNode = document.createElement('div');
+		const marginDomNode = document.createElement('div');
 		marginDomNode.className = 'inline-added-margin-view-zone';
 
 		return {
@@ -2111,7 +2112,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 
 	protected _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
-		let decorations: InlineDecoration[] = [];
+		const decorations: InlineDecoration[] = [];
 		if (lineChange.charChanges) {
 			for (const charChange of lineChange.charChanges) {
 				if (isChangeOrDelete(charChange)) {
@@ -2124,13 +2125,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 		}
 
-		let sb = createStringBuilder(10000);
-		let marginDomNode = document.createElement('div');
+		const sb = createStringBuilder(10000);
+		const marginDomNode = document.createElement('div');
 		const layoutInfo = this._modifiedEditorOptions.get(EditorOption.layoutInfo);
 		const fontInfo = this._modifiedEditorOptions.get(EditorOption.fontInfo);
 		const lineDecorationsWidth = layoutInfo.decorationsWidth;
 
-		let lineHeight = this._modifiedEditorOptions.get(EditorOption.lineHeight);
+		const lineHeight = this._modifiedEditorOptions.get(EditorOption.lineHeight);
 		const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		let maxCharsPerLine = 0;
 		const originalContent: string[] = [];
@@ -2139,7 +2140,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			originalContent.push(this._originalModel.getLineContent(lineNumber));
 
 			if (this._renderIndicators) {
-				let index = lineNumber - lineChange.originalStartLineNumber;
+				const index = lineNumber - lineChange.originalStartLineNumber;
 				const marginElement = document.createElement('div');
 				marginElement.className = `delete-sign ${diffRemoveIcon.classNames}`;
 				marginElement.setAttribute('style', `position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;`);
@@ -2148,7 +2149,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		}
 		maxCharsPerLine += this._modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
 
-		let domNode = document.createElement('div');
+		const domNode = document.createElement('div');
 		domNode.className = `view-lines line-delete ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`;
 		domNode.innerHTML = sb.build();
 		Configuration.applyFontInfoSlow(domNode, fontInfo);
@@ -2229,7 +2230,7 @@ function isChangeOrDelete(lineChange: editorCommon.IChange): boolean {
 }
 
 function createFakeLinesDiv(): HTMLElement {
-	let r = document.createElement('div');
+	const r = document.createElement('div');
 	r.className = 'diagonal-fill';
 	return r;
 }
