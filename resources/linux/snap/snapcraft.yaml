@@ -24,12 +24,14 @@ parts:
     plugin: dump
     source: .
     stage-packages:
+      - ibus-gtk3
       - fcitx-frontend-gtk3
       - gvfs-libs
       - libasound2
       - libgconf-2-4
       - libglib2.0-bin
       - libgnome-keyring0
+      - libgbm1
       - libgtk-3-0
       - libnotify4
       - libnspr4

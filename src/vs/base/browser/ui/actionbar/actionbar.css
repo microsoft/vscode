@@ -5,7 +5,6 @@
 
 .monaco-action-bar {
 	text-align: right;
-	overflow: hidden;
 	white-space: nowrap;
 }
 
@@ -96,4 +95,16 @@
 	align-items: center;
 	justify-content: center;
 	margin-right: 10px;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item {
+	display: flex;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-label {
+	margin-right: 1px;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown {
+	margin-right: 4px;
 }

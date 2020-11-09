@@ -85,9 +85,6 @@
       "include": "#c"
     },
     {
-      "include": "#cc"
-    },
-    {
       "include": "#clj"
     },
     {
@@ -128,9 +125,6 @@
     },
     {
       "include": "#handlebars"
-    },
-    {
-      "include": "#hbs"
     },
     {
       "include": "#hlsl"
@@ -187,12 +181,6 @@
       "include": "#php"
     },
     {
-      "include": "#pl"
-    },
-    {
-      "include": "#pm"
-    },
-    {
       "include": "#ps1"
     },
     {
@@ -239,9 +227,6 @@
     },
     {
       "include": "#yaml"
-    },
-    {
-      "include": "#yml"
     },
     {
       "match": "^(?!\\s)(.*?)([^\\\\\\/\\n]*)(:)$",
@@ -453,92 +438,6 @@
         }
       ]
     },
-    "cc": {
-      "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.cc)(:)$",
-      "end": "^(?!\\s)",
-      "beginCaptures": {
-        "0": {
-          "name": "string meta.path.search"
-        },
-        "1": {
-          "name": "meta.path.dirname.search"
-        },
-        "2": {
-          "name": "meta.path.basename.search"
-        },
-        "3": {
-          "name": "punctuation.separator"
-        }
-      },
-      "patterns": [
-        {
-          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  (?:\\s*)((\\d+) )",
-          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "whileCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            },
-            "4": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "5": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.cpp"
-            }
-          ]
-        },
-        {
-          "begin": "^  (?:\\s*)((\\d+)(:))",
-          "while": "(?=not)possible",
-          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.cpp"
-            }
-          ]
-        }
-      ]
-    },
     "clj": {
       "name": "meta.resultBlock.search",
       "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.clj)(:)$",
@@ -713,7 +612,7 @@
     },
     "cpp": {
       "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.cpp)(:)$",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.(?:cpp|c\\+\\+|cc|cxx|hxx|h\\+\\+|hh))(:)$",
       "end": "^(?!\\s)",
       "beginCaptures": {
         "0": {
@@ -1229,7 +1128,7 @@
     },
     "dockerfile": {
       "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*(?:dockerfile|Dockerfile))(:)$",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*(?:dockerfile|Dockerfile|containerfile|Containerfile))(:)$",
       "end": "^(?!\\s)",
       "beginCaptures": {
         "0": {
@@ -1659,93 +1558,7 @@
     },
     "handlebars": {
       "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.handlebars)(:)$",
-      "end": "^(?!\\s)",
-      "beginCaptures": {
-        "0": {
-          "name": "string meta.path.search"
-        },
-        "1": {
-          "name": "meta.path.dirname.search"
-        },
-        "2": {
-          "name": "meta.path.basename.search"
-        },
-        "3": {
-          "name": "punctuation.separator"
-        }
-      },
-      "patterns": [
-        {
-          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  (?:\\s*)((\\d+) )",
-          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "whileCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            },
-            "4": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "5": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "patterns": [
-            {
-              "include": "text.html.handlebars"
-            }
-          ]
-        },
-        {
-          "begin": "^  (?:\\s*)((\\d+)(:))",
-          "while": "(?=not)possible",
-          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            }
-          },
-          "patterns": [
-            {
-              "include": "text.html.handlebars"
-            }
-          ]
-        }
-      ]
-    },
-    "hbs": {
-      "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.hbs)(:)$",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.(?:handlebars|hbs))(:)$",
       "end": "^(?!\\s)",
       "beginCaptures": {
         "0": {
@@ -3207,7 +3020,7 @@
     },
     "perl": {
       "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.perl)(:)$",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.(?:perl|pl|pm))(:)$",
       "end": "^(?!\\s)",
       "beginCaptures": {
         "0": {
@@ -3372,178 +3185,6 @@
           "patterns": [
             {
               "include": "source.php"
-            }
-          ]
-        }
-      ]
-    },
-    "pl": {
-      "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.pl)(:)$",
-      "end": "^(?!\\s)",
-      "beginCaptures": {
-        "0": {
-          "name": "string meta.path.search"
-        },
-        "1": {
-          "name": "meta.path.dirname.search"
-        },
-        "2": {
-          "name": "meta.path.basename.search"
-        },
-        "3": {
-          "name": "punctuation.separator"
-        }
-      },
-      "patterns": [
-        {
-          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  (?:\\s*)((\\d+) )",
-          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "whileCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            },
-            "4": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "5": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.perl"
-            }
-          ]
-        },
-        {
-          "begin": "^  (?:\\s*)((\\d+)(:))",
-          "while": "(?=not)possible",
-          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.perl"
-            }
-          ]
-        }
-      ]
-    },
-    "pm": {
-      "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.pm)(:)$",
-      "end": "^(?!\\s)",
-      "beginCaptures": {
-        "0": {
-          "name": "string meta.path.search"
-        },
-        "1": {
-          "name": "meta.path.dirname.search"
-        },
-        "2": {
-          "name": "meta.path.basename.search"
-        },
-        "3": {
-          "name": "punctuation.separator"
-        }
-      },
-      "patterns": [
-        {
-          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  (?:\\s*)((\\d+) )",
-          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "whileCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            },
-            "4": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "5": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.perl"
-            }
-          ]
-        },
-        {
-          "begin": "^  (?:\\s*)((\\d+)(:))",
-          "while": "(?=not)possible",
-          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.perl"
             }
           ]
         }
@@ -4841,93 +4482,7 @@
     },
     "yaml": {
       "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.yaml)(:)$",
-      "end": "^(?!\\s)",
-      "beginCaptures": {
-        "0": {
-          "name": "string meta.path.search"
-        },
-        "1": {
-          "name": "meta.path.dirname.search"
-        },
-        "2": {
-          "name": "meta.path.basename.search"
-        },
-        "3": {
-          "name": "punctuation.separator"
-        }
-      },
-      "patterns": [
-        {
-          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
-          "begin": "^  (?:\\s*)((\\d+) )",
-          "while": "^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "whileCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            },
-            "4": {
-              "name": "meta.resultLinePrefix.contextLinePrefix.search"
-            },
-            "5": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.yaml"
-            }
-          ]
-        },
-        {
-          "begin": "^  (?:\\s*)((\\d+)(:))",
-          "while": "(?=not)possible",
-          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
-          "beginCaptures": {
-            "0": {
-              "name": "constant.numeric.integer meta.resultLinePrefix.search"
-            },
-            "1": {
-              "name": "meta.resultLinePrefix.matchLinePrefix.search"
-            },
-            "2": {
-              "name": "meta.resultLinePrefix.lineNumber.search"
-            },
-            "3": {
-              "name": "punctuation.separator"
-            }
-          },
-          "patterns": [
-            {
-              "include": "source.yaml"
-            }
-          ]
-        }
-      ]
-    },
-    "yml": {
-      "name": "meta.resultBlock.search",
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.yml)(:)$",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.(?:ya?ml))(:)$",
       "end": "^(?!\\s)",
       "beginCaptures": {
         "0": {

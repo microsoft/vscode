@@ -6,6 +6,14 @@
 import * as buffer from 'vs/base/common/buffer';
 import { decodeUTF16LE } from 'vs/editor/common/core/stringBuilder';
 
+function escapeNewLine(str: string): string {
+	return (
+		str
+			.replace(/\n/g, '\\n')
+			.replace(/\r/g, '\\r')
+	);
+}
+
 export class TextChange {
 
 	public get oldLength(): number {
@@ -30,6 +38,16 @@ export class TextChange {
 		public readonly newPosition: number,
 		public readonly newText: string
 	) { }
+
+	public toString(): string {
+		if (this.oldText.length === 0) {
+			return `(insert@${this.oldPosition} "${escapeNewLine(this.newText)}")`;
+		}
+		if (this.newText.length === 0) {
+			return `(delete@${this.oldPosition} "${escapeNewLine(this.oldText)}")`;
+		}
+		return `(replace@${this.oldPosition} "${escapeNewLine(this.oldText)}" with "${escapeNewLine(this.newText)}")`;
+	}
 
 	private static _writeStringSize(str: string): number {
 		return (

@@ -17,8 +17,9 @@ for (let i = 0; i < 256; i++) {
 	_hex.push(i.toString(16).padStart(2, '0'));
 }
 
-// todo@joh node nodejs use `crypto#randomBytes`, see: https://nodejs.org/docs/latest/api/crypto.html#crypto_crypto_randombytes_size_callback
-// todo@joh use browser-crypto
+// todo@jrieken
+// 1. node nodejs use`crypto#randomBytes`, see: https://nodejs.org/docs/latest/api/crypto.html#crypto_crypto_randombytes_size_callback
+// 2. use browser-crypto
 const _fillRandomValues = function (bucket: Uint8Array): Uint8Array {
 	for (let i = 0; i < bucket.length; i++) {
 		bucket[i] = Math.floor(Math.random() * 256);

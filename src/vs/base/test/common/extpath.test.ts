@@ -57,6 +57,13 @@ suite('Paths', () => {
 			assert.ok(!extpath.isValidBasename('aux'));
 			assert.ok(!extpath.isValidBasename('Aux'));
 			assert.ok(!extpath.isValidBasename('LPT0'));
+			assert.ok(!extpath.isValidBasename('aux.txt'));
+			assert.ok(!extpath.isValidBasename('com0.abc'));
+			assert.ok(extpath.isValidBasename('LPT00'));
+			assert.ok(extpath.isValidBasename('aux1'));
+			assert.ok(extpath.isValidBasename('aux1.txt'));
+			assert.ok(extpath.isValidBasename('aux1.aux.txt'));
+
 			assert.ok(!extpath.isValidBasename('test.txt.'));
 			assert.ok(!extpath.isValidBasename('test.txt..'));
 			assert.ok(!extpath.isValidBasename('test.txt '));
@@ -129,5 +136,42 @@ suite('Paths', () => {
 		assert.equal(extpath.indexOfPath('/foo', '/FOO', true), 0);
 		assert.equal(extpath.indexOfPath('/some/long/path', '/some/long', false), 0);
 		assert.equal(extpath.indexOfPath('/some/long/path', '/PATH', true), 10);
+	});
+
+	test('parseLineAndColumnAware', () => {
+		let res = extpath.parseLineAndColumnAware('/foo/bar');
+		assert.equal(res.path, '/foo/bar');
+		assert.equal(res.line, undefined);
+		assert.equal(res.column, undefined);
+
+		res = extpath.parseLineAndColumnAware('/foo/bar:33');
+		assert.equal(res.path, '/foo/bar');
+		assert.equal(res.line, 33);
+		assert.equal(res.column, 1);
+
+		res = extpath.parseLineAndColumnAware('/foo/bar:33:34');
+		assert.equal(res.path, '/foo/bar');
+		assert.equal(res.line, 33);
+		assert.equal(res.column, 34);
+
+		res = extpath.parseLineAndColumnAware('C:\\foo\\bar');
+		assert.equal(res.path, 'C:\\foo\\bar');
+		assert.equal(res.line, undefined);
+		assert.equal(res.column, undefined);
+
+		res = extpath.parseLineAndColumnAware('C:\\foo\\bar:33');
+		assert.equal(res.path, 'C:\\foo\\bar');
+		assert.equal(res.line, 33);
+		assert.equal(res.column, 1);
+
+		res = extpath.parseLineAndColumnAware('C:\\foo\\bar:33:34');
+		assert.equal(res.path, 'C:\\foo\\bar');
+		assert.equal(res.line, 33);
+		assert.equal(res.column, 34);
+
+		res = extpath.parseLineAndColumnAware('/foo/bar:abb');
+		assert.equal(res.path, '/foo/bar:abb');
+		assert.equal(res.line, undefined);
+		assert.equal(res.column, undefined);
 	});
 });

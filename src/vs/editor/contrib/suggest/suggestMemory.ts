@@ -5,7 +5,7 @@
 
 
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
@@ -26,7 +26,7 @@ export abstract class Memory {
 			return 0;
 		}
 		let topScore = items[0].score[0];
-		for (let i = 1; i < items.length; i++) {
+		for (let i = 0; i < items.length; i++) {
 			const { score, completion: suggestion } = items[i];
 			if (score[0] !== topScore) {
 				// stop when leaving the group of top matches
@@ -132,11 +132,7 @@ export class LRUMemory extends Memory {
 	}
 
 	toJSON(): object {
-		let data: [string, MemItem][] = [];
-		this._cache.forEach((value, key) => {
-			data.push([key, value]);
-		});
-		return data;
+		return this._cache.toJSON();
 	}
 
 	fromJSON(data: [string, MemItem][]): void {
@@ -299,7 +295,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 			const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
 			const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
 			const raw = JSON.stringify(this._strategy);
-			this._storageService.store(`${SuggestMemoryService._storagePrefix}/${this._strategy.name}`, raw, scope);
+			this._storageService.store2(`${SuggestMemoryService._storagePrefix}/${this._strategy.name}`, raw, scope, StorageTarget.MACHINE);
 		}
 	}
 }
@@ -308,7 +304,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 export const ISuggestMemoryService = createDecorator<ISuggestMemoryService>('ISuggestMemories');
 
 export interface ISuggestMemoryService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void;
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
 }

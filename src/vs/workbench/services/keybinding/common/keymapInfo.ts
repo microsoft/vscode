@@ -94,7 +94,7 @@ export type IKeyboardLayoutInfo = (IWindowsKeyboardLayoutInfo | ILinuxKeyboardLa
 export const IKeymapService = createDecorator<IKeymapService>('keymapService');
 
 export interface IKeymapService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onDidChangeKeyboardMapper: Event<void>;
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
 	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
@@ -292,14 +292,15 @@ export class KeymapInfo {
 				continue;
 			}
 
-			if (this.mapping[key] === undefined) {
+			let currentMapping = this.mapping[key];
+
+			if (currentMapping === undefined) {
 				score -= 1;
 			}
 
-			let currentMapping = this.mapping[key];
 			let otherMapping = other[key];
 
-			if (currentMapping.value !== otherMapping.value) {
+			if (currentMapping && otherMapping && currentMapping.value !== otherMapping.value) {
 				score -= 1;
 			}
 		}

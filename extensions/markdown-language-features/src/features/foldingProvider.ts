@@ -11,12 +11,6 @@ import { flatten } from '../util/arrays';
 
 const rangeLimit = 5000;
 
-const isStartRegion = (t: string) => /^\s*<!--\s*#?region\b.*-->/.test(t);
-const isEndRegion = (t: string) => /^\s*<!--\s*#?endregion\b.*-->/.test(t);
-
-const isRegionMarker = (token: Token) =>
-	token.type === 'html_block' && (isStartRegion(token.content) || isEndRegion(token.content));
-
 export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvider {
 
 	constructor(
@@ -69,24 +63,6 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 	}
 
 	private async getBlockFoldingRanges(document: vscode.TextDocument): Promise<vscode.FoldingRange[]> {
-
-		const isFoldableToken = (token: Token): boolean => {
-			switch (token.type) {
-				case 'fence':
-				case 'list_item_open':
-					return token.map[1] > token.map[0];
-
-				case 'html_block':
-					if (isRegionMarker(token)) {
-						return false;
-					}
-					return token.map[1] > token.map[0] + 1;
-
-				default:
-					return false;
-			}
-		};
-
 		const tokens = await this.engine.parse(document);
 		const multiLineListItems = tokens.filter(isFoldableToken);
 		return multiLineListItems.map(listItem => {
@@ -95,7 +71,36 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 			if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
 				end = end - 1;
 			}
-			return new vscode.FoldingRange(start, end, listItem.type === 'html_block' && listItem.content.startsWith('<!--') ? vscode.FoldingRangeKind.Comment : undefined);
+			return new vscode.FoldingRange(start, end, this.getFoldingRangeKind(listItem));
 		});
 	}
+
+	private getFoldingRangeKind(listItem: Token): vscode.FoldingRangeKind | undefined {
+		return listItem.type === 'html_block' && listItem.content.startsWith('<!--')
+			? vscode.FoldingRangeKind.Comment
+			: undefined;
+	}
 }
+
+const isStartRegion = (t: string) => /^\s*<!--\s*#?region\b.*-->/.test(t);
+const isEndRegion = (t: string) => /^\s*<!--\s*#?endregion\b.*-->/.test(t);
+
+const isRegionMarker = (token: Token) =>
+	token.type === 'html_block' && (isStartRegion(token.content) || isEndRegion(token.content));
+
+const isFoldableToken = (token: Token): boolean => {
+	switch (token.type) {
+		case 'fence':
+		case 'list_item_open':
+			return token.map[1] > token.map[0];
+
+		case 'html_block':
+			if (isRegionMarker(token)) {
+				return false;
+			}
+			return token.map[1] > token.map[0] + 1;
+
+		default:
+			return false;
+	}
+};

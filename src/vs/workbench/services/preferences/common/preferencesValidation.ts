@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONSchemaType } from 'vs/base/common/jsonSchema';
-import { isArray } from 'vs/base/common/types';
 import * as nls from 'vs/nls';
+import { JSONSchemaType } from 'vs/base/common/jsonSchema';
+import { Color } from 'vs/base/common/color';
+import { isArray } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
 type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
@@ -111,6 +112,11 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 			isValid: ((value: string) => patternRegex!.test(value)),
 			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
 		},
+		{
+			enabled: prop.format === 'color-hex',
+			isValid: ((value: string) => Color.Format.CSS.parseHex(value)),
+			message: nls.localize('validations.colorFormat', "Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA.")
+		}
 	].filter(validation => validation.enabled);
 }
 
