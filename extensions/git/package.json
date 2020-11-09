@@ -164,12 +164,6 @@
         "icon": "$(discard)"
       },
       {
-        "command": "git.rename",
-        "title": "%command.rename%",
-        "category": "Git",
-        "icon": "$(discard)"
-      },
-      {
         "command": "git.cleanAll",
         "title": "%command.cleanAll%",
         "category": "Git",
@@ -184,6 +178,12 @@
       {
         "command": "git.cleanAllUntracked",
         "title": "%command.cleanAllUntracked%",
+        "category": "Git",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "git.rename",
+        "title": "%command.rename%",
         "category": "Git",
         "icon": "$(discard)"
       },
@@ -615,6 +615,10 @@
         {
           "command": "git.cleanAllUntracked",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.rename",
+          "when": "false"
         },
         {
           "command": "git.commit",
@@ -1332,9 +1336,14 @@
       ],
       "explorer/context": [
         {
-          "command": "git.rename",
-          "group": "7_modification",
+          "submenu": "git.explorer",
+          "group": "7_git",
           "when": "config.git.enabled && !git.missing && !explorerResourceIsRoot"
+        }
+      ],
+      "git.explorer": [
+        {
+          "command": "git.rename"
         }
       ],
       "git.commit": [
@@ -1555,6 +1564,10 @@
       ]
     },
     "submenus": [
+      {
+        "id": "git.explorer",
+        "label": "%submenu.explorer%"
+      },
       {
         "id": "git.commit",
         "label": "%submenu.commit%"

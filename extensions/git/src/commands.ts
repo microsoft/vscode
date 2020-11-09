@@ -921,22 +921,23 @@ export class CommandCenter {
 
 	@command('git.rename', { repository: true })
 	async rename(repository: Repository, fromUri: Uri): Promise<void> {
-		this.outputChannel.appendLine(`git.rename ${fromUri.fsPath}`);
-
-		const rootPath = workspace.rootPath;
-		const fromPath = workspace.asRelativePath(fromUri);
-		const fromBasename = path.basename(fromPath);
-		const toPath = await window.showInputBox({
-			value: fromPath,
-			valueSelection: [fromPath.length - fromBasename.length, fromPath.length]
-		});
-		if (!toPath?.trim()) {
+		if (!fromUri) {
 			return;
 		}
 
-		const fullToPath = path.join(rootPath || '', toPath);
-		this.outputChannel.appendLine(`git.rename from ${fromPath} to ${fullToPath}`);
-		await repository.move(fromPath, fullToPath);
+		const from = path.relative(repository.root, fromUri.path);
+		let to = await window.showInputBox({
+			value: from,
+			valueSelection: [from.length - path.basename(from).length, from.length]
+		});
+
+		to = to?.trim();
+
+		if (!to) {
+			return;
+		}
+
+		await repository.move(from, to);
 	}
 
 	@command('git.stage')
