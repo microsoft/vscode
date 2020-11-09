@@ -2167,13 +2167,15 @@ export class ChangeSortAction extends Action {
 
 		this.query = Query.parse('');
 		this.enabled = false;
+		this.checked = false;
 		this._register(onSearchChange(this.onSearchChange, this));
 	}
 
 	private onSearchChange(value: string): void {
 		const query = Query.parse(value);
 		this.query = new Query(query.value, this.sortBy || query.sortBy, query.groupBy);
-		this.enabled = !!value && this.query.isValid() && !this.query.equals(query);
+		this.enabled = !!value && this.query.isValid();
+		this.checked = this.enabled && this.query.equals(query);
 	}
 
 	run(): Promise<void> {
