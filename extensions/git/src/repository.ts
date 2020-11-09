@@ -1191,11 +1191,12 @@ export class Repository implements Disposable {
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 
+				// When fetchOnPull is enabled, fetch all branches when pulling
 				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { unshallow, tags });
-				} else {
-					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+					await this.repository.fetch({ all: true });
 				}
+
+				await this.repository.pull(rebase, remote, branch, { unshallow, tags });
 			});
 		});
 	}
@@ -1258,9 +1259,15 @@ export class Repository implements Disposable {
 				const followTags = config.get<boolean>('followTagsWhenSync');
 				const supportCancellation = config.get<boolean>('supportCancellation');
 
-				const fn = fetchOnPull
-					? async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, undefined, undefined, { tags, cancellationToken })
-					: async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+				const fn = async (cancellationToken?: CancellationToken) => {
+					// When fetchOnPull is enabled, fetch all branches when pulling
+					if (fetchOnPull) {
+						await this.repository.fetch({ all: true, cancellationToken });
+					}
+
+					await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+				};
+
 
 				if (supportCancellation) {
 					const opts: ProgressOptions = {
