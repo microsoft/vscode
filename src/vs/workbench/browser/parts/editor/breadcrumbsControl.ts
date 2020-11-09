@@ -11,7 +11,7 @@ import { tail } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
+import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -38,7 +38,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
-import { SideBySideEditorInput, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -49,6 +49,7 @@ import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class Item extends BreadcrumbsItem {
 
@@ -71,7 +72,7 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return (isEqual(this.element.uri, other.element.uri, false) &&
+			return (extUri.isEqual(this.element.uri, other.element.uri) &&
 				this.options.showFileIcons === other.options.showFileIcons &&
 				this.options.showSymbolIcons === other.options.showSymbolIcons);
 		}
@@ -97,7 +98,7 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineModel) {
 			// has outline element but not in one
 			let label = document.createElement('div');
-			label.innerHTML = '&hellip;';
+			label.innerText = '\u2026';
 			label.className = 'hint-more';
 			container.appendChild(label);
 
@@ -234,12 +235,9 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.clear();
 
 		// honor diff editors and such
-		let input = this._editorGroup.activeEditor;
-		if (input instanceof SideBySideEditorInput) {
-			input = input.master;
-		}
+		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if (!input || !input.resource || !this._fileService.canHandleResource(input.resource!)) {
+		if (!uri || !this._fileService.canHandleResource(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -251,13 +249,16 @@ export class BreadcrumbsControl {
 			}
 		}
 
+		// display uri which can be derived from certain inputs
+		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+
 		this.domNode.classList.toggle('hidden', false);
 		this._ckBreadcrumbsVisible.set(true);
 		this._ckBreadcrumbsPossible.set(true);
 
-		const uri = input.resource;
 		const editor = this._getActiveCodeEditor();
 		const model = new EditorBreadcrumbsModel(
+			fileInfoUri ?? uri,
 			uri, editor,
 			this._configurationService,
 			this._textResourceConfigurationService,
@@ -490,7 +491,7 @@ export class BreadcrumbsControl {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
 				// open file in any editor
-				this._editorService.openEditor({ resource: element.uri, options: { pinned: pinned } }, group);
+				this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
 			} else {
 				// show next picker
 				let items = this._widget.getItems();
@@ -507,7 +508,8 @@ export class BreadcrumbsControl {
 					resource: model.uri,
 					options: {
 						selection: Range.collapseToStart(element.symbol.selectionRange),
-						selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+						selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+						pinned
 					}
 				}, withUndefinedAsNull(this._getActiveCodeEditor()), group === SIDE_GROUP);
 			}
@@ -532,7 +534,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
 		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-		category: { value: localize('cmd.category', "View"), original: 'View' }
+		category: CATEGORIES.View
 	}
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
@@ -752,13 +754,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			// open symbol in editor
 			return editors.openEditor({
 				resource: outlineElement.uri,
-				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
+				options: { selection: Range.collapseToStart(element.symbol.selectionRange), pinned: true }
 			}, SIDE_GROUP);
 
 		} else if (element && URI.isUri(element.resource)) {
 			// open file in editor
 			return editors.openEditor({
 				resource: element.resource,
+				options: { pinned: true }
 			}, SIDE_GROUP);
 
 		} else {

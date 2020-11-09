@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -235,12 +235,9 @@ export class LanguageConfigurationRegistryImpl {
 		return value.characterPair || null;
 	}
 
-	public getAutoClosingPairs(languageId: LanguageId): StandardAutoClosingPairConditional[] {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return [];
-		}
-		return characterPairSupport.getAutoClosingPairs();
+	public getAutoClosingPairs(languageId: LanguageId): AutoClosingPairs {
+		const characterPairSupport = this._getCharacterPairSupport(languageId);
+		return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
 	}
 
 	public getAutoCloseBeforeSet(languageId: LanguageId): string {

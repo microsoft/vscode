@@ -5,30 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { compareSubstringIgnoreCase, compare, compareSubstring } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
-
-/**
- * @deprecated ES6: use `[...SetOrMap.values()]`
- */
-export function values<V = any>(set: Set<V>): V[];
-export function values<K = any, V = any>(map: Map<K, V>): V[];
-export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any): void }): V[] {
-	const result: V[] = [];
-	forEachable.forEach(value => result.push(value));
-	return result;
-}
-
-/**
- * @deprecated ES6: use `[...map.keys()]`
- */
-export function keys<K, V>(map: Map<K, V>): K[] {
-	const result: K[] = [];
-	map.forEach((_value, key) => result.push(key));
-
-	return result;
-}
+import { compareSubstringIgnoreCase, compare, compareSubstring, compareIgnoreCase } from 'vs/base/common/strings';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -161,6 +138,8 @@ export class UriIterator implements IKeyIterator<URI> {
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
 
+	constructor(private readonly _ignorePathCasing: boolean) { }
+
 	reset(key: URI): this {
 		this._value = key;
 		this._states = [];
@@ -171,10 +150,7 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			//todo@jrieken the case-sensitive logic is copied form `resources.ts#hasToIgnoreCase`
-			// which cannot be used because it depends on this
-			const caseSensitive = key.scheme === Schemas.file && isLinux;
-			this._pathIterator = new PathIterator(false, caseSensitive);
+			this._pathIterator = new PathIterator(false, !this._ignorePathCasing);
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
@@ -206,9 +182,9 @@ export class UriIterator implements IKeyIterator<URI> {
 
 	cmp(a: string): number {
 		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return compareSubstringIgnoreCase(a, this._value.scheme);
+			return compareIgnoreCase(a, this._value.scheme);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
-			return compareSubstringIgnoreCase(a, this._value.authority);
+			return compareIgnoreCase(a, this._value.authority);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
 			return this._pathIterator.cmp(a);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
@@ -250,8 +226,8 @@ class TernarySearchTreeNode<K, V> {
 
 export class TernarySearchTree<K, V> {
 
-	static forUris<E>(): TernarySearchTree<URI, E> {
-		return new TernarySearchTree<URI, E>(new UriIterator());
+	static forUris<E>(ignorePathCasing: boolean = false): TernarySearchTree<URI, E> {
+		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
 	static forPaths<E>(): TernarySearchTree<string, E> {
@@ -342,7 +318,14 @@ export class TernarySearchTree<K, V> {
 	}
 
 	delete(key: K): void {
+		return this._delete(key, false);
+	}
 
+	deleteSuperstr(key: K): void {
+		return this._delete(key, true);
+	}
+
+	private _delete(key: K, superStr: boolean): void {
 		const iter = this._iter.reset(key);
 		const stack: [-1 | 0 | 1, TernarySearchTreeNode<K, V>][] = [];
 		let node = this._root;
@@ -368,7 +351,7 @@ export class TernarySearchTree<K, V> {
 				node.value = undefined;
 
 				// clean up empty nodes
-				while (stack.length > 0 && node.isEmpty()) {
+				while (stack.length > 0 && (node.isEmpty() || superStr)) {
 					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;
@@ -426,71 +409,82 @@ export class TernarySearchTree<K, V> {
 				if (!node.mid) {
 					return undefined;
 				} else {
-					return this._nodeIterator(node.mid);
+					return this._values(node.mid);
 				}
 			}
 		}
 		return undefined;
 	}
 
-	private _nodeIterator(node: TernarySearchTreeNode<K, V>): Iterator<V> {
-		let res: { done: false; value: V; };
-		let idx: number;
-		let data: V[];
-		const next = (): IteratorResult<V> => {
-			if (!data) {
-				// lazy till first invocation
-				data = [];
-				idx = 0;
-				this._forEach(node, value => data.push(value));
-			}
-			if (idx >= data.length) {
-				return { done: true, value: undefined };
-			}
-
-			if (!res) {
-				res = { done: false, value: data[idx++] };
-			} else {
-				res.value = data[idx++];
-			}
-			return res;
-		};
-		return { next };
+	forEach(callback: (value: V, index: K) => any): void {
+		for (const [key, value] of this) {
+			callback(value, key);
+		}
 	}
 
-	forEach(callback: (value: V, index: K) => any) {
-		this._forEach(this._root, callback);
+	*[Symbol.iterator](): IterableIterator<[K, V]> {
+		yield* this._entries(this._root);
 	}
 
-	private _forEach(node: TernarySearchTreeNode<K, V> | undefined, callback: (value: V, index: K) => any) {
+	private *_values(node: TernarySearchTreeNode<K, V>): IterableIterator<V> {
+		for (const [, value] of this._entries(node)) {
+			yield value;
+		}
+	}
+
+	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
 		if (node) {
 			// left
-			this._forEach(node.left, callback);
+			yield* this._entries(node.left);
 
 			// node
 			if (node.value) {
 				// callback(node.value, this._iter.join(parts));
-				callback(node.value, node.key);
+				yield [node.key, node.value];
 			}
 			// mid
-			this._forEach(node.mid, callback);
+			yield* this._entries(node.mid);
 
 			// right
-			this._forEach(node.right, callback);
+			yield* this._entries(node.right);
 		}
 	}
 }
 
+interface ResourceMapKeyFn {
+	(resource: URI): string;
+}
+
 export class ResourceMap<T> implements Map<URI, T> {
+
+	private static readonly defaultToKey = (resource: URI) => resource.toString();
 
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
-	protected readonly map: Map<string, T>;
-	protected readonly ignoreCase?: boolean;
+	private readonly map: Map<string, T>;
+	private readonly toKey: ResourceMapKeyFn;
 
-	constructor() {
-		this.map = new Map<string, T>();
-		this.ignoreCase = false; // in the future this should be an uri-comparator
+	/**
+	 *
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(toKey?: ResourceMapKeyFn);
+
+	/**
+	 *
+	 * @param other Another resource which this maps is created from
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(other?: ResourceMap<T>, toKey?: ResourceMapKeyFn);
+
+	constructor(mapOrKeyFn?: ResourceMap<T> | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
+		if (mapOrKeyFn instanceof ResourceMap) {
+			this.map = new Map(mapOrKeyFn.map);
+			this.toKey = toKey ?? ResourceMap.defaultToKey;
+		} else {
+			this.map = new Map();
+			this.toKey = mapOrKeyFn ?? ResourceMap.defaultToKey;
+		}
 	}
 
 	set(resource: URI, value: T): this {
@@ -548,23 +542,6 @@ export class ResourceMap<T> implements Map<URI, T> {
 			yield [URI.parse(item[0]), item[1]];
 		}
 	}
-
-	private toKey(resource: URI): string {
-		let key = resource.toString();
-		if (this.ignoreCase) {
-			key = key.toLowerCase();
-		}
-
-		return key;
-	}
-
-	clone(): ResourceMap<T> {
-		const resourceMap = new ResourceMap<T>();
-
-		this.map.forEach((value, key) => resourceMap.map.set(key, value));
-
-		return resourceMap;
-	}
 }
 
 interface Item<K, V> {
@@ -580,7 +557,9 @@ export const enum Touch {
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> {
+export class LinkedMap<K, V> implements Map<K, V> {
+
+	readonly [Symbol.toStringTag] = 'LinkedMap';
 
 	private _map: Map<K, Item<K, V>>;
 	private _head: Item<K, V> | undefined;
@@ -636,7 +615,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	set(key: K, value: V, touch: Touch = Touch.None): void {
+	set(key: K, value: V, touch: Touch = Touch.None): this {
 		let item = this._map.get(key);
 		if (item) {
 			item.value = value;
@@ -662,6 +641,7 @@ export class LinkedMap<K, V> {
 			this._map.set(key, item);
 			this._size++;
 		}
+		return this;
 	}
 
 	delete(key: K): boolean {
@@ -694,12 +674,16 @@ export class LinkedMap<K, V> {
 	}
 
 	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+		const state = this._state;
 		let current = this._head;
 		while (current) {
 			if (thisArg) {
 				callbackfn.bind(thisArg)(current.value, current.key, this);
 			} else {
 				callbackfn(current.value, current.key, this);
+			}
+			if (this._state !== state) {
+				throw new Error(`LinkedMap got modified during iteration.`);
 			}
 			current = current.next;
 		}
@@ -987,9 +971,10 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		return super.get(key, Touch.None);
 	}
 
-	set(key: K, value: V): void {
+	set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
+		return this;
 	}
 
 	private checkTrim() {

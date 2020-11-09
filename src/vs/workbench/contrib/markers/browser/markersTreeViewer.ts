@@ -52,6 +52,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -254,6 +255,30 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 }
 
+const toggleMultilineAction = 'problems.action.toggleMultiline';
+const expandedClass = 'codicon codicon-chevron-up';
+const collapsedClass = 'codicon codicon-chevron-down';
+
+class ToggleMultilineActionViewItem extends ActionViewItem {
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		this.updateExpandedAttribute();
+	}
+
+	updateClass(): void {
+		super.updateClass();
+		this.updateExpandedAttribute();
+	}
+
+	private updateExpandedAttribute(): void {
+		if (this.element) {
+			this.element.setAttribute('aria-expanded', `${this._action.class === expandedClass}`);
+		}
+	}
+
+}
+
 type ModifierKey = 'meta' | 'ctrl' | 'alt';
 
 class MarkerWidget extends Disposable {
@@ -279,7 +304,14 @@ class MarkerWidget extends Disposable {
 			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$(''));
-		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
+		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
+			actionViewItemProvider: (action) => {
+				if (action.id === toggleMultilineAction) {
+					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
+				}
+				return undefined;
+			}
+		}));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
 
 		this._clickModifierKey = this._getClickModifierKey();
@@ -314,10 +346,10 @@ class MarkerWidget extends Disposable {
 		if (viewModel) {
 			const quickFixAction = viewModel.quickFixAction;
 			this.actionBar.push([quickFixAction], { icon: true, label: false });
-			dom.toggleClass(this.icon, 'quickFix', quickFixAction.enabled);
+			this.icon.classList.toggle('quickFix', quickFixAction.enabled);
 			quickFixAction.onDidChange(({ enabled }) => {
 				if (!isUndefinedOrNull(enabled)) {
-					dom.toggleClass(this.icon, 'quickFix', enabled);
+					this.icon.classList.toggle('quickFix', enabled);
 				}
 			}, this, this.disposables);
 			quickFixAction.onShowQuickFixes(() => {
@@ -332,10 +364,10 @@ class MarkerWidget extends Disposable {
 	private renderMultilineActionbar(marker: Marker): void {
 		const viewModel = this.markersViewModel.getViewModel(marker);
 		const multiline = viewModel && viewModel.multiline;
-		const action = new Action('problems.action.toggleMultiline');
+		const action = new Action(toggleMultilineAction);
 		action.enabled = !!viewModel && marker.lines.length > 1;
 		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
-		action.class = multiline ? 'codicon codicon-chevron-up' : 'codicon codicon-chevron-down';
+		action.class = multiline ? expandedClass : collapsedClass;
 		action.run = () => { if (viewModel) { viewModel.multiline = !viewModel.multiline; } return Promise.resolve(); };
 		this.multilineActionbar.push([action], { icon: true, label: false });
 	}
@@ -361,7 +393,7 @@ class MarkerWidget extends Disposable {
 	}
 
 	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
-		dom.addClass(parent, 'details-container');
+		parent.classList.add('details-container');
 
 		if (marker.source || marker.code) {
 			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')), false);
@@ -659,14 +691,14 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.validActions.map(codeAction => new Action(
-			codeAction.command ? codeAction.command.id : codeAction.title,
-			codeAction.title,
+		return codeActions.validActions.map(item => new Action(
+			item.action.command ? item.action.command.id : item.action.title,
+			item.action.title,
 			undefined,
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item));
 			}));
 	}
 

@@ -167,8 +167,8 @@ export function registerCommands(): void {
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
 					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
-					const targets = response.body.targets;
-					if (targets.length) {
+					const targets = response?.body.targets;
+					if (targets && targets.length) {
 						let id = targets[0].id;
 						if (targets.length > 1) {
 							const picks = targets.map(t => ({ label: t.label, _id: t.id }));
@@ -504,7 +504,7 @@ export function registerCommands(): void {
 
 			const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
 			if (launch) {
-				const { editor, created } = await launch.openConfigFile(false, false);
+				const { editor, created } = await launch.openConfigFile(false);
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
@@ -521,13 +521,13 @@ export function registerCommands(): void {
 		const control = editorService.activeTextEditorControl;
 		if (isCodeEditor(control)) {
 			const position = control.getPosition();
-			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+			if (position && control.hasModel() && debugService.canSetBreakpointsIn(control.getModel())) {
 				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
 				if (!breakpointAlreadySet) {
-					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 				}
 			}
 		}
@@ -564,7 +564,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService));
+					return openBreakpointSource(focus[0], true, false, true, accessor.get(IDebugService), accessor.get(IEditorService));
 				}
 			}
 

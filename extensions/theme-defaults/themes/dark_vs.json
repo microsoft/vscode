@@ -45,7 +45,6 @@
 		{
 			"scope": [
 				"constant.numeric",
-				"entity.name.operator.custom-literal.number",
 				"variable.other.enummember",
 				"keyword.operator.plus.exponent",
 				"keyword.operator.minus.exponent"
@@ -87,7 +86,6 @@
 				"entity.other.attribute-name.pseudo-class.css",
 				"entity.other.attribute-name.pseudo-element.css",
 				"source.css.less entity.other.attribute-name.id",
-				"entity.other.attribute-name.attribute.scss",
 				"entity.other.attribute-name.scss"
 			],
 			"settings": {
@@ -226,7 +224,6 @@
 		{
 			"scope": [
 				"string",
-				"entity.name.operator.custom-literal.string",
 				"meta.embedded.assembly"
 			],
 			"settings": {
@@ -364,5 +361,11 @@
 				"foreground": "#569cd6"
 			}
 		}
-	]
+	],
+	"semanticTokenColors": {
+		"newOperator": "#d4d4d4",
+		"stringLiteral": "#ce9178",
+		"customLiteral": "#D4D4D4",
+		"numberLiteral": "#b5cea8",
+	}
 }

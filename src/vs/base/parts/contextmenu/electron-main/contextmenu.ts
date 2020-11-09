@@ -5,18 +5,19 @@
 
 import { Menu, MenuItem, BrowserWindow, ipcMain, IpcMainEvent } from 'electron';
 import { ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions } from 'vs/base/parts/contextmenu/common/contextmenu';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export function registerContextMenuListener(): void {
 	ipcMain.on(CONTEXT_MENU_CHANNEL, (event: IpcMainEvent, contextMenuId: number, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
 		const menu = createMenu(event, onClickChannel, items);
 
 		menu.popup({
-			window: BrowserWindow.fromWebContents(event.sender),
+			window: withNullAsUndefined(BrowserWindow.fromWebContents(event.sender)),
 			x: options ? options.x : undefined,
 			y: options ? options.y : undefined,
 			positioningItem: options ? options.positioningItem : undefined,
 			callback: () => {
-				// Workaround for https://github.com/Microsoft/vscode/issues/72447
+				// Workaround for https://github.com/microsoft/vscode/issues/72447
 				// It turns out that the menu gets GC'ed if not referenced anymore
 				// As such we drag it into this scope so that it is not being GC'ed
 				if (menu) {

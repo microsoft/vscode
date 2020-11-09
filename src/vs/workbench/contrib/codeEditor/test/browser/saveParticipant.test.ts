@@ -116,12 +116,12 @@ suite('Save Participants', function () {
 		model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
 
 		// undo
-		model.textEditorModel.undo();
+		await model.textEditorModel.undo();
 		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}`);
 
 		// trim final new lines should not mess the undo stack
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		model.textEditorModel.redo();
+		await model.textEditorModel.redo();
 		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}.`);
 	});
 
@@ -146,9 +146,9 @@ suite('Save Participants', function () {
 		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 
 		// undo should go back to previous content immediately
-		model.textEditorModel.undo();
+		await model.textEditorModel.undo();
 		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${eol}`);
-		model.textEditorModel.redo();
+		await model.textEditorModel.redo();
 		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 	});
 

@@ -82,7 +82,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	// RPC methods (MainThreadDebugServiceShape)
 
 	public $registerDebugTypes(debugTypes: string[]) {
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterFactory(debugTypes, this));
+		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterFactory(debugTypes, this));
 	}
 
 	public $startBreakpointEvents(): void {
@@ -138,7 +138,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 						logMessage: l.logMessage
 					}
 				);
-				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps, 'extension');
+				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			} else if (dto.type === 'data') {
@@ -155,7 +155,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve();
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
 			type: debugType,
@@ -174,12 +174,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (hasResolve2) {
 			provider.resolveDebugConfigurationWithSubstitutedVariables = (folder, config, token) => {
 				return this._proxy.$resolveDebugConfigurationWithSubstitutedVariables(handle, folder, config, token);
-			};
-		}
-		if (hasProvideDebugAdapter) {
-			console.info('DebugConfigurationProvider.debugAdapterExecutable is deprecated and will be removed soon; please use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead.');
-			provider.debugAdapterExecutable = (folder) => {
-				return this._proxy.$legacyDebugAdapterExecutable(handle, folder);
 			};
 		}
 		this._debugConfigurationProviders.set(handle, provider);
@@ -205,7 +199,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 		};
 		this._debugAdapterDescriptorFactories.set(handle, provider);
-		this._toDispose.add(this.debugService.getConfigurationManager().registerDebugAdapterDescriptorFactory(provider));
+		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterDescriptorFactory(provider));
 
 		return Promise.resolve(undefined);
 	}
@@ -214,7 +208,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const provider = this._debugAdapterDescriptorFactories.get(handle);
 		if (provider) {
 			this._debugAdapterDescriptorFactories.delete(handle);
-			this.debugService.getConfigurationManager().unregisterDebugAdapterDescriptorFactory(provider);
+			this.debugService.getAdapterManager().unregisterDebugAdapterDescriptorFactory(provider);
 		}
 	}
 
@@ -228,10 +222,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
+		const parentSession = this.getSession(options.parentSessionID);
 		const debugOptions: IDebugSessionOptions = {
-			noDebug: false,
-			parentSession: this.getSession(options.parentSessionID),
-			repl: options.repl
+			noDebug: options.noDebug,
+			parentSession,
+			repl: options.repl,
+			compact: options.compact,
+			compoundRoot: parentSession?.compoundRoot
 		};
 		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;
@@ -257,6 +254,26 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					return Promise.reject(new Error(response ? response.message : 'custom request failed'));
 				}
 			});
+		}
+		return Promise.reject(new Error('debug session not found'));
+	}
+
+	public $getDebugProtocolBreakpoint(sessionId: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined> {
+		const session = this.debugService.getModel().getSession(sessionId, true);
+		if (session) {
+			return Promise.resolve(session.getDebugProtocolBreakpoint(breakpoinId));
+		}
+		return Promise.reject(new Error('debug session not found'));
+	}
+
+	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
+		if (sessionId) {
+			const session = this.debugService.getModel().getSession(sessionId, true);
+			if (session) {
+				return this.debugService.stopSession(session);
+			}
+		} else {	// stop all
+			return this.debugService.stopSession(undefined);
 		}
 		return Promise.reject(new Error('debug session not found'));
 	}

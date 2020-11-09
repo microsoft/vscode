@@ -56,7 +56,7 @@ class SplitPaneContainer extends Disposable {
 				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
 				amount *= -1;
 			}
-			this._layoutService.resizePart(Parts.PANEL_PART, amount);
+			this._layoutService.resizePart(Parts.PANEL_PART, amount, amount);
 			return;
 		}
 
@@ -228,7 +228,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	constructor(
 		private _container: HTMLElement | undefined,
-		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
+		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
@@ -236,6 +236,18 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	) {
 		super();
 
+		if (shellLaunchConfigOrInstance) {
+			this.addInstance(shellLaunchConfigOrInstance);
+		}
+
+		this._activeInstanceIndex = 0;
+
+		if (this._container) {
+			this.attachToElement(this._container);
+		}
+	}
+
+	public addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
 		let instance: ITerminalInstance;
 		if ('id' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
@@ -244,11 +256,12 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 		this._terminalInstances.push(instance);
 		this._initInstanceListeners(instance);
-		this._activeInstanceIndex = 0;
 
-		if (this._container) {
-			this.attachToElement(this._container);
+		if (this._splitPaneContainer) {
+			this._splitPaneContainer!.split(instance);
 		}
+
+		this._onInstancesChanged.fire();
 	}
 
 	public dispose(): void {

@@ -6,6 +6,7 @@
 		"lib": [
 			"es6",
 			"es2015.promise",
+			"es2020.string",
 			"dom"
 		]
 	},

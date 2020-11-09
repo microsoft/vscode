@@ -99,7 +99,7 @@ suite('Files - TextFileEditorTracker', () => {
 		await model.save();
 
 		// change event (watcher)
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
 
 		await timeout(0); // due to event updating model async
 
@@ -185,11 +185,11 @@ suite('Files - TextFileEditorTracker', () => {
 	});
 
 	function awaitModelLoadEvent(textFileService: ITextFileService, resource: URI): Promise<void> {
-		return new Promise(c => {
+		return new Promise(resolve => {
 			const listener = textFileService.files.onDidLoad(e => {
 				if (isEqual(e.model.resource, resource)) {
 					listener.dispose();
-					c();
+					resolve();
 				}
 			});
 		});
