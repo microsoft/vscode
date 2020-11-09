@@ -102,8 +102,8 @@ class VisualEditorState {
 		// (1) View zones
 		if (this._zones.length > 0) {
 			editor.changeViewZones((viewChangeAccessor: editorBrowser.IViewZoneChangeAccessor) => {
-				for (let i = 0, length = this._zones.length; i < length; i++) {
-					viewChangeAccessor.removeZone(this._zones[i]);
+				for (const zoneId of this._zones) {
+					viewChangeAccessor.removeZone(zoneId);
 				}
 			});
 		}
@@ -120,11 +120,11 @@ class VisualEditorState {
 
 		// view zones
 		editor.changeViewZones((viewChangeAccessor: editorBrowser.IViewZoneChangeAccessor) => {
-			for (let i = 0, length = this._zones.length; i < length; i++) {
-				viewChangeAccessor.removeZone(this._zones[i]);
+			for (const zoneId of this._zones) {
+				viewChangeAccessor.removeZone(zoneId);
 			}
-			for (let i = 0, length = this.inlineDiffMargins.length; i < length; i++) {
-				this.inlineDiffMargins[i].dispose();
+			for (const inlineDiffMargin of this.inlineDiffMargins) {
+				inlineDiffMargin.dispose();
 			}
 			this._zones = [];
 			this._zonesMap = {};
@@ -1818,8 +1818,7 @@ export class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements
 
 		let originalModel = originalEditor.getModel()!;
 
-		for (let i = 0, length = lineChanges.length; i < length; i++) {
-			let lineChange = lineChanges[i];
+		for (const lineChange of lineChanges) {
 
 			if (isChangeOrDelete(lineChange)) {
 				result.decorations.push({
@@ -1837,8 +1836,7 @@ export class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements
 				));
 
 				if (lineChange.charChanges) {
-					for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
-						let charChange = lineChange.charChanges[j];
+					for (const charChange of lineChange.charChanges) {
 						if (isChangeOrDelete(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.originalStartLineNumber; lineNumber <= charChange.originalEndLineNumber; lineNumber++) {
@@ -1878,8 +1876,7 @@ export class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements
 
 		let modifiedModel = modifiedEditor.getModel()!;
 
-		for (let i = 0, length = lineChanges.length; i < length; i++) {
-			let lineChange = lineChanges[i];
+		for (const lineChange of lineChanges) {
 
 			if (isChangeOrInsert(lineChange)) {
 
@@ -1897,8 +1894,7 @@ export class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements
 				));
 
 				if (lineChange.charChanges) {
-					for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
-						let charChange = lineChange.charChanges[j];
+					for (const charChange of lineChange.charChanges) {
 						if (isChangeOrInsert(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.modifiedStartLineNumber; lineNumber <= charChange.modifiedEndLineNumber; lineNumber++) {
@@ -1996,8 +1992,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 			overviewZones: []
 		};
 
-		for (let i = 0, length = lineChanges.length; i < length; i++) {
-			let lineChange = lineChanges[i];
+		for (const lineChange of lineChanges) {
 
 			// Add overview zones in the overview ruler
 			if (isChangeOrDelete(lineChange)) {
@@ -2027,8 +2022,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 
 		let modifiedModel = modifiedEditor.getModel()!;
 
-		for (let i = 0, length = lineChanges.length; i < length; i++) {
-			let lineChange = lineChanges[i];
+		for (const lineChange of lineChanges) {
 
 			// Add decorations & overview zones
 			if (isChangeOrInsert(lineChange)) {
@@ -2044,8 +2038,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 				));
 
 				if (lineChange.charChanges) {
-					for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
-						let charChange = lineChange.charChanges[j];
+					for (const charChange of lineChange.charChanges) {
 						if (isChangeOrInsert(charChange)) {
 							if (ignoreTrimWhitespace) {
 								for (let lineNumber = charChange.modifiedStartLineNumber; lineNumber <= charChange.modifiedEndLineNumber; lineNumber++) {
@@ -2120,8 +2113,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	protected _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null {
 		let decorations: InlineDecoration[] = [];
 		if (lineChange.charChanges) {
-			for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
-				let charChange = lineChange.charChanges[j];
+			for (const charChange of lineChange.charChanges) {
 				if (isChangeOrDelete(charChange)) {
 					decorations.push(new InlineDecoration(
 						new Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),
