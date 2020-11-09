@@ -62,7 +62,8 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	glyphMargin: true,
 	enableSplitViewResizing: false,
 	renderIndicators: false,
-	readOnly: false
+	readOnly: false,
+	isInEmbeddedEditor: true
 };
 
 
