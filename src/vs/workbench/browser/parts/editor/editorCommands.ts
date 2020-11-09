@@ -47,6 +47,9 @@ export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
 export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
+export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
+export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
+export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
@@ -268,14 +271,52 @@ function registerDiffEditorCommands(): void {
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
 
-	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+	function getActiveTextDiffEditor(accessor: ServicesAccessor): TextDiffEditor | undefined {
 		const editorService = accessor.get(IEditorService);
-		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(editor => editor instanceof TextDiffEditor);
 
-		if (candidates.length > 0) {
-			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
+		for (const editor of [editorService.activeEditorPane, ...editorService.visibleEditorPanes]) {
+			if (editor instanceof TextDiffEditor) {
+				return editor;
+			}
+		}
+
+		return undefined;
+	}
+
+	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
+
+		if (activeTextDiffEditor) {
+			const navigator = activeTextDiffEditor.getDiffNavigator();
 			if (navigator) {
 				next ? navigator.next() : navigator.previous();
+			}
+		}
+	}
+
+	enum FocusTextDiffEditorMode {
+		Original,
+		Modified,
+		Toggle
+	}
+
+	function focusInDiffEditor(accessor: ServicesAccessor, mode: FocusTextDiffEditorMode): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
+
+		if (activeTextDiffEditor) {
+			switch (mode) {
+				case FocusTextDiffEditorMode.Original:
+					activeTextDiffEditor.getControl()?.getOriginalEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Modified:
+					activeTextDiffEditor.getControl()?.getModifiedEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Toggle:
+					if (activeTextDiffEditor.getControl()?.getModifiedEditor().hasWidgetFocus()) {
+						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original);
+					} else {
+						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified);
+					}
 			}
 		}
 	}
@@ -300,6 +341,30 @@ function registerDiffEditorCommands(): void {
 		when: undefined,
 		primary: undefined,
 		handler: accessor => toggleDiffSideBySide(accessor)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_PRIMARY_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_SECONDARY_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_OTHER_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Toggle)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
