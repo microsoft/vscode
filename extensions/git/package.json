@@ -1797,6 +1797,12 @@
           "description": "%config.enableStatusBarSync%",
           "scope": "resource"
         },
+        "git.followTagsWhenSync": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.followTagsWhenSync%"
+        },
         "git.promptToSaveFilesBeforeStash": {
           "type": "string",
           "enum": [
