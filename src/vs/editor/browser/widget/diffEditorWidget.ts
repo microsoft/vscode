@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, IComputedEditorOptions, EditorOption, EditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -33,7 +33,7 @@ import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
-import { InlineDecoration, InlineDecorationType, IViewModel, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputer, InlineDecoration, InlineDecorationType, IViewModel, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -50,6 +50,8 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -2170,8 +2172,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private readonly _originalModel: ITextModel;
 	private readonly _renderIndicators: boolean;
-	private _pendingLineChange: editorCommon.ILineChange[] = [];
-	private _pendingViewZones: InlineModifiedViewZone[] = [];
+	private readonly _pendingLineChange: editorCommon.ILineChange[];
+	private readonly _pendingViewZones: InlineModifiedViewZone[];
+	private readonly _lineBreaksComputer: ILineBreaksComputer;
 
 	constructor(
 		lineChanges: editorCommon.ILineChange[],
@@ -2184,6 +2187,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor);
 		this._originalModel = originalEditor.getModel()!;
 		this._renderIndicators = renderIndicators;
+		this._pendingLineChange = [];
+		this._pendingViewZones = [];
+		this._lineBreaksComputer = this._modifiedEditor._getViewModel()!.createLineBreaksComputer();
 	}
 
 	public getViewZones(): IEditorsZones {
@@ -2233,6 +2239,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 		};
 
+		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
+			this._lineBreaksComputer.addRequest(this._originalModel.getLineContent(lineNumber), null);
+		}
+
 		this._pendingLineChange.push(lineChange);
 		this._pendingViewZones.push(viewZone);
 
@@ -2241,13 +2251,23 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private _finalize(): void {
 		const modifiedEditorOptions = this._modifiedEditor.getOptions();
-		const modifiedEditorTabSize = this._modifiedEditor.getModel()!.getOptions().tabSize;
-		const layoutInfo = modifiedEditorOptions.get(EditorOption.layoutInfo);
+		const tabSize = this._modifiedEditor.getModel()!.getOptions().tabSize;
 		const fontInfo = modifiedEditorOptions.get(EditorOption.fontInfo);
-		const lineDecorationsWidth = layoutInfo.decorationsWidth;
-		const lineHeight = modifiedEditorOptions.get(EditorOption.lineHeight);
+		const disableMonospaceOptimizations = modifiedEditorOptions.get(EditorOption.disableMonospaceOptimizations);
 		const typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		const scrollBeyondLastColumn = modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
+		const mightContainNonBasicASCII = this._originalModel.mightContainNonBasicASCII();
+		const mightContainRTL = this._originalModel.mightContainRTL();
+		const lineHeight = modifiedEditorOptions.get(EditorOption.lineHeight);
+		const layoutInfo = modifiedEditorOptions.get(EditorOption.layoutInfo);
+		const lineDecorationsWidth = layoutInfo.decorationsWidth;
+		const stopRenderingLineAfter = modifiedEditorOptions.get(EditorOption.stopRenderingLineAfter);
+		const renderWhitespace = modifiedEditorOptions.get(EditorOption.renderWhitespace);
+		const renderControlCharacters = modifiedEditorOptions.get(EditorOption.renderControlCharacters);
+		const fontLigatures = modifiedEditorOptions.get(EditorOption.fontLigatures);
+
+		const lineBreaks = this._lineBreaksComputer.finalize();
+		let lineBreakIndex = 0;
 
 		for (let i = 0; i < this._pendingLineChange.length; i++) {
 			const lineChange = this._pendingLineChange[i];
@@ -2273,15 +2293,60 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 			const sb = createStringBuilder(10000);
 			let maxCharsPerLine = 0;
+			let renderedLineCount = 0;
 			for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-				maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this._originalModel, modifiedEditorOptions, modifiedEditorTabSize, lineNumber, decorations, sb));
+				const lineTokens = this._originalModel.getLineTokens(lineNumber);
+				const lineContent = lineTokens.getLineContent();
+				const lineBreakData = lineBreaks[lineBreakIndex++];
+				const actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
-				if (this._renderIndicators) {
-					const index = lineNumber - lineChange.originalStartLineNumber;
-					const marginElement = document.createElement('div');
-					marginElement.className = `delete-sign ${diffRemoveIcon.classNames}`;
-					marginElement.setAttribute('style', `position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;`);
-					marginDomNode.appendChild(marginElement);
+				if (lineBreakData && !true) {
+					let lastBreakOffset = 0;
+					for (const breakOffset of lineBreakData.breakOffsets) {
+						const viewLineTokens = lineTokens.sliceAndInflate(lastBreakOffset, breakOffset, 0);
+						const viewLineContent = lineContent.substring(lastBreakOffset, breakOffset);
+						maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(
+							renderedLineCount++,
+							viewLineContent,
+							viewLineTokens,
+							actualDecorations,
+							mightContainNonBasicASCII,
+							mightContainRTL,
+							fontInfo,
+							disableMonospaceOptimizations,
+							lineHeight,
+							lineDecorationsWidth,
+							stopRenderingLineAfter,
+							renderWhitespace,
+							renderControlCharacters,
+							fontLigatures,
+							tabSize,
+							sb,
+							marginDomNode
+						));
+						lastBreakOffset = breakOffset;
+					}
+					viewZone.heightInLines += (lineBreakData.breakOffsets.length - 1);
+				} else {
+					maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(
+						renderedLineCount++,
+						lineContent,
+						lineTokens,
+						actualDecorations,
+						mightContainNonBasicASCII,
+						mightContainRTL,
+						fontInfo,
+						disableMonospaceOptimizations,
+						lineHeight,
+						lineDecorationsWidth,
+						stopRenderingLineAfter,
+						renderWhitespace,
+						renderControlCharacters,
+						fontLigatures,
+						tabSize,
+						sb,
+						marginDomNode
+					));
 				}
 			}
 			maxCharsPerLine += scrollBeyondLastColumn;
@@ -2291,12 +2356,25 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		}
 	}
 
-	private _renderOriginalLine(count: number, originalModel: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): number {
-		const lineTokens = originalModel.getLineTokens(lineNumber);
-		const lineContent = lineTokens.getLineContent();
-		const fontInfo = options.get(EditorOption.fontInfo);
-
-		const actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
+	private _renderOriginalLine(
+		renderedLineCount: number,
+		lineContent: string,
+		lineTokens: IViewLineTokens,
+		decorations: LineDecoration[],
+		mightContainNonBasicASCII: boolean,
+		mightContainRTL: boolean,
+		fontInfo: FontInfo,
+		disableMonospaceOptimizations: boolean,
+		lineHeight: number,
+		lineDecorationsWidth: number,
+		stopRenderingLineAfter: number,
+		renderWhitespace: 'selection' | 'none' | 'boundary' | 'trailing' | 'all',
+		renderControlCharacters: boolean,
+		fontLigatures: string,
+		tabSize: number,
+		sb: IStringBuilder,
+		marginDomNode: HTMLElement
+	): number {
 
 		sb.appendASCIIString('<div class="view-line');
 		if (decorations.length === 0) {
@@ -2304,13 +2382,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			sb.appendASCIIString(' char-delete');
 		}
 		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(count * options.get(EditorOption.lineHeight)));
+		sb.appendASCIIString(String(renderedLineCount * lineHeight));
 		sb.appendASCIIString('px;width:1000000px;">');
 
-		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
-		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, mightContainNonBasicASCII);
+		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, mightContainRTL);
 		const output = renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations)),
+			(fontInfo.isMonospace && !disableMonospaceOptimizations),
 			fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
@@ -2318,20 +2396,27 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			containsRTL,
 			0,
 			lineTokens,
-			actualDecorations,
+			decorations,
 			tabSize,
 			0,
 			fontInfo.spaceWidth,
 			fontInfo.middotWidth,
 			fontInfo.wsmiddotWidth,
-			options.get(EditorOption.stopRenderingLineAfter),
-			options.get(EditorOption.renderWhitespace),
-			options.get(EditorOption.renderControlCharacters),
-			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
+			stopRenderingLineAfter,
+			renderWhitespace,
+			renderControlCharacters,
+			fontLigatures !== EditorFontLigatures.OFF,
 			null // Send no selections, original line cannot be selected
 		), sb);
 
 		sb.appendASCIIString('</div>');
+
+		if (this._renderIndicators) {
+			const marginElement = document.createElement('div');
+			marginElement.className = `delete-sign ${diffRemoveIcon.classNames}`;
+			marginElement.setAttribute('style', `position:absolute;top:${renderedLineCount * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;`);
+			marginDomNode.appendChild(marginElement);
+		}
 
 		const absoluteOffsets = output.characterMapping.getAbsoluteOffsets();
 		return absoluteOffsets.length > 0 ? absoluteOffsets[absoluteOffsets.length - 1] : 0;
