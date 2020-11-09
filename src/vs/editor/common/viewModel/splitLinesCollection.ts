@@ -174,6 +174,10 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 	public modelPositionIsVisible(modelPosition: Position): boolean {
 		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
 	}
+
+	public getModelLineViewLineCount(modelLineNumber: number): number {
+		return this._lines.getModelLineViewLineCount(modelLineNumber);
+	}
 }
 
 const enum IndentGuideRepeatOption {
@@ -471,6 +475,14 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			return false;
 		}
 		return this.lines[modelLineNumber - 1].isVisible();
+	}
+
+	public getModelLineViewLineCount(modelLineNumber: number): number {
+		if (modelLineNumber < 1 || modelLineNumber > this.lines.length) {
+			// invalid arguments
+			return 1;
+		}
+		return this.lines[modelLineNumber - 1].getViewLineCount();
 	}
 
 	public setTabSize(newTabSize: number): boolean {
@@ -1431,6 +1443,9 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 		return true;
 	}
 
+	public getModelLineViewLineCount(modelLineNumber: number): number {
+		return 1;
+	}
 }
 
 export class IdentityLinesCollection implements IViewModelLinesCollection {

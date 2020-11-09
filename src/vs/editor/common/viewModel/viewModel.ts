@@ -82,6 +82,7 @@ export interface ICoordinatesConverter {
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
 	modelPositionIsVisible(modelPosition: Position): boolean;
+	getModelLineViewLineCount(modelLineNumber: number): number;
 }
 
 export interface IViewModel extends ICursorSimpleModel {

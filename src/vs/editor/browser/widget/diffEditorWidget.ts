@@ -1470,6 +1470,13 @@ abstract class ViewZonesComputer {
 	public getViewZones(): IEditorsZones {
 		const originalLineHeight = this._originalEditor.getOption(EditorOption.lineHeight);
 		const modifiedLineHeight = this._modifiedEditor.getOption(EditorOption.lineHeight);
+		const originalHasWrapping = (this._originalEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1);
+		const modifiedHasWrapping = (this._originalEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1);
+		const hasWrapping = (originalHasWrapping || modifiedHasWrapping);
+		const originalModel = this._originalEditor.getModel()!;
+		const originalCoordinatesConverter = this._originalEditor._getViewModel()!.coordinatesConverter;
+		const modifiedCoordinatesConverter = this._modifiedEditor._getViewModel()!.coordinatesConverter;
+
 		const result: { original: IMyViewZone[]; modified: IMyViewZone[]; } = {
 			original: [],
 			modified: []
@@ -1500,6 +1507,9 @@ abstract class ViewZonesComputer {
 		const modifiedForeignVZ = new ForeignViewZonesIterator(this._modifiedForeignVZ);
 		const originalForeignVZ = new ForeignViewZonesIterator(this._originalForeignVZ);
 
+		let lastOriginalLineNumber = 1;
+		let lastModifiedLineNumber = 1;
+
 		// In order to include foreign view zones after the last line change, the for loop will iterate once more after the end of the `lineChanges` array
 		for (let i = 0, length = this._lineChanges.length; i <= length; i++) {
 			const lineChange = (i < length ? this._lineChanges[i] : null);
@@ -1524,6 +1534,48 @@ abstract class ViewZonesComputer {
 			let stepModified: IMyViewZone[] = [];
 
 			// ---------------------------- PRODUCE VIEW ZONES
+
+			// [PRODUCE] View zones due to line mapping differences (equal lines but wrapped differently)
+			if (hasWrapping) {
+				let count: number;
+				if (lineChange) {
+					if (lineChange.originalEndLineNumber > 0) {
+						count = lineChange.originalStartLineNumber - lastOriginalLineNumber;
+					} else {
+						count = lineChange.modifiedStartLineNumber - lastModifiedLineNumber;
+					}
+				} else {
+					count = originalModel.getLineCount() - lastOriginalLineNumber;
+				}
+
+				for (let i = 0; i < count; i++) {
+					const originalLineNumber = lastOriginalLineNumber + i;
+					const modifiedLineNumber = lastModifiedLineNumber + i;
+
+					const originalViewLineCount = originalCoordinatesConverter.getModelLineViewLineCount(originalLineNumber);
+					const modifiedViewLineCount = modifiedCoordinatesConverter.getModelLineViewLineCount(modifiedLineNumber);
+
+					if (originalViewLineCount < modifiedViewLineCount) {
+						stepOriginal.push({
+							afterLineNumber: originalLineNumber,
+							heightInLines: modifiedViewLineCount - originalViewLineCount,
+							domNode: null,
+							marginDomNode: null
+						});
+					} else if (originalViewLineCount > modifiedViewLineCount) {
+						stepModified.push({
+							afterLineNumber: modifiedLineNumber,
+							heightInLines: originalViewLineCount - modifiedViewLineCount,
+							domNode: null,
+							marginDomNode: null
+						});
+					}
+				}
+				if (lineChange) {
+					lastOriginalLineNumber = (lineChange.originalEndLineNumber > 0 ? lineChange.originalEndLineNumber : lineChange.originalStartLineNumber) + 1;
+					lastModifiedLineNumber = (lineChange.modifiedEndLineNumber > 0 ? lineChange.modifiedEndLineNumber : lineChange.modifiedStartLineNumber) + 1;
+				}
+			}
 
 			// [PRODUCE] View zone(s) in original-side due to foreign view zone(s) in modified-side
 			while (modifiedForeignVZ.current && modifiedForeignVZ.current.afterLineNumber <= modifiedEndEquivalentLineNumber) {
