@@ -59,7 +59,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -219,7 +219,7 @@ export class SearchView extends ViewPane {
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
-		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
+		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
 		this._register(this.textFileService.untitled.onDidDispose(model => this.onUntitledDidDispose(model.resource)));
@@ -780,7 +780,7 @@ export class SearchView extends ViewPane {
 		e.browserEvent.stopPropagation();
 
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -988,7 +988,7 @@ export class SearchView extends ViewPane {
 		}
 
 		const actionsPosition = this.searchConfig.actionsPosition;
-		dom.toggleClass(this.getContainer(), SearchView.ACTIONS_RIGHT_CLASS_NAME, actionsPosition === 'right');
+		this.getContainer().classList.toggle(SearchView.ACTIONS_RIGHT_CLASS_NAME, actionsPosition === 'right');
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
 
@@ -1197,8 +1197,8 @@ export class SearchView extends ViewPane {
 		if (typeof args.preserveCase === 'boolean') {
 			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
 		}
-		if (typeof args.excludeSettingAndIgnoreFiles === 'boolean') {
-			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.excludeSettingAndIgnoreFiles);
+		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
+			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
 		}
 	}
 

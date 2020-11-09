@@ -27,7 +27,7 @@ import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, 
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction, SyncIgnoredIconAction, SetProductIconThemeAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -59,6 +59,7 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -195,6 +196,7 @@ export class ExtensionEditor extends EditorPane {
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IModeService private readonly modeService: IModeService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -249,8 +251,11 @@ export class ExtensionEditor extends EditorPane {
 		const extensionActionBar = this._register(new ActionBar(extensionActions, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
-				if (action instanceof ExtensionEditorDropDownAction) {
+				if (action instanceof ExtensionDropDownAction) {
 					return action.createActionViewItem();
+				}
+				if (action instanceof ActionWithDropDownAction) {
+					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				return undefined;
 			}
@@ -399,11 +404,11 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(RatingsWidget, template.rating, false)
 		];
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
-		const combinedInstallAction = this.instantiationService.createInstance(CombinedInstallAction);
+		const combinedInstallAction = this.instantiationService.createInstance(InstallDropdownAction);
 		const systemDisabledWarningAction = this.instantiationService.createInstance(SystemDisabledWarningAction);
 		const actions = [
+			this.instantiationService.createInstance(ToggleSyncExtensionAction),
 			reloadAction,
-			this.instantiationService.createInstance(SyncIgnoredIconAction),
 			this.instantiationService.createInstance(StatusLabelAction),
 			this.instantiationService.createInstance(UpdateAction),
 			this.instantiationService.createInstance(SetColorThemeAction, await this.workbenchThemeService.getColorThemes()),
@@ -415,6 +420,8 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			combinedInstallAction,
+			this.instantiationService.createInstance(InstallingLabelAction),
+			this.instantiationService.createInstance(UninstallAction),
 			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ExtensionToolTipAction, systemDisabledWarningAction, reloadAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
@@ -896,6 +903,7 @@ export class ExtensionEditor extends EditorPane {
 					this.renderLocalizations(content, manifest, layout),
 					this.renderCustomEditors(content, manifest, layout),
 					this.renderAuthentication(content, manifest, layout),
+					this.renderActivationEvents(content, manifest, layout),
 				];
 
 				scrollableContent.scanDomNode();
@@ -1404,6 +1412,21 @@ export class ExtensionEditor extends EditorPane {
 					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
 				))
 			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderActivationEvents(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const activationEvents = manifest.activationEvents || [];
+		if (!activationEvents.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('activation events', "Activation Events ({0})", activationEvents.length)),
+			$('ul', undefined, ...activationEvents.map(activationEvent => $('li', undefined, activationEvent)))
 		);
 
 		append(container, details);

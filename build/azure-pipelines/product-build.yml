@@ -41,6 +41,7 @@ stages:
   jobs:
   - job: Windows
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -48,6 +49,7 @@ stages:
 
   - job: Windows32
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: ia32
     steps:
@@ -55,6 +57,7 @@ stages:
 
   - job: WindowsARM64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: arm64
     steps:
@@ -127,6 +130,7 @@ stages:
   jobs:
   - job: macOS
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: x64
     steps:

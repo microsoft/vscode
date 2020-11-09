@@ -143,7 +143,7 @@
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
-			const acquireVsCodeApi = (function() {
+			globalThis.acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
 				const targetOrigin = '*';
 				let acquired = false;
@@ -492,7 +492,7 @@
 				const newFrame = document.createElement('iframe');
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
-				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock' : 'allow-same-origin allow-pointer-lock');
+				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
 				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.

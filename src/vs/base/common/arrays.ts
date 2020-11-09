@@ -87,6 +87,40 @@ export function findFirstInSorted<T>(array: ReadonlyArray<T>, p: (x: T) => boole
 
 type Compare<T> = (a: T, b: T) => number;
 
+
+export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
+
+	nth = nth | 0;
+
+	if (nth >= data.length) {
+		throw new TypeError('invalid index');
+	}
+
+	let pivotValue = data[Math.floor(data.length * Math.random())];
+	let lower: T[] = [];
+	let higher: T[] = [];
+	let pivots: T[] = [];
+
+	for (let value of data) {
+		const val = compare(value, pivotValue);
+		if (val < 0) {
+			lower.push(value);
+		} else if (val > 0) {
+			higher.push(value);
+		} else {
+			pivots.push(value);
+		}
+	}
+
+	if (nth < lower.length) {
+		return quickSelect(nth, lower, compare);
+	} else if (nth < lower.length + pivots.length) {
+		return pivots[0];
+	} else {
+		return quickSelect(nth - (lower.length + pivots.length), higher, compare);
+	}
+}
+
 /**
  * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
  * so only use this when actually needing stable sort.
@@ -545,6 +579,8 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 		fn(items);
 }
 
+export function asArray<T>(x: T | T[]): T[];
+export function asArray<T>(x: T | readonly T[]): readonly T[];
 export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }

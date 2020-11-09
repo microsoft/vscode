@@ -8,18 +8,19 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 
 export class WebviewEditor extends EditorPane {
 
@@ -54,6 +55,7 @@ export class WebviewEditor extends EditorPane {
 	protected createEditor(parent: HTMLElement): void {
 		const element = document.createElement('div');
 		this._element = element;
+		this._element.id = `webview-editor-element-${generateUuid()}`;
 		parent.appendChild(element);
 	}
 
@@ -143,6 +145,7 @@ export class WebviewEditor extends EditorPane {
 
 		if (this._element) {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);
+			DOM.setParentFlowTo(input.webview.container, this._element);
 		}
 
 		this._webviewVisibleDisposables.clear();

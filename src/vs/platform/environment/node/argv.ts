@@ -103,15 +103,16 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
 	'driver-verbose': { type: 'boolean' },
+	'install-builtin-extension': { type: 'string[]' },
 	'force': { type: 'boolean' },
 	'do-not-sync': { type: 'boolean' },
-	'builtin': { type: 'boolean' },
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'force-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
 	'__sandbox': { type: 'boolean' },
+	'logsPath': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

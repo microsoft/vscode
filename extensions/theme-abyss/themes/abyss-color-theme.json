@@ -172,14 +172,14 @@
 			"scope": "invalid",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#F8F8F0"
+				"foreground": "#A22D44"
 			}
 		},
 		{
 			"name": "Invalid deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"foreground": "#F8F8F0"
+				"foreground": "#A22D44"
 			}
 		},
 		{

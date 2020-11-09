@@ -37,7 +37,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
-import { isLocalhost, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -403,15 +403,24 @@ class TunnelItem implements ITunnelItem {
 	get label(): string {
 		if (this.name) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", this.name);
-		} else if (this.localAddress && !isLocalhost(this.remoteHost)) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}:{1} \u2192 {2}", this.remoteHost, this.remotePort, this.localAddress);
 		} else if (this.localAddress) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} \u2192 {1}", this.remotePort, this.localAddress);
-		} else if (!isLocalhost(this.remoteHost)) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1}", this.remoteHost, this.remotePort);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel1', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress));
 		} else {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0}", this.remotePort);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}", this.remotePort);
 		}
+	}
+
+	private static compactLongAddress(address: string): string {
+		if (address.length < 16) {
+			return address;
+		}
+		let url: URL | undefined;
+		try {
+			url = new URL(address);
+		} catch (e) {
+			// Address isn't a valid url and can't be compacted.
+		}
+		return url && url.host.length > 0 ? url.host : address;
 	}
 
 	set description(description: string | undefined) {
@@ -422,7 +431,7 @@ class TunnelItem implements ITunnelItem {
 		if (this._description) {
 			return this._description;
 		} else if (this.name) {
-			return nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} to {1}", this.remotePort, this.localAddress);
+			return nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, this.localAddress);
 		}
 		return undefined;
 	}
@@ -439,7 +448,7 @@ class TunnelDataTree extends WorkbenchAsyncDataTree<any, any, any> { }
 
 export class TunnelPanel extends ViewPane {
 	static readonly ID = TUNNEL_VIEW_ID;
-	static readonly TITLE = nls.localize('remote.tunnel', "Forwarded Ports");
+	static readonly TITLE = nls.localize('remote.tunnel', "Ports");
 	private tree!: TunnelDataTree;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
@@ -586,7 +595,8 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return this.viewModel.forwarded.length === 0 && this.viewModel.candidates.length === 0 && !this.isEditing;
+		return (this.viewModel.forwarded.length === 0) && (this.viewModel.candidates.length === 0) &&
+			(this.viewModel.detected.length === 0) && !this.isEditing;
 	}
 
 	focus(): void {
@@ -631,7 +641,7 @@ export class TunnelPanel extends ViewPane {
 		}
 
 		const actions: IAction[] = [];
-		this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService));
+		this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => treeEvent.anchor,

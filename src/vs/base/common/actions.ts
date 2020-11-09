@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -241,6 +242,13 @@ export class SubmenuAction extends Action {
 	}
 
 	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
-		super(id, label, cssClass, true);
+		super(id, label, cssClass, !!_actions?.length);
+	}
+}
+
+export class EmptySubmenuAction extends Action {
+	static readonly ID = 'vs.actions.empty';
+	constructor() {
+		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
 	}
 }

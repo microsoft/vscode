@@ -23,6 +23,7 @@ import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerSe
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import * as types from 'vs/base/common/types';
 import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -529,13 +530,13 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public async textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<string[] | null> {
+	public async textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<{ words: string[], duration: number } | null> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return null;
 		}
 
-
+		const sw = new StopWatch(true);
 		const words: string[] = [];
 		const seen = new Set<string>();
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
@@ -558,7 +559,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				break;
 			}
 		}
-		return words;
+		return { words, duration: sw.elapsed() };
 	}
 
 
