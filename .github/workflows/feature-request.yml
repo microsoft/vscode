@@ -4,8 +4,7 @@ on:
     types: [trigger-feature-request-manager]
   issues:
     types: [milestoned]
-  schedule:
-    - cron: 20 2 * * * # 4:20am Zurich
+
 
 # also make changes in ./on-label.yml
 jobs:
