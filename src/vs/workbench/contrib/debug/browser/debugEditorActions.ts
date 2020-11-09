@@ -45,7 +45,7 @@ class ToggleBreakpointAction extends EditorAction {
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
-			const canSet = debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel());
+			const canSet = debugService.canSetBreakpointsIn(editor.getModel());
 			// Does not account for multi line selections, Set to remove multiple cursor on the same line
 			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
 
@@ -79,7 +79,7 @@ class ConditionalBreakpointAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
 			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined, BreakpointWidgetContext.CONDITION);
 		}
 	}
@@ -101,7 +101,7 @@ class LogPointAction extends EditorAction {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
 			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
 		}
 	}

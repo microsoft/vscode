@@ -308,6 +308,12 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						const basename = paths.basename(getFilePath());
 						return (basename.slice(0, basename.length - paths.extname(basename).length));
 
+					case 'fileDirnameBasename':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
+						return paths.basename(paths.dirname(getFilePath()));
+
 					case 'execPath':
 						const ep = this._context.getExecPath();
 						if (ep) {

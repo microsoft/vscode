@@ -214,7 +214,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			data.root.title = `${textLabel}${completion.label.parameters ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).showStatusDetailsInline) {
+		if (this._editor.getOption(EditorOption.suggest).showInlineDetails) {
 			show(data.detailsLabel);
 		} else {
 			hide(data.detailsLabel);

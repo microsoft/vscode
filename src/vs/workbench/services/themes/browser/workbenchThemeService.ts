@@ -42,6 +42,7 @@ import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 // implementation
 
 const DEFAULT_COLOR_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
+const DEFAULT_LIGHT_COLOR_THEME_ID = 'vs vscode-theme-defaults-themes-light_plus-json';
 
 const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
 
@@ -194,7 +195,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (devThemes.length) {
 				return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 			}
-			const theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, DEFAULT_COLOR_THEME_ID);
+			const fallbackTheme = this.currentColorTheme.type === ColorScheme.LIGHT ? DEFAULT_LIGHT_COLOR_THEME_ID : DEFAULT_COLOR_THEME_ID;
+			const theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, fallbackTheme);
 
 			const preferredColorScheme = this.getPreferredColorScheme();
 			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);

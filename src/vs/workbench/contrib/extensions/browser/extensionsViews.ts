@@ -44,7 +44,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -112,7 +111,6 @@ export class ExtensionsListView extends ViewPane {
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
@@ -251,7 +249,7 @@ export class ExtensionsListView extends ViewPane {
 					getActions: () => actions.slice(0, actions.length - 1)
 				});
 			} else if (e.element) {
-				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped(), this.instantiationService, e.element);
+				const groups = getContextMenuActions(e.element, false, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
 						extensionAction.extension = e.element!;
@@ -890,7 +888,6 @@ export class ServerExtensionsView extends ExtensionsListView {
 		@IWorkbenchExtensioManagementService extensionManagementService: IWorkbenchExtensioManagementService,
 		@IProductService productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IPreferencesService preferencesService: IPreferencesService,
@@ -898,7 +895,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 		options.server = server;
 		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, tipsService,
 			telemetryService, configurationService, contextService, experimentService, extensionManagementServerService, extensionManagementService, productService,
-			contextKeyService, viewDescriptorService, menuService, openerService, preferencesService);
+			contextKeyService, viewDescriptorService, openerService, preferencesService);
 		this._register(onDidChangeTitle(title => this.updateTitle(title)));
 	}
 

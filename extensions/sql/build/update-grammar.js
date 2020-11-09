@@ -2,17 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+'use strict';
 
-.monaco-dropdown {
-	height: 100%;
-	padding: 0;
-}
+var updateGrammar = require('../../../build/npm/update-grammar');
+updateGrammar.update('microsoft/vscode-mssql', 'syntaxes/SQL.plist', './syntaxes/sql.tmLanguage.json', undefined, 'main');
 
-.monaco-dropdown > .dropdown-label {
-	cursor: pointer;
-	height: 100%;
-}
 
-.monaco-dropdown > .dropdown-label > .action-label.disabled {
-	cursor: default;
-}

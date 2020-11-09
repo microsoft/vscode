@@ -245,5 +245,5 @@ export function parsePathArg(arg: string | undefined, process: NodeJS.Process): 
 }
 
 export function parseUserDataDir(args: NativeParsedArgs, process: NodeJS.Process): string {
-	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath(process.platform));
+	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath());
 }

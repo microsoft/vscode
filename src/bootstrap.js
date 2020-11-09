@@ -42,7 +42,7 @@
 	//#region Add support for using node_modules.asar
 
 	/**
-	 * @param {string} appRoot
+	 * @param {string | undefined} appRoot
 	 */
 	function enableASARSupport(appRoot) {
 		if (!path || !Module) {
@@ -124,7 +124,7 @@
 	//#region NLS helpers
 
 	/**
-	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
+	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
 	 */
 	function setupNLS() {
 		if (!path || !fs) {
@@ -181,7 +181,7 @@
 
 	/**
 	 * @param {{ portable: string; applicationName: string; }} product
-	 * @returns {{ portableDataPath: string; isPortable: boolean; }}
+	 * @returns {{ portableDataPath: string; isPortable: boolean; } | undefined}
 	 */
 	function configurePortable(product) {
 		if (!path || !fs) {

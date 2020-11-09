@@ -64,7 +64,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 						return TriggerAction.CLOSE_PICKER;
 					},
 					accept: async () => {
-						await this.debugService.getConfigurationManager().selectConfiguration(config.launch, config.name);
+						await configManager.selectConfiguration(config.launch, config.name);
 						try {
 							await this.debugService.startDebugging(config.launch);
 						} catch (error) {
@@ -86,6 +86,24 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			});
 		}
 
+		configManager.getRecentDynamicConfigurations().forEach(({ name, type }) => {
+			const highlights = matchesFuzzy(filter, name, true);
+			if (highlights) {
+				picks.push({
+					label: name,
+					highlights: { label: highlights },
+					accept: async () => {
+						await configManager.selectConfiguration(undefined, name, undefined, { type });
+						try {
+							await this.debugService.startDebugging(configManager.selectedConfiguration.launch, configManager.selectedConfiguration.config);
+						} catch (error) {
+							this.notificationService.error(error);
+						}
+					}
+				});
+			}
+		});
+
 		dynamicProviders.forEach(provider => {
 			picks.push({
 				label: `$(folder) ${provider.label}...`,
@@ -93,6 +111,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				accept: async () => {
 					const pick = await provider.pick();
 					if (pick) {
+						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: pick.config.type });
 						this.debugService.startDebugging(pick.launch, pick.config);
 					}
 				}

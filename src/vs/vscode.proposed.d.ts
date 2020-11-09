@@ -824,16 +824,6 @@ declare module 'vscode' {
 		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_Variable).
 	}
 
-	// deprecated debug API
-
-	export interface DebugConfigurationProvider {
-		/**
-		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
-		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
-		 */
-		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
-	}
-
 	//#endregion
 
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
@@ -1047,6 +1037,10 @@ declare module 'vscode' {
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
+	}
+
+	export interface TreeView<T> extends Disposable {
+		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
 	//#endregion
 
@@ -2138,39 +2132,6 @@ declare module 'vscode' {
 		 * the document is not contained by a notebook (this should be the more frequent case).
 		 */
 		notebook: NotebookDocument | undefined;
-	}
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/91697
-
-	export interface FileSystem {
-		/**
-		 * Check if a given file system supports writing files.
-		 *
-		 * Keep in mind that just because a file system supports writing, that does
-		 * not mean that writes will always succeed. There may be permissions issues
-		 * or other errors that prevent writing a file.
-		 *
-		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
-		 *
-		 * @return `true` if the file system supports writing, `false` if it does not
-		 * support writing (i.e. it is readonly), and `undefined` if VS Code does not
-		 * know about the filesystem.
-		 */
-		isWritableFileSystem(scheme: string): boolean | undefined;
-	}
-
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
-	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
-
-		/**
-		 * An optional event to signal that the folding ranges from this provider have changed.
-		 */
-		onDidChangeFoldingRanges?: Event<void>;
-
 	}
 	//#endregion
 }
