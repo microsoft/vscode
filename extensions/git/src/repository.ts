@@ -315,6 +315,8 @@ export const enum Operation {
 	Blame = 'Blame',
 	Log = 'Log',
 	LogFile = 'LogFile',
+
+	Move = 'Move'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -1057,6 +1059,10 @@ export class Repository implements Disposable {
 
 	async renameBranch(name: string): Promise<void> {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
+	}
+
+	async move(from: string, to: string): Promise<void> {
+		await this.run(Operation.Move, () => this.repository.move(from, to));
 	}
 
 	async getBranch(name: string): Promise<Branch> {

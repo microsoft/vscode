@@ -919,6 +919,27 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.rename', { repository: true })
+	async rename(repository: Repository, fromUri: Uri): Promise<void> {
+		if (!fromUri) {
+			return;
+		}
+
+		const from = path.relative(repository.root, fromUri.path);
+		let to = await window.showInputBox({
+			value: from,
+			valueSelection: [from.length - path.basename(from).length, from.length]
+		});
+
+		to = to?.trim();
+
+		if (!to) {
+			return;
+		}
+
+		await repository.move(from, to);
+	}
+
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		this.outputChannel.appendLine(`git.stage ${resourceStates.length}`);

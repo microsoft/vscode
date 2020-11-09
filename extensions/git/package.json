@@ -182,6 +182,12 @@
         "icon": "$(discard)"
       },
       {
+        "command": "git.rename",
+        "title": "%command.rename%",
+        "category": "Git",
+        "icon": "$(discard)"
+      },
+      {
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
@@ -609,6 +615,10 @@
         {
           "command": "git.cleanAllUntracked",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.rename",
+          "when": "false"
         },
         {
           "command": "git.commit",
@@ -1324,6 +1334,18 @@
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         }
       ],
+      "explorer/context": [
+        {
+          "submenu": "git.explorer",
+          "group": "7_git",
+          "when": "config.git.enabled && !git.missing && !explorerResourceIsRoot"
+        }
+      ],
+      "git.explorer": [
+        {
+          "command": "git.rename"
+        }
+      ],
       "git.commit": [
         {
           "command": "git.commit",
@@ -1542,6 +1564,10 @@
       ]
     },
     "submenus": [
+      {
+        "id": "git.explorer",
+        "label": "%submenu.explorer%"
+      },
       {
         "id": "git.commit",
         "label": "%submenu.commit%"
