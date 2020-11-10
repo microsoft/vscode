@@ -661,6 +661,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				leftResource: conflict.remoteResource,
 				rightResource: conflict.previewResource,
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: false,
 					pinned: true,
