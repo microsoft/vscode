@@ -35,7 +35,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -249,12 +249,11 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const customOrMac = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' || isMacintosh; // using the location logic on mac helps with #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + (position === 'left' ? containerPosition.width : 0), y: containerPosition.top };
 		const actions = await this.getActions(accountsMenu);
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => customOrMac ? location : e || this.container,
+			getAnchor: () => customOrMac ? this.container : e || this.container,
 			anchorAlignment: customOrMac ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
+			anchorAxisAlignment: customOrMac ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
 			getActions: () => actions,
 			onHide: () => {
 				accountsMenu.dispose();
@@ -311,11 +310,10 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		const customOrMac = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' || isMacintosh; // using the location logic on mac helps with #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + (position === 'left' ? containerPosition.width : 0), y: containerPosition.top + containerPosition.height };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => customOrMac ? location : e || this.container,
+			getAnchor: () => customOrMac ? this.container : e || this.container,
 			anchorAlignment: customOrMac ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
+			anchorAxisAlignment: customOrMac ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
 			getActions: () => globalActivityActions,
 			onHide: () => {
 				globalActivityMenu.dispose();
