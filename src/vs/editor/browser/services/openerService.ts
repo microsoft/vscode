@@ -157,14 +157,14 @@ export class OpenerService implements IOpenerService {
 	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
 
 		// check with contributed validators
-		for (const validator of this._validators.toArray()) {
+		for (const validator of this._validators) {
 			if (!(await validator.shouldOpen(target))) {
 				return false;
 			}
 		}
 
 		// check with contributed openers
-		for (const opener of this._openers.toArray()) {
+		for (const opener of this._openers) {
 			const handled = await opener.open(target, options);
 			if (handled) {
 				return true;
@@ -175,7 +175,7 @@ export class OpenerService implements IOpenerService {
 	}
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
-		for (const resolver of this._resolvers.toArray()) {
+		for (const resolver of this._resolvers) {
 			const result = await resolver.resolveExternalUri(resource, options);
 			if (result) {
 				return result;
