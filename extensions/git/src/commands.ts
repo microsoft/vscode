@@ -1583,9 +1583,9 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await getCommitMessage();
+		let message = await getCommitMessage();
 
-		if (!message) {
+		if (!message && !opts.amend) {
 			return false;
 		}
 
@@ -1622,7 +1622,7 @@ export class CommandCenter {
 				let value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					value = (await repository.getCommit(repository.HEAD.commit)).message;
+					return undefined;
 				}
 
 				const branchName = repository.headShortName;
