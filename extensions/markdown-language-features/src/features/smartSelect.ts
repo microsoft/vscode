@@ -130,10 +130,10 @@ function createBlockRange(block: Token, document: vscode.TextDocument, cursorLin
 function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	const lineText = document.lineAt(cursorPosition.line).text;
 	const boldSelection = createBoldRange(lineText, cursorPosition.character, cursorPosition.line, parent);
-	const linkSelection = createLinkRange(lineText, cursorPosition.character, cursorPosition.line, parent);
 	const italicSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, true, parent);
-	const inlineCodeBlockSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, false, parent);
-	return boldSelection || linkSelection || italicSelection || inlineCodeBlockSelection;
+	const linkSelection = createLinkRange(lineText, cursorPosition.character, cursorPosition.line, boldSelection ? boldSelection : italicSelection || parent);
+	const inlineCodeBlockSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, false, linkSelection || parent);
+	return inlineCodeBlockSelection || linkSelection || boldSelection || italicSelection;
 }
 
 function createFencedRange(token: Token, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
@@ -205,7 +205,7 @@ function createOtherInlineRange(lineText: string, cursorChar: number, cursorLine
 				// within the content so select content then include brackets / parens
 				const contentRange = new vscode.Range(cursorLine, start + 1, cursorLine, end);
 				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-			} if (cursorChar === start) {
+			} else if (cursorChar === start) {
 				return new vscode.SelectionRange(range, parent);
 			}
 		}

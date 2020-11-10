@@ -474,14 +474,14 @@ suite('markdown.SmartSelect', () => {
 			joinLines(
 				`stuff here [text](https${CURSOR}://google.com) and here`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 18, 0, 46], [0, 17, 0, 47], [0, 0, 0, 56]);
+		assertNestedRangesEqual(ranges![0], [0, 18, 0, 46], [0, 17, 0, 47], [0, 11, 0, 47], [0, 0, 0, 56]);
 	});
 	test('Smart select brackets', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`stuff here [te${CURSOR}xt](https://google.com) and here`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 12, 0, 26], [0, 11, 0, 27], [0, 0, 0, 56]);
+		assertNestedRangesEqual(ranges![0], [0, 12, 0, 26], [0, 11, 0, 27], [0, 11, 0, 47], [0, 0, 0, 56]);
 	});
 	test('Smart select brackets under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -495,7 +495,7 @@ suite('markdown.SmartSelect', () => {
 				`- stuff here [te${CURSOR}xt](https://google.com) and here`,
 				`- list`
 			));
-		assertNestedRangesEqual(ranges![0], [6, 14, 6, 28], [6, 13, 6, 29], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
+		assertNestedRangesEqual(ranges![0], [6, 14, 6, 28], [6, 13, 6, 29], [6, 13, 6, 49], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
 	test('Smart select link under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -509,7 +509,7 @@ suite('markdown.SmartSelect', () => {
 				`- stuff here [text](${CURSOR}https://google.com) and here`,
 				`- list`
 			));
-		assertNestedRangesEqual(ranges![0], [6, 20, 6, 48], [6, 19, 6, 49], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
+		assertNestedRangesEqual(ranges![0], [6, 20, 6, 48], [6, 19, 6, 49], [6, 13, 6, 49], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
 	test('Smart select bold within list where multiple bold elements exists', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -525,12 +525,47 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [6, 21, 6, 44], [6, 19, 6, 46], [6, 0, 6, 60], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
-	test('Smart select brackets in a paragraph with another set of brackets and a link', async () => {
+	test('Smart select link in paragraph with multiple links', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`This[extension](https://marketplace.visualstudio.com/items?itemName=meganrogge.template-string-converter)  addresses this [requ${CURSOR}est](https://github.com/microsoft/vscode/issues/56704) to convert Javascript/Typescript quotes to backticks when has been entered within a string.`
 			));
-		assertNestedRangesEqual(ranges![0], [0, 123, 0, 140], [0, 122, 0, 141], [0, 0, 0, 283]);
+		assertNestedRangesEqual(ranges![0], [0, 123, 0, 140], [0, 122, 0, 141], [0, 122, 0, 191], [0, 0, 0, 283]);
+	});
+	test('Smart select bold link', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`**[extens${CURSOR}ion](https://google.com)**`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 3, 0, 22], [0, 2, 0, 23], [0, 2, 0, 43], [0, 2, 0, 43], [0, 0, 0, 45], [0, 0, 0, 45]);
+	});
+	test('Smart select inline code block', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`[\`code ${CURSOR} link\`]`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 2, 0, 22], [0, 1, 0, 23], [0, 0, 0, 24]);
+	});
+	test('Smart select link with inline code block text', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`[\`code ${CURSOR} link\`](http://example.com)`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 2, 0, 22], [0, 1, 0, 23], [0, 1, 0, 23], [0, 0, 0, 24], [0, 0, 0, 44], [0, 0, 0, 44]);
+	});
+	test('Smart select italic', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`*some nice ${CURSOR}text*`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 1, 0, 25], [0, 0, 0, 26], [0, 0, 0, 26]);
+	});
+	test('Smart select italic link', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`*[extens${CURSOR}ion](https://google.com)*`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 2, 0, 21], [0, 1, 0, 22], [0, 1, 0, 42], [0, 1, 0, 42], [0, 0, 0, 43], [0, 0, 0, 43]);
 	});
 });
 
