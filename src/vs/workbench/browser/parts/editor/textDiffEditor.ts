@@ -175,7 +175,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			const originalInput = input.originalInput;
 			const modifiedInput = input.modifiedInput;
 
-			const binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
+			const binaryDiffInput = this.instantiationService.createInstance(DiffEditorInput, input.getName(), input.getDescription(), originalInput, modifiedInput, true);
 
 			// Forward binary flag to input if supported
 			const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();

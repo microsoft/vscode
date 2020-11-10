@@ -285,13 +285,38 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		});
 	}
 
-	reloadConfiguration(folder?: IWorkspaceFolder, key?: string): Promise<void> {
-		if (folder) {
-			return this.reloadWorkspaceFolderConfiguration(folder, key);
+	async reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
+		if (target === undefined) {
+			const { local, remote } = await this.reloadUserConfiguration();
+			await this.reloadWorkspaceConfiguration();
+			await this.loadConfiguration(local, remote);
+			return;
 		}
-		return this.reloadUserConfiguration()
-			.then(({ local, remote }) => this.reloadWorkspaceConfiguration()
-				.then(() => this.loadConfiguration(local, remote)));
+
+		if (IWorkspaceFolder.isIWorkspaceFolder(target)) {
+			await this.reloadWorkspaceFolderConfiguration(target);
+			return;
+		}
+
+		switch (target) {
+			case ConfigurationTarget.USER:
+				const { local, remote } = await this.reloadUserConfiguration();
+				await this.loadConfiguration(local, remote);
+				return;
+
+			case ConfigurationTarget.USER_LOCAL:
+				await this.reloadLocalUserConfiguration();
+				return;
+
+			case ConfigurationTarget.USER_REMOTE:
+				await this.reloadRemoteUserConfiguration();
+				return;
+
+			case ConfigurationTarget.WORKSPACE:
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				await this.reloadWorkspaceConfiguration();
+				return;
+		}
 	}
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
@@ -465,10 +490,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return new ConfigurationModel();
 	}
 
-	private reloadWorkspaceConfiguration(key?: string): Promise<void> {
+	private reloadWorkspaceConfiguration(): Promise<void> {
 		const workbenchState = this.getWorkbenchState();
 		if (workbenchState === WorkbenchState.FOLDER) {
-			return this.onWorkspaceFolderConfigurationChanged(this.workspace.folders[0], key);
+			return this.onWorkspaceFolderConfigurationChanged(this.workspace.folders[0]);
 		}
 		if (workbenchState === WorkbenchState.WORKSPACE) {
 			return this.workspaceConfiguration.reload().then(() => this.onWorkspaceConfigurationChanged());
@@ -476,8 +501,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return Promise.resolve(undefined);
 	}
 
-	private reloadWorkspaceFolderConfiguration(folder: IWorkspaceFolder, key?: string): Promise<void> {
-		return this.onWorkspaceFolderConfigurationChanged(folder, key);
+	private reloadWorkspaceFolderConfiguration(folder: IWorkspaceFolder): Promise<void> {
+		return this.onWorkspaceFolderConfigurationChanged(folder);
 	}
 
 	private loadConfiguration(userConfigurationModel: ConfigurationModel, remoteUserConfigurationModel: ConfigurationModel): Promise<void> {
@@ -592,7 +617,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		}
 	}
 
-	private onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder, key?: string): Promise<void> {
+	private onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder): Promise<void> {
 		return this.loadFolderConfigurations([folder])
 			.then(([folderConfiguration]) => {
 				const previous = { data: this._configuration.toData(), workspace: this.workspace };
@@ -700,7 +725,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 					case EditableConfigurationTarget.WORKSPACE_FOLDER:
 						const workspaceFolder = overrides && overrides.resource ? this.workspace.getFolder(overrides.resource) : null;
 						if (workspaceFolder) {
-							return this.reloadWorkspaceFolderConfiguration(workspaceFolder, key);
+							return this.reloadWorkspaceFolderConfiguration(workspaceFolder);
 						}
 				}
 				return Promise.resolve();
