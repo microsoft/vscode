@@ -1422,6 +1422,7 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 interface IMyViewZone {
 	shouldNotShrink?: boolean;
 	afterLineNumber: number;
+	afterColumn?: number;
 	heightInLines: number;
 	minWidthInPx?: number;
 	domNode: HTMLElement | null;
@@ -2194,7 +2195,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 	public getViewZones(): IEditorsZones {
 		const result = super.getViewZones();
-		this._finalize();
+		this._finalize(result);
 		return result;
 	}
 
@@ -2249,7 +2250,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		return viewZone;
 	}
 
-	private _finalize(): void {
+	private _finalize(result: IEditorsZones): void {
 		const modifiedEditorOptions = this._modifiedEditor.getOptions();
 		const tabSize = this._modifiedEditor.getModel()!.getOptions().tabSize;
 		const fontInfo = modifiedEditorOptions.get(EditorOption.fontInfo);
@@ -2300,7 +2301,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				const lineBreakData = lineBreaks[lineBreakIndex++];
 				const actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
 
-				if (lineBreakData && !true) {
+				if (lineBreakData) {
 					let lastBreakOffset = 0;
 					for (const breakOffset of lineBreakData.breakOffsets) {
 						const viewLineTokens = lineTokens.sliceAndInflate(lastBreakOffset, breakOffset, 0);
@@ -2327,6 +2328,15 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 						lastBreakOffset = breakOffset;
 					}
 					viewZone.heightInLines += (lineBreakData.breakOffsets.length - 1);
+					const marginDomNode2 = document.createElement('div');
+					marginDomNode2.className = 'line-delete';
+					result.original.push({
+						afterLineNumber: lineNumber,
+						afterColumn: 0,
+						heightInLines: lineBreakData.breakOffsets.length - 1,
+						domNode: createFakeLinesDiv(),
+						marginDomNode: marginDomNode2
+					});
 				} else {
 					maxCharsPerLine = Math.max(maxCharsPerLine, this._renderOriginalLine(
 						renderedLineCount++,
@@ -2354,6 +2364,10 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			domNode.innerHTML = sb.build();
 			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
 		}
+
+		result.original.sort((a, b) => {
+			return a.afterLineNumber - b.afterLineNumber;
+		});
 	}
 
 	private _renderOriginalLine(
