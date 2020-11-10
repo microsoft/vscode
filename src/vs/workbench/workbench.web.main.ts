@@ -42,7 +42,6 @@ import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
 import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
-import 'vs/workbench/services/dialogs/browser/dialogService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
@@ -116,6 +115,9 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
+
+// Dialog
+import 'vs/workbench/contrib/dialogs/browser/dialog.contribution';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';

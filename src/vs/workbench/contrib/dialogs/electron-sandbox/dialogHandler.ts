@@ -4,23 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, IInputResult, IInput } from 'vs/platform/dialogs/common/dialogs';
-import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { fromNow } from 'vs/base/common/date';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import Severity from 'vs/base/common/severity';
+import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IConfirmation, IConfirmationResult, IDialogHandler, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IMassagedMessageBoxOptions {
 
@@ -37,57 +30,9 @@ interface IMassagedMessageBoxOptions {
 	buttonIndexMap: number[];
 }
 
-export class DialogService implements IDialogService {
 
-	declare readonly _serviceBrand: undefined;
 
-	private nativeImpl: IDialogService;
-	private customImpl: IDialogService;
-
-	constructor(
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService logService: ILogService,
-		@ILayoutService layoutService: ILayoutService,
-		@IThemeService themeService: IThemeService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IProductService productService: IProductService,
-		@IClipboardService clipboardService: IClipboardService,
-		@INativeHostService nativeHostService: INativeHostService
-	) {
-		this.customImpl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
-		this.nativeImpl = new NativeDialogService(logService, nativeHostService, productService, clipboardService);
-	}
-
-	private get useCustomDialog(): boolean {
-		return this.configurationService.getValue('window.dialogStyle') === 'custom';
-	}
-
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		if (this.useCustomDialog) {
-			return this.customImpl.confirm(confirmation);
-		}
-
-		return this.nativeImpl.confirm(confirmation);
-	}
-
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
-		if (this.useCustomDialog) {
-			return this.customImpl.show(severity, message, buttons, options);
-		}
-
-		return this.nativeImpl.show(severity, message, buttons, options);
-	}
-
-	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
-		return this.customImpl.input(severity, message, buttons, inputs, options);
-	}
-
-	about(): Promise<void> {
-		return this.nativeImpl.about();
-	}
-}
-
-class NativeDialogService implements IDialogService {
+export class NativeDialogHandler implements IDialogHandler {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -265,4 +210,3 @@ class NativeDialogService implements IDialogService {
 	}
 }
 
-registerSingleton(IDialogService, DialogService, true);

@@ -56,6 +56,7 @@ import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
+import 'vs/workbench/services/dialogs/common/dialogService';
 import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
