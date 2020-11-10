@@ -1488,7 +1488,7 @@ export class CommandCenter {
 					? localize('unsaved files single', "The following file has unsaved changes which won't be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
 					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
-				const commit = localize('commit', "Commit Anyway");
+				const commit = localize('commit', "Commit Staged Changes");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
