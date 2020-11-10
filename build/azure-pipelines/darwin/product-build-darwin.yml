@@ -65,6 +65,12 @@ steps:
 
 - script: |
     set -e
+    sudo xcode-select -s /Applications/Xcode_12.2.app
+  displayName: Switch to Xcode 12
+  condition: eq(variables['VSCODE_ARCH'], 'arm64')
+
+- script: |
+    set -e
     npm install -g node-gyp@7.1.0
     node-gyp --version
   displayName: Update node-gyp
