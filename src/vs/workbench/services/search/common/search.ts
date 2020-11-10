@@ -286,7 +286,7 @@ export class TextSearchMatch implements ITextSearchMatch {
 				lastEnd = previewEnd;
 			}
 
-			this.preview = { text: result, matches: matches.length === 1 ? matches[0] : matches };
+			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
