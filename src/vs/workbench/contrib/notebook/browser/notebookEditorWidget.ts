@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { SequencerByKey } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, SequencerByKey } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -152,6 +152,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
 	private readonly _onDidChangeAvailableKernels = this._register(new Emitter<void>());
 	readonly onDidChangeAvailableKernels: Event<void> = this._onDidChangeAvailableKernels.event;
+
+	private _contributedKernelsComputePromise: CancelablePromise<INotebookKernelInfo2[]> | null = null;
 
 	get activeKernel() {
 		return this._activeKernel;
@@ -726,9 +728,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.clear();
 	}
 
+	async beginComputeContributedKernels() {
+		if (this._contributedKernelsComputePromise) {
+			return this._contributedKernelsComputePromise;
+		}
+
+		this._contributedKernelsComputePromise = createCancelablePromise(token => {
+			return this.notebookService.getContributedNotebookKernels(this.viewModel!.viewType, this.viewModel!.uri, token);
+		});
+
+		const result = await this._contributedKernelsComputePromise;
+		this._contributedKernelsComputePromise = null;
+
+		return result;
+	}
+
 	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
 		const provider = this.notebookService.getContributedNotebookProvider(textModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		const availableKernels = await this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri, tokenSource.token);
+		const availableKernels = await this.beginComputeContributedKernels();
 
 		if (tokenSource.token.isCancellationRequested) {
 			return;
@@ -1513,9 +1530,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		// pick active kernel
 
+		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
+		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
+		picker.matchOnDetail = true;
+		picker.busy = true;
+		picker.show();
+
 		const tokenSource = new CancellationTokenSource();
-		const availableKernels2 = await this.notebookService.getContributedNotebookKernels(this.viewModel!.viewType, this.viewModel!.uri, tokenSource.token);
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = availableKernels2.map((a) => {
+		const availableKernels = await this.beginComputeContributedKernels();
+		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = availableKernels.map((a) => {
 			return {
 				id: a.id,
 				label: a.label,
@@ -1537,10 +1560,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			};
 		});
 
-		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
 		picker.items = picks;
-		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
-		picker.matchOnDetail = true;
+		picker.busy = false;
 
 		const pickedItem = await new Promise<(IQuickPickItem & { run(): void; kernelProviderId?: string; }) | undefined>(resolve => {
 			picker.onDidAccept(() => {
@@ -1575,7 +1596,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			});
 
-			picker.show();
 		});
 
 		tokenSource.dispose();
