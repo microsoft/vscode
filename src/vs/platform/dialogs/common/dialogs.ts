@@ -198,7 +198,7 @@ export interface IDialogService {
 	 * option then promise with index `0` is returned. In addition, the values for the
 	 * inputs are returned as well.
 	 */
-	input(type: DialogType, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
 
 	/**
 	 * Present the about dialog to the user.
@@ -218,20 +218,23 @@ export interface IFileDialogService {
 	/**
 	 * The default path for a new file based on previously used files.
 	 * @param schemeFilter The scheme of the file path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultFilePath(schemeFilter?: string): URI | undefined;
+	defaultFilePath(schemeFilter?: string): Promise<URI>;
 
 	/**
 	 * The default path for a new folder based on previously used folders.
 	 * @param schemeFilter The scheme of the folder path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultFolderPath(schemeFilter?: string): URI | undefined;
+	defaultFolderPath(schemeFilter?: string): Promise<URI>;
 
 	/**
 	 * The default path for a new workspace based on previously used workspaces.
 	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultWorkspacePath(schemeFilter?: string, filename?: string): URI | undefined;
+	defaultWorkspacePath(schemeFilter?: string, filename?: string): Promise<URI>;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.

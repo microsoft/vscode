@@ -24,6 +24,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -91,7 +92,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -117,12 +119,21 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+		switch (this.shutdownReason) {
 
-		// Veto the shutdown depending on `window.confirmBeforeClose` setting
-		const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
-		if (confirmBeforeClose === 'always' || (this.shutdownReason === HostShutdownReason.Keyboard && confirmBeforeClose === 'keyboardOnly')) {
-			console.warn('Unload veto: window.confirmBeforeClose=true');
-			e.veto(true);
+			// Unknown / Keyboard shows veto depending on setting
+			case HostShutdownReason.Unknown:
+			case HostShutdownReason.Keyboard:
+				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
+					this.logService.warn(`Unload veto: window.confirmBeforeClose=${confirmBeforeClose}`);
+					e.veto(true);
+				}
+				break;
+
+			// Api never shows veto
+			case HostShutdownReason.Api:
+				break;
 		}
 
 		// Unset for next shutdown
@@ -233,7 +244,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
 							leftResource: editors[0].resource,
-							rightResource: editors[1].resource
+							rightResource: editors[1].resource,
+							options: { pinned: true }
 						});
 					}
 
@@ -373,13 +385,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				try {
 					return await target.requestFullscreen();
 				} catch (error) {
-					console.warn('Toggle Full Screen failed'); // https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
+					this.logService.warn('toggleFullScreen(): requestFullscreen failed'); // https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 				}
 			} else {
 				try {
 					return await document.exitFullscreen();
 				} catch (error) {
-					console.warn('Exit Full Screen failed');
+					this.logService.warn('toggleFullScreen(): exitFullscreen failed');
 				}
 			}
 		}
@@ -393,7 +405,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 				}
 			} catch {
-				console.warn('Enter/Exit Full Screen failed');
+				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
 			}
 		}
 	}

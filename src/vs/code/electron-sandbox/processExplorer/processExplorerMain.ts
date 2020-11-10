@@ -19,6 +19,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -78,8 +79,6 @@ class ProcessExplorer {
 	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number): void {
 		const isRoot = (indent === 0);
 
-		const MB = 1024 * 1024;
-
 		let name = item.name;
 		if (isRoot) {
 			name = isLocal ? `${this.data.applicationName} main` : 'remote agent';
@@ -95,7 +94,7 @@ class ProcessExplorer {
 		const memory = this.data.platform === 'win32' ? item.mem : (totalMem * (item.mem / 100));
 		processes.push({
 			cpu: item.load,
-			memory: (memory / MB),
+			memory: (memory / ByteSize.MB),
 			pid: item.pid.toFixed(0),
 			name,
 			formattedName,

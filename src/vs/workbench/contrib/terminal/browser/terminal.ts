@@ -59,7 +59,6 @@ export interface ITerminalTab {
 	onDisposed: Event<ITerminalTab>;
 	onInstancesChanged: Event<void>;
 
-	setWillFocus(focus: boolean): void;
 	focusPreviousPane(): void;
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
@@ -71,6 +70,11 @@ export interface ITerminalTab {
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
+export const enum TerminalConnectionState {
+	Connecting,
+	Connected
+}
+
 export interface ITerminalService {
 	readonly _serviceBrand: undefined;
 
@@ -79,6 +83,7 @@ export interface ITerminalService {
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 	isProcessSupportRegistered: boolean;
+	readonly connectionState: TerminalConnectionState;
 
 	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
@@ -95,6 +100,7 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 	onDidRegisterProcessSupport: Event<void>;
+	onDidChangeConnectionState: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -175,6 +181,7 @@ export interface ITerminalService {
 	extHostReady(remoteAuthority: string): void;
 	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
+	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 }
 
 export interface IRemoteTerminalService {
@@ -182,7 +189,7 @@ export interface IRemoteTerminalService {
 
 	dispose(): void;
 
-	listTerminals(): Promise<IRemoteTerminalAttachTarget[]>;
+	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
 	createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
 }
 

@@ -9,6 +9,7 @@ import { API as GitAPI, Repository } from './typings/git';
 import { getOctokit } from './auth';
 import { TextEncoder } from 'util';
 import { basename } from 'path';
+import { Octokit } from '@octokit/rest';
 
 const localize = nls.loadMessageBundle();
 
@@ -32,6 +33,9 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 
 	if (repository) {
 		folder = repository.rootUri;
+	} else if (gitAPI.repositories.length === 1) {
+		repository = gitAPI.repositories[0];
+		folder = repository.rootUri;
 	} else if (vscode.workspace.workspaceFolders.length === 1) {
 		folder = vscode.workspace.workspaceFolders[0].uri;
 	} else {
@@ -54,9 +58,18 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	quickpick.show();
 	quickpick.busy = true;
 
-	const octokit = await getOctokit();
-	const user = await octokit.users.getAuthenticated({});
-	const owner = user.data.login;
+	let owner: string;
+	let octokit: Octokit;
+	try {
+		octokit = await getOctokit();
+		const user = await octokit.users.getAuthenticated({});
+		owner = user.data.login;
+	} catch (e) {
+		// User has cancelled sign in
+		quickpick.dispose();
+		return;
+	}
+
 	quickpick.busy = false;
 
 	let repo: string | undefined;
@@ -189,9 +202,9 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	}
 
 	const openInGitHub = 'Open In GitHub';
-	const action = await vscode.window.showInformationMessage(`Successfully published the '${owner}/${repo}' repository on GitHub.`, openInGitHub);
-
-	if (action === openInGitHub) {
-		vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(githubRepository.html_url));
-	}
+	vscode.window.showInformationMessage(`Successfully published the '${owner}/${repo}' repository on GitHub.`, openInGitHub).then(action => {
+		if (action === openInGitHub) {
+			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(githubRepository.html_url));
+		}
+	});
 }

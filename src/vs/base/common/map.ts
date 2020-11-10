@@ -6,6 +6,8 @@
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareSubstringIgnoreCase, compare, compareSubstring, compareIgnoreCase } from 'vs/base/common/strings';
+import { isLinux } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -138,7 +140,7 @@ export class UriIterator implements IKeyIterator<URI> {
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
 
-	constructor(private readonly _ignorePathCasing: boolean) { }
+	constructor(private readonly _ignorePathCasing: (uri: URI) => boolean) { }
 
 	reset(key: URI): this {
 		this._value = key;
@@ -150,7 +152,7 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			this._pathIterator = new PathIterator(false, !this._ignorePathCasing);
+			this._pathIterator = new PathIterator(false, !this._ignorePathCasing(key));
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
@@ -226,7 +228,14 @@ class TernarySearchTreeNode<K, V> {
 
 export class TernarySearchTree<K, V> {
 
-	static forUris<E>(ignorePathCasing: boolean = false): TernarySearchTree<URI, E> {
+	/**
+	 * @deprecated
+	 */
+	static forUris<E>(ignorePathCasing?: boolean): TernarySearchTree<URI, E> {
+		return new TernarySearchTree<URI, E>(new UriIterator(key => ignorePathCasing ?? (key.scheme === Schemas.file && isLinux)));
+	}
+
+	static forUris2<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
@@ -318,7 +327,14 @@ export class TernarySearchTree<K, V> {
 	}
 
 	delete(key: K): void {
+		return this._delete(key, false);
+	}
 
+	deleteSuperstr(key: K): void {
+		return this._delete(key, true);
+	}
+
+	private _delete(key: K, superStr: boolean): void {
 		const iter = this._iter.reset(key);
 		const stack: [-1 | 0 | 1, TernarySearchTreeNode<K, V>][] = [];
 		let node = this._root;
@@ -344,7 +360,7 @@ export class TernarySearchTree<K, V> {
 				node.value = undefined;
 
 				// clean up empty nodes
-				while (stack.length > 0 && node.isEmpty()) {
+				while (stack.length > 0 && (node.isEmpty() || superStr)) {
 					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;

@@ -712,10 +712,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		label = this._commentThread.label;
 
 		if (label === undefined) {
-			if (this._commentThread.comments && this._commentThread.comments.length) {
-				const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-				label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
-			} else {
+			if (!(this._commentThread.comments && this._commentThread.comments.length)) {
 				label = nls.localize('startThread', "Start discussion");
 			}
 		}
@@ -884,13 +881,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder);
 		this.style({
-			arrowColor: borderColor,
-			frameColor: borderColor
+			arrowColor: borderColor || Color.transparent,
+			frameColor: borderColor || Color.transparent
 		});
 
 		const content: string[] = [];
+
+		if (borderColor) {
+			content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid ${borderColor} }`);
+		}
+
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {
 			content.push(`.monaco-editor .review-widget .body .comment-body a { color: ${linkColor} }`);

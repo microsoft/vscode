@@ -70,6 +70,7 @@ interface ISimpleConnectionOptions {
 	commit: string | undefined;
 	host: string;
 	port: number;
+	connectionToken: string | undefined;
 	reconnectionToken: string;
 	reconnectionProtocol: PersistentProtocol | null;
 	socketFactory: ISocketFactory;
@@ -169,10 +170,9 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 		});
 
 		options.logService.trace(`${logPrefix} 3/6. sending AuthRequest control message.`);
-		// TODO@vs-remote: use real nonce here
 		const authRequest: AuthRequest = {
 			type: 'auth',
-			auth: '00000000000000000000'
+			auth: options.connectionToken || '00000000000000000000'
 		};
 		protocol.sendControl(VSBuffer.fromString(JSON.stringify(authRequest)));
 	});
@@ -254,11 +254,12 @@ export interface IConnectionOptions {
 }
 
 async function resolveConnectionOptions(options: IConnectionOptions, reconnectionToken: string, reconnectionProtocol: PersistentProtocol | null): Promise<ISimpleConnectionOptions> {
-	const { host, port } = await options.addressProvider.getAddress();
+	const { host, port, connectionToken } = await options.addressProvider.getAddress();
 	return {
 		commit: options.commit,
 		host: host,
 		port: port,
+		connectionToken: connectionToken,
 		reconnectionToken: reconnectionToken,
 		reconnectionProtocol: reconnectionProtocol,
 		socketFactory: options.socketFactory,
@@ -270,6 +271,7 @@ async function resolveConnectionOptions(options: IConnectionOptions, reconnectio
 export interface IAddress {
 	host: string;
 	port: number;
+	connectionToken: string | undefined;
 }
 
 export interface IAddressProvider {

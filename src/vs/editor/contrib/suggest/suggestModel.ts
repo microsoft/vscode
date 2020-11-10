@@ -300,7 +300,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._state === State.Idle) {
+		if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
 
 			if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
 				// not enabled
@@ -357,7 +357,7 @@ export class SuggestModel implements IDisposable {
 			}, this._quickSuggestDelay);
 
 
-		} else if (e.reason === CursorChangeReason.Explicit) {
+		} else if (this._state !== State.Idle && e.reason === CursorChangeReason.Explicit) {
 			// suggest is active and something like cursor keys are used to move
 			// the cursor. this means we can refilter at the new position
 			this._refilterCompletionItems();

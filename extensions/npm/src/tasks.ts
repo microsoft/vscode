@@ -108,14 +108,14 @@ export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 	return value && typeof value !== 'number';
 }
 
-export async function getPackageManager(folder: Uri, silent: boolean = false): Promise<string> {
+export async function getPackageManager(folder: Uri): Promise<string> {
 	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
 		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
 		packageManagerName = name;
 
-		if (multiplePMDetected && !silent) {
+		if (multiplePMDetected) {
 			const multiplePMWarning = localize('npm.multiplePMWarning', 'Found multiple lockfiles for {0}. Using {1} as the preferred package manager.', folder.fsPath, packageManagerName);
 			window.showWarningMessage(multiplePMWarning);
 		}

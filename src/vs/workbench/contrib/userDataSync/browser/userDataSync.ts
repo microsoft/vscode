@@ -45,7 +45,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -447,7 +447,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				await this.selectSettingsSyncService(this.userDataSyncStoreManagementService.userDataSyncStore);
 			}
 			await this.userDataSyncWorkbenchService.turnOn();
-			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
+			this.storageService.store2('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
 			if (isPromiseCanceledError(e)) {
 				return;
@@ -482,9 +482,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							}
 						});
 						return;
+					case UserDataSyncErrorCode.Unauthorized:
+						this.notificationService.error(localize('auth failed', "Error while turning on Settings Sync: Authentication failed."));
+						return;
 				}
 			}
-			this.notificationService.error(localize('turn on failed', "Error while starting Settings Sync: {0}", toErrorMessage(e)));
+			this.notificationService.error(localize('turn on failed', "Error while turning on Settings Sync. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
 		}
 	}
 
@@ -658,6 +661,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				leftResource: conflict.remoteResource,
 				rightResource: conflict.previewResource,
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: false,
 					pinned: true,

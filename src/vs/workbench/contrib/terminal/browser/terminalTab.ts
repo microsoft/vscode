@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -219,7 +218,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _activeInstanceIndex: number;
 	private _isVisible: boolean = false;
-	private _willFocus: boolean = false;
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -249,16 +247,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 	}
 
-	/**
-	 * Focus the current active instance, or if there isn't one yet, the first instance added
-	 */
-	setWillFocus(focus: boolean): void {
-		this._willFocus = focus;
-		if (focus && this.activeInstance) {
-			this.activeInstance.focusWhenReady();
-		}
-	}
-
 	public addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
 		let instance: ITerminalInstance;
 		if ('id' in shellLaunchConfigOrInstance) {
@@ -274,10 +262,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 
 		this._onInstancesChanged.fire();
-
-		if (this.terminalInstances.length === 1 && this._willFocus) {
-			instance.focusWhenReady();
-		}
 	}
 
 	public dispose(): void {
@@ -387,10 +371,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public get title(): string {
-		if (!this.terminalInstances.length) {
-			return nls.localize('terminal.integrated.starting', "Starting...");
-		}
-
 		let title = this.terminalInstances[0].title;
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			if (this.terminalInstances[i].title) {

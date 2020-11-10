@@ -8,7 +8,7 @@ import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilte
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryData } from 'vs/base/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -207,7 +207,7 @@ export class ExperimentService implements ITASExperimentService {
 		);
 
 		const memento = new Memento(ExperimentService.MEMENTO_ID, this.storageService);
-		const keyValueStorage = new MementoKeyValueStorage(memento.getMemento(StorageScope.GLOBAL));
+		const keyValueStorage = new MementoKeyValueStorage(memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE));
 
 		const telemetry = new ExperimentServiceTelemetry(this.telemetryService);
 

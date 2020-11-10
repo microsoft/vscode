@@ -58,7 +58,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManager', (args) => {
 		if (args instanceof vscode.Uri) {
-			return getPackageManager(args, true);
+			return getPackageManager(args);
 		}
 		return '';
 	}));

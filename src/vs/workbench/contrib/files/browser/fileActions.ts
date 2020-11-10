@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { BinarySize, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
+import { ByteSize, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -22,9 +22,9 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -216,7 +216,7 @@ async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dial
 
 	// Check for confirmation checkbox
 	if (confirmation.confirmed && confirmation.checkboxChecked === true) {
-		await configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
+		await configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false);
 	}
 
 	// Check for confirmation
@@ -472,7 +472,7 @@ export class GlobalCompareResourcesAction extends Action {
 							override: this.editorService.openEditor({
 								leftResource: activeResource,
 								rightResource: resource,
-								options: { override: false }
+								options: { override: false, pinned: true }
 							})
 						};
 					}
@@ -482,7 +482,7 @@ export class GlobalCompareResourcesAction extends Action {
 					return {
 						override: this.editorService.openEditor({
 							resource: activeResource,
-							options: { override: false }
+							options: { override: false, pinned: true }
 						})
 					};
 				}
@@ -828,7 +828,11 @@ export class CompareWithClipboardAction extends Action {
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			await this.editorService.openEditor({ leftResource: resource.with({ scheme }), rightResource: resource, label: editorLabel }).finally(() => {
+			await this.editorService.openEditor({
+				leftResource: resource.with({ scheme }),
+				rightResource: resource, label: editorLabel,
+				options: { pinned: true }
+			}).finally(() => {
 				dispose(this.registrationDisposal);
 				this.registrationDisposal = undefined;
 			});
@@ -875,8 +879,18 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
 	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
+	const commandService = accessor.get(ICommandService);
 
-	await viewsService.openView(VIEW_ID, true);
+	const view = await viewsService.openView(VIEW_ID, true);
+	if (!view) {
+		// Can happen in empty workspace case (https://github.com/microsoft/vscode/issues/100604)
+
+		if (isFolder) {
+			throw new Error('Open a folder or workspace first.');
+		}
+
+		return commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+	}
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -1034,7 +1048,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 					return;
 				}
 
-				const maxBlobDownloadSize = 32 * BinarySize.MB; // avoid to download via blob-trick >32MB to avoid memory pressure
+				const maxBlobDownloadSize = 32 * ByteSize.MB; // avoid to download via blob-trick >32MB to avoid memory pressure
 				const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
 
 				// Folder: use FS APIs to download files and folders if available and preferred
@@ -1051,9 +1065,15 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 						fileBytesDownloaded: number;
 					}
 
-					async function pipeContents(name: string, source: IFileStreamContent, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+					async function downloadFileBuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+						const contents = await fileService.readFileStream(resource);
+						if (cts.token.isCancellationRequested) {
+							target.close();
+							return;
+						}
+
 						return new Promise<void>((resolve, reject) => {
-							const sourceStream = source.value;
+							const sourceStream = contents.value;
 
 							const disposables = new DisposableStore();
 							disposables.add(toDisposable(() => target.close()));
@@ -1069,7 +1089,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 							sourceStream.on('data', data => {
 								if (!disposed) {
 									target.write(data.buffer);
-									reportProgress(name, source.size, data.byteLength, operation);
+									reportProgress(contents.name, contents.size, data.byteLength, operation);
 								}
 							});
 
@@ -1085,18 +1105,34 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 						});
 					}
 
-					async function downloadFile(targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, name: string, resource: URI, operation: IDownloadOperation): Promise<void> {
+					async function downloadFileUnbuffered(resource: URI, target: WebFileSystemAccess.FileSystemWritableFileStream, operation: IDownloadOperation): Promise<void> {
+						const contents = await fileService.readFile(resource);
+						if (!cts.token.isCancellationRequested) {
+							target.write(contents.value.buffer);
+							reportProgress(contents.name, contents.size, contents.value.byteLength, operation);
+						}
+
+						target.close();
+					}
+
+					async function downloadFile(targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, file: IFileStatWithMetadata, operation: IDownloadOperation): Promise<void> {
 
 						// Report progress
 						operation.filesDownloaded++;
 						operation.fileBytesDownloaded = 0; // reset for this file
-						reportProgress(name, 0, 0, operation);
+						reportProgress(file.name, 0, 0, operation);
 
 						// Start to download
-						const targetFile = await targetFolder.getFileHandle(name, { create: true });
+						const targetFile = await targetFolder.getFileHandle(file.name, { create: true });
 						const targetFileWriter = await targetFile.createWritable();
 
-						return pipeContents(name, await fileService.readFileStream(resource), targetFileWriter, operation);
+						// For large files, write buffered using streams
+						if (file.size > ByteSize.MB) {
+							return downloadFileBuffered(file.resource, targetFileWriter, operation);
+						}
+
+						// For small files prefer to write unbuffered to reduce overhead
+						return downloadFileUnbuffered(file.resource, targetFileWriter, operation);
 					}
 
 					async function downloadFolder(folder: IFileStatWithMetadata, targetFolder: WebFileSystemAccess.FileSystemDirectoryHandle, operation: IDownloadOperation): Promise<void> {
@@ -1109,7 +1145,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 								}
 
 								if (child.isFile) {
-									await downloadFile(targetFolder, child.name, child.resource, operation);
+									await downloadFile(targetFolder, child, operation);
 								} else {
 									const childFolder = await targetFolder.getDirectoryHandle(child.name, { create: true });
 									const resolvedChildFolder = await fileService.resolve(child.resource, { resolveMetadata: true });
@@ -1128,17 +1164,17 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 
 						// Small file
 						let message: string;
-						if (fileSize < BinarySize.MB) {
+						if (fileSize < ByteSize.MB) {
 							if (operation.filesTotal === 1) {
 								message = name;
 							} else {
-								message = nls.localize('downloadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesDownloaded, operation.filesTotal, BinarySize.formatSize(bytesDownloadedPerSecond));
+								message = nls.localize('downloadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesDownloaded, operation.filesTotal, ByteSize.formatSize(bytesDownloadedPerSecond));
 							}
 						}
 
 						// Large file
 						else {
-							message = nls.localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, BinarySize.formatSize(operation.fileBytesDownloaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesDownloadedPerSecond));
+							message = nls.localize('downloadProgressLarge', "{0} ({1} of {2}, {3}/s)", name, ByteSize.formatSize(operation.fileBytesDownloaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesDownloadedPerSecond));
 						}
 
 						// Report progress but limit to update only once per second
@@ -1162,7 +1198,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 							const targetFolder = await parentFolder.getDirectoryHandle(stat.name, { create: true });
 							await downloadFolder(stat, targetFolder, operation);
 						} else {
-							await downloadFile(parentFolder, stat.name, stat.resource, operation);
+							await downloadFile(parentFolder, stat, operation);
 						}
 
 						operation.progressScheduler.dispose();
@@ -1191,10 +1227,8 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 			else {
 				progress.report({ message: explorerItem.name });
 
-				let defaultUri = explorerItem.isDirectory ? fileDialogService.defaultFolderPath(Schemas.file) : fileDialogService.defaultFilePath(Schemas.file);
-				if (defaultUri) {
-					defaultUri = resources.joinPath(defaultUri, explorerItem.name);
-				}
+				let defaultUri = explorerItem.isDirectory ? await fileDialogService.defaultFolderPath(Schemas.file) : await fileDialogService.defaultFilePath(Schemas.file);
+				defaultUri = resources.joinPath(defaultUri, explorerItem.name);
 
 				const destination = await fileDialogService.showSaveDialog({
 					availableFileSystems: [Schemas.file],

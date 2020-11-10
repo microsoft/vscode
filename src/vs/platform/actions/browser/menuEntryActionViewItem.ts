@@ -236,6 +236,6 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			}
 		}
 
-		super(action, action.actions, _contextMenuService, { classNames: classNames });
+		super(action, action.actions, _contextMenuService, { classNames: classNames, menuAsChild: true });
 	}
 }

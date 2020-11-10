@@ -5,6 +5,9 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
+import { createHash } from 'crypto';
+import { stat } from 'vs/base/node/pfs';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -45,11 +48,11 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { NativeResourceIdentityService } from 'vs/workbench/services/resourceIdentity/node/resourceIdentityServiceImpl';
-import { IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 class DesktopMain extends Disposable {
 
@@ -233,6 +236,9 @@ class DesktopMain extends Disposable {
 		// User Data Provider
 		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.configuration.backupPath ? URI.file(this.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
 
+		// IURIIdentityService
+		const uriIdentityService = new UriIdentityService(fileService);
+		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -253,13 +259,10 @@ class DesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const resourceIdentityService = this._register(new NativeResourceIdentityService());
-		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
-
-		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
+		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		const services = await Promise.all([
-			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -296,7 +299,7 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
 		if (this.configuration.workspace) {
@@ -306,7 +309,7 @@ class DesktopMain extends Disposable {
 		// Single-folder workspace
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
 		if (this.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri, resourceIdentityService);
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
 		}
 
 		// Fallback to empty workspace if we have no payload yet.
@@ -326,12 +329,12 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, resourceIdentityService: IResourceIdentityService): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 		try {
 			const folder = folderUri.scheme === Schemas.file
 				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
 				: folderUri;
-			const id = await resourceIdentityService.resolveResourceIdentity(folderUri);
+			const id = await this.createHash(folderUri);
 			return { id, folder };
 		} catch (error) {
 			onUnexpectedError(error);
@@ -339,8 +342,33 @@ class DesktopMain extends Disposable {
 		return;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, logService);
+	private async createHash(resource: URI): Promise<string> {
+		// Return early the folder is not local
+		if (resource.scheme !== Schemas.file) {
+			return createHash('md5').update(resource.toString()).digest('hex');
+		}
+
+		const fileStat = await stat(resource.fsPath);
+		let ctime: number | undefined;
+		if (isLinux) {
+			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+		} else if (isMacintosh) {
+			ctime = fileStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+		} else if (isWindows) {
+			if (typeof fileStat.birthtimeMs === 'number') {
+				ctime = Math.floor(fileStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			} else {
+				ctime = fileStat.birthtime.getTime();
+			}
+		}
+
+		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
+		// deleted and recreated. in that case we do not want to carry over previous state
+		return createHash('md5').update(resource.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+	}
+
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

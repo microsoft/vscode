@@ -110,10 +110,10 @@ export class DialogService implements IDialogService {
 		return result;
 	}
 
-	async input(type: DialogType, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
+	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
 		this.logService.trace('DialogService#input', message);
 
-		const result = await this.doShow(type, message, buttons, options?.detail, options?.cancelId, options?.checkbox, inputs);
+		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, inputs);
 
 		return {
 			choice: result.button,

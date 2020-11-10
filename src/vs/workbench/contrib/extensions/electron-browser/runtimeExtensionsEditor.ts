@@ -514,7 +514,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 
 	public async run(e?: any): Promise<any> {
-		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
+		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
 	}
 }
 
@@ -538,9 +538,7 @@ export class ReportExtensionIssueAction extends Action {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
-		this.enabled = extension.marketplaceInfo
-			&& extension.marketplaceInfo.type === ExtensionType.User
-			&& !!extension.description.repository && !!extension.description.repository.url;
+		this.enabled = !!extension.description.repository && !!extension.description.repository.url;
 	}
 
 	async run(): Promise<void> {

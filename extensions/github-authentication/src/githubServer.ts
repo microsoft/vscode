@@ -23,7 +23,7 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 
 export const uriHandler = new UriEventHandler;
 
-const onDidManuallyProvideToken = new vscode.EventEmitter<string>();
+const onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
 
 
 
@@ -56,9 +56,18 @@ export class GitHubServer {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
 			if (!token) { throw new Error('Sign in failed: No token provided'); }
 
-			const tokenScopes = await this.getScopes(token);
-			const scopesList = scopes.split(' ');
-			if (!scopesList.every(scope => tokenScopes.includes(scope))) {
+			const tokenScopes = await this.getScopes(token); // Example: ['repo', 'user']
+			const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
+			if (!scopesList.every(scope => {
+				const included = tokenScopes.includes(scope);
+				if (included || !scope.includes(':')) {
+					return included;
+				}
+
+				return scope.split(':').some(splitScopes => {
+					return tokenScopes.includes(splitScopes);
+				});
+			})) {
 				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
 			}
 
@@ -82,7 +91,7 @@ export class GitHubServer {
 
 		return Promise.race([
 			existingPromise,
-			promiseFromEvent<string, string>(onDidManuallyProvideToken.event)
+			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined): string => { if (!token) { throw new Error('Cancelled'); } return token; })
 		]).finally(() => {
 			this._pendingStates.delete(scopes);
 			this._codeExchangePromises.delete(scopes);
@@ -138,7 +147,11 @@ export class GitHubServer {
 
 	public async manuallyProvideToken() {
 		const uriOrToken = await vscode.window.showInputBox({ prompt: 'Token', ignoreFocusOut: true });
-		if (!uriOrToken) { return; }
+		if (!uriOrToken) {
+			onDidManuallyProvideToken.fire(undefined);
+			return;
+		}
+
 		try {
 			const uri = vscode.Uri.parse(uriOrToken);
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }

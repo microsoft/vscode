@@ -103,12 +103,12 @@ export class WalkThroughInput extends EditorInput {
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
+						i++;
+						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
-						return '';
+						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
 					};
-
-					marked(content, { renderer });
+					content = marked(content, { renderer });
 
 					return Promise.all(snippets)
 						.then(refs => new WalkThroughModel(content, refs));

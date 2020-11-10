@@ -355,13 +355,18 @@ class MouseDownOperation extends Disposable {
 				e.buttons,
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
-				() => {
+				(browserEvent?: MouseEvent | KeyboardEvent) => {
 					const position = this._findMousePosition(this._lastMouseEvent!, true);
 
-					this._viewController.emitMouseDrop({
-						event: this._lastMouseEvent!,
-						target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
-					});
+					if (browserEvent && browserEvent instanceof KeyboardEvent) {
+						// cancel
+						this._viewController.emitMouseDropCanceled();
+					} else {
+						this._viewController.emitMouseDrop({
+							event: this._lastMouseEvent!,
+							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
+						});
+					}
 
 					this._stop();
 				}

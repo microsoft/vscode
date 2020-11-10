@@ -387,7 +387,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const that = this;
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
-				get syncedGlobalState() { checkProposedApiEnabled(extensionDescription); return globalState; },
 				workspaceState,
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },
@@ -652,7 +651,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const authority: ResolvedAuthority = {
 				authority: remoteAuthority,
 				host: result.host,
-				port: result.port
+				port: result.port,
+				connectionToken: result.connectionToken
 			};
 			const options: ResolvedOptions = {
 				extensionHostEnv: result.extensionHostEnv

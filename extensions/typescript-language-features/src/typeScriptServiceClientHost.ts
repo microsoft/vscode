@@ -30,12 +30,6 @@ import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as ProjectStatus from './utils/largeProjectStatus';
 
-namespace Experimental {
-	export interface Diagnostic extends Proto.Diagnostic {
-		readonly reportsDeprecated?: {}
-	}
-}
-
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
 	...errorCodes.variableDeclaredButNeverUsed,
@@ -256,7 +250,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Experimental.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));

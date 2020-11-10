@@ -816,7 +816,7 @@ declare module 'vscode' {
 		/**
 		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
-		readonly themeColor?: ThemeColor;
+		readonly color?: ThemeColor;
 
 		/**
 		 * Creates a reference to a theme icon.
@@ -4325,6 +4325,12 @@ declare module 'vscode' {
 	 * [Folding](https://code.visualstudio.com/docs/editor/codebasics#_folding) in the editor.
 	 */
 	export interface FoldingRangeProvider {
+
+		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChangeFoldingRanges?: Event<void>;
+
 		/**
 		 * Returns a list of folding ranges or null and undefined if the provider
 		 * does not want to participate or was cancelled.
@@ -5647,7 +5653,22 @@ declare module 'vscode' {
 		 * A memento object that stores state independent
 		 * of the current opened [workspace](#workspace.workspaceFolders).
 		 */
-		readonly globalState: Memento;
+		readonly globalState: Memento & {
+			/**
+			 * Set the keys whose values should be synchronized across devices when synchronizing user-data
+			 * like configuration, extensions, and mementos.
+			 *
+			 * Note that this function defines the whole set of keys whose values are synchronized:
+			 *  - calling it with an empty array stops synchronization for this memento
+			 *  - calling it with a non-empty array replaces all keys whose values are synchronized
+			 *
+			 * For any given set of keys this function needs to be called only once but there is no harm in
+			 * repeatedly calling it.
+			 *
+			 * @param keys The set of keys whose values are synced.
+			 */
+			setKeysForSync(keys: string[]): void;
+		};
 
 		/**
 		 * The uri of the directory containing the extension.
@@ -6845,6 +6866,21 @@ declare module 'vscode' {
 		 * @param options Defines if existing files should be overwritten.
 		 */
 		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
+
+		/**
+		 * Check if a given file system supports writing files.
+		 *
+		 * Keep in mind that just because a file system supports writing, that does
+		 * not mean that writes will always succeed. There may be permissions issues
+		 * or other errors that prevent writing a file.
+		 *
+		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
+		 *
+		 * @return `true` if the file system supports writing, `false` if it does not
+		 * support writing (i.e. it is readonly), and `undefined` if VS Code does not
+		 * know about the filesystem.
+		 */
+		isWritableFileSystem(scheme: string): boolean | undefined;
 	}
 
 	/**
@@ -11696,6 +11732,12 @@ declare module 'vscode' {
 		 * Defaults to Collapsed.
 		 */
 		collapsibleState: CommentThreadCollapsibleState;
+
+		/**
+		 * Whether the thread supports reply.
+		 * Defaults to true.
+		 */
+		canReply: boolean;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.

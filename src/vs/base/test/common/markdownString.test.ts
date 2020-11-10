@@ -8,6 +8,18 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 
 suite('MarkdownString', () => {
 
+	test('Escape leading whitespace', function () {
+		const mds = new MarkdownString();
+		mds.appendText('Hello\n    Not a code block');
+		assert.equal(mds.value, 'Hello\n\n&nbsp;&nbsp;&nbsp;&nbsp;Not a code block');
+	});
+
+	test('MarkdownString.appendText doesn\'t escape quote #109040', function () {
+		const mds = new MarkdownString();
+		mds.appendText('> Text\n>More');
+		assert.equal(mds.value, '\\> Text\n\n\\>More');
+	});
+
 	test('appendText', () => {
 
 		const mds = new MarkdownString();

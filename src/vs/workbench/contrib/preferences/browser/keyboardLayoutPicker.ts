@@ -169,7 +169,8 @@ export class KeyboardLayoutPickerAction extends Action {
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,
-					mode: 'jsonc'
+					mode: 'jsonc',
+					options: { pinned: true }
 				});
 			}, (error) => {
 				throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", file.toString(), error));

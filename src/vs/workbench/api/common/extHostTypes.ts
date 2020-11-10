@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { escapeCodicons } from 'vs/base/common/codicons';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -433,16 +432,23 @@ export class Selection extends Range {
 export class ResolvedAuthority {
 	readonly host: string;
 	readonly port: number;
+	readonly connectionToken: string | undefined;
 
-	constructor(host: string, port: number) {
+	constructor(host: string, port: number, connectionToken?: string) {
 		if (typeof host !== 'string' || host.length === 0) {
 			throw illegalArgument('host');
 		}
 		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
 			throw illegalArgument('port');
 		}
+		if (typeof connectionToken !== 'undefined') {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+				throw illegalArgument('connectionToken');
+			}
+		}
 		this.host = host;
 		this.port = Math.round(port);
+		this.connectionToken = connectionToken;
 	}
 }
 
@@ -1283,40 +1289,7 @@ export class CodeInset {
 
 
 @es5ClassCompat
-export class MarkdownString {
-
-	value: string;
-	isTrusted?: boolean;
-	readonly supportThemeIcons?: boolean;
-
-	constructor(value?: string, supportThemeIcons: boolean = false) {
-		this.value = value ?? '';
-		this.supportThemeIcons = supportThemeIcons;
-	}
-
-	appendText(value: string): MarkdownString {
-		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
-			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
-			.replace(/\n/, '\n\n');
-
-		return this;
-	}
-
-	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
-
-		return this;
-	}
-
-	appendCodeblock(code: string, language: string = ''): MarkdownString {
-		this.value += '\n```';
-		this.value += language;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
-		return this;
-	}
+export class MarkdownString extends BaseMarkdownString implements vscode.MarkdownString {
 
 	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
 		if (thing instanceof MarkdownString) {
@@ -1324,6 +1297,11 @@ export class MarkdownString {
 		}
 		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
 	}
+
+	constructor(value?: string, supportThemeIcons: boolean = false) {
+		super(value ?? '', { supportThemeIcons });
+	}
+
 }
 
 @es5ClassCompat
@@ -2181,11 +2159,11 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
-	readonly themeColor?: ThemeColor;
+	readonly color?: ThemeColor;
 
 	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
-		this.themeColor = color;
+		this.color = color;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');

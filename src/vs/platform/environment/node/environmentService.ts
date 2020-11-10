@@ -204,12 +204,11 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
 
 	constructor(protected _args: NativeParsedArgs) {
-		if (!process.env['VSCODE_LOGS']) {
+		if (!_args.logsPath) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
-			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
+			_args.logsPath = path.join(this.userDataPath, 'logs', key);
 		}
-
-		this.logsPath = process.env['VSCODE_LOGS']!;
+		this.logsPath = _args.logsPath;
 	}
 }
 
@@ -246,5 +245,5 @@ export function parsePathArg(arg: string | undefined, process: NodeJS.Process): 
 }
 
 export function parseUserDataDir(args: NativeParsedArgs, process: NodeJS.Process): string {
-	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath(process.platform));
+	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath());
 }

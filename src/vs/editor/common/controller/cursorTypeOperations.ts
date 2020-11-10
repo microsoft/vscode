@@ -128,7 +128,7 @@ export class TypeOperations {
 			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
 				text = text.substr(0, text.length - 1);
 			}
-			let lines = text.split(/\r\n|\r|\n/);
+			let lines = strings.splitLines(text);
 			if (lines.length === selections.length) {
 				return lines;
 			}
@@ -417,13 +417,13 @@ export class TypeOperations {
 			const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(range.startLineNumber);
 			if (firstNonWhitespace === 0) {
 				return TypeOperations._typeCommand(
-					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
+					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
 					config.normalizeIndentation(actualIndentation) + ch,
 					false
 				);
 			} else {
 				return TypeOperations._typeCommand(
-					new Range(range.startLineNumber, 0, range.endLineNumber, range.endColumn),
+					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
 					config.normalizeIndentation(actualIndentation) +
 					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
 					false

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, IInputResult, DialogType, IInput } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, IInputResult, IInput } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -78,8 +78,8 @@ export class DialogService implements IDialogService {
 		return this.nativeImpl.show(severity, message, buttons, options);
 	}
 
-	input(type: DialogType, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
-		return this.customImpl.input(type, message, buttons, inputs, options);
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
+		return this.customImpl.input(severity, message, buttons, inputs, options);
 	}
 
 	about(): Promise<void> {

@@ -25,7 +25,7 @@ export function themeColorFromId(id: ColorIdentifier) {
 // theme icon
 export interface ThemeIcon {
 	readonly id: string;
-	readonly themeColor?: ThemeColor;
+	readonly color?: ThemeColor;
 }
 
 export namespace ThemeIcon {
