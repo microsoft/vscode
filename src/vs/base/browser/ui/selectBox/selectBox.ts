@@ -58,7 +58,6 @@ export interface ISelectBoxStyles extends IListStyles {
 	selectBackground?: Color;
 	selectListBackground?: Color;
 	selectForeground?: Color;
-	detailForeground?: Color;
 	decoratorRightForeground?: Color;
 	selectBorder?: Color;
 	selectListBorder?: Color;

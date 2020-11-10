@@ -81,6 +81,7 @@
 	padding-left: 3.5px;
 	white-space: nowrap;
 	float: left;
+	opacity: 0.7;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-decorator-right {

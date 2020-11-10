@@ -1333,7 +1333,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 				return <ISelectOptionItem>{
 					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
 					detail: enumItemLabels && enumItemLabels[index] ? data : '',
-					description: enumItemLabels && enumItemLabels[index] ? `[${data}] ${description}` : description,
+					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: {
 						callback: (content) => {
