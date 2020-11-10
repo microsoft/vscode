@@ -521,7 +521,7 @@ export function registerCommands(): void {
 		const control = editorService.activeTextEditorControl;
 		if (isCodeEditor(control)) {
 			const position = control.getPosition();
-			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+			if (position && control.hasModel() && debugService.canSetBreakpointsIn(control.getModel())) {
 				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
@@ -564,7 +564,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService));
+					return openBreakpointSource(focus[0], true, false, true, accessor.get(IDebugService), accessor.get(IEditorService));
 				}
 			}
 

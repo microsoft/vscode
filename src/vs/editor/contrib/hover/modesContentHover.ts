@@ -21,7 +21,7 @@ import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidg
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -251,6 +251,23 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}));
 		this._register(TokenizationRegistry.onDidChange((e) => {
 			if (this.isVisible && this._lastRange && this._messages.length > 0) {
+				this._messages = this._messages.map(msg => {
+					// If a color hover is visible, we need to update the message that
+					// created it so that the color matches the last chosen color
+					if (msg instanceof ColorHover && !!this._lastRange?.intersectRanges(msg.range) && this._colorPicker?.model.color) {
+						const color = this._colorPicker.model.color;
+						const newColor = {
+							red: color.rgba.r / 255,
+							green: color.rgba.g / 255,
+							blue: color.rgba.b / 255,
+							alpha: color.rgba.a
+						};
+						return new ColorHover(msg.range, newColor, msg.provider);
+					} else {
+						return msg;
+					}
+				});
+
 				this._hover.contentsDomNode.textContent = '';
 				this._renderMessages(this._lastRange, this._messages);
 			}
@@ -460,7 +477,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						.forEach(contents => {
 							const markdownHoverElement = $('div.hover-row.markdown-hover');
 							const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
+							const renderer = markdownDisposeables.add(new MarkdownRenderer({ editor: this._editor }, this._modeService, this._openerService));
 							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
 								hoverContentsElement.className = 'hover-contents code-hover-contents';
 								this._hover.onContentsChanged();

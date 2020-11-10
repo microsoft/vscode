@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, IInputResult, IInput } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -70,12 +70,16 @@ export class DialogService implements IDialogService {
 		return this.nativeImpl.confirm(confirmation);
 	}
 
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<IShowResult> {
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
 		if (this.useCustomDialog) {
 			return this.customImpl.show(severity, message, buttons, options);
 		}
 
 		return this.nativeImpl.show(severity, message, buttons, options);
+	}
+
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
+		return this.customImpl.input(severity, message, buttons, inputs, options);
 	}
 
 	about(): Promise<void> {
@@ -205,6 +209,10 @@ class NativeDialogService implements IDialogService {
 		return { options, buttonIndexMap };
 	}
 
+	input(): never {
+		throw new Error('Unsupported'); // we have no native API for password dialogs in Electron
+	}
+
 	async about(): Promise<void> {
 		let version = this.productService.version;
 		if (this.productService.target) {
@@ -215,7 +223,7 @@ class NativeDialogService implements IDialogService {
 		const osProps = await this.nativeHostService.getOSProperties();
 
 		const detailString = (useAgo: boolean): string => {
-			return nls.localize('aboutDetail',
+			return nls.localize({ key: 'aboutDetail', comment: ['Electron, Chrome, Node.js and V8 are product names that need no translation'] },
 				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
 				version,
 				this.productService.commit || 'Unknown',

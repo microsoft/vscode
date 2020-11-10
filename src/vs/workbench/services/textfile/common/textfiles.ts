@@ -125,11 +125,6 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 	encoding?: string;
 
 	/**
-	 * If set to true, will enforce the selected encoding and not perform any detection using BOMs.
-	 */
-	overwriteEncoding?: boolean;
-
-	/**
 	 * Whether to overwrite a file even if it is readonly.
 	 */
 	overwriteReadonly?: boolean;
@@ -266,6 +261,13 @@ export interface ITextFileEditorModelLoadOrCreateOptions {
 	encoding?: string;
 
 	/**
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
+	 */
+	contents?: ITextBufferFactory;
+
+	/**
 	 * If the model was already loaded before, allows to trigger
 	 * a reload of it to fetch the latest contents:
 	 * - async: resolve() will return immediately and trigger
@@ -364,11 +366,6 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteReadonly?: boolean;
 
 	/**
-	 * Overwrite the encoding of the file on disk as configured.
-	 */
-	overwriteEncoding?: boolean;
-
-	/**
 	 * Save the file with elevated privileges.
 	 *
 	 * Note: This may not be supported in all environments.
@@ -395,6 +392,13 @@ export interface ITextFileSaveAsOptions extends ITextFileSaveOptions {
 }
 
 export interface ITextFileLoadOptions {
+
+	/**
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
+	 */
+	contents?: ITextBufferFactory;
 
 	/**
 	 * Go to disk bypassing any cache of the model if any.

@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { distinct, shuffle } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { DynamicWorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/dynamicWorkspaceRecommendations';
 import { ExeBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/exeBasedRecommendations';
 import { ExperimentalRecommendations } from 'vs/workbench/contrib/extensions/browser/experimentalRecommendations';
@@ -100,7 +100,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 				})
 		]);
 
-		this._register(this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations(() => this._onDidChangeRecommendations.fire()));
+		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
 		this._register(this.extensionRecommendationsManagementService.onDidChangeGlobalIgnoredRecommendation(({ extensionId, isRecommended }) => {
 			if (!isRecommended) {
 				const reason = this.getAllRecommendationsWithReason()[extensionId];
@@ -111,7 +111,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		}));
 
 		await this.promptWorkspaceRecommendations();
-		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations)(() => this.promptWorkspaceRecommendations()));
 	}
 
 	private isEnabled(): boolean {

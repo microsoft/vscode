@@ -217,7 +217,7 @@ export namespace RevealLine_ {
 
 		const reveaLineArg: RawArguments = arg;
 
-		if (!types.isNumber(reveaLineArg.lineNumber)) {
+		if (!types.isNumber(reveaLineArg.lineNumber) && !types.isString(reveaLineArg.lineNumber)) {
 			return false;
 		}
 
@@ -246,7 +246,7 @@ export namespace RevealLine_ {
 					'required': ['lineNumber'],
 					'properties': {
 						'lineNumber': {
-							'type': 'number',
+							'type': ['number', 'string'],
 						},
 						'at': {
 							'type': 'string',
@@ -262,7 +262,7 @@ export namespace RevealLine_ {
 	 * Arguments for reveal line command
 	 */
 	export interface RawArguments {
-		lineNumber?: number;
+		lineNumber?: number | string;
 		at?: string;
 	}
 
@@ -284,8 +284,7 @@ abstract class EditorOrNativeTextInputCommand {
 			// Only if editor text focus (i.e. not if editor has widget focus).
 			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (focusedEditor && focusedEditor.hasTextFocus()) {
-				this.runEditorCommand(accessor, focusedEditor, args);
-				return true;
+				return this._runEditorCommand(accessor, focusedEditor, args);
 			}
 			return false;
 		});
@@ -307,15 +306,22 @@ abstract class EditorOrNativeTextInputCommand {
 			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 			if (activeEditor) {
 				activeEditor.focus();
-				this.runEditorCommand(accessor, activeEditor, args);
-				return true;
+				return this._runEditorCommand(accessor, activeEditor, args);
 			}
 			return false;
 		});
 	}
 
+	public _runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): boolean | Promise<void> {
+		const result = this.runEditorCommand(accessor, editor, args);
+		if (result) {
+			return result;
+		}
+		return true;
+	}
+
 	public abstract runDOMCommand(): void;
-	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void;
+	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
 export namespace CoreNavigationCommands {
@@ -1599,7 +1605,8 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
 			const revealLineArg = <RevealLine_.RawArguments>args;
-			let lineNumber = (revealLineArg.lineNumber || 0) + 1;
+			const lineNumberArg = revealLineArg.lineNumber || 0;
+			let lineNumber = typeof lineNumberArg === 'number' ? (lineNumberArg + 1) : (parseInt(lineNumberArg) + 1);
 			if (lineNumber < 1) {
 				lineNumber = 1;
 			}
@@ -1851,11 +1858,11 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(): void {
 			document.execCommand('undo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}
-			editor.getModel().undo();
+			return editor.getModel().undo();
 		}
 	}();
 
@@ -1866,11 +1873,11 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(): void {
 			document.execCommand('redo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}
-			editor.getModel().redo();
+			return editor.getModel().redo();
 		}
 	}();
 }

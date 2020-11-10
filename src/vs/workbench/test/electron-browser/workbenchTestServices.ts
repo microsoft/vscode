@@ -11,7 +11,7 @@ import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -76,7 +76,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IPathService athService: IPathService,
+		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -96,11 +96,12 @@ export class TestTextFileService extends NativeTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			athService,
+			pathService,
 			workingCopyFileService,
 			uriIdentityService,
 			modeService,
-			nativeHostService
+			nativeHostService,
+			logService
 		);
 	}
 
@@ -160,13 +161,14 @@ export class TestNativeHostService implements INativeHostService {
 
 	readonly windowId = -1;
 
-	onWindowOpen: Event<number> = Event.None;
-	onWindowMaximize: Event<number> = Event.None;
-	onWindowUnmaximize: Event<number> = Event.None;
-	onWindowFocus: Event<number> = Event.None;
-	onWindowBlur: Event<number> = Event.None;
-	onOSResume: Event<unknown> = Event.None;
-	onColorSchemeChange = Event.None;
+	onDidOpenWindow: Event<number> = Event.None;
+	onDidMaximizeWindow: Event<number> = Event.None;
+	onDidUnmaximizeWindow: Event<number> = Event.None;
+	onDidFocusWindow: Event<number> = Event.None;
+	onDidBlurWindow: Event<number> = Event.None;
+	onDidResumeOS: Event<unknown> = Event.None;
+	onDidChangeColorScheme = Event.None;
+	onDidChangePassword = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }

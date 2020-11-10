@@ -30,12 +30,6 @@ export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEdito
 export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
 export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 
-/** TODO@ben remove me eventually */
-/** @deprecated */
-export const Deprecated_EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
-/** @deprecated */
-export const Deprecated_EditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
-
 // Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '');
@@ -740,7 +734,7 @@ export class SideBySideEditorInput extends EditorInput {
 
 	constructor(
 		protected readonly name: string | undefined,
-		private readonly description: string | undefined,
+		protected readonly description: string | undefined,
 		private readonly _secondary: EditorInput,
 		private readonly _primary: EditorInput
 	) {
@@ -1272,6 +1266,7 @@ interface IEditorPartConfiguration {
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitSizing?: 'split' | 'distribute';
+	splitOnDragAndDrop?: boolean;
 	limit?: {
 		enabled?: boolean;
 		value?: number;

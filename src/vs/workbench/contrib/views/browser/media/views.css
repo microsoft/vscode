@@ -64,7 +64,6 @@
 }
 
 .monaco-workbench .pane > .pane-body > .welcome-view .monaco-button {
-	max-width: 260px;
 	margin-left: auto;
 	margin-right: auto;
 }

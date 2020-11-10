@@ -137,7 +137,10 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			}
 		}
 
-		const extractAbbreviationResults = helper.extractAbbreviation(lsDoc, position, !isStyleSheet(syntax));
+		const expandOptions = isStyleSheet(syntax) ?
+			{ lookAhead: false, syntax: 'stylesheet' } :
+			{ lookAhead: true, syntax: 'markup' };
+		const extractAbbreviationResults = helper.extractAbbreviation(lsDoc, position, expandOptions);
 		if (!extractAbbreviationResults || !helper.isAbbreviationValid(syntax, extractAbbreviationResults.abbreviation)) {
 			return;
 		}

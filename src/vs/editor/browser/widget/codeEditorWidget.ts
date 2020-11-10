@@ -37,7 +37,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import * as modes from 'vs/editor/common/modes';
 import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/view/editorColorRegistry';
-import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
@@ -175,6 +175,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onMouseDrop: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
 	public readonly onMouseDrop: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseDrop.event;
+
+	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
 
 	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
@@ -1614,6 +1617,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseUp = (e) => this._onMouseUp.fire(e);
 		viewUserInputEvents.onMouseDrag = (e) => this._onMouseDrag.fire(e);
 		viewUserInputEvents.onMouseDrop = (e) => this._onMouseDrop.fire(e);
+		viewUserInputEvents.onMouseDropCanceled = (e) => this._onMouseDropCanceled.fire(e);
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(
@@ -1981,6 +1985,10 @@ registerThemingParticipant((theme, collector) => {
 	if (errorForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
+	const errorBackground = theme.getColor(editorErrorBackground);
+	if (errorBackground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${errorBackground}; }`);
+	}
 
 	const warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
@@ -1990,6 +1998,10 @@ registerThemingParticipant((theme, collector) => {
 	if (warningForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
+	const warningBackground = theme.getColor(editorWarningBackground);
+	if (warningBackground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${warningBackground}; }`);
+	}
 
 	const infoBorderColor = theme.getColor(editorInfoBorder);
 	if (infoBorderColor) {
@@ -1998,6 +2010,10 @@ registerThemingParticipant((theme, collector) => {
 	const infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
+	}
+	const infoBackground = theme.getColor(editorInfoBackground);
+	if (infoBackground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration}::before { display: block; content: ''; width: 100%; height: 100%; background: ${infoBackground}; }`);
 	}
 
 	const hintBorderColor = theme.getColor(editorHintBorder);

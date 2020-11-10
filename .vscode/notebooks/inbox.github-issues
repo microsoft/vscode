@@ -8,7 +8,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$inbox -label:\"needs more info\" -label:emmet",
+    "value": "$inbox -label:\"needs more info\"",
     "editable": true
   },
   {
@@ -44,7 +44,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$inbox -label:emmet",
+    "value": "$inbox",
     "editable": true
   }
 ]

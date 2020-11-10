@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
@@ -30,8 +30,9 @@ const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 
-export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; }>;
-type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
+export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean }>;
+export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
+type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
 
 export class ExtensionsScanner extends Disposable {
 
@@ -94,7 +95,6 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, token: CancellationToken): Promise<ILocalExtension> {
-		const { identifier } = identifierWithVersion;
 		const folderName = identifierWithVersion.key();
 		const tempPath = path.join(this.extensionsPath, `.${folderName}`);
 		const extensionPath = path.join(this.extensionsPath, folderName);
@@ -105,12 +105,12 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				await pfs.rimraf(extensionPath);
 			} catch (e) { /* ignore */ }
-			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, identifier.id), INSTALL_ERROR_DELETING);
+			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, identifierWithVersion.id), INSTALL_ERROR_DELETING);
 		}
 
-		await this.extractAtLocation(identifier, zipPath, tempPath, token);
+		await this.extractAtLocation(identifierWithVersion, zipPath, tempPath, token);
 		try {
-			await this.rename(identifier, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			await this.rename(identifierWithVersion, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
 			this.logService.info('Renamed to', extensionPath);
 		} catch (error) {
 			this.logService.info('Rename failed. Deleting from extracted location', tempPath);
@@ -136,6 +136,7 @@ export class ExtensionsScanner extends Disposable {
 
 		// unset if false
 		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
+		metadata.isBuiltin = metadata.isBuiltin || undefined;
 		const manifestPath = path.join(local.location.fsPath, 'package.json');
 		const raw = await pfs.readFile(manifestPath, 'utf8');
 		const { manifest } = await this.parseManifest(raw);
@@ -253,7 +254,7 @@ export class ExtensionsScanner extends Disposable {
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : undefined;
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false };
+			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
 			if (metadata) {
 				this.setMetadata(local, metadata);
 			}
@@ -281,11 +282,12 @@ export class ExtensionsScanner extends Disposable {
 		}
 	}
 
-	private setMetadata(local: ILocalExtension, metadata: IMetadata): void {
+	private setMetadata(local: IRelaxedLocalExtension, metadata: IMetadata): void {
 		local.publisherDisplayName = metadata.publisherDisplayName || null;
 		local.publisherId = metadata.publisherId || null;
 		local.identifier.uuid = metadata.id;
 		local.isMachineScoped = !!metadata.isMachineScoped;
+		local.isBuiltin = local.type === ExtensionType.System || !!metadata.isBuiltin;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {
@@ -362,7 +364,6 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				const manifest = JSON.parse(raw);
 				const metadata = manifest.__metadata || null;
-				delete manifest.__metadata;
 				c({ manifest, metadata });
 			} catch (err) {
 				e(new Error(localize('invalidManifest', "Extension invalid: package.json is not a JSON file.")));

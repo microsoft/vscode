@@ -288,7 +288,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
-		const remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
+		const remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
 		const separator = this.configurationService.getValue<string>('window.titleSeparator');
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
@@ -429,7 +429,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Fill in contributed actions
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, undefined, actions);
 
 		// Show it
 		this.contextMenuService.showContextMenu({

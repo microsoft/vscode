@@ -145,7 +145,7 @@ function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyE
 const CTRL_LETTER_OFFSET = 64;
 
 if (BrowserFeatures.clipboard.readText) {
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TerminalPasteAction, {
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TerminalPasteAction, platform.isMacintosh && platform.isWeb ? undefined : {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }

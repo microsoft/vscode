@@ -26,6 +26,18 @@
 			],
 			"license": "TextMate Bundle License",
 			"version": "0.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "microsoft/vscode-markdown-tm-grammar",
+					"repositoryUrl": "https://github.com/microsoft/vscode-markdown-tm-grammar",
+					"commitHash": "11cf764606cb2cde54badb5d0e5a0758a8871c4b"
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0"
 		}
 	],
 	"version": 1

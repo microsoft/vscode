@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, timeout } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
@@ -105,7 +105,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 			const sw = StopWatch.create(true);
 			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
-			return result;
+			return Promise.race([result, timeout(1000).then(() => edits)]);
 
 		} else {
 			return Promise.resolve(undefined);
@@ -161,20 +161,21 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 		const insert = replace.setEndPosition(position.lineNumber, position.column);
 
 		const client = await this._workerManager.withWorker();
-		const words = await client.textualSuggest(model.uri, position);
-		if (!words) {
+		const data = await client.textualSuggest(model.uri, position);
+		if (!data) {
 			return undefined;
 		}
 
 		return {
-			suggestions: words.map((word): modes.CompletionItem => {
+			duration: data.duration,
+			suggestions: data.words.map((word): modes.CompletionItem => {
 				return {
 					kind: modes.CompletionItemKind.Text,
 					label: word,
 					insertText: word,
 					range: { insert, replace }
 				};
-			})
+			}),
 		};
 	}
 }
@@ -462,7 +463,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: IPosition): Promise<string[] | null> {
+	public textualSuggest(resource: URI, position: IPosition): Promise<{ words: string[], duration: number } | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

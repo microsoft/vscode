@@ -14,6 +14,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	const loginService = new AzureActiveDirectoryService();
+	context.subscriptions.push(loginService);
 
 	await loginService.initialize();
 

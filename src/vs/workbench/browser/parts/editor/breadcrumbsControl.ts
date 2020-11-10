@@ -491,7 +491,7 @@ export class BreadcrumbsControl {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
 				// open file in any editor
-				this._editorService.openEditor({ resource: element.uri, options: { pinned: pinned } }, group);
+				this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
 			} else {
 				// show next picker
 				let items = this._widget.getItems();
@@ -508,7 +508,8 @@ export class BreadcrumbsControl {
 					resource: model.uri,
 					options: {
 						selection: Range.collapseToStart(element.symbol.selectionRange),
-						selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+						selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+						pinned
 					}
 				}, withUndefinedAsNull(this._getActiveCodeEditor()), group === SIDE_GROUP);
 			}
@@ -753,13 +754,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			// open symbol in editor
 			return editors.openEditor({
 				resource: outlineElement.uri,
-				options: { selection: Range.collapseToStart(element.symbol.selectionRange) }
+				options: { selection: Range.collapseToStart(element.symbol.selectionRange), pinned: true }
 			}, SIDE_GROUP);
 
 		} else if (element && URI.isUri(element.resource)) {
 			// open file in editor
 			return editors.openEditor({
 				resource: element.resource,
+				options: { pinned: true }
 			}, SIDE_GROUP);
 
 		} else {

@@ -86,8 +86,8 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	return Promise.resolve({ success: true });
 }
 
-export function getWindowsShell(): string {
-	return process.env['comspec'] || 'cmd.exe';
+export function getWindowsShell(environment: Platform.IProcessEnvironment = process.env as Platform.IProcessEnvironment): string {
+	return environment['comspec'] || 'cmd.exe';
 }
 
 export abstract class AbstractProcess<TProgressData> {
@@ -318,16 +318,16 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	private useExec(): Promise<boolean> {
-		return new Promise<boolean>((c, e) => {
+		return new Promise<boolean>(resolve => {
 			if (!this.shell || !Platform.isWindows) {
-				return c(false);
+				return resolve(false);
 			}
 			const cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
-				return c(true);
+				return resolve(true);
 			});
 			cmdShell.on('exit', (data: any) => {
-				return c(false);
+				return resolve(false);
 			});
 		});
 	}

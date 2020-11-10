@@ -1142,7 +1142,7 @@ export interface ITextModel {
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
-	undo(): void;
+	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
@@ -1155,7 +1155,7 @@ export interface ITextModel {
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
-	redo(): void;
+	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?

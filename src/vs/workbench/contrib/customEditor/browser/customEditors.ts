@@ -96,10 +96,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return [...this._contributedEditors];
 	}
 
-	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void): boolean {
+	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void | Promise<void>): boolean | Promise<void> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof CustomEditorInput) {
-			f(activeEditor);
+			const result = f(activeEditor);
+			if (result) {
+				return result;
+			}
 			return true;
 		}
 		return false;
@@ -444,6 +447,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -648,7 +652,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		if (modifiedOverride || originalOverride) {
 			return {
 				override: (async () => {
-					const input = new DiffEditorInput(editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
+					const input = this.instantiationService.createInstance(DiffEditorInput, editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
 					return this.editorService.openEditor(input, { ...options, override: false }, group);
 				})(),
 			};

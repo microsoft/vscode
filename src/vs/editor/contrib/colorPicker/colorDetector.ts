@@ -46,13 +46,13 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this._register(_editor.onDidChangeModel((e) => {
+		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
 		}));
-		this._register(_editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
-		this._register(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration((e) => {
+		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
+		this._register(ColorProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this._register(_editor.onDidChangeConfiguration(() => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
@@ -110,7 +110,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
+		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
 				this._timeoutTimer = new TimeoutTimer();
 				this._timeoutTimer.cancelAndSet(() => {

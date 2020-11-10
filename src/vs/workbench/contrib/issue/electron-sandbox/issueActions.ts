@@ -6,7 +6,7 @@
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import { IssueType } from 'vs/platform/issue/common/issue';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 export class OpenProcessExplorer extends Action {
 	static readonly ID = 'workbench.action.openProcessExplorer';
@@ -27,7 +27,7 @@ export class OpenProcessExplorer extends Action {
 
 export class ReportPerformanceIssueUsingReporterAction extends Action {
 	static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
-	static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
+	static readonly LABEL = nls.localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue");
 
 	constructor(
 		id: string,

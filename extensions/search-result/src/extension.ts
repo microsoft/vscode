@@ -8,7 +8,7 @@ import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
-const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
+const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
@@ -134,7 +134,7 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 	}
 
 	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>
-		folder.uri.with({ path: pathUtils.join(folder.uri.fsPath, path) });
+		vscode.Uri.joinPath(folder.uri, path);
 
 	if (vscode.workspace.workspaceFolders) {
 		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);

@@ -84,15 +84,15 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		return this._range;
 	}
 
-	private readonly _onDidChangeReadOnly = new Emitter<boolean>();
-	get onDidChangeReadOnly(): Event<boolean> { return this._onDidChangeReadOnly.event; }
-	set readOnly(state: boolean) {
-		this._readOnly = state;
-		this._onDidChangeReadOnly.fire(this._readOnly);
+	private readonly _onDidChangeCanReply = new Emitter<boolean>();
+	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
+	set canReply(state: boolean) {
+		this._canReply = state;
+		this._onDidChangeCanReply.fire(this._canReply);
 	}
 
-	get readOnly() {
-		return this._readOnly;
+	get canReply() {
+		return this._canReply;
 	}
 
 	private readonly _onDidChangeRange = new Emitter<IRange>();
@@ -124,7 +124,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		public threadId: string,
 		public resource: string,
 		private _range: IRange,
-		private _readOnly: boolean
+		private _canReply: boolean
 	) {
 		this._isDisposed = false;
 	}
@@ -138,7 +138,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
-		if (modified('readOnly')) { this.readOnly = changes.readOnly!; }
+		if (modified('canReply')) { this.canReply = changes.canReply!; }
 	}
 
 	dispose() {
@@ -228,7 +228,7 @@ export class MainThreadCommentController {
 			threadId,
 			URI.revive(resource).toString(),
 			range,
-			false
+			true
 		);
 
 		this._threads.set(commentThreadHandle, thread);

@@ -5,7 +5,7 @@
 
 
 import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
@@ -295,7 +295,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 			const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
 			const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
 			const raw = JSON.stringify(this._strategy);
-			this._storageService.store(`${SuggestMemoryService._storagePrefix}/${this._strategy.name}`, raw, scope);
+			this._storageService.store2(`${SuggestMemoryService._storagePrefix}/${this._strategy.name}`, raw, scope, StorageTarget.MACHINE);
 		}
 	}
 }

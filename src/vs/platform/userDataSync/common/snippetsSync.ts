@@ -8,7 +8,7 @@ import {
 	USER_DATA_SYNC_SCHEME, ISyncResourceHandle, IRemoteUserData, ISyncData, Change
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService, FileChangesEvent, IFileStat, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,6 +19,7 @@ import { merge, IMergeResult as ISnippetsMergeResult, areSame } from 'vs/platfor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { deepClone } from 'vs/base/common/objects';
+import { Event } from 'vs/base/common/event';
 
 interface ISnippetsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -48,14 +49,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		this.snippetsFolder = environmentService.snippetsHome;
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
 		this._register(this.fileService.watch(this.snippetsFolder));
-		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
-	}
-
-	private onFileChanges(e: FileChangesEvent): void {
-		if (!e.changes.some(change => this.extUri.isEqualOrParent(change.resource, this.snippetsFolder))) {
-			return;
-		}
-		this.triggerLocalChange();
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.affects(this.snippetsFolder))(() => this.triggerLocalChange()));
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISnippetsResourcePreview[]> {

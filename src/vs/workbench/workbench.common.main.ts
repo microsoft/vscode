@@ -73,7 +73,7 @@ import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/webExtensionsScannerService';
-import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
+import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
 import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
@@ -115,8 +115,15 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
+import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
+import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
+registerSingleton(IUserDataSyncResourceEnablementService, UserDataSyncResourceEnablementService);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
+registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IListService, ListService, true);
@@ -216,6 +223,7 @@ import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
 import 'vs/workbench/contrib/terminal/common/terminalExtensionPoints.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalView';
+import 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
@@ -290,5 +298,8 @@ import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
+
+// Workspaces
+import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 
 //#endregion

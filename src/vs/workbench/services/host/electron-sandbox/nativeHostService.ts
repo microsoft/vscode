@@ -28,8 +28,8 @@ export class NativeHostService extends Disposable implements IHostService {
 
 	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
 	private _onDidChangeFocus: Event<boolean> = Event.latch(Event.any(
-		Event.map(Event.filter(this.nativeHostService.onWindowFocus, id => id === this.nativeHostService.windowId), () => this.hasFocus),
-		Event.map(Event.filter(this.nativeHostService.onWindowBlur, id => id === this.nativeHostService.windowId), () => this.hasFocus)
+		Event.map(Event.filter(this.nativeHostService.onDidFocusWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus),
+		Event.map(Event.filter(this.nativeHostService.onDidBlurWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus)
 	));
 
 	get hasFocus(): boolean {
@@ -62,7 +62,7 @@ export class NativeHostService extends Disposable implements IHostService {
 	}
 
 	private doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		if (!!this.environmentService.configuration.remoteAuthority) {
+		if (!!this.environmentService.remoteAuthority) {
 			toOpen.forEach(openable => openable.label = openable.label || this.getRecentLabel(openable));
 		}
 
@@ -102,8 +102,12 @@ export class NativeHostService extends Disposable implements IHostService {
 		return this.nativeHostService.relaunch();
 	}
 
-	reload(): Promise<void> {
-		return this.nativeHostService.reload();
+	reload(options?: { disableExtensions?: boolean }): Promise<void> {
+		return this.nativeHostService.reload(options);
+	}
+
+	close(): Promise<void> {
+		return this.nativeHostService.closeWindow();
 	}
 
 	//#endregion

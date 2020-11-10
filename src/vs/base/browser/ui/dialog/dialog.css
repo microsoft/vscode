@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 /** Dialog: Modal Block */
 .monaco-dialog-modal-block {
 	position: fixed;
@@ -45,7 +46,6 @@
 	margin: 0px;
 	margin-left: 4px;
 }
-
 
 /** Dialog: Message Row */
 .monaco-dialog-box .dialog-message-row {
@@ -100,6 +100,7 @@
 	outline-style: solid;
 }
 
+/** Dialog: Checkbox */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
 	padding: 15px 0px 0px;
 	display: flex;
@@ -110,6 +111,16 @@
 	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
+}
+
+/** Dialog: Input */
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input {
+	padding: 15px 0px 0px;
+	display: flex;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input .monaco-inputbox {
+	flex: 1;
 }
 
 /** Dialog: Buttons Row */

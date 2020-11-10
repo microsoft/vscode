@@ -31,6 +31,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
+import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -174,7 +175,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			const originalInput = input.originalInput;
 			const modifiedInput = input.modifiedInput;
 
-			const binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
+			const binaryDiffInput = this.instantiationService.createInstance(DiffEditorInput, input.getName(), input.getDescription(), originalInput, modifiedInput, true);
 
 			// Forward binary flag to input if supported
 			const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
@@ -357,6 +358,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 
 		// create a URI that is the Base64 concatenation of original + modified resource
-		return URI.from({ scheme: 'diff', path: `${btoa(original.toString())}${btoa(modified.toString())}` });
+		return URI.from({ scheme: 'diff', path: `${multibyteAwareBtoa(original.toString())}${multibyteAwareBtoa(modified.toString())}` });
 	}
 }
