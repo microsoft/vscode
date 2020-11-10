@@ -370,7 +370,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
-		} else if (dynamicConfig) {
+		} else if (dynamicConfig && dynamicConfig.type) {
 			// We could not find the previously used name and config is not passed. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
 			let nameToSet = config ? config.name : names.length ? names[0] : undefined;
