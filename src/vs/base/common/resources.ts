@@ -58,6 +58,11 @@ export interface IExtUri {
 	 */
 	getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
 
+	/**
+	 * Whether the casing of the path-component of the uri should be ignored.
+	 */
+	ignorePathCasing(uri: URI): boolean;
+
 	// --- path math
 
 	basenameOrAuthority(resource: URI): string;
@@ -159,6 +164,10 @@ export class ExtUri implements IExtUri {
 			path: this._ignorePathCasing(uri) ? uri.path.toLowerCase() : undefined,
 			fragment: ignoreFragment ? null : undefined
 		}).toString();
+	}
+
+	ignorePathCasing(uri: URI): boolean {
+		return this._ignorePathCasing(uri);
 	}
 
 	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {

@@ -181,8 +181,9 @@ declare module 'vscode' {
 	export class ResolvedAuthority {
 		readonly host: string;
 		readonly port: number;
+		readonly connectionToken: string | undefined;
 
-		constructor(host: string, port: number);
+		constructor(host: string, port: number, connectionToken?: string);
 	}
 
 	export interface ResolvedOptions {
@@ -823,16 +824,6 @@ declare module 'vscode' {
 		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_Variable).
 	}
 
-	// deprecated debug API
-
-	export interface DebugConfigurationProvider {
-		/**
-		 * Deprecated, use DebugAdapterDescriptorFactory.provideDebugAdapter instead.
-		 * @deprecated Use DebugAdapterDescriptorFactory.createDebugAdapterDescriptor instead
-		 */
-		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
-	}
-
 	//#endregion
 
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
@@ -1047,6 +1038,10 @@ declare module 'vscode' {
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
+
+	export interface TreeView<T> extends Disposable {
+		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+	}
 	//#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
@@ -1111,38 +1106,41 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/88424
+	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/109923 @aeschli
 
 	/**
-	 * The rename provider interface defines the contract between extensions and
-	 * the live-rename feature.
+	 * The 'on type' rename provider interface defines the contract between extensions and
+	 * the 'on type' rename feature.
 	 */
 	export interface OnTypeRenameProvider {
 		/**
-		 * Provide a list of ranges that can be live renamed together.
+		 * For a given position in a document, returns the range of the symbol at the position and all ranges
+		 * that have the same content and can be renamed together. Optionally a result specific word pattern can be returned as well
+		 * that describes valid contents. A rename to one of the ranges can be applied to all other ranges if the new content
+		 * matches the word pattern.
+		 * If no result-specific word pattern is provided, the word pattern defined when registering the provider is used.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
+		 * @param document The document in which the provider was invoked.
+		 * @param position The position at which the provider was invoked.
 		 * @param token A cancellation token.
-		 * @return A list of ranges that can be live-renamed togehter. The ranges must have
-		 * identical length and contain identical text content. The ranges cannot overlap. Optional a word pattern
-		 * that overrides the word pattern defined when registering the provider. Live rename stops as soon as the renamed content
-		 * no longer matches the word pattern.
+		 * @return A list of ranges that can be renamed together. The ranges must have
+		 * identical length and contain identical text content. The ranges cannot overlap. Optionally a word pattern
+		 * that overrides the word pattern defined when registering the provider can be provided.
 		 */
 		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<{ ranges: Range[]; wordPattern?: RegExp; }>;
 	}
 
 	namespace languages {
 		/**
-		 * Register a rename provider that works on type.
+		 * Register a 'on type' rename provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * by their [score](#languages.match) and the best-matching provider that has a result is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An on type rename provider.
-		 * @param wordPattern Word pattern for this provider.
+		 * @param provider An 'on type' rename provider.
+		 * @param wordPattern A word pattern to describes valid contents of renamed ranges.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, wordPattern?: RegExp): Disposable;
@@ -2134,63 +2132,6 @@ declare module 'vscode' {
 		 * the document is not contained by a notebook (this should be the more frequent case).
 		 */
 		notebook: NotebookDocument | undefined;
-	}
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/91697
-
-	export interface FileSystem {
-		/**
-		 * Check if a given file system supports writing files.
-		 *
-		 * Keep in mind that just because a file system supports writing, that does
-		 * not mean that writes will always succeed. There may be permissions issues
-		 * or other errors that prevent writing a file.
-		 *
-		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
-		 *
-		 * @return `true` if the file system supports writing, `false` if it does not
-		 * support writing (i.e. it is readonly), and `undefined` if VS Code does not
-		 * know about the filesystem.
-		 */
-		isWritableFileSystem(scheme: string): boolean | undefined;
-	}
-
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
-	export interface CommentThread {
-		/**
-		 * Whether the thread supports reply.
-		 * Defaults to true.
-		 */
-		canReply: boolean;
-	}
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/108929 FoldingRangeProvider.onDidChangeFoldingRanges @aeschli
-	export interface FoldingRangeProvider2 extends FoldingRangeProvider {
-
-		/**
-		 * An optional event to signal that the folding ranges from this provider have changed.
-		 */
-		onDidChangeFoldingRanges?: Event<void>;
-
-	}
-	//#endregion
-
-	//#region Syncing Extension's Global State https://github.com/microsoft/vscode/issues/95209 @sandy081
-	export interface ExtensionContext {
-
-		readonly syncedGlobalState: Memento & {
-			/**
-			 * List of keys whose values should be synced across devices when extensions synchronization is enabled .
-			 * Set synced keys to an empty array to unset the synced state.
-			 */
-			syncedKeys: ReadonlyArray<string>;
-		};
-
 	}
 	//#endregion
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -372,10 +371,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public get title(): string {
-		if (!this.terminalInstances.length) {
-			return nls.localize('terminal.integrated.starting', "Starting...");
-		}
-
 		let title = this.terminalInstances[0].title;
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			if (this.terminalInstances[i].title) {

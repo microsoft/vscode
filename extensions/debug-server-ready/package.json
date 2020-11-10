@@ -39,8 +39,7 @@
 													"openExternally"
 												],
 												"enumDescriptions": [
-													"%debug.server.ready.action.openExternally.description%",
-													"%debug.server.ready.action.debugWithChrome.description%"
+													"%debug.server.ready.action.openExternally.description%"
 												],
 												"markdownDescription": "%debug.server.ready.action.description%",
 												"default": "openExternally"
@@ -71,7 +70,6 @@
 													"debugWithChrome"
 												],
 												"enumDescriptions": [
-													"%debug.server.ready.action.openExternally.description%",
 													"%debug.server.ready.action.debugWithChrome.description%"
 												],
 												"markdownDescription": "%debug.server.ready.action.description%",
@@ -91,6 +89,39 @@
 												"type": "string",
 												"markdownDescription": "%debug.server.ready.webRoot.description%",
 												"default": "${workspaceFolder}"
+											}
+										}
+									},
+									{
+										"type": "object",
+										"additionalProperties": false,
+										"markdownDescription": "%debug.server.ready.serverReadyAction.description%",
+										"default": {
+                      "action": "startDebugging",
+                      "name": "<launch browser config name>"
+                    },
+                    "required": ["name"],
+										"properties": {
+											"action": {
+												"type": "string",
+												"enum": [
+													"startDebugging"
+												],
+												"enumDescriptions": [
+													"%debug.server.ready.action.startDebugging.description%"
+												],
+												"markdownDescription": "%debug.server.ready.action.description%",
+												"default": "startDebugging"
+											},
+											"pattern": {
+												"type": "string",
+												"markdownDescription": "%debug.server.ready.pattern.description%",
+												"default": "listening on port ([0-9]+)"
+											},
+											"name": {
+												"type": "string",
+												"markdownDescription": "%debug.server.ready.debugConfigName.description%",
+												"default": "Launch Browser"
 											}
 										}
 									}

@@ -70,6 +70,7 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
+	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
@@ -307,7 +308,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 			// Name
 			if (backup || this.initialValue) {
-				this.updateNameFromFirstLine();
+				this.updateNameFromFirstLine(textEditorModel);
 			}
 
 			// Untitled associated to file path are dirty right away as well as untitled with content
@@ -323,13 +324,13 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
 	}
 
-	private onModelContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
+	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {
 		this.versionId++;
 
 		if (!this.ignoreDirtyOnModelContentChange) {
 			// mark the untitled text editor as non-dirty once its content becomes empty and we do
 			// not have an associated path set. we never want dirty indicator in that case.
-			if (!this.hasAssociatedFilePath && model.getLineCount() === 1 && model.getLineContent(1) === '') {
+			if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineContent(1) === '') {
 				this.setDirty(false);
 			}
 
@@ -339,16 +340,16 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			}
 		}
 
-		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_MAX_LENGTH columns
-		if (e.changes.some(change => (change.range.startLineNumber === 1 || change.range.endLineNumber === 1) && change.range.startColumn <= UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)) {
-			this.updateNameFromFirstLine();
+		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH columns
+		if (e.changes.some(change => (change.range.startLineNumber === 1 || change.range.endLineNumber === 1) && change.range.startColumn <= UntitledTextEditorModel.FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH)) {
+			this.updateNameFromFirstLine(textEditorModel);
 		}
 
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
 	}
 
-	private updateNameFromFirstLine(): void {
+	private updateNameFromFirstLine(textEditorModel: ITextModel): void {
 		if (this.hasAssociatedFilePath) {
 			return; // not in case of an associated file path
 		}
@@ -361,7 +362,16 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		let modelFirstWordsCandidate: string | undefined = undefined;
 
-		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH + 1 }).trim().replace(/\s+/g, ' ');
+		const firstLineText = textEditorModel
+			.getValueInRange({
+				startLineNumber: 1,
+				endLineNumber: 1,
+				startColumn: 1,
+				endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH + 1		// first cap at FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH
+			})
+			.trim().replace(/\s+/g, ' ') 														// normalize whitespaces
+			.substr(0, UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH); 					// finally cap at FIRST_LINE_NAME_MAX_LENGTH
+
 		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
 			modelFirstWordsCandidate = firstLineText;
 		}

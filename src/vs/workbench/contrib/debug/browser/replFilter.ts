@@ -136,6 +136,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		private placeholder: string,
 		private filters: ReplFilterState,
+		private history: string[],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService) {
@@ -159,6 +160,10 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		this.filterInputBox.focus();
 	}
 
+	getHistory(): string[] {
+		return this.filterInputBox.getHistory();
+	}
+
 	private clearFilterText(): void {
 		this.filterInputBox.value = '';
 	}
@@ -166,7 +171,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 	private createInput(container: HTMLElement): void {
 		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: this.placeholder,
-			history: []
+			history: this.history
 		}));
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.filters.filterText;

@@ -108,6 +108,8 @@ function webviewPreloads() {
 			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
 		}
 
+		globals.scriptUrl = url;
+
 		const args = Object.entries(globals);
 		new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
 		return undefined;

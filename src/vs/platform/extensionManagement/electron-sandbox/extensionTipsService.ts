@@ -20,7 +20,7 @@ import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -227,7 +227,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 
 	private promptExeRecommendations(tips: IExecutableBasedExtensionTip[]): Promise<RecommendationsNotificationResult> {
 		const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
-		const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
+		const message = localize({ key: 'exeRecommended', comment: ['Placeholder string is the name of the software that is installed.'] }, "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
 		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE);
 	}
 
@@ -241,7 +241,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	}
 
 	private updateLastPromptedMediumExeTime(value: number): void {
-		this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.GLOBAL);
+		this.storageService.store2(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private getPromptedExecutableTips(): IStringDictionary<string[]> {
@@ -251,7 +251,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	private addToRecommendedExecutables(exeName: string, tips: IExecutableBasedExtensionTip[]) {
 		const promptedExecutableTips = this.getPromptedExecutableTips();
 		promptedExecutableTips[exeName] = tips.map(({ extensionId }) => extensionId.toLowerCase());
-		this.storageService.store(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.GLOBAL);
+		this.storageService.store2(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {

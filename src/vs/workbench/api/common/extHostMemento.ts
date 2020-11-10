@@ -7,7 +7,6 @@ import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtensionMemento implements vscode.Memento {
 
@@ -64,12 +63,8 @@ export class ExtensionGlobalMemento extends ExtensionMemento {
 
 	private readonly _extension: IExtensionDescription;
 
-	private _syncedKeys: string[] = [];
-	get syncedKeys(): ReadonlyArray<string> { return Object.freeze(this._syncedKeys); }
-	set syncedKeys(syncKeys: ReadonlyArray<string>) {
-		checkProposedApiEnabled(this._extension);
-		this._syncedKeys = [...syncKeys];
-		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._extension.version }, this._syncedKeys);
+	setKeysForSync(keys: string[]): void {
+		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._extension.version }, keys);
 	}
 
 	constructor(extensionDescription: IExtensionDescription, storage: ExtHostStorage) {

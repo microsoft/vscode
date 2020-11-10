@@ -363,9 +363,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
+			const firstEnabled = this.viewItems.findIndex(item => item.isEnabled());
 			// Focus the first enabled item
-			this.focusedItem = -1;
-			this.focusNext();
+			this.focusedItem = firstEnabled === -1 ? undefined : firstEnabled;
+			this.updateFocus();
 		} else {
 			if (index !== undefined) {
 				this.focusedItem = index;

@@ -133,7 +133,7 @@ export class BreakpointsView extends ViewPane {
 			const element = this.list.element(e.element);
 
 			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, this.debugService, this.editorService);
+				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, e.editorOptions.pinned || !e.editorOptions.preserveFocus, this.debugService, this.editorService);
 			}
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
 				// double click
@@ -192,7 +192,7 @@ export class BreakpointsView extends ViewPane {
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
 			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, async () => {
 				if (element instanceof Breakpoint) {
-					const editor = await openBreakpointSource(element, false, false, this.debugService, this.editorService);
+					const editor = await openBreakpointSource(element, false, false, true, this.debugService, this.editorService);
 					if (editor) {
 						const codeEditor = editor.getControl();
 						if (isCodeEditor(codeEditor)) {
@@ -671,7 +671,7 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 	}
 }
 
-export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Promise<IEditorPane | undefined> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, pinned: boolean, debugService: IDebugService, editorService: IEditorService): Promise<IEditorPane | undefined> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return Promise.resolve(undefined);
 	}
@@ -695,7 +695,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 			selection,
 			revealIfOpened: true,
 			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
-			pinned: !preserveFocus
+			pinned
 		}
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }

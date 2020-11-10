@@ -14,7 +14,7 @@ import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/com
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWeb } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -111,7 +111,7 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 
 		const syncStore = this.productService[CONFIGURATION_SYNC_STORE_KEY];
 		if (syncStore) {
-			this.storageService.store(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.GLOBAL);
+			this.storageService.store2(SYNC_PREVIOUS_STORE, JSON.stringify(syncStore), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(SYNC_PREVIOUS_STORE, StorageScope.GLOBAL);
 		}
@@ -122,7 +122,7 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 			if (type === this.userDataSyncStore.defaultType) {
 				this.storageService.remove(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL);
 			} else {
-				this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL);
+				this.storageService.store2(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 			this.updateUserDataSyncStore();
 		}
@@ -207,7 +207,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			}
 
 			if (this._donotMakeRequestsUntil) {
-				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.GLOBAL);
+				this.storageService.store2(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this.resetDonotMakeRequestsUntilPromise = createCancelablePromise(token => timeout(this._donotMakeRequestsUntil!.getTime() - Date.now(), token).then(() => this.setDonotMakeRequestsUntil(undefined)));
 			} else {
 				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
@@ -331,7 +331,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		if (manifest) {
 			// update session
-			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
+			this.storageService.store2(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 
 		return manifest;
@@ -448,7 +448,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
 		if (machineSessionId === undefined) {
 			machineSessionId = generateUuid();
-			this.storageService.store(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.GLOBAL);
+			this.storageService.store2(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 		headers['X-Machine-Session-Id'] = machineSessionId;
 

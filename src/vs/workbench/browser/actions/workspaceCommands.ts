@@ -61,7 +61,7 @@ CommandsRegistry.registerCommand({
 			title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
 			canSelectFolders: true,
 			canSelectMany: true,
-			defaultUri: dialogsService.defaultFolderPath()
+			defaultUri: await dialogsService.defaultFolderPath()
 		});
 
 		if (!folders || !folders.length) {

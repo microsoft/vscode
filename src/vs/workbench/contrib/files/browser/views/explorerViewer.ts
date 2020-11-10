@@ -9,16 +9,16 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, BinarySize } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, ByteSize } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -532,7 +532,7 @@ interface CachedParsedExpression {
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
-	private hiddenUris = new Set<URI>();
+	private uriVisibilityMap = new Map<URI, boolean>();
 	private editorsAffectingFilter = new Set<IEditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -554,13 +554,15 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
 			const editors = this.editorService.visibleEditors;
 			let shouldFire = false;
-			this.hiddenUris.forEach(u => {
-				editors.forEach(e => {
-					if (e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, u)) {
-						// A filtered resource suddenly became visible since user opened an editor
-						shouldFire = true;
-					}
-				});
+			this.uriVisibilityMap.forEach((visible, uri) => {
+				if (!visible) {
+					editors.forEach(e => {
+						if (e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, uri)) {
+							// A filtered resource suddenly became visible since user opened an editor
+							shouldFire = true;
+						}
+					});
+				}
 			});
 
 			this.editorsAffectingFilter.forEach(e => {
@@ -571,7 +573,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			});
 			if (shouldFire) {
 				this.editorsAffectingFilter.clear();
-				this.hiddenUris.clear();
+				this.uriVisibilityMap.clear();
 				this._onDidChange.fire();
 			}
 		}));
@@ -600,18 +602,19 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		if (shouldFire) {
 			this.editorsAffectingFilter.clear();
-			this.hiddenUris.clear();
+			this.uriVisibilityMap.clear();
 			this._onDidChange.fire();
 		}
 	}
 
-	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
-		const isVisible = this.isVisible(stat, parentVisibility);
-		if (isVisible) {
-			this.hiddenUris.delete(stat.resource);
-		} else {
-			this.hiddenUris.add(stat.resource);
+	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		const cachedVisibility = this.uriVisibilityMap.get(stat.resource);
+		if (typeof cachedVisibility === 'boolean') {
+			return cachedVisibility;
 		}
+
+		const isVisible = this.isVisible(stat, parentVisibility);
+		this.uriVisibilityMap.set(stat.resource, isVisible);
 
 		return isVisible;
 	}
@@ -1109,17 +1112,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Small file
 			let message: string;
-			if (fileSize < BinarySize.MB) {
+			if (fileSize < ByteSize.MB) {
 				if (operation.filesTotal === 1) {
 					message = `${entry.name}`;
 				} else {
-					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, BinarySize.formatSize(bytesUploadedPerSecond));
+					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, ByteSize.formatSize(bytesUploadedPerSecond));
 				}
 			}
 
 			// Large file
 			else {
-				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, BinarySize.formatSize(fileBytesUploaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesUploadedPerSecond));
+				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, ByteSize.formatSize(fileBytesUploaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesUploadedPerSecond));
 			}
 
 			// Report progress but limit to update only once per second
@@ -1137,12 +1140,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return undefined;
 			}
 
-			// Chrome/Edge/Firefox support stream method
-			if (typeof file.stream === 'function') {
+			// Chrome/Edge/Firefox support stream method, but only use it for
+			// larger files to reduce the overhead of the streaming approach
+			if (typeof file.stream === 'function' && file.size > ByteSize.MB) {
 				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress, token);
 			}
 
-			// Fallback to unbuffered upload for other browsers
+			// Fallback to unbuffered upload for other browsers or small files
 			else {
 				await this.doUploadWebFileEntryUnbuffered(resource, file, reportProgress);
 			}
@@ -1386,7 +1390,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Check for confirmation checkbox
 			if (confirmation.checkboxChecked === true) {
-				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
+				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false);
 			}
 		}
 

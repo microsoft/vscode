@@ -59,7 +59,8 @@ class RemoteSourceProviderQuickPick {
 				this.quickpick.items = remoteSources.map(remoteSource => ({
 					label: remoteSource.name,
 					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
-					remoteSource
+					remoteSource,
+					alwaysShow: true
 				}));
 			}
 		} catch (err) {
@@ -80,11 +81,21 @@ class RemoteSourceProviderQuickPick {
 export interface PickRemoteSourceOptions {
 	readonly providerLabel?: (provider: RemoteSourceProvider) => string;
 	readonly urlLabel?: string;
+	readonly providerName?: string;
 }
 
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | undefined> {
 	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
 	quickpick.ignoreFocusOut = true;
+
+	if (options.providerName) {
+		const provider = model.getRemoteProviders()
+			.filter(provider => provider.name === options.providerName)[0];
+
+		if (provider) {
+			return await pickProviderSource(provider);
+		}
+	}
 
 	const providers = model.getRemoteProviders()
 		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
@@ -116,16 +127,22 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 		if (result.url) {
 			return result.url;
 		} else if (result.provider) {
-			const quickpick = new RemoteSourceProviderQuickPick(result.provider);
-			const remote = await quickpick.pick();
+			return await pickProviderSource(result.provider);
+		}
+	}
 
-			if (remote) {
-				if (typeof remote.url === 'string') {
-					return remote.url;
-				} else if (remote.url.length > 0) {
-					return await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
-				}
-			}
+	return undefined;
+}
+
+async function pickProviderSource(provider: RemoteSourceProvider): Promise<string | undefined> {
+	const quickpick = new RemoteSourceProviderQuickPick(provider);
+	const remote = await quickpick.pick();
+
+	if (remote) {
+		if (typeof remote.url === 'string') {
+			return remote.url;
+		} else if (remote.url.length > 0) {
+			return await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
 		}
 	}
 

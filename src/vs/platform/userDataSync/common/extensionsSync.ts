@@ -21,12 +21,12 @@ import { URI } from 'vs/base/common/uri';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { compare } from 'vs/base/common/strings';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { forEach } from 'vs/base/common/collections';
+import { IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 interface IExtensionResourceMergeResult extends IAcceptResult {
 	readonly added: ISyncExtension[];
@@ -105,7 +105,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@IExtensionsStorageSyncService private readonly extensionsStorageSyncService: IExtensionsStorageSyncService,
 	) {
 		super(SyncResource.Extensions, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
 		this._register(
@@ -114,16 +114,14 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
 					this.extensionEnablementService.onDidChangeEnablement,
-					this.storageKeysSyncRegistryService.onDidChangeExtensionStorageKeys,
-					Event.filter(this.storageService.onDidChangeStorage, e => e.scope === StorageScope.GLOBAL
-						&& this.storageKeysSyncRegistryService.extensionsStorageKeys.some(([extensionIdentifier]) => areSameExtensions(extensionIdentifier, { id: e.key })))),
+					this.extensionsStorageSyncService.onDidChangeExtensionsStorage),
 				() => undefined, 500)(() => this.triggerLocalChange()));
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionResourcePreview[]> {
 		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await parseAndMigrateExtensions(remoteUserData.syncData, this.extensionManagementService) : null;
-		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
-		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? await parseAndMigrateExtensions(lastSyncUserData.syncData!, this.extensionManagementService) : null;
+		const skippedExtensions: ISyncExtension[] = lastSyncUserData?.skippedExtensions || [];
+		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
 
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const localExtensions = this.getLocalExtensions(installedExtensions);
@@ -362,12 +360,12 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await Promise.all([...added, ...updated].map(async e => {
 				const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
 
-				// Builtin Extension: Sync enablement and state
+				// Builtin Extension Sync: Enablement & State
 				if (installedExtension && installedExtension.isBuiltin) {
 					if (e.state && installedExtension.manifest.version === e.version) {
 						const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
 						forEach(e.state, ({ key, value }) => extensionState[key] = value);
-						this.storageService.store(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
+						this.storageService.store2(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 					}
 					if (e.disabled) {
 						this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...`, e.identifier.id);
@@ -382,19 +380,24 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					return;
 				}
 
+				// User Extension Sync: Install/Update, Enablement & State
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier);
+
+				/* Update extension state only if
+				*		extension is installed and version is same as synced version or
+				 *		extension is not installed and installable
+				 */
+				if (e.state &&
+					(installedExtension ? installedExtension.manifest.version === e.version /* Installed and has same version */
+						: !!extension /* Installable */)
+				) {
+					const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
+					forEach(e.state, ({ key, value }) => extensionState[key] = value);
+					this.storageService.store2(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				}
+
 				if (extension) {
 					try {
-						/* Update extension state only if
-						 *		extension is not installed or
-						 *		installed extension is same version as synced version
-						 */
-						if (e.state && (!installedExtension || installedExtension.manifest.version === e.version)) {
-							const extensionState = JSON.parse(this.storageService.get(extension.identifier.id, StorageScope.GLOBAL) || '{}');
-							forEach(e.state, ({ key, value }) => extensionState[key] = value);
-							this.storageService.store(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
-						}
-
 						if (e.disabled) {
 							this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...`, e.identifier.id, extension.version);
 							await this.extensionEnablementService.disableExtension(extension.identifier);
@@ -408,7 +411,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 						// Install only if the extension does not exist
 						if (!installedExtension) {
 							this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
-							await this.extensionManagementService.installFromGallery(extension);
+							await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false } /* pass options to prevent install and sync dialog in web */);
 							this.logService.info(`${this.syncResourceLogLabel}: Installed extension.`, e.identifier.id, extension.version);
 							removeFromSkipped.push(extension.identifier);
 						}
@@ -452,14 +455,13 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				if (!isBuiltin) {
 					syncExntesion.installed = true;
 				}
-				const keys = this.storageKeysSyncRegistryService.getExtensioStorageKeys({ id: identifier.id, version: manifest.version });
-				if (keys) {
-					const extensionStorageValue = this.storageService.get(identifier.id, StorageScope.GLOBAL) || '{}';
-					try {
-						syncExntesion.state = JSON.parse(extensionStorageValue, (key, value) => !key || keys.includes(key) ? value : undefined);
-					} catch (error) {
-						this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
+				try {
+					const state = this.extensionsStorageSyncService.getStorageForSync({ id: identifier.id, version: manifest.version });
+					if (state) {
+						syncExntesion.state = state;
 					}
+				} catch (error) {
+					this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
 				}
 				return syncExntesion;
 			});
@@ -517,10 +519,10 @@ export class ExtensionsInitializer extends AbstractInitializer {
 				try {
 					const extensionToSync = newExtensionsToSync.get(galleryExtension.identifier.id.toLowerCase())!;
 					if (extensionToSync.state) {
-						this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionToSync.state), StorageScope.GLOBAL);
+						this.storageService.store2(extensionToSync.identifier.id, JSON.stringify(extensionToSync.state), StorageScope.GLOBAL, StorageTarget.MACHINE);
 					}
 					this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
-					await this.extensionManagementService.installFromGallery(galleryExtension);
+					await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false } /* pass options to prevent install and sync dialog in web */);
 					this.logService.info(`Installed extension.`, galleryExtension.identifier.id);
 				} catch (error) {
 					this.logService.error(error);
@@ -540,7 +542,7 @@ export class ExtensionsInitializer extends AbstractInitializer {
 			if (extensionToSync.state) {
 				const extensionState = JSON.parse(this.storageService.get(extensionToSync.identifier.id, StorageScope.GLOBAL) || '{}');
 				forEach(extensionToSync.state, ({ key, value }) => extensionState[key] = value);
-				this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL);
+				this.storageService.store2(extensionToSync.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
 	}
