@@ -24,7 +24,11 @@ export const VIEW_ID = 'workbench.view.search';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 
-const SEARCH_SINGLE_RANGE_DIVIDER = '...';
+// Warning: this pattern is used in the search editor to detect offsets. If you
+// change this, also change the search-result built-in extension
+const SEARCH_ELIDED_PREFIX = '...(';
+const SEARCH_ELIDED_SUFFIX = ' characters skipped)...';
+const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFIX.length + 5) * 2;
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
@@ -275,9 +279,10 @@ export class TextSearchMatch implements ITextSearchMatch {
 			for (const range of ranges) {
 				const previewStart = Math.max(range.startColumn - leadingChars, 0);
 				const previewEnd = range.startColumn + previewOptions.charsPerLine;
-				if (previewStart > lastEnd + leadingChars) {
-					result += SEARCH_SINGLE_RANGE_DIVIDER + text.slice(previewStart, previewEnd);
-					shift += previewStart - (lastEnd + SEARCH_SINGLE_RANGE_DIVIDER.length);
+				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
+					const elision = SEARCH_ELIDED_PREFIX + (previewStart - lastEnd) + SEARCH_ELIDED_SUFFIX;
+					result += elision + text.slice(previewStart, previewEnd);
+					shift += previewStart - (lastEnd + elision.length);
 				} else {
 					result += text.slice(lastEnd, previewEnd);
 				}
