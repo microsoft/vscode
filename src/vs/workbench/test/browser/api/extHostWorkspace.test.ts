@@ -20,14 +20,15 @@ import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IPatternInfo } from 'vs/workbench/services/search/common/search';
-import { isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
 		new ExtHostRpcService(mainContext),
 		new class extends mock<IExtHostInitDataService>() { workspace = data; },
-		new class extends mock<IExtHostFileSystemInfo>() { },
+		new class extends mock<IExtHostFileSystemInfo>() { getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
 		logService,
 	);
 	result.$initializeWorkspace(data);
