@@ -74,7 +74,14 @@ class EditorOpener implements IOpener {
 		}
 
 		await this._editorService.openCodeEditor(
-			{ resource: target, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
+			{
+				resource: target,
+				options: {
+					selection,
+					context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API,
+					...options?.editorOptions
+				}
+			},
 			this._editorService.getFocusedCodeEditor(),
 			options?.openToSide
 		);
