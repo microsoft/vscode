@@ -22,6 +22,7 @@ export interface IDiffLinesChange {
 	readonly modifiedStartLineNumber: number;
 	readonly modifiedEndLineNumber: number;
 	readonly originalModel: ITextModel;
+	viewLineCounts: number[] | null;
 }
 
 export class InlineDiffMargin extends Disposable {
@@ -195,6 +196,15 @@ export class InlineDiffMargin extends Disposable {
 		const lineNumberOffset = Math.floor(offset / lineHeight);
 		const newTop = lineNumberOffset * lineHeight;
 		this._diffActions.style.top = `${newTop}px`;
+		if (this.diff.viewLineCounts) {
+			let acc = 0;
+			for (let i = 0; i < this.diff.viewLineCounts.length; i++) {
+				acc += this.diff.viewLineCounts[i];
+				if (lineNumberOffset < acc) {
+					return i;
+				}
+			}
+		}
 		return lineNumberOffset;
 	}
 }

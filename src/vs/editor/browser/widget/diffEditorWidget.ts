@@ -2247,7 +2247,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 				originalEndLineNumber: lineChange.originalEndLineNumber,
 				modifiedStartLineNumber: lineChange.modifiedStartLineNumber,
 				modifiedEndLineNumber: lineChange.modifiedEndLineNumber,
-				originalModel: this._originalModel
+				originalModel: this._originalModel,
+				viewLineCounts: null,
 			}
 		};
 
@@ -2307,7 +2308,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			const sb = createStringBuilder(10000);
 			let maxCharsPerLine = 0;
 			let renderedLineCount = 0;
+			let viewLineCounts: number[] | null = null;
 			for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
+				const lineIndex = lineNumber - lineChange.originalStartLineNumber;
 				const lineTokens = this._originalModel.getLineTokens(lineNumber);
 				const lineContent = lineTokens.getLineContent();
 				const lineBreakData = lineBreaks[lineBreakIndex++];
@@ -2340,6 +2343,14 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 						));
 						lastBreakOffset = breakOffset;
 					}
+					if (!viewLineCounts) {
+						viewLineCounts = [];
+					}
+					// make sure all lines before this one have an entry in `viewLineCounts`
+					while (viewLineCounts.length < lineIndex) {
+						viewLineCounts[viewLineCounts.length] = 1;
+					}
+					viewLineCounts[lineIndex] = lineBreakData.breakOffsets.length;
 					viewZone.heightInLines += (lineBreakData.breakOffsets.length - 1);
 					const marginDomNode2 = document.createElement('div');
 					marginDomNode2.className = 'line-delete';
@@ -2377,6 +2388,15 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 			domNode.innerHTML = sb.build();
 			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
+
+			if (viewLineCounts) {
+				// make sure all lines have an entry in `viewLineCounts`
+				const cnt = lineChange.originalEndLineNumber - lineChange.originalStartLineNumber;
+				while (viewLineCounts.length <= cnt) {
+					viewLineCounts[viewLineCounts.length] = 1;
+				}
+			}
+			viewZone.diff.viewLineCounts = viewLineCounts;
 		}
 
 		result.original.sort((a, b) => {
