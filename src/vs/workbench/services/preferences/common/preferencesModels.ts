@@ -351,7 +351,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		},
 		onObjectEnd: (offset: number, length: number) => {
 			currentParent = previousParents.pop();
-			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+			if (settingsPropertyIndex !== -1 && (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null))) {
 				// setting ended
 				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {

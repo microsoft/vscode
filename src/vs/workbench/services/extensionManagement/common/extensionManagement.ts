@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 
 export interface IExtensionManagementServer {
@@ -27,6 +27,7 @@ export interface IExtensionManagementServerService {
 export const IWorkbenchExtensioManagementService = createDecorator<IWorkbenchExtensioManagementService>('extensionManagementService');
 export interface IWorkbenchExtensioManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
+	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension): Promise<ILocalExtension>;
 }
 

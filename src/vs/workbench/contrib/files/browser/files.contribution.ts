@@ -373,8 +373,8 @@ configurationRegistry.registerConfiguration({
 				'modifications'
 			],
 			'enumDescriptions': [
-				nls.localize('everything', "Format the whole file."),
-				nls.localize('modification', "Format modifications (requires source control)."),
+				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
+				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
 			],
 			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is `true`."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
@@ -390,7 +390,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane."),
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
 			'default': 9
 		},
 		'explorer.autoReveal': {

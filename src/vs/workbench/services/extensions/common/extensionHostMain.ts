@@ -60,7 +60,6 @@ export class ExtensionHostMain {
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
-		// todo@joh
 		// ugly self - inject
 		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
 		this._disposables.add(terminalService);
@@ -71,7 +70,6 @@ export class ExtensionHostMain {
 		logService.info('extension host started');
 		logService.trace('initData', initData);
 
-		// todo@joh
 		// ugly self - inject
 		// must call initialize *after* creating the extension service
 		// because `initialize` itself creates instances that depend on it

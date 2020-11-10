@@ -164,8 +164,8 @@ export interface IContentWidget {
 	beforeRender?(): editorCommon.IDimension | null;
 	/**
 	 * Optional function that is invoked after rendering the content
-	 * widget. The arguments are the actual dimensions and the selected
-	 * position preference.
+	 * widget. Is being invoked with the selected position preference
+	 * or `null` if not rendered.
 	 */
 	afterRender?(position: ContentWidgetPositionPreference | null): void;
 }
@@ -494,6 +494,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedropcanceled".
+	 * @internal
+	 * @event
+	 */
+	onMouseDropCanceled(listener: () => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event

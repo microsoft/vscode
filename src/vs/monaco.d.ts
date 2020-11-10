@@ -2910,6 +2910,10 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		/**
+		 * Smart select opptions;
+		 */
+		smartSelect?: ISmartSelectOptions;
+		/**
 		 *
 		 */
 		gotoLocation?: IGotoLocationOptions;
@@ -3030,6 +3034,14 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		codeLens?: boolean;
+		/**
+		 * Code lens font family. Defaults to editor font family.
+		 */
+		codeLensFontFamily?: string;
+		/**
+		 * Code lens font size. Default to 90% of the editor font size
+		 */
+		codeLensFontSize?: number;
 		/**
 		 * Control the behavior and rendering of the code action lightbulb.
 		 */
@@ -3186,6 +3198,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		modifiedCodeLens?: boolean;
+		/**
+		 * Is the diff editor inside another editor
+		 * Defaults to false
+		 */
+		isInEmbeddedEditor?: boolean;
 	}
 
 	/**
@@ -3656,6 +3673,11 @@ declare namespace monaco.editor {
 		 * Defaults to `horizontalScrollbarSize`.
 		 */
 		horizontalSliderSize?: number;
+		/**
+		 * Scroll gutter clicks move by page vs jump to position.
+		 * Defaults to false.
+		 */
+		scrollByPage?: boolean;
 	}
 
 	export interface InternalEditorScrollbarOptions {
@@ -3671,6 +3693,7 @@ declare namespace monaco.editor {
 		readonly horizontalSliderSize: number;
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
+		readonly scrollByPage: boolean;
 	}
 
 	/**
@@ -3702,9 +3725,13 @@ declare namespace monaco.editor {
 		 */
 		showIcons?: boolean;
 		/**
-		 * Max suggestions to show in suggestions. Defaults to 12.
+		 * Enable or disable the suggest status bar.
 		 */
-		maxVisibleSuggestions?: number;
+		showStatusBar?: boolean;
+		/**
+		 * Show details inline with the label. Defaults to true.
+		 */
+		showInlineDetails?: boolean;
 		/**
 		 * Show method-suggestions.
 		 */
@@ -3813,18 +3840,15 @@ declare namespace monaco.editor {
 		 * Show snippet-suggestions.
 		 */
 		showSnippets?: boolean;
-		/**
-		 * Status bar related settings.
-		 */
-		statusBar?: {
-			/**
-			 * Controls the visibility of the status bar at the bottom of the suggest widget.
-			 */
-			visible?: boolean;
-		};
 	}
 
 	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
+
+	export interface ISmartSelectOptions {
+		selectLeadingAndTrailingWhitespace?: boolean;
+	}
+
+	export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
 
 	/**
 	 * Describes how to indent wrapped lines.
@@ -3868,113 +3892,116 @@ declare namespace monaco.editor {
 		automaticLayout = 9,
 		autoSurround = 10,
 		codeLens = 11,
-		colorDecorators = 12,
-		columnSelection = 13,
-		comments = 14,
-		contextmenu = 15,
-		copyWithSyntaxHighlighting = 16,
-		cursorBlinking = 17,
-		cursorSmoothCaretAnimation = 18,
-		cursorStyle = 19,
-		cursorSurroundingLines = 20,
-		cursorSurroundingLinesStyle = 21,
-		cursorWidth = 22,
-		disableLayerHinting = 23,
-		disableMonospaceOptimizations = 24,
-		dragAndDrop = 25,
-		emptySelectionClipboard = 26,
-		extraEditorClassName = 27,
-		fastScrollSensitivity = 28,
-		find = 29,
-		fixedOverflowWidgets = 30,
-		folding = 31,
-		foldingStrategy = 32,
-		foldingHighlight = 33,
-		unfoldOnClickAfterEndOfLine = 34,
-		fontFamily = 35,
-		fontInfo = 36,
-		fontLigatures = 37,
-		fontSize = 38,
-		fontWeight = 39,
-		formatOnPaste = 40,
-		formatOnType = 41,
-		glyphMargin = 42,
-		gotoLocation = 43,
-		hideCursorInOverviewRuler = 44,
-		highlightActiveIndentGuide = 45,
-		hover = 46,
-		inDiffEditor = 47,
-		letterSpacing = 48,
-		lightbulb = 49,
-		lineDecorationsWidth = 50,
-		lineHeight = 51,
-		lineNumbers = 52,
-		lineNumbersMinChars = 53,
-		links = 54,
-		matchBrackets = 55,
-		minimap = 56,
-		mouseStyle = 57,
-		mouseWheelScrollSensitivity = 58,
-		mouseWheelZoom = 59,
-		multiCursorMergeOverlapping = 60,
-		multiCursorModifier = 61,
-		multiCursorPaste = 62,
-		occurrencesHighlight = 63,
-		overviewRulerBorder = 64,
-		overviewRulerLanes = 65,
-		padding = 66,
-		parameterHints = 67,
-		peekWidgetDefaultFocus = 68,
-		definitionLinkOpensInPeek = 69,
-		quickSuggestions = 70,
-		quickSuggestionsDelay = 71,
-		readOnly = 72,
-		renameOnType = 73,
-		renderControlCharacters = 74,
-		renderIndentGuides = 75,
-		renderFinalNewline = 76,
-		renderLineHighlight = 77,
-		renderLineHighlightOnlyWhenFocus = 78,
-		renderValidationDecorations = 79,
-		renderWhitespace = 80,
-		revealHorizontalRightPadding = 81,
-		roundedSelection = 82,
-		rulers = 83,
-		scrollbar = 84,
-		scrollBeyondLastColumn = 85,
-		scrollBeyondLastLine = 86,
-		scrollPredominantAxis = 87,
-		selectionClipboard = 88,
-		selectionHighlight = 89,
-		selectOnLineNumbers = 90,
-		showFoldingControls = 91,
-		showUnused = 92,
-		snippetSuggestions = 93,
-		smoothScrolling = 94,
-		stopRenderingLineAfter = 95,
-		suggest = 96,
-		suggestFontSize = 97,
-		suggestLineHeight = 98,
-		suggestOnTriggerCharacters = 99,
-		suggestSelection = 100,
-		tabCompletion = 101,
-		tabIndex = 102,
-		unusualLineTerminators = 103,
-		useTabStops = 104,
-		wordSeparators = 105,
-		wordWrap = 106,
-		wordWrapBreakAfterCharacters = 107,
-		wordWrapBreakBeforeCharacters = 108,
-		wordWrapColumn = 109,
-		wordWrapMinified = 110,
-		wrappingIndent = 111,
-		wrappingStrategy = 112,
-		showDeprecated = 113,
-		editorClassName = 114,
-		pixelRatio = 115,
-		tabFocusMode = 116,
-		layoutInfo = 117,
-		wrappingInfo = 118
+		codeLensFontFamily = 12,
+		codeLensFontSize = 13,
+		colorDecorators = 14,
+		columnSelection = 15,
+		comments = 16,
+		contextmenu = 17,
+		copyWithSyntaxHighlighting = 18,
+		cursorBlinking = 19,
+		cursorSmoothCaretAnimation = 20,
+		cursorStyle = 21,
+		cursorSurroundingLines = 22,
+		cursorSurroundingLinesStyle = 23,
+		cursorWidth = 24,
+		disableLayerHinting = 25,
+		disableMonospaceOptimizations = 26,
+		dragAndDrop = 27,
+		emptySelectionClipboard = 28,
+		extraEditorClassName = 29,
+		fastScrollSensitivity = 30,
+		find = 31,
+		fixedOverflowWidgets = 32,
+		folding = 33,
+		foldingStrategy = 34,
+		foldingHighlight = 35,
+		unfoldOnClickAfterEndOfLine = 36,
+		fontFamily = 37,
+		fontInfo = 38,
+		fontLigatures = 39,
+		fontSize = 40,
+		fontWeight = 41,
+		formatOnPaste = 42,
+		formatOnType = 43,
+		glyphMargin = 44,
+		gotoLocation = 45,
+		hideCursorInOverviewRuler = 46,
+		highlightActiveIndentGuide = 47,
+		hover = 48,
+		inDiffEditor = 49,
+		letterSpacing = 50,
+		lightbulb = 51,
+		lineDecorationsWidth = 52,
+		lineHeight = 53,
+		lineNumbers = 54,
+		lineNumbersMinChars = 55,
+		links = 56,
+		matchBrackets = 57,
+		minimap = 58,
+		mouseStyle = 59,
+		mouseWheelScrollSensitivity = 60,
+		mouseWheelZoom = 61,
+		multiCursorMergeOverlapping = 62,
+		multiCursorModifier = 63,
+		multiCursorPaste = 64,
+		occurrencesHighlight = 65,
+		overviewRulerBorder = 66,
+		overviewRulerLanes = 67,
+		padding = 68,
+		parameterHints = 69,
+		peekWidgetDefaultFocus = 70,
+		definitionLinkOpensInPeek = 71,
+		quickSuggestions = 72,
+		quickSuggestionsDelay = 73,
+		readOnly = 74,
+		renameOnType = 75,
+		renderControlCharacters = 76,
+		renderIndentGuides = 77,
+		renderFinalNewline = 78,
+		renderLineHighlight = 79,
+		renderLineHighlightOnlyWhenFocus = 80,
+		renderValidationDecorations = 81,
+		renderWhitespace = 82,
+		revealHorizontalRightPadding = 83,
+		roundedSelection = 84,
+		rulers = 85,
+		scrollbar = 86,
+		scrollBeyondLastColumn = 87,
+		scrollBeyondLastLine = 88,
+		scrollPredominantAxis = 89,
+		selectionClipboard = 90,
+		selectionHighlight = 91,
+		selectOnLineNumbers = 92,
+		showFoldingControls = 93,
+		showUnused = 94,
+		snippetSuggestions = 95,
+		smartSelect = 96,
+		smoothScrolling = 97,
+		stopRenderingLineAfter = 98,
+		suggest = 99,
+		suggestFontSize = 100,
+		suggestLineHeight = 101,
+		suggestOnTriggerCharacters = 102,
+		suggestSelection = 103,
+		tabCompletion = 104,
+		tabIndex = 105,
+		unusualLineTerminators = 106,
+		useTabStops = 107,
+		wordSeparators = 108,
+		wordWrap = 109,
+		wordWrapBreakAfterCharacters = 110,
+		wordWrapBreakBeforeCharacters = 111,
+		wordWrapColumn = 112,
+		wordWrapMinified = 113,
+		wrappingIndent = 114,
+		wrappingStrategy = 115,
+		showDeprecated = 116,
+		editorClassName = 117,
+		pixelRatio = 118,
+		tabFocusMode = 119,
+		layoutInfo = 120,
+		wrappingInfo = 121
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -3989,6 +4016,8 @@ declare namespace monaco.editor {
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
 		autoSurround: IEditorOption<EditorOption.autoSurround, EditorAutoSurroundStrategy>;
 		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
+		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
+		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, EditorCommentsOptions>;
@@ -4072,6 +4101,7 @@ declare namespace monaco.editor {
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
+		smartSelect: IEditorOption<EditorOption.smartSelect, any>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, InternalSuggestOptions>;
@@ -4254,8 +4284,8 @@ declare namespace monaco.editor {
 		beforeRender?(): IDimension | null;
 		/**
 		 * Optional function that is invoked after rendering the content
-		 * widget. The arguments are the actual dimensions and the selected
-		 * position preference.
+		 * widget. Is being invoked with the selected position preference
+		 * or `null` if not rendered.
 		 */
 		afterRender?(position: ContentWidgetPositionPreference | null): void;
 	}
@@ -6204,12 +6234,6 @@ declare namespace monaco.languages {
 		needsConfirmation: boolean;
 		label: string;
 		description?: string;
-		iconPath?: {
-			id: string;
-		} | Uri | {
-			light: Uri;
-			dark: Uri;
-		};
 	}
 
 	export interface WorkspaceFileEditOptions {

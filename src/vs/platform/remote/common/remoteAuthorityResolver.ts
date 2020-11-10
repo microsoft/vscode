@@ -12,6 +12,7 @@ export interface ResolvedAuthority {
 	readonly authority: string;
 	readonly host: string;
 	readonly port: number;
+	readonly connectionToken: string | undefined;
 }
 
 export interface ResolvedOptions {

@@ -9,16 +9,16 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, BinarySize } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, ByteSize } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -41,7 +41,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { ITask, sequence } from 'vs/base/common/async';
+import { ITask, RunOnceWorker, sequence } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -532,7 +532,7 @@ interface CachedParsedExpression {
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
-	private hiddenUris = new Set<URI>();
+	private uriVisibilityMap = new Map<URI, boolean>();
 	private editorsAffectingFilter = new Set<IEditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -554,13 +554,15 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
 			const editors = this.editorService.visibleEditors;
 			let shouldFire = false;
-			this.hiddenUris.forEach(u => {
-				editors.forEach(e => {
-					if (e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, u)) {
-						// A filtered resource suddenly became visible since user opened an editor
-						shouldFire = true;
-					}
-				});
+			this.uriVisibilityMap.forEach((visible, uri) => {
+				if (!visible) {
+					editors.forEach(e => {
+						if (e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, uri)) {
+							// A filtered resource suddenly became visible since user opened an editor
+							shouldFire = true;
+						}
+					});
+				}
 			});
 
 			this.editorsAffectingFilter.forEach(e => {
@@ -571,7 +573,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			});
 			if (shouldFire) {
 				this.editorsAffectingFilter.clear();
-				this.hiddenUris.clear();
+				this.uriVisibilityMap.clear();
 				this._onDidChange.fire();
 			}
 		}));
@@ -600,18 +602,19 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		if (shouldFire) {
 			this.editorsAffectingFilter.clear();
-			this.hiddenUris.clear();
+			this.uriVisibilityMap.clear();
 			this._onDidChange.fire();
 		}
 	}
 
-	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
-		const isVisible = this.isVisible(stat, parentVisibility);
-		if (isVisible) {
-			this.hiddenUris.delete(stat.resource);
-		} else {
-			this.hiddenUris.add(stat.resource);
+	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		const cachedVisibility = this.uriVisibilityMap.get(stat.resource);
+		if (typeof cachedVisibility === 'boolean') {
+			return cachedVisibility;
 		}
+
+		const isVisible = this.isVisible(stat, parentVisibility);
+		this.uriVisibilityMap.set(stat.resource, isVisible);
 
 		return isVisible;
 	}
@@ -779,11 +782,13 @@ interface IWebkitDataTransferItemEntryReader {
 }
 
 interface IUploadOperation {
+	startTime: number;
+	progressScheduler: RunOnceWorker<IProgressStep>;
+
 	filesTotal: number;
 	filesUploaded: number;
 
-	startTime: number;
-	bytesUploaded: number;
+	totalBytesUploaded: number;
 }
 
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
@@ -1047,7 +1052,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const results: { isFile: boolean, resource: URI }[] = [];
-		const operation: IUploadOperation = { filesTotal: entries.length, filesUploaded: 0, startTime: Date.now(), bytesUploaded: 0 };
+		const operation: IUploadOperation = {
+			startTime: Date.now(),
+			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
+
+			filesTotal: entries.length,
+			filesUploaded: 0,
+
+			totalBytesUploaded: 0
+		};
 
 		for (let entry of entries) {
 			if (token.isCancellationRequested) {
@@ -1075,6 +1088,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 
+		operation.progressScheduler.dispose();
+
 		// Open uploaded file in editor only if we upload just one
 		const firstUploadedFile = results[0];
 		if (!token.isCancellationRequested && firstUploadedFile?.isFile) {
@@ -1091,26 +1106,27 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		let fileBytesUploaded = 0;
 		const reportProgress = (fileSize: number, bytesUploaded: number): void => {
 			fileBytesUploaded += bytesUploaded;
-			operation.bytesUploaded += bytesUploaded;
+			operation.totalBytesUploaded += bytesUploaded;
 
-			const bytesUploadedPerSecond = operation.bytesUploaded / ((Date.now() - operation.startTime) / 1000);
+			const bytesUploadedPerSecond = operation.totalBytesUploaded / ((Date.now() - operation.startTime) / 1000);
 
 			// Small file
 			let message: string;
-			if (fileSize < BinarySize.MB) {
+			if (fileSize < ByteSize.MB) {
 				if (operation.filesTotal === 1) {
 					message = `${entry.name}`;
 				} else {
-					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, BinarySize.formatSize(bytesUploadedPerSecond));
+					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, ByteSize.formatSize(bytesUploadedPerSecond));
 				}
 			}
 
 			// Large file
 			else {
-				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, BinarySize.formatSize(fileBytesUploaded), BinarySize.formatSize(fileSize), BinarySize.formatSize(bytesUploadedPerSecond));
+				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, ByteSize.formatSize(fileBytesUploaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesUploadedPerSecond));
 			}
 
-			progress.report({ message });
+			// Report progress but limit to update only once per second
+			operation.progressScheduler.work({ message });
 		};
 		operation.filesUploaded++;
 		reportProgress(0, 0);
@@ -1124,12 +1140,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return undefined;
 			}
 
-			// Chrome/Edge/Firefox support stream method
-			if (typeof file.stream === 'function') {
+			// Chrome/Edge/Firefox support stream method, but only use it for
+			// larger files to reduce the overhead of the streaming approach
+			if (typeof file.stream === 'function' && file.size > ByteSize.MB) {
 				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress, token);
 			}
 
-			// Fallback to unbuffered upload for other browsers
+			// Fallback to unbuffered upload for other browsers or small files
 			else {
 				await this.doUploadWebFileEntryUnbuffered(resource, file, reportProgress);
 			}
@@ -1373,7 +1390,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Check for confirmation checkbox
 			if (confirmation.checkboxChecked === true) {
-				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
+				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false);
 			}
 		}
 

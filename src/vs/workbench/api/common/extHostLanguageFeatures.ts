@@ -1813,7 +1813,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo, token), undefined);
 	}
 
-	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider2): vscode.Disposable {
+	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
 		const handle = this._nextHandle();
 		const eventHandle = typeof provider.onDidChangeFoldingRanges === 'function' ? this._nextHandle() : undefined;
 
@@ -1822,7 +1822,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		let result = this._createDisposable(handle);
 
 		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeFoldingRanges!(_ => this._proxy.$emitFoldingRangeEvent(eventHandle));
+			const subscription = provider.onDidChangeFoldingRanges!(() => this._proxy.$emitFoldingRangeEvent(eventHandle));
 			result = Disposable.from(result, subscription);
 		}
 

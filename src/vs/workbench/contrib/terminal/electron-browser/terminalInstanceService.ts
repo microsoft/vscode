@@ -75,7 +75,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	}
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, windowsEnableConpty);
+		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

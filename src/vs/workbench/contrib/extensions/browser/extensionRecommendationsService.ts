@@ -100,7 +100,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 				})
 		]);
 
-		this._register(this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations(() => this._onDidChangeRecommendations.fire()));
+		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
 		this._register(this.extensionRecommendationsManagementService.onDidChangeGlobalIgnoredRecommendation(({ extensionId, isRecommended }) => {
 			if (!isRecommended) {
 				const reason = this.getAllRecommendationsWithReason()[extensionId];
@@ -111,7 +111,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		}));
 
 		await this.promptWorkspaceRecommendations();
-		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations)(() => this.promptWorkspaceRecommendations()));
 	}
 
 	private isEnabled(): boolean {

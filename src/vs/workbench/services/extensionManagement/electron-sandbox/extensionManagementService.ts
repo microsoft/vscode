@@ -15,18 +15,23 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { joinPath } from 'vs/base/common/resources';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
 	constructor(
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@IDownloadService downloadService: IDownloadService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService);
+		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, instantiationService);
 	}
 
 	protected async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {

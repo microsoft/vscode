@@ -43,6 +43,8 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -399,7 +401,18 @@ export class TreeView extends Disposable implements ITreeView {
 						return element.accessibilityInformation.label;
 					}
 
-					return isString(element.tooltip) ? element.tooltip : element.label ? element.label.label : '';
+					if (isString(element.tooltip)) {
+						return element.tooltip;
+					} else {
+						let buildAriaLabel: string = '';
+						if (element.label) {
+							buildAriaLabel += element.label.label + ' ';
+						}
+						if (element.description) {
+							buildAriaLabel += element.description;
+						}
+						return buildAriaLabel;
+					}
 				},
 				getRole(element: ITreeItem): string | undefined {
 					return element.accessibilityInformation?.role ?? 'treeitem';
@@ -422,6 +435,7 @@ export class TreeView extends Disposable implements ITreeView {
 				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 			}
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
 		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
 		renderer.actionRunner = actionRunner;
@@ -684,7 +698,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 }
 
-// todo@joh,sandy make this proper and contributable from extensions
+// todo@jrieken,sandy make this proper and contributable from extensions
 registerThemingParticipant((theme, collector) => {
 
 	const matchBackgroundColor = theme.getColor(listFilterMatchHighlight);
@@ -767,23 +781,26 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return { resourceLabel, icon, actionBar, container, elementDisposable: Disposable.None };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | Promise<IMarkdownString | string | undefined> | undefined {
+	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IIconLabelMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource) {
 				return undefined;
 			} else if (!node.tooltip) {
 				return label;
 			} else if (!isString(node.tooltip)) {
-				return Promise.resolve(node.tooltip);
+				return { markdown: node.tooltip, markdownNotSupportedFallback: resource ? undefined : renderMarkdownAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
 			} else {
 				return node.tooltip;
 			}
 		}
 
-		return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-			await node.resolve();
-			resolve(node.tooltip);
-		});
+		return {
+			markdown: new Promise<IMarkdownString | string | undefined>(async (resolve) => {
+				await node.resolve();
+				resolve(node.tooltip);
+			}),
+			markdownNotSupportedFallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
+		};
 	}
 
 	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
@@ -816,6 +833,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		// reset
 		templateData.actionBar.clear();
+		templateData.icon.style.color = '';
+
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
@@ -845,8 +864,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			let iconClass: string | undefined;
 			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
-				if (node.themeIcon.themeColor) {
-					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.themeColor.id)?.toString() ?? '';
+				if (node.themeIcon.color) {
+					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
 				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
@@ -979,10 +998,10 @@ class MultipleSelectionActionRunner extends ActionRunner {
 }
 
 class TreeMenus extends Disposable implements IDisposable {
+	private contextKeyService: IContextKeyService | undefined;
 
 	constructor(
 		private id: string,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
 		super();
@@ -996,7 +1015,14 @@ class TreeMenus extends Disposable implements IDisposable {
 		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).secondary;
 	}
 
+	public setContextKeyService(service: IContextKeyService) {
+		this.contextKeyService = service;
+	}
+
 	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
+		if (!this.contextKeyService) {
+			return { primary: [], secondary: [] };
+		}
 		const contextKeyService = this.contextKeyService.createScoped();
 		contextKeyService.createKey('view', this.id);
 		contextKeyService.createKey(context.key, context.value);

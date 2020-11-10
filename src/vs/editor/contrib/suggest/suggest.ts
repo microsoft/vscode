@@ -26,6 +26,7 @@ export const Context = {
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
 	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
+	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined),
 	CanResolve: new RawContextKey('suggestionCanResolve', false),
 };
 

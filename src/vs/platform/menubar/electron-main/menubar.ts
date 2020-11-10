@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { app, shell, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, KeyboardEvent } from 'electron';
+import { app, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, KeyboardEvent } from 'electron';
 import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -813,7 +813,7 @@ export class Menubar {
 	}
 
 	private openUrl(url: string, id: string): void {
-		shell.openExternal(url);
+		this.nativeHostMainService.openExternal(undefined, url);
 		this.reportMenuActionTelemetry(id);
 	}
 

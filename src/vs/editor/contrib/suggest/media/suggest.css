@@ -342,7 +342,6 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
-	padding-right: 22px;
 }
 
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.type {
@@ -350,15 +349,25 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
-	white-space: nowrap;
+	white-space: pre;
 	margin: 0 24px 0 0;
 	padding: 4px 0 12px 5px;
 }
+
+.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.type.auto-wrap {
+	white-space: normal;
+	word-break: break-all;
+}
+
 
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs {
 	margin: 0;
 	padding: 4px 5px;
 	white-space: pre-wrap;
+}
+
+.monaco-editor .suggest-details.no-type>.monaco-scrollable-element>.body>.docs {
+	margin-right: 24px;
 }
 
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs {

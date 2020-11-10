@@ -16,8 +16,7 @@ import { CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
-	constructor(readonly snippets: Snippet[]) {
-	}
+	constructor(readonly snippets: Snippet[]) { }
 	getSnippets() {
 		return Promise.resolve(this.getSnippetsSync());
 	}
@@ -25,6 +24,12 @@ class SimpleSnippetService implements ISnippetsService {
 		return this.snippets;
 	}
 	getSnippetFiles(): any {
+		throw new Error();
+	}
+	isEnabled(): boolean {
+		throw new Error();
+	}
+	updateEnablement(): void {
 		throw new Error();
 	}
 }
@@ -472,6 +477,29 @@ suite('SnippetsService', function () {
 		assert.equal(result.suggestions.length, 1);
 		[first] = result.suggestions;
 		assert.equal((first.range as any).insert.endColumn, 1);
+		assert.equal((first.range as any).replace.endColumn, 9);
+	});
+
+	test('Snippet replace-range incorrect #108894', async function () {
+
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'eng',
+			'eng',
+			'',
+			'<span></span>',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = createTextModel('filler e KEEP ng filler', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
+
+		assert.equal(result.suggestions.length, 1);
+		let [first] = result.suggestions;
+		assert.equal((first.range as any).insert.endColumn, 9);
 		assert.equal((first.range as any).replace.endColumn, 9);
 	});
 });

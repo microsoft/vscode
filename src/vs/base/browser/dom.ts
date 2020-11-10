@@ -34,31 +34,6 @@ export function isInDOM(node: Node | null): boolean {
 	return false;
 }
 
-interface IDomClassList {
-	addClass(node: HTMLElement | SVGElement, className: string): void;
-	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
-}
-
-const _classList: IDomClassList = new class implements IDomClassList {
-
-	addClass(node: HTMLElement, className: string): void {
-		if (className && node.classList) {
-			node.classList.add(className);
-		}
-	}
-
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		if (node.classList) {
-			node.classList.toggle(className, shouldHaveIt);
-		}
-	}
-};
-
-/** @deprecated ES6 - use classList*/
-export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
-
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
@@ -681,6 +656,43 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 			return true;
 		}
 		testChild = testChild.parentNode;
+	}
+
+	return false;
+}
+
+const parentFlowToDataKey = 'parentFlowToElementId';
+
+/**
+ * Set an explicit parent to use for nodes that are not part of the
+ * regular dom structure.
+ */
+export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: Element): void {
+	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
+}
+
+/**
+ * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
+ * parents set by `setParentFlowTo`.
+ */
+export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
+	let node: Node | null = testChild;
+	while (node) {
+		if (node === testAncestor) {
+			return true;
+		}
+
+		if (node instanceof HTMLElement) {
+			const flowToParentId = node.dataset[parentFlowToDataKey];
+			if (typeof flowToParentId === 'string') {
+				const flowToParentElement = document.getElementById(flowToParentId);
+				if (flowToParentElement) {
+					node = flowToParentElement;
+					continue;
+				}
+			}
+		}
+		node = node.parentNode;
 	}
 
 	return false;

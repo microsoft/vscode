@@ -26,7 +26,7 @@ import { areSameExtensions, getGalleryExtensionId, getMaliciousExtensionsSet, ge
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/product/common/product';
 import { isMacintosh } from 'vs/base/common/platform';

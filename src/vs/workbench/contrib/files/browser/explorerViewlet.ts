@@ -246,6 +246,9 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
 	focus(): void {
 		const explorerView = this.getView(VIEW_ID);
+		if (explorerView && this.panes.every(p => !p.isExpanded())) {
+			explorerView.setExpanded(true);
+		}
 		if (explorerView?.isExpanded()) {
 			explorerView.focus();
 		} else {

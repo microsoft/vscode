@@ -13,7 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { asArray, groupBy } from 'vs/base/common/arrays';
-import { count } from 'vs/base/common/strings';
+import { compare, count } from 'vs/base/common/strings';
 import { dirname } from 'vs/base/common/path';
 
 interface ProviderData {
@@ -57,7 +57,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 			// with parent folders
 			this._logService.warn('[Decorations] CAPPING events from decorations provider', extensionId.value, array.length);
 			const mapped = array.map(uri => ({ uri, rank: count(uri.path, '/') }));
-			const groups = groupBy(mapped, (a, b) => a.rank - b.rank);
+			const groups = groupBy(mapped, (a, b) => a.rank - b.rank || compare(a.uri.path, b.uri.path));
 			let picked: URI[] = [];
 			outer: for (let uris of groups) {
 				let lastDirname: string | undefined;

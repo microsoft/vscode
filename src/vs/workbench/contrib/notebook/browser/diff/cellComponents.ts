@@ -62,7 +62,8 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	glyphMargin: true,
 	enableSplitViewResizing: false,
 	renderIndicators: false,
-	readOnly: false
+	readOnly: false,
+	isInEmbeddedEditor: true
 };
 
 
@@ -674,7 +675,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 		const mode = this.modeService.create('json');
 		const originaloutputSource = this._getFormatedOutputJSON(
-			this.notebookEditor.textModel!.transientOptions
+			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
 				: this.cell.type === 'insert'
 					? this.cell.modified!.outputs || []

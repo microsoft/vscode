@@ -24,6 +24,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -86,13 +87,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -118,12 +119,21 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+		switch (this.shutdownReason) {
 
-		// Veto the shutdown depending on `window.confirmBeforeClose` setting
-		const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
-		if (confirmBeforeClose === 'always' || (this.shutdownReason === HostShutdownReason.Keyboard && confirmBeforeClose === 'keyboardOnly')) {
-			console.warn('Unload veto: window.confirmBeforeClose=true');
-			e.veto(true);
+			// Unknown / Keyboard shows veto depending on setting
+			case HostShutdownReason.Unknown:
+			case HostShutdownReason.Keyboard:
+				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
+					this.logService.warn(`Unload veto: window.confirmBeforeClose=${confirmBeforeClose}`);
+					e.veto(true);
+				}
+				break;
+
+			// Api never shows veto
+			case HostShutdownReason.Api:
+				break;
 		}
 
 		// Unset for next shutdown
@@ -213,88 +223,92 @@ export class BrowserHostService extends Disposable implements IHostService {
 		// Handle Folders to Add
 		if (foldersToAdd.length > 0) {
 			this.instantiationService.invokeFunction(accessor => {
-				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
+				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);  // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
 				workspaceEditingService.addFolders(foldersToAdd);
 			});
 		}
 
 		// Handle Files
 		if (fileOpenables.length > 0) {
+			this.instantiationService.invokeFunction(async accessor => {
+				const editorService = accessor.get(IEditorService); // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
 
-			// Support diffMode
-			if (options?.diffMode && fileOpenables.length === 2) {
-				const editors = await pathsToEditors(fileOpenables, this.fileService);
-				if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
-					return; // invalid resources
-				}
-
-				// Same Window: open via editor service in current window
-				if (this.shouldReuse(options, true /* file */)) {
-					this.editorService.openEditor({
-						leftResource: editors[0].resource,
-						rightResource: editors[1].resource
-					});
-				}
-
-				// New Window: open into empty window
-				else {
-					const environment = new Map<string, string>();
-					environment.set('diffFileSecondary', editors[0].resource.toString());
-					environment.set('diffFilePrimary', editors[1].resource.toString());
-
-					this.doOpen(undefined, { payload: Array.from(environment.entries()) });
-				}
-			}
-
-			// Just open normally
-			else {
-				for (const openable of fileOpenables) {
+				// Support diffMode
+				if (options?.diffMode && fileOpenables.length === 2) {
+					const editors = await pathsToEditors(fileOpenables, this.fileService);
+					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
+						return; // invalid resources
+					}
 
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
-						let openables: IPathData[] = [];
-
-						// Support: --goto parameter to open on line/col
-						if (options?.gotoLineMode) {
-							const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
-							openables = [{
-								fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-								lineNumber: pathColumnAware.line,
-								columnNumber: pathColumnAware.column
-							}];
-						} else {
-							openables = [openable];
-						}
-
-						this.editorService.openEditors(await pathsToEditors(openables, this.fileService));
+						editorService.openEditor({
+							leftResource: editors[0].resource,
+							rightResource: editors[1].resource,
+							options: { pinned: true }
+						});
 					}
 
 					// New Window: open into empty window
 					else {
 						const environment = new Map<string, string>();
-						environment.set('openFile', openable.fileUri.toString());
-
-						if (options?.gotoLineMode) {
-							environment.set('gotoLineMode', 'true');
-						}
+						environment.set('diffFileSecondary', editors[0].resource.toString());
+						environment.set('diffFilePrimary', editors[1].resource.toString());
 
 						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
 					}
 				}
-			}
 
-			// Support wait mode
-			const waitMarkerFileURI = options?.waitMarkerFileURI;
-			if (waitMarkerFileURI) {
-				(async () => {
+				// Just open normally
+				else {
+					for (const openable of fileOpenables) {
 
-					// Wait for the resources to be closed in the editor...
-					await this.editorService.whenClosed(fileOpenables.map(openable => ({ resource: openable.fileUri })), { waitForSaved: true });
+						// Same Window: open via editor service in current window
+						if (this.shouldReuse(options, true /* file */)) {
+							let openables: IPathData[] = [];
 
-					// ...before deleting the wait marker file
-					await this.fileService.del(waitMarkerFileURI);
-				})();
-			}
+							// Support: --goto parameter to open on line/col
+							if (options?.gotoLineMode) {
+								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
+								openables = [{
+									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
+									lineNumber: pathColumnAware.line,
+									columnNumber: pathColumnAware.column
+								}];
+							} else {
+								openables = [openable];
+							}
+
+							editorService.openEditors(await pathsToEditors(openables, this.fileService));
+						}
+
+						// New Window: open into empty window
+						else {
+							const environment = new Map<string, string>();
+							environment.set('openFile', openable.fileUri.toString());
+
+							if (options?.gotoLineMode) {
+								environment.set('gotoLineMode', 'true');
+							}
+
+							this.doOpen(undefined, { payload: Array.from(environment.entries()) });
+						}
+					}
+				}
+
+				// Support wait mode
+				const waitMarkerFileURI = options?.waitMarkerFileURI;
+				if (waitMarkerFileURI) {
+					(async () => {
+
+						// Wait for the resources to be closed in the editor...
+						await editorService.whenClosed(fileOpenables.map(openable => ({ resource: openable.fileUri })), { waitForSaved: true });
+
+						// ...before deleting the wait marker file
+						await this.fileService.del(waitMarkerFileURI);
+					})();
+				}
+			});
 		}
 	}
 
@@ -371,13 +385,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				try {
 					return await target.requestFullscreen();
 				} catch (error) {
-					console.warn('Toggle Full Screen failed'); // https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
+					this.logService.warn('toggleFullScreen(): requestFullscreen failed'); // https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 				}
 			} else {
 				try {
 					return await document.exitFullscreen();
 				} catch (error) {
-					console.warn('Exit Full Screen failed');
+					this.logService.warn('toggleFullScreen(): exitFullscreen failed');
 				}
 			}
 		}
@@ -391,7 +405,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 				}
 			} catch {
-				console.warn('Enter/Exit Full Screen failed');
+				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
 			}
 		}
 	}

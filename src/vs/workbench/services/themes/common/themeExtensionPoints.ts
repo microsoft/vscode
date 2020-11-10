@@ -10,7 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
-import { IExtensionService, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -124,7 +124,6 @@ export class ThemeRegistry<T extends IThemeData> {
 	public readonly onDidChange: Event<ThemeChangeEvent<T>> = this.onDidChangeEmitter.event;
 
 	constructor(
-		@IExtensionService private readonly extensionService: IExtensionService,
 		private readonly themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
 		private create: (theme: IThemeExtensionPoint, themeLocation: URI, extensionData: ExtensionData) => T,
 		private idRequired = false,
@@ -207,11 +206,11 @@ export class ThemeRegistry<T extends IThemeData> {
 		});
 	}
 
-	public async findThemeById(themeId: string, defaultId?: string): Promise<T | undefined> {
+	public findThemeById(themeId: string, defaultId?: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.id === themeId) {
 			return this.builtInTheme;
 		}
-		const allThemes = await this.getThemes();
+		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
 		for (let t of allThemes) {
 			if (t.id === themeId) {
@@ -224,11 +223,11 @@ export class ThemeRegistry<T extends IThemeData> {
 		return defaultTheme;
 	}
 
-	public async findThemeBySettingsId(settingsId: string | null, defaultId?: string): Promise<T | undefined> {
+	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
 			return this.builtInTheme;
 		}
-		const allThemes = await this.getThemes();
+		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
 		for (let t of allThemes) {
 			if (t.settingsId === settingsId) {
@@ -241,20 +240,15 @@ export class ThemeRegistry<T extends IThemeData> {
 		return defaultTheme;
 	}
 
-	public findThemeByExtensionLocation(extLocation: URI | undefined): Promise<T[]> {
+	public findThemeByExtensionLocation(extLocation: URI | undefined): T[] {
 		if (extLocation) {
-			return this.getThemes().then(allThemes => {
-				return allThemes.filter(t => t.location && resources.isEqualOrParent(t.location, extLocation));
-			});
+			return this.getThemes().filter(t => t.location && resources.isEqualOrParent(t.location, extLocation));
 		}
-		return Promise.resolve([]);
-
+		return [];
 	}
 
-	public getThemes(): Promise<T[]> {
-		return this.extensionService.whenInstalledExtensionsRegistered().then(_ => {
-			return this.extensionThemes;
-		});
+	public getThemes(): T[] {
+		return this.extensionThemes;
 	}
 
 }

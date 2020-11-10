@@ -143,7 +143,7 @@
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
-			const acquireVsCodeApi = (function() {
+			globalThis.acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
 				const targetOrigin = '*';
 				let acquired = false;
@@ -439,10 +439,18 @@
 
 			// propagate focus
 			host.onMessage('focus', () => {
-				const target = getActiveFrame();
-				if (target) {
-					target.contentWindow.focus();
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					return;
 				}
+
+				if (document.activeElement === activeFrame) {
+					// We are already focused on the iframe (or one of its children) so no need
+					// to refocus.
+					return;
+				}
+
+				activeFrame.contentWindow.focus();
 			});
 
 			// update iframe-contents
@@ -572,6 +580,8 @@
 						if (host.focusIframeOnCreate) {
 							newFrame.contentWindow.focus();
 						}
+
+
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);

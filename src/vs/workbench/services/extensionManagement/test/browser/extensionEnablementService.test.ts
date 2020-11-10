@@ -27,6 +27,9 @@ import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/com
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { mock } from 'vs/base/test/common/mock';
+import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -60,7 +63,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService),
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
-			instantiationService,
+			instantiationService.get(IHostService),
+			new class extends mock<IExtensionBisectService>() { isDisabledByBisect() { return false; } }
 		);
 	}
 

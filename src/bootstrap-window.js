@@ -41,7 +41,7 @@
 		 * extensionDevelopmentPath?: string[],
 		 * extensionTestsPath?: string,
 		 * userEnv?: { [key: string]: string | undefined },
-		 * appRoot?: string,
+		 * appRoot: string,
 		 * nodeCachedDataDir?: string
 		 * }} */
 		const configuration = JSON.parse(args['config'] || '{}') || {};
@@ -119,7 +119,6 @@
 				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
 				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
 				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-				'semver-umd': `../node_modules/semver-umd/lib/semver-umd.js`,
 				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
 				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
 			};
@@ -183,7 +182,7 @@
 	}
 
 	/**
-	 * @param {boolean} disallowReloadKeybinding
+	 * @param {boolean | undefined} disallowReloadKeybinding
 	 * @returns {() => void}
 	 */
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
@@ -204,6 +203,7 @@
 		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
 		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
+		/** @type {((e: any) => void) | undefined} */
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {

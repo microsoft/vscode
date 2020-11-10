@@ -43,8 +43,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
-	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
-	'file-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
@@ -79,6 +77,9 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string' },
+	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
+	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },
+
 	'locate-extension': { type: 'string[]' },
 	'extensionDevelopmentPath': { type: 'string[]' },
 	'extensionTestsPath': { type: 'string' },
@@ -112,6 +113,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'force-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
 	'__sandbox': { type: 'boolean' },
+	'logsPath': { type: 'string' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

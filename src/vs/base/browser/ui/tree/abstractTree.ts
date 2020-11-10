@@ -400,15 +400,23 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	private renderTwistie(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
+		templateData.twistie.classList.remove(...treeItemExpandedIcon.classNamesArray);
+
+		let twistieRendered = false;
+
 		if (this.renderer.renderTwistie) {
-			this.renderer.renderTwistie(node.element, templateData.twistie);
+			twistieRendered = this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
 
 		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
-			templateData.twistie.classList.add(...treeItemExpandedIcon.classNamesArray, 'collapsible');
+			if (!twistieRendered) {
+				templateData.twistie.classList.add(...treeItemExpandedIcon.classNamesArray);
+			}
+
+			templateData.twistie.classList.add('collapsible');
 			templateData.twistie.classList.toggle('collapsed', node.collapsed);
 		} else {
-			templateData.twistie.classList.remove(...treeItemExpandedIcon.classNamesArray, 'collapsible', 'collapsed');
+			templateData.twistie.classList.remove('collapsible', 'collapsed');
 		}
 
 		if (node.collapsible) {
@@ -811,7 +819,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const onDragOver = (event: DragEvent) => {
 			event.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
 
-			const x = event.screenX - left;
+			const x = event.clientX - left;
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'none';
 			}
@@ -954,6 +962,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly expandOnlyOnDoubleClick?: boolean;
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -961,7 +970,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
-	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly additionalScrollHeight?: number;
 }
 
@@ -994,7 +1002,7 @@ class Trait<T> {
 	constructor(private identityProvider?: IIdentityProvider<T>) { }
 
 	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
-		if (equals(this.nodes, nodes)) {
+		if (!(browserEvent as any)?.__forceEvent && equals(this.nodes, nodes)) {
 			return;
 		}
 
@@ -1109,7 +1117,9 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
 		}
 
-		if (expandOnlyOnTwistieClick && !onTwistie) {
+		const clickedOnFocus = this.tree.getFocus()[0] === node.element;
+
+		if (expandOnlyOnTwistieClick && !onTwistie && e.browserEvent.detail !== 2 && !(clickedOnFocus && !node.collapsed)) {
 			return super.onViewPointer(e);
 		}
 
