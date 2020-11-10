@@ -63,7 +63,7 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	enableSplitViewResizing: false,
 	renderIndicators: false,
 	readOnly: false,
-	isInEmbeddedEditor: true
+	isInEmbeddedEditor: true,
 };
 
 
@@ -527,7 +527,12 @@ abstract class AbstractCellRenderer extends Disposable {
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 				readOnly: false,
 				originalEditable: false,
-				ignoreTrimWhitespace: false
+				ignoreTrimWhitespace: false,
+				automaticLayout: false,
+				dimension: {
+					height: 0,
+					width: 0
+				}
 			});
 
 			this._metadataEditorContainer?.classList.add('diff');
@@ -631,7 +636,12 @@ abstract class AbstractCellRenderer extends Disposable {
 					...fixedDiffEditorOptions,
 					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 					readOnly: true,
-					ignoreTrimWhitespace: false
+					ignoreTrimWhitespace: false,
+					automaticLayout: false,
+					dimension: {
+						height: 0,
+						width: 0
+					}
 				});
 
 				this._outputEditorContainer?.classList.add('diff');
@@ -945,7 +955,12 @@ export class ModifiedCell extends AbstractCellRenderer {
 			...fixedDiffEditorOptions,
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			originalEditable: false,
-			ignoreTrimWhitespace: false
+			ignoreTrimWhitespace: false,
+			automaticLayout: false,
+			dimension: {
+				height: 0,
+				width: 0
+			}
 		});
 		this._editorContainer.classList.add('diff');
 
