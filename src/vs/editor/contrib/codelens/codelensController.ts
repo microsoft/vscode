@@ -224,6 +224,9 @@ export class CodeLensContribution implements IEditorContribution {
 			// Ask for all references again
 			scheduler.schedule();
 		}));
+		this._localToDispose.add(this._editor.onDidFocusEditorWidget(() => {
+			scheduler.schedule();
+		}));
 		this._localToDispose.add(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged && this._lenses.length > 0) {
 				this._resolveCodeLensesInViewportSoon();
