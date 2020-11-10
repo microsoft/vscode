@@ -2302,6 +2302,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 					}
 				}
 			}
+			const hasCharChanges = (decorations.length > 0);
 
 			const sb = createStringBuilder(10000);
 			let maxCharsPerLine = 0;
@@ -2321,7 +2322,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 							renderedLineCount++,
 							viewLineContent,
 							viewLineTokens,
-							actualDecorations,
+							LineDecoration.extractWrapped(actualDecorations, lastBreakOffset, breakOffset),
+							hasCharChanges,
 							mightContainNonBasicASCII,
 							mightContainRTL,
 							fontInfo,
@@ -2354,6 +2356,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 						lineContent,
 						lineTokens,
 						actualDecorations,
+						hasCharChanges,
 						mightContainNonBasicASCII,
 						mightContainRTL,
 						fontInfo,
@@ -2386,6 +2389,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		lineContent: string,
 		lineTokens: IViewLineTokens,
 		decorations: LineDecoration[],
+		hasCharChanges: boolean,
 		mightContainNonBasicASCII: boolean,
 		mightContainRTL: boolean,
 		fontInfo: FontInfo,
@@ -2402,7 +2406,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	): number {
 
 		sb.appendASCIIString('<div class="view-line');
-		if (decorations.length === 0) {
+		if (!hasCharChanges) {
 			// No char changes
 			sb.appendASCIIString(' char-delete');
 		}
