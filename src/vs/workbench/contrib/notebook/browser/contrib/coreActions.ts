@@ -866,7 +866,9 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						InputFocusedContext,
 						EditorContextKeys.hoverVisible.toNegated(),
-						EditorContextKeys.hasNonEmptySelection.toNegated()),
+						EditorContextKeys.hasNonEmptySelection.toNegated(),
+						EditorContextKeys.hasMultipleSelections.toNegated()
+					),
 					primary: KeyCode.Escape,
 					weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
 				},
