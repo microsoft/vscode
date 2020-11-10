@@ -24,7 +24,6 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		const headerRange = await this.getHeaderSelectionRange(document, position);
 		const blockRange = await this.getBlockSelectionRange(document, position, headerRange);
 		const inlineRange = await this.getInlineSelectionRange(document, position, blockRange);
-		test(13, 0);
 		return inlineRange || blockRange || headerRange;
 	}
 	private async getInlineSelectionRange(document: vscode.TextDocument, position: vscode.Position, blockRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
@@ -131,8 +130,10 @@ function createBlockRange(block: Token, document: vscode.TextDocument, cursorLin
 function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	const lineText = document.lineAt(cursorPosition.line).text;
 	const boldSelection = createBoldRange(lineText, cursorPosition.character, cursorPosition.line, parent);
-	const groupSelection = createGroupRange(lineText, cursorPosition.character, cursorPosition.line, parent);
-	return boldSelection || groupSelection;
+	const linkSelection = createLinkRange(lineText, cursorPosition.character, cursorPosition.line, parent);
+	const italicSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, true, parent);
+	const inlineCodeBlockSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, false, parent);
+	return boldSelection || linkSelection || italicSelection || inlineCodeBlockSelection;
 }
 
 function createFencedRange(token: Token, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
@@ -189,43 +190,50 @@ function createBoldRange(lineText: string, cursorChar: number, cursorLine: numbe
 	return undefined;
 }
 
-// function createGroupRange(lineText: string, cursorChar: number, cursorLine: number, isBracket: boolean, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-// 	const start = lineText.substring(0, cursorChar + 1).lastIndexOf(isBracket ? '[' : '(');
-// 	let end = lineText.substring(cursorChar).indexOf(isBracket ? ']' : ')');
+function createOtherInlineRange(lineText: string, cursorChar: number, cursorLine: number, isItalic: boolean, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+	const type = isItalic ? '*' : '`';
+	const start = lineText.substring(0, cursorChar + 1).lastIndexOf(type);
+	let end = lineText.substring(cursorChar).indexOf(type);
 
-// 	if (start >= 0 && end >= 0) {
-// 		end += cursorChar;
-// 		// ensure there's no closing bracket or paren before end
-// 		const intermediate = lineText.substring(start, end).indexOf(isBracket ? ']' : ')');
-// 		if (intermediate < 0) {
-// 			const range = new vscode.Range(cursorLine, start, cursorLine, end + 1);
-// 			if (cursorChar > start && cursorChar <= end) {
-// 				// within the content so select content then include brackets / parens
-// 				const contentRange = new vscode.Range(cursorLine, start + 1, cursorLine, end);
-// 				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
-// 			} if (cursorChar === start) {
-// 				return new vscode.SelectionRange(range, parent);
-// 			}
-// 		}
-// 	}
-// 	return undefined;
-// }
-
-function createGroupRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const regex = /(\[[^\(\)]*\])(\([^\[\]]*\))/g;
-	const matches = [...lineText.matchAll(regex)];
-	// const valid = matches.map(match => match[1] + " " + match[2]);
-	const valid = matches.filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + lineText.length > cursorChar);
-	if (valid.length > 0) {
-		let match = valid[0][0];
-		let range = new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(match), cursorLine, lineText.indexOf(match) + match.length), parent);
-		let bracket = valid[1][0];
-		let paren = valid[2][0];
-		if (cursorChar >= lineText.indexOf(bracket) && cursorChar < lineText.indexOf(bracket) + bracket.length) {
-			return new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(bracket), cursorLine, lineText.indexOf(bracket) + match.length), range);
-		} else {
-			return new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(paren), cursorLine, lineText.indexOf(paren) + match.length), range);
+	if (start >= 0 && end >= 0) {
+		end += cursorChar;
+		// ensure there's no closing bracket or paren before end
+		const intermediate = lineText.substring(start + 1, end - 1).indexOf(type);
+		if (intermediate < 0) {
+			const range = new vscode.Range(cursorLine, start, cursorLine, end + 1);
+			if (cursorChar > start && cursorChar <= end) {
+				// within the content so select content then include brackets / parens
+				const contentRange = new vscode.Range(cursorLine, start + 1, cursorLine, end);
+				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
+			} if (cursorChar === start) {
+				return new vscode.SelectionRange(range, parent);
+			}
 		}
+	}
+	return undefined;
+}
+
+function createLinkRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+	const regex = /(\[[^\(\)]*\])(\([^\[\]]*\))/g;
+	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length > cursorChar);
+
+	if (matches.length > 0) {
+		// should only be one match, so select first and index 0 contains the entire match, so match = [text](url)
+		const link = matches[0][0];
+		const linkRange = new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(link), cursorLine, lineText.indexOf(link) + link.length), parent);
+
+		const linkText = matches[0][1];
+		const url = matches[0][2];
+
+		// determine if cursor is within [text] or (url) in order to know which should be selected
+		const nearestType = cursorChar >= lineText.indexOf(linkText) && cursorChar < lineText.indexOf(linkText) + linkText.length ? linkText : url;
+
+		// determine if cursor is on a bracket or paren and if so, return the [content] or (content), skipping over the content range
+		const cursorOnType = cursorChar === lineText.indexOf(nearestType) || cursorChar === lineText.indexOf(nearestType) + nearestType.length;
+
+		const contentAndNearestType = new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(nearestType), cursorLine, lineText.indexOf(nearestType) + nearestType.length), linkRange);
+		const content = new vscode.SelectionRange(new vscode.Range(cursorLine, lineText.indexOf(nearestType) + 1, cursorLine, lineText.indexOf(nearestType) + nearestType.length - 1), contentAndNearestType);
+		return cursorOnType ? contentAndNearestType : content;
 	}
 	return undefined;
 }
