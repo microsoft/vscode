@@ -15,6 +15,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -155,19 +156,7 @@ export class WebviewEditor extends EditorPane {
 			containsGroup: (group) => this.group?.id === group.group.id
 		}));
 
-		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
-			this.webview?.windowDidDragStart();
-		}));
-
-		const onDragEnd = () => {
-			this.webview?.windowDidDragEnd();
-		};
-		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_END, onDragEnd));
-		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.MOUSE_MOVE, currentEvent => {
-			if (currentEvent.buttons === 0) {
-				onDragEnd();
-			}
-		}));
+		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(() => this.webview));
 
 		this.synchronizeWebviewContainerDimensions(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
