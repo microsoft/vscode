@@ -179,7 +179,7 @@
 	"config.timeline.date": "Controls which date to use for items in the Timeline view",
 	"config.timeline.date.committed": "Use the committed date",
 	"config.timeline.date.authored": "Use the authored date",
-	"config.defaultStashMessage": "Controls whether to use message from commit input box (if populated) as default stash messages",
+	"config.useCommitInputAsStashMessage": "Controls whether to use the message from the commit input box as the default stash message.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",

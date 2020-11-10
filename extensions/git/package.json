@@ -2068,11 +2068,11 @@
           "default": true,
           "description": "%config.terminalAuthentication%"
         },
-        "git.defaultStashMessage": {
+        "git.useCommitInputAsStashMessage": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%config.defaultStashMessage%"
+          "description": "%config.useCommitInputAsStashMessage%"
         },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
