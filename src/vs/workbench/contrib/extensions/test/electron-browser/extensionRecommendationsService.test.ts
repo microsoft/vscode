@@ -304,14 +304,14 @@ suite('ExtensionRecommendationsService Test', () => {
 		}, null, '\t'));
 
 		const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
+		const fileService = new FileService(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		instantiationService.stub(IFileService, fileService);
 		workspaceService = new TestContextService(myWorkspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IWorkpsaceExtensionsConfigService, instantiationService.createInstance(WorkspaceExtensionsConfigService));
 		instantiationService.stub(IExtensionIgnoredRecommendationsService, instantiationService.createInstance(ExtensionIgnoredRecommendationsService));
 		instantiationService.stub(IExtensionRecommendationNotificationService, instantiationService.createInstance(ExtensionRecommendationNotificationService));
-		const fileService = new FileService(new NullLogService());
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-		instantiationService.stub(IFileService, fileService);
 	}
 
 	function testNoPromptForValidRecommendations(recommendations: string[]) {

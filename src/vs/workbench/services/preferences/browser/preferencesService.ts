@@ -578,7 +578,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			'editor.insertSpaces',
 			'editor.wordWrap',
 			'files.exclude',
-			'files.associations'
+			'files.associations',
+			'workbench.editor.enablePreview'
 		];
 	}
 

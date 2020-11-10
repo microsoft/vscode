@@ -207,18 +207,53 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 
 function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
-	const checkoutType = config.get<string>('checkoutType') || 'all';
-	const includeTags = checkoutType === 'all' || checkoutType === 'tags';
-	const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
+	let checkoutTypes: string[];
 
-	const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-		.map(ref => new CheckoutItem(ref));
-	const tags = (includeTags ? repository.refs.filter(ref => ref.type === RefType.Tag) : [])
-		.map(ref => new CheckoutTagItem(ref));
-	const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-		.map(ref => new CheckoutRemoteHeadItem(ref));
+	if (checkoutTypeConfig === 'all' || !checkoutTypeConfig || checkoutTypeConfig.length === 0) {
+		checkoutTypes = ['local', 'remote', 'tags'];
+	} else if (typeof checkoutTypeConfig === 'string') {
+		checkoutTypes = [checkoutTypeConfig];
+	} else {
+		checkoutTypes = checkoutTypeConfig;
+	}
 
-	return [...heads, ...tags, ...remoteHeads];
+	const processors = checkoutTypes.map(getCheckoutProcessor)
+		.filter(p => !!p) as CheckoutProcessor[];
+
+	for (const ref of repository.refs) {
+		for (const processor of processors) {
+			processor.onRef(ref);
+		}
+	}
+
+	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items), []);
+}
+
+class CheckoutProcessor {
+
+	private refs: Ref[] = [];
+	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(r)); }
+	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem }) { }
+
+	onRef(ref: Ref): void {
+		if (ref.type === this.type) {
+			this.refs.push(ref);
+		}
+	}
+}
+
+function getCheckoutProcessor(type: string): CheckoutProcessor | undefined {
+	switch (type) {
+		case 'local':
+			return new CheckoutProcessor(RefType.Head, CheckoutItem);
+		case 'remote':
+			return new CheckoutProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
+		case 'tags':
+			return new CheckoutProcessor(RefType.Tag, CheckoutTagItem);
+	}
+
+	return undefined;
 }
 
 function sanitizeRemoteName(name: string) {
@@ -236,6 +271,7 @@ enum PushType {
 	Push,
 	PushTo,
 	PushFollowTags,
+	PushTags
 }
 
 interface PushOptions {
@@ -389,7 +425,7 @@ export class CommandCenter {
 		}
 
 		if (!left) {
-			await commands.executeCommand<void>('vscode.open', right, opts, title);
+			await commands.executeCommand<void>('vscode.open', right, { ...opts, override: resource.type === Status.BOTH_MODIFIED ? false : undefined }, title);
 		} else {
 			await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 		}
@@ -792,7 +828,10 @@ export class CommandCenter {
 			try {
 				document = await workspace.openTextDocument(uri);
 			} catch (error) {
-				await commands.executeCommand('vscode.open', uri, opts);
+				await commands.executeCommand('vscode.open', uri, {
+					...opts,
+					override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
+				});
 				continue;
 			}
 
@@ -882,6 +921,27 @@ export class CommandCenter {
 		for (const resource of resources) {
 			await this._openResource(resource, preview, preserveFocus, preserveSelection);
 		}
+	}
+
+	@command('git.rename', { repository: true })
+	async rename(repository: Repository, fromUri: Uri): Promise<void> {
+		if (!fromUri) {
+			return;
+		}
+
+		const from = path.relative(repository.root, fromUri.path);
+		let to = await window.showInputBox({
+			value: from,
+			valueSelection: [from.length - path.basename(from).length, from.length]
+		});
+
+		to = to?.trim();
+
+		if (!to) {
+			return;
+		}
+
+		await repository.move(from, to);
 	}
 
 	@command('git.stage')
@@ -1428,7 +1488,7 @@ export class CommandCenter {
 					? localize('unsaved files single', "The following file has unsaved changes which won't be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
 					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
-				const commit = localize('commit', "Commit Anyway");
+				const commit = localize('commit', "Commit Staged Changes");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
@@ -1440,8 +1500,14 @@ export class CommandCenter {
 			}
 		}
 
+		if (!opts) {
+			opts = { all: noStagedChanges };
+		} else if (!opts.all && noStagedChanges && !opts.empty) {
+			opts = { ...opts, all: true };
+		}
+
 		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty) {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
@@ -1465,13 +1531,7 @@ export class CommandCenter {
 			}
 		}
 
-		if (!opts) {
-			opts = { all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges) {
-			opts = { ...opts, all: true };
-		}
-
-		// enable signing of commits if configurated
+		// enable signing of commits if configured
 		opts.signCommit = enableCommitSigning;
 
 		if (config.get<boolean>('alwaysSignOff')) {
@@ -1523,9 +1583,9 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await getCommitMessage();
+		let message = await getCommitMessage();
 
-		if (!message) {
+		if (!message && !opts.amend) {
 			return false;
 		}
 
@@ -1562,7 +1622,7 @@ export class CommandCenter {
 				let value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					value = (await repository.getCommit(repository.HEAD.commit)).message;
+					return undefined;
 				}
 
 				const branchName = repository.headShortName;
@@ -1730,25 +1790,20 @@ export class CommandCenter {
 
 	@command('git.checkout', { repository: true })
 	async checkout(repository: Repository, treeish?: string): Promise<boolean> {
-		if (typeof treeish === 'string') {
-			await repository.checkout(treeish);
-			return true;
-		}
-
-		return this._checkout(repository);
+		return this._checkout(repository, { treeish });
 	}
 
 	@command('git.checkoutDetached', { repository: true })
 	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
-		if (typeof treeish === 'string') {
-			await repository.checkout(treeish, { detached: true });
+		return this._checkout(repository, { detached: true, treeish });
+	}
+
+	private async _checkout(repository: Repository, opts?: { detached?: boolean, treeish?: string }): Promise<boolean> {
+		if (typeof opts?.treeish === 'string') {
+			await repository.checkout(opts?.treeish, opts);
 			return true;
 		}
 
-		return this._checkout(repository, { detached: true });
-	}
-
-	private async _checkout(repository: Repository, opts?: { detached?: boolean }): Promise<boolean> {
 		const createBranch = new CreateBranchItem();
 		const createBranchFrom = new CreateBranchFromItem();
 		const checkoutDetached = new CheckoutDetachedItem();
@@ -1782,7 +1837,28 @@ export class CommandCenter {
 		} else if (choice === checkoutDetached) {
 			return this._checkout(repository, { detached: true });
 		} else {
-			await (choice as CheckoutItem).run(repository, opts);
+			const item = choice as CheckoutItem;
+
+			try {
+				await item.run(repository, opts);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+					throw err;
+				}
+
+				const force = localize('force', "Force Checkout");
+				const stash = localize('stashcheckout', "Stash & Checkout");
+				const choice = await window.showWarningMessage(localize('local changes', "Your local changes would be overwritten by checkout."), { modal: true }, force, stash);
+
+				if (choice === force) {
+					await this.cleanAll(repository);
+					await item.run(repository, opts);
+				} else if (choice === stash) {
+					await this.stash(repository);
+					await item.run(repository, opts);
+					await this.stashPopLatest(repository);
+				}
+			}
 		}
 
 		return true;
@@ -2132,7 +2208,7 @@ export class CommandCenter {
 			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
-				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertedly overwrite changes made by others.\n\nAre you sure to continue?");
+				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?");
 				const yes = localize('ok', "OK");
 				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -2148,6 +2224,10 @@ export class CommandCenter {
 		if (pushOptions.pushType === PushType.PushFollowTags) {
 			await repository.pushFollowTags(undefined, forcePushMode);
 			return;
+		}
+
+		if (pushOptions.pushType === PushType.PushTags) {
+			await repository.pushTags(undefined, forcePushMode);
 		}
 
 		if (!repository.HEAD || !repository.HEAD.name) {
@@ -2221,6 +2301,21 @@ export class CommandCenter {
 		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
 	}
 
+	@command('git.cherryPick', { repository: true })
+	async cherryPick(repository: Repository): Promise<void> {
+		const hash = await window.showInputBox({
+			placeHolder: localize('commit hash', "Commit Hash"),
+			prompt: localize('provide commit hash', "Please provide the commit hash"),
+			ignoreFocusOut: true
+		});
+
+		if (!hash) {
+			return;
+		}
+
+		await repository.cherryPick(hash);
+	}
+
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo });
@@ -2229,6 +2324,11 @@ export class CommandCenter {
 	@command('git.pushToForce', { repository: true })
 	async pushToForce(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
+	}
+
+	@command('git.pushTags', { repository: true })
+	async pushTags(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTags });
 	}
 
 	@command('git.addRemote', { repository: true })
@@ -2506,20 +2606,23 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await this.getStashMessage();
+		let message: string | undefined;
+
+		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.sourceControl.commitTemplate || repository.inputBox.value !== repository.sourceControl.commitTemplate)) {
+			message = repository.inputBox.value;
+		}
+
+		message = await window.showInputBox({
+			value: message,
+			prompt: localize('provide stash message', "Optionally provide a stash message"),
+			placeHolder: localize('stash message', "Stash message")
+		});
 
 		if (typeof message === 'undefined') {
 			return;
 		}
 
 		await repository.createStash(message, includeUntracked);
-	}
-
-	private async getStashMessage(): Promise<string | undefined> {
-		return await window.showInputBox({
-			prompt: localize('provide stash message', "Optionally provide a stash message"),
-			placeHolder: localize('stash message', "Stash message")
-		});
 	}
 
 	@command('git.stash', { repository: true })

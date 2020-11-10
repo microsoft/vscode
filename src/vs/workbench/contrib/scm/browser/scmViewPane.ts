@@ -1038,7 +1038,11 @@ class ViewModel {
 		}
 
 		for (const repository of this.scmViewService.visibleRepositories) {
-			const item = this.items.get(repository)!;
+			const item = this.items.get(repository);
+
+			if (!item) {
+				continue;
+			}
 
 			// go backwards from last group
 			for (let j = item.groupItems.length - 1; j >= 0; j--) {
@@ -1482,7 +1486,8 @@ class SCMInputWidget extends Disposable {
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false,
 			scrollbar: { alwaysConsumeMouseWheel: false },
-			overflowWidgetsDomNode
+			overflowWidgetsDomNode,
+			renderWhitespace: 'none'
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {

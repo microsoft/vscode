@@ -164,7 +164,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri, { fromUserGesture: true });
+				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
 		}
 	}
@@ -181,7 +181,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			if (options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri, { fromUserGesture: true });
+				return this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 			}
 		}
 	}

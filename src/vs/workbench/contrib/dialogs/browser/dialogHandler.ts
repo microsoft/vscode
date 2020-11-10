@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDialogService, IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput, IDialogHandler } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -17,12 +17,9 @@ import { EventHelper } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { fromNow } from 'vs/base/common/date';
 
-export class DialogService implements IDialogService {
-
-	declare readonly _serviceBrand: undefined;
+export class HTMLDialogHandler implements IDialogHandler {
 
 	private static readonly ALLOWABLE_COMMANDS = [
 		'copy',
@@ -91,7 +88,7 @@ export class DialogService implements IDialogService {
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 					if (resolved && resolved.commandId) {
-						if (DialogService.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
+						if (HTMLDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
 							EventHelper.stop(event, true);
 						}
 					}
@@ -144,5 +141,3 @@ export class DialogService implements IDialogService {
 		}
 	}
 }
-
-registerSingleton(IDialogService, DialogService, true);

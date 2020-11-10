@@ -223,6 +223,8 @@
 	 * shell specific environment from the OS shell to ensure we are seeing
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
+	 *
+	 * @returns {Promise<void>}
 	 */
 	function resolveEnv() {
 		return new Promise(function (resolve) {

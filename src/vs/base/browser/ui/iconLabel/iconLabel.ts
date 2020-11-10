@@ -201,10 +201,11 @@ export class IconLabel extends Disposable {
 			function mouseMove(this: HTMLElement, e: MouseEvent): any {
 				mouseX = e.x;
 			}
-			function mouseLeave(this: HTMLElement, e: MouseEvent): any {
+			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
 			}
-			const mouseLeaveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_LEAVE, true)(mouseLeave.bind(htmlElement));
+			const mouseLeaveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_LEAVE, true)(mouseLeaveOrDown.bind(htmlElement));
+			const mouseDownDisposable = domEvent(htmlElement, dom.EventType.MOUSE_DOWN, true)(mouseLeaveOrDown.bind(htmlElement));
 			const mouseMoveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_MOVE, true)(mouseMove.bind(htmlElement));
 			setTimeout(async () => {
 				if (isHovering && tooltip) {
@@ -232,6 +233,7 @@ export class IconLabel extends Disposable {
 				}
 				mouseMoveDisposable.dispose();
 				mouseLeaveDisposable.dispose();
+				mouseDownDisposable.dispose();
 			}, hoverDelay);
 		}
 		const mouseOverDisposable = this._register(domEvent(htmlElement, dom.EventType.MOUSE_OVER, true)(mouseOver.bind(htmlElement)));
