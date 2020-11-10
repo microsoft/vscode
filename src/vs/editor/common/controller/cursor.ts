@@ -212,13 +212,22 @@ export class Cursor extends Disposable {
 			for (let i = 0; i < this._tabOutScopeEnclosingDecorations.length; i++) {
 				const tabOutScopeDecoration = this._tabOutScopeEnclosingDecorations[i];
 				const decorationRange = this._model.getDecorationRange(tabOutScopeDecoration);
-				if (!decorationRange || !decorationRange.strictContainsRange(selections[i])) {
+				if (!decorationRange || !Cursor._validateTabOutScope(decorationRange, selections)) {
 					this._tabOutScopeCharacterDecorations.splice(i, 1);
 					this._tabOutScopeEnclosingDecorations.splice(i, 1);
 					i--;
 				}
 			}
 		}
+	}
+
+	private static _validateTabOutScope(range: Range, selections: Range[]): boolean {
+		for (const selection of selections) {
+			if (range.strictContainsRange(selection)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// ------ some getters/setters
