@@ -99,7 +99,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 		let newStyle = `
 		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px;}
-		.monaco-editor .codelens-decoration.${this._styleClassName} > a > .codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
+		.monaco-editor .codelens-decoration.${this._styleClassName} span.codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
 		`;
 		if (fontFamily) {
 			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: ${fontFamily}}`;
