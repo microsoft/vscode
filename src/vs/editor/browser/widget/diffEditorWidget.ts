@@ -210,6 +210,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _maxComputationTime: number;
 	private _renderIndicators: boolean;
 	private _enableSplitViewResizing: boolean;
+	private _wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded' | undefined;
+	private _wordWrapMinified: boolean | undefined;
 	private _strategy!: DiffEditorWidgetStyle;
 
 	private readonly _updateDecorationsRunner: RunOnceScheduler;
@@ -250,6 +252,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._domElement = domElement;
 		options = options || {};
+
+		this._wordWrap = options.wordWrap;
+		this._wordWrapMinified = options.wordWrapMinified;
 
 		// renderSideBySide
 		this._renderSideBySide = true;
@@ -674,6 +679,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public updateOptions(newOptions: IDiffEditorOptions): void {
+
+		this._wordWrap = typeof newOptions.wordWrap !== 'undefined' ? newOptions.wordWrap : this._wordWrap;
+		this._wordWrapMinified = typeof newOptions.wordWrapMinified !== 'undefined' ? newOptions.wordWrapMinified : this._wordWrapMinified;
 
 		// Handle side by side
 		let renderSideBySideChanged = false;
@@ -1128,6 +1136,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// do not wrap hidden editor
 			result.wordWrap = 'off';
 			result.wordWrapMinified = false;
+		} else {
+			result.wordWrap = this._wordWrap;
+			result.wordWrapMinified = this._wordWrapMinified;
 		}
 		result.readOnly = !isEditable;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
