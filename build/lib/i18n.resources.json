@@ -365,6 +365,10 @@
 		{
 			"name": "vs/workbench/services/authentication",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/extensionRecommendations",
+			"project": "vscode-workbench"
 		}
 	]
 }

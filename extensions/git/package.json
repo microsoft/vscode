@@ -182,6 +182,12 @@
         "icon": "$(discard)"
       },
       {
+        "command": "git.rename",
+        "title": "%command.rename%",
+        "category": "Git",
+        "icon": "$(discard)"
+      },
+      {
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
@@ -374,6 +380,11 @@
         "category": "Git"
       },
       {
+        "command": "git.pushTags",
+        "title": "%command.pushTags%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushWithTags",
         "title": "%command.pushFollowTags%",
         "category": "Git"
@@ -381,6 +392,11 @@
       {
         "command": "git.pushWithTagsForce",
         "title": "%command.pushFollowTagsForce%",
+        "category": "Git"
+      },
+      {
+        "command": "git.cherryPick",
+        "title": "%command.cherryPick%",
         "category": "Git"
       },
       {
@@ -611,6 +627,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.rename",
+          "when": "false"
+        },
+        {
           "command": "git.commit",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -711,6 +731,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.cherryPick",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pull",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -773,6 +797,10 @@
         {
           "command": "git.pushWithTagsForce",
           "when": "config.git.enabled && !git.missing && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.pushTags",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.addRemote",
@@ -1284,17 +1312,17 @@
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "isInDiffRightEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "isInDiffRightEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "isInDiffRightEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
       "scm/change/title": [
@@ -1322,6 +1350,18 @@
           "command": "git.timeline.copyCommitMessage",
           "group": "5_copy@2",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "git.explorer",
+          "group": "7_git",
+          "when": "config.git.enabled && !git.missing && !explorerResourceIsRoot"
+        }
+      ],
+      "git.explorer": [
+        {
+          "command": "git.rename"
         }
       ],
       "git.commit": [
@@ -1543,6 +1583,10 @@
     },
     "submenus": [
       {
+        "id": "git.explorer",
+        "label": "%submenu.explorer%"
+      },
+      {
         "id": "git.commit",
         "label": "%submenu.commit%"
       },
@@ -1662,21 +1706,27 @@
           "scope": "resource"
         },
         "git.checkoutType": {
-          "type": "string",
-          "enum": [
-            "all",
-            "local",
-            "tags",
-            "remote"
-          ],
-          "enumDescriptions": [
-            "%config.checkoutType.all%",
-            "%config.checkoutType.local%",
-            "%config.checkoutType.tags%",
-            "%config.checkoutType.remote%"
-          ],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "local",
+              "tags",
+              "remote"
+            ],
+            "enumDescriptions": [
+              "%config.checkoutType.local%",
+              "%config.checkoutType.tags%",
+              "%config.checkoutType.remote%"
+            ]
+          },
+          "uniqueItems": true,
           "markdownDescription": "%config.checkoutType%",
-          "default": "all"
+          "default": [
+            "local",
+            "remote",
+            "tags"
+          ]
         },
         "git.ignoreLegacyWarning": {
           "type": "boolean",
@@ -1755,6 +1805,12 @@
           "default": true,
           "description": "%config.enableStatusBarSync%",
           "scope": "resource"
+        },
+        "git.followTagsWhenSync": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.followTagsWhenSync%"
         },
         "git.promptToSaveFilesBeforeStash": {
           "type": "string",
