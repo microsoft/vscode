@@ -157,6 +157,10 @@ export class Match {
 	getMatchString(): string {
 		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
 	}
+
+	toJSON(): object {
+		return {}; // We send an IRenderableMatchContext to the extensions
+	}
 }
 
 export class FileMatch extends Disposable implements IFileMatch {
@@ -444,6 +448,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._onDispose.fire();
 		super.dispose();
 	}
+
+	toJSON(): object {
+		return {}; // We send an IRenderableMatchContext to the extensions
+	}
 }
 
 export interface IChangeEvent {
@@ -633,6 +641,10 @@ export class FolderMatch extends Disposable {
 		this.disposeMatches();
 		this._onDispose.fire();
 		super.dispose();
+	}
+
+	toJSON(): object {
+		return {}; // We send an IRenderableMatchContext to the extensions
 	}
 }
 
