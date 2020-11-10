@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, timeout } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { SimpleWorkerClient, logOnceWebWorkerWarning, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
@@ -105,7 +105,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 			const sw = StopWatch.create(true);
 			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
-			return result;
+			return Promise.race([result, timeout(1000).then(() => edits)]);
 
 		} else {
 			return Promise.resolve(undefined);
