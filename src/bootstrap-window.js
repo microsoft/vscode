@@ -61,7 +61,7 @@
 		const enableDeveloperTools = (safeProcess.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 		let developerToolsUnbind;
 		if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-			developerToolsUnbind = registerDeveloperKeybindings(options?.disallowReloadKeybinding);
+			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
 		}
 
 		// Correctly inherit the parent's environment (TODO@sandbox non-sandboxed only)
