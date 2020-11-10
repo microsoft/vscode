@@ -33,12 +33,8 @@ export interface IShowDialogArgs {
 	options?: IDialogOptions;
 }
 
-export interface IInputDialogArgs {
-	severity: Severity;
-	message: string;
-	buttons: string[];
+export interface IInputDialogArgs extends IShowDialogArgs {
 	inputs: IInput[],
-	options?: IDialogOptions;
 }
 
 export interface IDialog {
