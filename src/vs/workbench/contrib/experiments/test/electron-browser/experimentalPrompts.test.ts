@@ -68,6 +68,11 @@ suite('Experimental Prompts', () => {
 				if (a === 'experiments.experiment1') {
 					storageData = JSON.parse(b + '');
 				}
+			},
+			store2: (a, b, c, d) => {
+				if (a === 'experiments.experiment1') {
+					storageData = JSON.parse(b + '');
+				}
 			}
 		});
 		instantiationService.stub(INotificationService, new TestNotificationService());

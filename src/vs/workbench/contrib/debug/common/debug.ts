@@ -64,6 +64,7 @@ export const CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT = new RawContextKey<st
 export const CONTEXT_SET_VARIABLE_SUPPORTED = new RawContextKey<boolean>('debugSetVariableSupported', false);
 export const CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED = new RawContextKey<boolean>('breakWhenValueChangesSupported', false);
 export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>('variableEvaluateNamePresent', false);
+export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exceptionWidgetVisible', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
@@ -935,6 +936,7 @@ export const enum BreakpointWidgetContext {
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
 	showHover(range: Range, focus: boolean): Promise<void>;
 	addLaunchConfiguration(): Promise<any>;
+	closeExceptionWidget(): void;
 }
 
 export interface IBreakpointEditorContribution extends editorCommon.IEditorContribution {

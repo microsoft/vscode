@@ -496,6 +496,14 @@ export interface IEditorOptions {
 	 */
 	codeLens?: boolean;
 	/**
+	 * Code lens font family. Defaults to editor font family.
+	 */
+	codeLensFontFamily?: string;
+	/**
+	 * Code lens font size. Default to 90% of the editor font size
+	 */
+	codeLensFontSize?: number;
+	/**
 	 * Control the behavior and rendering of the code action lightbulb.
 	 */
 	lightbulb?: IEditorLightbulbOptions;
@@ -3619,6 +3627,8 @@ export const enum EditorOption {
 	automaticLayout,
 	autoSurround,
 	codeLens,
+	codeLensFontFamily,
+	codeLensFontSize,
 	colorDecorators,
 	columnSelection,
 	comments,
@@ -3848,6 +3858,17 @@ export const EditorOptions = {
 		EditorOption.codeLens, 'codeLens', true,
 		{ description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.") }
 	)),
+	codeLensFontFamily: register(new EditorStringOption(
+		EditorOption.codeLensFontFamily, 'codeLensFontFamily', '',
+		{ description: nls.localize('codeLensFontFamily', "Controls the font family for CodeLens.") }
+	)),
+	codeLensFontSize: register(new EditorIntOption(EditorOption.codeLensFontSize, 'codeLensFontSize', 0, 0, 100, {
+		type: 'number',
+		default: 0,
+		minimum: 0,
+		maximum: 100,
+		description: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
