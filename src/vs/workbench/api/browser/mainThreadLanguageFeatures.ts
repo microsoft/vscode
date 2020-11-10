@@ -165,16 +165,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
 
 		const provider = <modes.CodeLensProvider>{
-			provideCodeLenses: (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
-				return this._proxy.$provideCodeLenses(handle, model.uri, token).then(listDto => {
-					if (!listDto) {
-						return undefined;
-					}
-					return {
-						lenses: listDto.lenses,
-						dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
-					};
-				});
+			provideCodeLenses: async (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
+				const listDto = await this._proxy.$provideCodeLenses(handle, model.uri, token);
+				if (!listDto) {
+					return undefined;
+				}
+				return {
+					lenses: listDto.lenses,
+					dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
+				};
 			},
 			resolveCodeLens: (_model: ITextModel, codeLens: modes.CodeLens, token: CancellationToken): Promise<modes.CodeLens | undefined> => {
 				return this._proxy.$resolveCodeLens(handle, codeLens, token);
