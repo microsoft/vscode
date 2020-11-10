@@ -776,8 +776,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 }
 
-export const copyPathCommand: ICommandHandler = async (accessor, fileMatchArg: IFileMatchContext | IFolderMatchWithResourceContext | undefined) => {
-	let fileMatch = fileMatchArg?.renderableMatch;
+export const copyPathCommand: ICommandHandler = async (accessor, fileMatchArg: [IFileMatchContext | IFolderMatchWithResourceContext] | undefined) => {
+	let fileMatch = fileMatchArg ? fileMatchArg[0].renderableMatch : undefined; // For the time being we only support single-select
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
 		if (!(selection instanceof FileMatch || selection instanceof FolderMatchWithResource)) {
@@ -853,8 +853,8 @@ function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch,
 }
 
 const maxClipboardMatches = 1e4;
-export const copyMatchCommand: ICommandHandler = async (accessor, matchArg: IRenderableMatchContext | undefined) => {
-	let match = matchArg?.renderableMatch;
+export const copyMatchCommand: ICommandHandler = async (accessor, matchArg: [IRenderableMatchContext] | undefined) => {
+	let match = matchArg ? matchArg[0].renderableMatch : undefined; // For the time being we only support single-select
 	if (!match) {
 		const selection = getSelectedRow(accessor);
 		if (!selection) {

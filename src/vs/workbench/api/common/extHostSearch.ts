@@ -43,10 +43,16 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	) {
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (arg.renderableMatch !== undefined) {
-					const filteredProperties = { ...arg };
-					delete filteredProperties.renderableMatch;
-					return filteredProperties;
+				if (arg && Array.isArray(arg)) {
+					return arg.map(matchContext => {
+						if (matchContext.$mid === 13 /* SearchViewContextMid */) {
+							const filteredProperties = { ...matchContext };
+							delete filteredProperties.renderableMatch;
+							return filteredProperties;
+						} else {
+							return matchContext;
+						}
+					});
 				} else {
 					return arg;
 				}

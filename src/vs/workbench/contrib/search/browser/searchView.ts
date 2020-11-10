@@ -85,6 +85,9 @@ export enum SearchViewPosition {
 	Panel
 }
 
+export type SearchViewContextMid = 13;
+export const SearchViewContextMid = 13;
+
 export interface IMatchContext {
 	/** Identifies which kind of match this is (text,file,folder) */
 	matchingKind: 'textMatch';
@@ -99,6 +102,7 @@ export interface IMatchContext {
 	/** location of where the matched text is inside the file */
 	matchRange: Range;
 	renderableMatch: Match;
+	$mid: SearchViewContextMid;
 }
 
 export interface IFileMatchContext {
@@ -109,6 +113,7 @@ export interface IFileMatchContext {
 	/** matches for this particular file */
 	matches: IMatchContext[];
 	renderableMatch: FileMatch;
+	$mid: SearchViewContextMid;
 }
 
 export interface IFolderMatchContext {
@@ -121,6 +126,7 @@ export interface IFolderMatchContext {
 	/** resource that might be associate with this match  */
 	resource: URI | null;
 	renderableMatch: FolderMatch;
+	$mid: SearchViewContextMid;
 }
 
 export interface IFolderMatchWithResourceContext extends IFolderMatchContext {
@@ -138,8 +144,9 @@ function toMatchContext(match: Match): IMatchContext {
 		matchedText: match.fullMatchText(),
 		replacementText: match.replaceString,
 		matchRange: match.range(),
-		renderableMatch: match
-	} as IMatchContext;
+		renderableMatch: match,
+		$mid: SearchViewContextMid
+	};
 }
 
 function toFileMatchContext(fileMatch: FileMatch): IFileMatchContext {
@@ -147,8 +154,9 @@ function toFileMatchContext(fileMatch: FileMatch): IFileMatchContext {
 		matchingKind: 'fileMatch',
 		uri: URI.parse(fileMatch.id()),
 		matches: fileMatch.matches().map(toMatchContext),
-		renderableMatch: fileMatch
-	} as IFileMatchContext;
+		renderableMatch: fileMatch,
+		$mid: SearchViewContextMid
+	};
 }
 
 function toFolderMatchContext<T extends IFolderMatchContext>(folderMatch: FolderMatch): T {
@@ -156,7 +164,8 @@ function toFolderMatchContext<T extends IFolderMatchContext>(folderMatch: Folder
 		matchingKind: 'folderMatch',
 		matches: folderMatch.matches().map(toFileMatchContext),
 		id: folderMatch.id(),
-		renderableMatch: folderMatch
+		renderableMatch: folderMatch,
+		$mid: SearchViewContextMid
 	} as T;
 }
 
@@ -872,7 +881,7 @@ export class SearchView extends ViewPane {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => context || e.element,
+			getActionsContext: () => [context],
 			onHide: () => dispose(actionsDisposable)
 		});
 	}
