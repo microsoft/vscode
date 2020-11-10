@@ -1362,7 +1362,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 			if (reader.eatCharCode(32, 126)) { // alphanum
 				const char = data[reader.index - 1];
-				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeaheadStyle!, char)) && this.timeline.getCursor(buffer).x === terminal.cols) {
+				if (this.timeline.addPrediction(buffer, new CharacterPrediction(this.typeaheadStyle!, char)) && this.timeline.getCursor(buffer).x >= terminal.cols) {
 					this.timeline.addBoundary(buffer, new TentativeBoundary(new LinewrapPrediction()));
 				}
 				continue;
