@@ -598,11 +598,9 @@ function getLineage(range: vscode.SelectionRange): vscode.SelectionRange[] {
 }
 
 function getValues(ranges: vscode.SelectionRange[]): string[] {
-	let result: string[] = [];
-	ranges.forEach(range => {
-		result.push(range.range.start.line + ' ' + range.range.start.character + ' ' + range.range.end.line + ' ' + range.range.end.character);
+	return ranges.map(range => {
+		return range.range.start.line + ' ' + range.range.start.character + ' ' + range.range.end.line + ' ' + range.range.end.character;
 	});
-	return result;
 }
 
 function assertLineNumbersEqual(selectionRange: vscode.SelectionRange, startLine: number, endLine: number, message: string) {
