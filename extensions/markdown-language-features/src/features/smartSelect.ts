@@ -197,12 +197,12 @@ function createOtherInlineRange(lineText: string, cursorChar: number, cursorLine
 
 	if (start >= 0 && end >= 0) {
 		end += cursorChar;
-		// ensure there's no closing bracket or paren before end
+		// ensure there's no * or ` before end
 		const intermediate = lineText.substring(start + 1, end - 1).indexOf(type);
 		if (intermediate < 0) {
 			const range = new vscode.Range(cursorLine, start, cursorLine, end + 1);
 			if (cursorChar > start && cursorChar <= end) {
-				// within the content so select content then include brackets / parens
+				// within the content so select content then include the stars or backticks
 				const contentRange = new vscode.Range(cursorLine, start + 1, cursorLine, end);
 				return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
 			} else if (cursorChar === start) {
