@@ -137,7 +137,10 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			}
 		}
 
-		const extractAbbreviationResults = helper.extractAbbreviation(lsDoc, position, !isStyleSheet(syntax));
+		const expandOptions = isStyleSheet(syntax) ?
+			{ lookAhead: false, syntax: 'stylesheet' } :
+			{ lookAhead: true, syntax: 'markup' };
+		const extractAbbreviationResults = helper.extractAbbreviation(lsDoc, position, expandOptions);
 		if (!extractAbbreviationResults || !helper.isAbbreviationValid(syntax, extractAbbreviationResults.abbreviation)) {
 			return;
 		}
@@ -160,7 +163,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let noiseCheckPromise: Thenable<any> = Promise.resolve();
 
-		// Fix for https://github.com/Microsoft/vscode/issues/32647
+		// Fix for https://github.com/microsoft/vscode/issues/32647
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
 		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
 		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {

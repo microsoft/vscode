@@ -408,7 +408,9 @@ export class CopyValueAction extends Action {
 
 		try {
 			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
-			this.clipboardService.writeText(evaluation.body.result);
+			if (evaluation) {
+				this.clipboardService.writeText(evaluation.body.result);
+			}
 		} catch (e) {
 			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
 		}

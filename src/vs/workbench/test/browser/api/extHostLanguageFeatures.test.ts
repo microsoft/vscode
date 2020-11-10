@@ -594,10 +594,10 @@ suite('ExtHostLanguageFeatures', function () {
 		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Manual }, Progress.None, CancellationToken.None);
 		assert.equal(actions.length, 2);
 		const [first, second] = actions;
-		assert.equal(first.title, 'Testing1');
-		assert.equal(first.command!.id, 'test1');
-		assert.equal(second.title, 'Testing2');
-		assert.equal(second.command!.id, 'test2');
+		assert.equal(first.action.title, 'Testing1');
+		assert.equal(first.action.command!.id, 'test1');
+		assert.equal(second.action.title, 'Testing2');
+		assert.equal(second.action.command!.id, 'test2');
 	});
 
 	test('Quick Fix, code action data conversion', async () => {
@@ -618,10 +618,10 @@ suite('ExtHostLanguageFeatures', function () {
 		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Manual }, Progress.None, CancellationToken.None);
 		assert.equal(actions.length, 1);
 		const [first] = actions;
-		assert.equal(first.title, 'Testing1');
-		assert.equal(first.command!.title, 'Testing1Command');
-		assert.equal(first.command!.id, 'test1');
-		assert.equal(first.kind, 'test.scope');
+		assert.equal(first.action.title, 'Testing1');
+		assert.equal(first.action.command!.title, 'Testing1Command');
+		assert.equal(first.action.command!.id, 'test1');
+		assert.equal(first.action.kind, 'test.scope');
 	});
 
 
@@ -1170,7 +1170,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 
-		provideSelectionRanges(model, [new Position(1, 17)], CancellationToken.None).then(ranges => {
+		provideSelectionRanges(model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None).then(ranges => {
 			assert.equal(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
 		});

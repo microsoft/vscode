@@ -13,20 +13,20 @@ import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
 import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
-import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/common/remote.contribution';
+import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -107,9 +107,23 @@ enum InitialVisibility {
 
 const viewDescriptor: IJSONSchema = {
 	type: 'object',
+	required: ['id', 'name'],
+	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
 	properties: {
+		type: {
+			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),
+			type: 'string',
+			enum: [
+				'tree',
+				'webview',
+			],
+			markdownEnumDescriptions: [
+				localize('vscode.extension.contributes.view.tree', "The view is backed by a `TreeView` created by `createTreeView`."),
+				localize('vscode.extension.contributes.view.webview', "The view is backed by a `WebviewView` registered by `registerWebviewViewProvider`."),
+			]
+		},
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			markdownDescription: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 			type: 'string'
 		},
 		name: {
@@ -394,7 +408,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			registry.registerWorkbenchAction(
 				SyncActionDescriptor.create(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
 				`View: Show ${title}`,
-				localize('view', "View")
+				CATEGORIES.View.value
 			);
 		}
 
@@ -465,11 +479,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						return null;
 					}
 
-					if (type === ViewType.Webview && !extension.description.enableProposedApi) {
-						collector.error(localize('webviewViewsRequireProposed', "Webview views are proposed api and are only supported when running out of dev or with the following command line switch: --enable-proposed-api"));
-						return null;
-					}
-
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
@@ -479,7 +488,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
-						canMoveView: true,
+						canMoveView: viewContainer?.id !== REMOTE,
 						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,

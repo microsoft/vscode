@@ -137,11 +137,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			} : undefined,
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
+			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
-			definitionProvider: true
+			documentLinkProvider: {}
 		};
 
 		return { capabilities };
@@ -481,15 +481,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onDefinition((params, token) => {
+	connection.onDocumentLinks((params, token) => {
 		return runSafeAsync(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const jsonDocument = getJSONDocument(document);
-				return languageService.findDefinition(document, params.position, jsonDocument);
+				return languageService.findLinks(document, jsonDocument);
 			}
 			return [];
-		}, [], `Error while computing definitions for ${params.textDocument.uri}`, token);
+		}, [], `Error while computing links for ${params.textDocument.uri}`, token);
 	});
 
 	// Listen on the connection

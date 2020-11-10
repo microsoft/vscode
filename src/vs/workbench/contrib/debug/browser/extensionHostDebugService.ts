@@ -18,6 +18,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -26,16 +27,16 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IHostService hostService: IHostService
 	) {
 		const connection = remoteAgentService.getConnection();
 		let channel: IChannel;
 		if (connection) {
 			channel = connection.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName);
 		} else {
+			// Extension host debugging not supported in serverless.
 			channel = { call: async () => undefined, listen: () => Event.None } as any;
-			// TODO@weinand TODO@isidorn fallback?
-			logService.warn('Extension Host Debugging not available due to missing connection.');
 		}
 
 		super(channel);
@@ -50,14 +51,14 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		// Reload window on reload request
 		this._register(this.onReload(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				window.location.reload();
+				hostService.reload();
 			}
 		}));
 
 		// Close window on close request
 		this._register(this.onClose(event => {
 			if (environmentService.isExtensionDevelopment && environmentService.debugExtensionHost.debugId === event.sessionId) {
-				window.close();
+				hostService.close();
 			}
 		}));
 	}

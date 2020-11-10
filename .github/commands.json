@@ -135,6 +135,13 @@
 	},
 	{
 		"type": "comment",
+		"name": "jsDebugLogs",
+		"action": "updateLabels",
+		"addLabel": "needs more info",
+		"comment": "Please collect trace logs using the following instructions:\n\n> If you're able to, add `\"trace\": true` to your `launch.json` and reproduce the issue. The location of the log file on your disk will be written to the Debug Console. Share that with us.\n>\n> ⚠️ This log file will not contain source code, but will contain file paths. You can drop it into https://microsoft.github.io/vscode-pwa-analyzer/index.html to see what it contains. If you'd rather not share the log publicly, you can email it to connor@xbox.com"
+	},
+	{
+		"type": "comment",
 		"name": "closedWith",
 		"allowUsers": [
 			"cleidigh",
@@ -193,7 +200,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Python extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Python extension. Please file it with the repository [here](https://github.com/microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -206,7 +213,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C extension. Please file it with the repository [here](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -219,7 +226,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -232,7 +239,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -349,7 +356,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Java Debugger extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Java Debugger extension. Please file it with the repository [here](https://github.com/microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",

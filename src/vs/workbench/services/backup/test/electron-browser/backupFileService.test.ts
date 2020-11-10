@@ -27,6 +27,8 @@ import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/b
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -47,7 +49,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(u
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir });
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir }, TestProductService);
 	}
 }
 
@@ -79,8 +81,8 @@ export class NodeTestBackupFileService extends BackupFileService {
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any): Promise<void> {
-		await super.backup(resource, content, versionId, meta);
+	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+		await super.backup(resource, content, versionId, meta, token);
 
 		while (this.backupResourceJoiners.length) {
 			this.backupResourceJoiners.pop()!();
@@ -260,6 +262,16 @@ suite('BackupFileService', () => {
 			assert.ok(service.hasBackupSync(untitledFile));
 
 			model.dispose();
+		});
+
+		test('cancellation', async () => {
+			const cts = new CancellationTokenSource();
+			const promise = service.backup(fooFile, undefined, undefined, undefined, cts.token);
+			cts.cancel();
+			await promise;
+
+			assert.equal(fs.existsSync(fooBackupPath), false);
+			assert.ok(!service.hasBackupSync(fooFile));
 		});
 	});
 

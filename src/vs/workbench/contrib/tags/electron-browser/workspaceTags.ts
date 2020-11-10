@@ -11,12 +11,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { isWindows } from 'vs/base/common/platform';
 import { getRemotes, AllowedSecondLevelDomains, getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): string[] {
 	return getRemotes(text, stripEndingDotGit).map(r => {
@@ -32,8 +34,10 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
-		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
+		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
+		@IProductService private readonly productService: IProductService,
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		if (this.telemetryService.isOptedIn) {
 			this.report();
@@ -53,22 +57,15 @@ export class WorkspaceTags implements IWorkbenchContribution {
 
 		this.reportProxyStats();
 
-		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
+		this.getWorkspaceInformation().then(stats => this.diagnosticsService.reportWorkspaceStats(stats));
 	}
 
-	async reportWindowsEdition(): Promise<void> {
+	private async reportWindowsEdition(): Promise<void> {
 		if (!isWindows) {
 			return;
 		}
 
-		const Registry = await import('vscode-windows-registry');
-
-		let value;
-		try {
-			value = Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
-		} catch { }
-
+		let value = await this.nativeHostService.windowsGetStringRegKey('HKEY_LOCAL_MACHINE', 'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion', 'EditionID');
 		if (value === undefined) {
 			value = 'Unknown';
 		}
@@ -224,7 +221,11 @@ export class WorkspaceTags implements IWorkbenchContribution {
 	}
 
 	private reportProxyStats() {
-		this.requestService.resolveProxy('https://www.example.com/')
+		const downloadUrl = this.productService.downloadUrl;
+		if (!downloadUrl) {
+			return;
+		}
+		this.requestService.resolveProxy(downloadUrl)
 			.then(proxy => {
 				let type = proxy ? String(proxy).trim().split(/\s+/, 1)[0] : 'EMPTY';
 				if (['DIRECT', 'PROXY', 'HTTPS', 'SOCKS', 'EMPTY'].indexOf(type) === -1) {

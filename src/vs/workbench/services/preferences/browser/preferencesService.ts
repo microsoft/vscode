@@ -40,6 +40,7 @@ import { getDefaultValue, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -557,7 +558,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.textFileService.read(resource, { acceptTextOnly: true }).then(undefined, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.textFileService.write(resource, contents).then(undefined, error => {
-					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), error)));
+					return Promise.reject(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, { relative: true }), getErrorMessage(error))));
 				});
 			}
 
@@ -577,7 +578,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			'editor.insertSpaces',
 			'editor.wordWrap',
 			'files.exclude',
-			'files.associations'
+			'files.associations',
+			'workbench.editor.enablePreview'
 		];
 	}
 

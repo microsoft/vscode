@@ -129,8 +129,8 @@ export abstract class Command {
 			command: {
 				id: this.id,
 				title: item.title,
-				icon: item.icon
-				// precondition: this.precondition
+				icon: item.icon,
+				precondition: this.precondition
 			},
 			when: item.when,
 			order: item.order
@@ -149,7 +149,7 @@ export abstract class Command {
  *
  * @return `true` if the command was successfully run. This stops other overrides from being executed.
  */
-export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean;
+export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
 export class MultiCommand extends Command {
 
@@ -175,8 +175,12 @@ export class MultiCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		for (const impl of this._implementations) {
-			if (impl[1](accessor, args)) {
-				return;
+			const result = impl[1](accessor, args);
+			if (result) {
+				if (typeof result === 'boolean') {
+					return;
+				}
+				return result;
 			}
 		}
 	}

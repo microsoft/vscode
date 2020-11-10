@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -109,13 +109,13 @@ export class StatefulMarkdownCell extends Disposable {
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					DOM.addClass(templateData.container, options.className);
+					templateData.rootContainer.classList.add(options.className);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					DOM.removeClass(templateData.container, options.className);
+					templateData.rootContainer.classList.remove(options.className);
 				}
 			});
 		}));
@@ -124,7 +124,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				DOM.addClass(templateData.container, options.className);
+				templateData.rootContainer.classList.add(options.className);
 			}
 		});
 
@@ -255,7 +255,7 @@ export class StatefulMarkdownCell extends Disposable {
 			this.relayoutCell();
 		} else {
 			// first time, readonly mode
-			this.localDisposables.add(markdownRenderer.onDidUpdateRender(() => {
+			this.localDisposables.add(markdownRenderer.onDidRenderCodeBlock(() => {
 				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
 				this.relayoutCell();
 			}));
@@ -315,10 +315,10 @@ export class StatefulMarkdownCell extends Disposable {
 				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
-				DOM.reset(this.templateData.foldingIndicator, ...renderCodiconsAsElement('$(chevron-right)'));
+				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons('$(chevron-right)'));
 				break;
 			case CellFoldingState.Expanded:
-				DOM.reset(this.templateData.foldingIndicator, ...renderCodiconsAsElement('$(chevron-down)'));
+				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons('$(chevron-down)'));
 				break;
 
 			default:

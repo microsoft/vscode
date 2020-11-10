@@ -27,6 +27,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { Event } from 'vs/base/common/event';
+import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
 
@@ -43,10 +44,13 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-		this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
-			// Update title area since there is no better way to update secondary actions
-			this.updateTitleArea();
-		}));
+		// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
+		if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
+			this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
+				// Update title area since there is no better way to update secondary actions
+				this.updateTitleArea();
+			}));
+		}
 	}
 
 	getContextMenuActions(): IAction[] {

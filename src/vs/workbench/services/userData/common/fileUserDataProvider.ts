@@ -29,6 +29,11 @@ export class FileUserDataProvider extends Disposable implements
 	private extUri: ExtUri;
 
 	constructor(
+		/*
+		Original userdata and backup home locations. Used to
+			- listen to changes and trigger change events
+			- Compute UserData URIs from original URIs and vice-versa
+		*/
 		private readonly fileSystemUserDataHome: URI,
 		private readonly fileSystemBackupsHome: URI | undefined,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,

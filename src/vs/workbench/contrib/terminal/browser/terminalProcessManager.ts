@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { env as processEnv } from 'vs/base/common/process';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -18,7 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -69,14 +69,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
 	public get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
-	private readonly _onProcessData = this._register(new Emitter<string>());
-	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
+	public get onProcessData(): Event<IProcessDataEvent> { return this._onProcessData.event; }
 	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	public get onProcessExit(): Event<number | undefined> { return this._onProcessExit.event; }
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
-	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
+	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
@@ -98,7 +98,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IPathService private readonly _pathService: IPathService,
-		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService
+		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
+		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 	) {
 		super();
 		this.ptyProcessReady = new Promise<void>(c => {
@@ -136,7 +137,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 			} else {
-				this.remoteAuthority = this._environmentService.configuration.remoteAuthority;
+				this.remoteAuthority = this._environmentService.remoteAuthority;
 			}
 			const hasRemoteAuthority = !!this.remoteAuthority;
 			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
@@ -157,7 +158,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
+				if (enableRemoteAgentTerminals) {
+					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				} else {
+					this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				}
 			} else {
 				this._process = await this._launchProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 			}
@@ -165,11 +171,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		this.processState = ProcessState.LAUNCHING;
 
-		this._process.onProcessData(data => {
+		this._process.onProcessData(ev => {
+			const data = (typeof ev === 'string' ? ev : ev.data);
+			const sync = (typeof ev === 'string' ? false : ev.sync);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire(beforeProcessDataEvent.data);
+				this._onProcessData.fire({ data: beforeProcessDataEvent.data, sync });
 			}
 		});
 
@@ -240,8 +248,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const initialCwd = terminalEnvironment.getCwd(
 			shellLaunchConfig,
 			userHome,
-			lastActiveWorkspace,
-			this._configurationResolverService,
+			terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService),
 			activeWorkspaceRootUri,
 			this._configHelper.config.cwd,
 			this._logService
@@ -250,7 +257,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
+		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService), isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
 		// Fetch any extension environment additions and apply them
 		if (!shellLaunchConfig.strictEnv) {

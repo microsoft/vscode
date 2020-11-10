@@ -10,11 +10,11 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { NotificationsCenterVisibleContext, INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, removeClass, isAncestor, Dimension } from 'vs/base/browser/dom';
+import { isAncestor, Dimension } from 'vs/base/browser/dom';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { localize } from 'vs/nls';
@@ -37,16 +37,16 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private notificationsList: NotificationsList | undefined;
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
-	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
+	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
 	private clearAllAction: ClearAllNotificationsAction | undefined;
 
 	constructor(
-		private container: HTMLElement,
-		private model: INotificationsModel,
+		private readonly container: HTMLElement,
+		private readonly model: INotificationsModel,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -59,7 +59,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
-		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
+		this._register(this.layoutService.onLayout(dimension => this.layout(Dimension.lift(dimension))));
 	}
 
 	get isVisible(): boolean {
@@ -85,7 +85,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		// Make visible
 		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
 		this._isVisible = true;
-		addClass(notificationsCenterContainer, 'visible');
+		notificationsCenterContainer.classList.add('visible');
 		notificationsList.show();
 
 		// Layout
@@ -126,21 +126,21 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		// Container
 		this.notificationsCenterContainer = document.createElement('div');
-		addClass(this.notificationsCenterContainer, 'notifications-center');
+		this.notificationsCenterContainer.classList.add('notifications-center');
 
 		// Header
 		this.notificationsCenterHeader = document.createElement('div');
-		addClass(this.notificationsCenterHeader, 'notifications-center-header');
+		this.notificationsCenterHeader.classList.add('notifications-center-header');
 		this.notificationsCenterContainer.appendChild(this.notificationsCenterHeader);
 
 		// Header Title
 		this.notificationsCenterTitle = document.createElement('span');
-		addClass(this.notificationsCenterTitle, 'notifications-center-header-title');
+		this.notificationsCenterTitle.classList.add('notifications-center-header-title');
 		this.notificationsCenterHeader.appendChild(this.notificationsCenterTitle);
 
 		// Header Toolbar
 		const toolbarContainer = document.createElement('div');
-		addClass(toolbarContainer, 'notifications-center-header-toolbar');
+		toolbarContainer.classList.add('notifications-center-header-toolbar');
 		this.notificationsCenterHeader.appendChild(toolbarContainer);
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
@@ -230,7 +230,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		// Hide
 		this._isVisible = false;
-		removeClass(this.notificationsCenterContainer, 'visible');
+		this.notificationsCenterContainer.classList.remove('visible');
 		this.notificationsList.hide();
 
 		// Mark as hidden

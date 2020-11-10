@@ -39,11 +39,15 @@ export class TreeViewPane extends ViewPane {
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
 		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
+		this._register(this.treeView.onDidChangeDescription((newDescription) => this.updateTitleDescription(newDescription)));
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
 		if (options.title !== this.treeView.title) {
 			this.updateTitle(this.treeView.title);
+		}
+		if (options.titleDescription !== this.treeView.description) {
+			this.updateTitleDescription(this.treeView.description);
 		}
 		this.updateTreeVisibility();
 	}

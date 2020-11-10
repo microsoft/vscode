@@ -120,8 +120,9 @@ export type IAuthenticationProvider = { id: string, scopes: string[] };
 export interface IUserDataSyncStore {
 	readonly url: URI;
 	readonly defaultUrl: URI;
-	readonly stableUrl: URI | undefined;
-	readonly insidersUrl: URI | undefined;
+	readonly stableUrl: URI;
+	readonly insidersUrl: URI;
+	readonly canSwitch: boolean;
 	readonly authenticationProviders: IAuthenticationProvider[];
 }
 
@@ -157,6 +158,7 @@ export type UserDataSyncStoreType = 'insiders' | 'stable';
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
 export interface IUserDataSyncStoreManagementService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeUserDataSyncStore: Event<void>;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	switch(type: UserDataSyncStoreType): Promise<void>;
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
@@ -287,6 +289,11 @@ export interface ISyncExtension {
 	version?: string;
 	disabled?: boolean;
 	installed?: boolean;
+	state?: IStringDictionary<any>;
+}
+
+export interface ISyncExtensionWithVersion extends ISyncExtension {
+	version: string;
 }
 
 export interface IStorageValue {
@@ -347,6 +354,10 @@ export interface IResourcePreview {
 export interface ISyncResourcePreview {
 	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly resourcePreviews: IResourcePreview[];
+}
+
+export interface IUserDataInitializer {
+	initialize(userData: IUserData): Promise<void>;
 }
 
 export interface IUserDataSynchroniser {
@@ -454,13 +465,18 @@ export interface IUserDataSyncService {
 	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 }
 
+export const IUserDataAutoSyncEnablementService = createDecorator<IUserDataAutoSyncEnablementService>('IUserDataAutoSyncEnablementService');
+export interface IUserDataAutoSyncEnablementService {
+	_serviceBrand: any;
+	readonly onDidChangeEnablement: Event<boolean>;
+	isEnabled(): boolean;
+	canToggleEnablement(): boolean;
+}
+
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
-	readonly onDidChangeEnablement: Event<boolean>;
-	isEnabled(): boolean;
-	canToggleEnablement(): boolean;
 	turnOn(): Promise<void>;
 	turnOff(everywhere: boolean): Promise<void>;
 	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void>;

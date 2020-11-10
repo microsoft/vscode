@@ -18,9 +18,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -133,7 +133,19 @@ export class ReleaseNotesManager {
 				return resolvedKeybindings[0].getLabel() || unassigned;
 			};
 
+			const kbCode = (match: string, binding: string) => {
+				const resolved = kb(match, binding);
+				return resolved ? `<code title="${binding}">${resolved}</code>` : resolved;
+			};
+
+			const kbstyleCode = (match: string, binding: string) => {
+				const resolved = kbstyle(match, binding);
+				return resolved ? `<code title="${binding}">${resolved}</code>` : resolved;
+			};
+
 			return text
+				.replace(/`kb\(([a-z.\d\-]+)\)`/gi, kbCode)
+				.replace(/`kbstyle\(([^\)]+)\)`/gi, kbstyleCode)
 				.replace(/kb\(([a-z.\d\-]+)\)/gi, kb)
 				.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
 		};

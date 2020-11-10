@@ -14,10 +14,10 @@ import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import type { Terminal, IViewportRange, ILinkProvider } from 'xterm';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
+import { OperatingSystem, isMacintosh, OS, isWindows } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
 import { TerminalValidatedLocalLinkProvider, lineAndColumnClause, unixLocalLinkClause, winLocalLinkClause, winDrivePrefix, winLineAndColumnMatchIndex, unixLineAndColumnMatchIndex, lineAndColumnClauseGroupCount } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
@@ -34,6 +34,7 @@ export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isVali
 interface IPath {
 	join(...paths: string[]): string;
 	normalize(path: string): string;
+	sep: '\\' | '/';
 }
 
 /**
@@ -191,8 +192,10 @@ export class TerminalLinkManager extends DisposableStore {
 		// Check if it's a file:/// link, hand off to local link handler so to open an editor and
 		// respect line/col attachment
 		const uri = URI.parse(link);
-		if (uri.scheme === 'file') {
-			this._handleLocalLink(uri.fsPath);
+		if (uri.scheme === Schemas.file) {
+			// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
+			const fsPath = uri.fsPath;
+			this._handleLocalLink(((this.osPath.sep === posix.sep) && isWindows) ? fsPath.replace(/\\/g, posix.sep) : fsPath);
 			return;
 		}
 
@@ -296,7 +299,7 @@ export class TerminalLinkManager extends DisposableStore {
 			let uri: URI;
 			if (this._processManager.remoteAuthority) {
 				uri = URI.from({
-					scheme: REMOTE_HOST_SCHEME,
+					scheme: Schemas.vscodeRemote,
 					authority: this._processManager.remoteAuthority,
 					path: linkUrl
 				});

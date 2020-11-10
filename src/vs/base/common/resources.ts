@@ -58,6 +58,11 @@ export interface IExtUri {
 	 */
 	getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
 
+	/**
+	 * Whether the casing of the path-component of the uri should be ignored.
+	 */
+	ignorePathCasing(uri: URI): boolean;
+
 	// --- path math
 
 	basenameOrAuthority(resource: URI): string;
@@ -159,6 +164,10 @@ export class ExtUri implements IExtUri {
 			path: this._ignorePathCasing(uri) ? uri.path.toLowerCase() : undefined,
 			fragment: ignoreFragment ? null : undefined
 		}).toString();
+	}
+
+	ignorePathCasing(uri: URI): boolean {
+		return this._ignorePathCasing(uri);
 	}
 
 	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
@@ -454,15 +463,15 @@ export class ResourceGlobMatcher {
 	}
 }
 
-export function toLocalResource(resource: URI, authority: string | undefined): URI {
+export function toLocalResource(resource: URI, authority: string | undefined, localScheme: string): URI {
 	if (authority) {
 		let path = resource.path;
 		if (path && path[0] !== paths.posix.sep) {
 			path = paths.posix.sep + path;
 		}
 
-		return resource.with({ scheme: Schemas.vscodeRemote, authority, path });
+		return resource.with({ scheme: localScheme, authority, path });
 	}
 
-	return resource.with({ scheme: Schemas.file });
+	return resource.with({ scheme: localScheme });
 }

@@ -70,11 +70,18 @@ class EditorOpener implements IOpener {
 		}
 
 		if (target.scheme === Schemas.file) {
-			target = normalizePath(target); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+			target = normalizePath(target); // workaround for non-normalized paths (https://github.com/microsoft/vscode/issues/12954)
 		}
 
 		await this._editorService.openCodeEditor(
-			{ resource: target, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
+			{
+				resource: target,
+				options: {
+					selection,
+					context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API,
+					...options?.editorOptions
+				}
+			},
 			this._editorService.getFocusedCodeEditor(),
 			options?.openToSide
 		);
@@ -180,7 +187,7 @@ export class OpenerService implements IOpenerService {
 
 	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
 
-		//todo@joh IExternalUriResolver should support `uri: URI | string`
+		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
 		const { resolved } = await this.resolveExternalUri(uri, options);
 

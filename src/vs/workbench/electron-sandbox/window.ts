@@ -10,10 +10,10 @@ import { equals } from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
@@ -27,14 +27,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -44,18 +43,18 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
 import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -63,8 +62,13 @@ import { Event } from 'vs/base/common/event';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 export class NativeWindow extends Disposable {
+
+	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -83,6 +87,7 @@ export class NativeWindow extends Disposable {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITitleService private readonly titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
@@ -95,18 +100,20 @@ export class NativeWindow extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -135,7 +142,7 @@ export class NativeWindow extends Disposable {
 			if (request.from === 'touchbar') {
 				const activeEditor = this.editorService.activeEditor;
 				if (activeEditor) {
-					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+					const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 					if (resource) {
 						args.push(resource);
 					}
@@ -198,7 +205,50 @@ export class NativeWindow extends Disposable {
 			setFullscreen(false);
 		});
 
-		// accessibility support changed event
+		// Proxy Login Dialog
+		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
+			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+			const result = await this.dialogService.input(Severity.Warning, nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
+				[
+					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+				],
+				[
+					{ placeholder: nls.localize('username', "Username"), value: payload.username },
+					{ placeholder: nls.localize('password', "Password"), type: 'password', value: payload.password }
+				],
+				{
+					cancelId: 1,
+					detail: nls.localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					checkbox: {
+						label: nls.localize('rememberCredentials', "Remember my credentials"),
+						checked: rememberCredentials
+					}
+				});
+
+			// Reply back to the channel without result to indicate
+			// that the login dialog was cancelled
+			if (result.choice !== 0 || !result.values) {
+				ipcRenderer.send(payload.replyChannel);
+			}
+
+			// Other reply back with the picked credentials
+			else {
+
+				// Update state based on checkbox
+				if (result.checkboxChecked) {
+					this.storageService.store2(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				} else {
+					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+				}
+
+				// Reply back to main side with credentials
+				const [username, password] = result.values;
+				ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
+			}
+		});
+
+		// Accessibility support changed event
 		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
@@ -225,7 +275,7 @@ export class NativeWindow extends Disposable {
 		// macOS OS integration
 		if (isMacintosh) {
 			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
 				this.updateRepresentedFilename(file?.fsPath);
@@ -242,7 +292,7 @@ export class NativeWindow extends Disposable {
 			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
 				DOM.EventHelper.stop(e);
 
-				this.electronService.handleTitleDoubleClick();
+				this.nativeHostService.handleTitleDoubleClick();
 			}));
 		}
 
@@ -260,23 +310,45 @@ export class NativeWindow extends Disposable {
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronService.windowId), () => true),
-			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronService.windowId), () => false)
+			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
+			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+
+		// Detect panel position to determine minimum width
+		this._register(this.layoutService.onPanelPositionChange(pos => {
+			this.onDidPanelPositionChange(positionFromString(pos));
+		}));
+		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
 		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
 			this.isDocumentedEdited = isDirty;
 
-			this.electronService.setDocumentEdited(isDirty);
+			this.nativeHostService.setDocumentEdited(isDirty);
 		}
 	}
 
 	private onDidChangeMaximized(maximized: boolean): void {
 		this.layoutService.updateWindowMaximizedState(maximized);
+	}
+
+	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
+		// if panel is on the side, then return the larger minwidth
+		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
+		if (panelOnSide) {
+			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
+		}
+		else {
+			return WindowMinimumSize.WIDTH;
+		}
+	}
+
+	private onDidPanelPositionChange(pos: Position): void {
+		const minWidth = this.getWindowMinimumWidth(pos);
+		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
 	private onDidVisibleEditorsChange(): void {
@@ -296,7 +368,7 @@ export class NativeWindow extends Disposable {
 	private onAllEditorsClosed(): void {
 		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
 		if (visibleEditorPanes === 0) {
-			this.electronService.closeWindow();
+			this.nativeHostService.closeWindow();
 		}
 	}
 
@@ -307,7 +379,7 @@ export class NativeWindow extends Disposable {
 		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
 			configuredZoomLevel = windowConfig.window.zoomLevel;
 
-			// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
 			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
 				return;
 			}
@@ -321,7 +393,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private updateRepresentedFilename(filePath: string | undefined): void {
-		this.electronService.setRepresentedFilename(filePath ? filePath : '');
+		this.nativeHostService.setRepresentedFilename(filePath ? filePath : '');
 	}
 
 	private provideCustomTitleContextMenu(filePath: string | undefined): void {
@@ -354,7 +426,7 @@ export class NativeWindow extends Disposable {
 			}
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
-			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.electronService.showItemInFolder(path)));
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path)));
 			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
@@ -370,14 +442,14 @@ export class NativeWindow extends Disposable {
 		this.setupOpenHandlers();
 
 		// Notify main side when window ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.electronService.notifyReady());
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			const isAdmin = await this.electronService.isAdmin();
+			const isAdmin = await this.nativeHostService.isAdmin();
 
 			// Update title
 			this.titleService.updateProperties({ isAdmin });
@@ -402,12 +474,12 @@ export class NativeWindow extends Disposable {
 		// Handle external open() calls
 		this.openerService.setExternalOpener({
 			openExternal: async (href: string) => {
-				const success = await this.electronService.openExternal(href);
+				const success = await this.nativeHostService.openExternal(href);
 				if (!success) {
 					const fileCandidate = URI.parse(href);
 					if (fileCandidate.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await this.electronService.showItemInFolder(fileCandidate.fsPath);
+						await this.nativeHostService.showItemInFolder(fileCandidate.fsPath);
 					}
 				}
 
@@ -421,7 +493,7 @@ export class NativeWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const remoteAuthority = this.environmentService.remoteAuthority;
 						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
 							getAddress: async (): Promise<IAddress> => {
 								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
@@ -457,7 +529,8 @@ export class NativeWindow extends Disposable {
 
 	private doUpdateTouchbarMenu(scheduler: RunOnceScheduler): void {
 		if (!this.touchBarMenu) {
-			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
+			const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
+			this.touchBarMenu = this.menuService.createMenu(MenuId.TouchBarContext, scopedContextKeyService);
 			this.touchBarDisposables.add(this.touchBarMenu);
 			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
@@ -503,7 +576,7 @@ export class NativeWindow extends Disposable {
 		// Only update if the actions have changed
 		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
-			this.electronService.updateTouchBar(items);
+			this.nativeHostService.updateTouchBar(items);
 		}
 	}
 
@@ -593,11 +666,11 @@ class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(
 			menuService,
@@ -646,7 +719,7 @@ class NativeMenubarControl extends MenubarControl {
 		// Send menus to main process to be rendered by Electron
 		const menubarData = { menus: {}, keybindings: {} };
 		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.electronService.windowId, menubarData);
+			this.menubarService.updateMenubar(this.nativeHostService.windowId, menubarData);
 		}
 	}
 

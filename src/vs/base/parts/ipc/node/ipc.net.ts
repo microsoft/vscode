@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
@@ -13,6 +14,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISocket, Protocol, Client, ChunkStream } from 'vs/base/parts/ipc/common/ipc.net';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Platform, platform } from 'vs/base/common/platform';
 
 export class NodeSocket implements ISocket {
 	public readonly socket: Socket;
@@ -296,13 +298,67 @@ function unmask(buffer: VSBuffer, mask: number): void {
 	}
 }
 
-export function generateRandomPipeName(): string {
+// Read this before there's any chance it is overwritten
+// Related to https://github.com/microsoft/vscode/issues/30624
+export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
+
+const safeIpcPathLengths: { [platform: number]: number } = {
+	[Platform.Linux]: 107,
+	[Platform.Mac]: 103
+};
+
+export function createRandomIPCHandle(): string {
 	const randomSuffix = generateUuid();
+
+	// Windows: use named pipe
 	if (process.platform === 'win32') {
 		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
+	}
+
+	// Mac/Unix: use socket file and prefer
+	// XDG_RUNTIME_DIR over tmpDir
+	let result: string;
+	if (XDG_RUNTIME_DIR) {
+		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
 	} else {
-		// Mac/Unix: use socket file
-		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
+		result = join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
+	}
+
+	// Validate length
+	validateIPCHandleLength(result);
+
+	return result;
+}
+
+export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
+	const scope = createHash('md5').update(directoryPath).digest('hex');
+
+	// Windows: use named pipe
+	if (process.platform === 'win32') {
+		return `\\\\.\\pipe\\${scope}-${version}-${type}-sock`;
+	}
+
+	// Mac/Unix: use socket file and prefer
+	// XDG_RUNTIME_DIR over user data path
+	// unless portable
+	let result: string;
+	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
+		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
+	} else {
+		result = join(directoryPath, `${version}-${type}.sock`);
+	}
+
+	// Validate length
+	validateIPCHandleLength(result);
+
+	return result;
+}
+
+function validateIPCHandleLength(handle: string): void {
+	const limit = safeIpcPathLengths[platform];
+	if (typeof limit === 'number' && handle.length >= limit) {
+		// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
+		console.warn(`WARNING: IPC handle "${handle}" is longer than ${limit} chars, try a shorter --user-data-dir`);
 	}
 }
 

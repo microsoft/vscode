@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
@@ -16,7 +16,7 @@ import { ITextCellEditingDelegate } from 'vs/workbench/contrib/notebook/common/m
 
 export interface IViewCellEditingDelegate extends ITextCellEditingDelegate {
 	createCellViewModel?(cell: NotebookCellTextModel): BaseCellViewModel;
-	createCell?(index: number, source: string | string[], language: string, type: CellKind): BaseCellViewModel;
+	createCell?(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IProcessedOutput[]): BaseCellViewModel;
 }
 
 export class JoinCellEdit implements IResourceUndoRedoElement {
@@ -72,65 +72,5 @@ export class JoinCellEdit implements IResourceUndoRedoElement {
 
 		this.editingDelegate.deleteCell(this.index, [this.cell.handle]);
 		this.cell.focusMode = CellFocusMode.Editor;
-	}
-}
-
-
-export class SplitCellEdit implements IResourceUndoRedoElement {
-	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Join Cell';
-	constructor(
-		public resource: URI,
-		private index: number,
-		private cell: BaseCellViewModel,
-		private selections: Selection[],
-		private cellContents: string[],
-		private language: string,
-		private cellKind: CellKind,
-		private editingDelegate: IViewCellEditingDelegate
-	) {
-
-	}
-
-	async undo(): Promise<void> {
-		if (!this.editingDelegate.deleteCell) {
-			throw new Error('Notebook Delete Cell not implemented for Undo/Redo');
-		}
-
-		await this.cell.resolveTextModel();
-		this.cell.textModel!.applyEdits([
-			{
-				range: this.cell.textModel!.getFullModelRange(),
-				text: this.cellContents.join('')
-			}
-		]);
-		this.cell.setSelections(this.selections);
-
-		for (let j = 1; j < this.cellContents.length; j++) {
-			this.editingDelegate.deleteCell(this.index + 1, j === this.cellContents.length - 1 ? [this.cell.handle] : undefined);
-		}
-
-		this.cell.focusMode = CellFocusMode.Editor;
-	}
-
-	async redo(): Promise<void> {
-		if (!this.editingDelegate.createCell) {
-			throw new Error('Notebook Insert Cell not implemented for Undo/Redo');
-		}
-
-		await this.cell.resolveTextModel();
-		this.cell.textModel!.applyEdits([
-			{ range: this.cell.textModel!.getFullModelRange(), text: this.cellContents[0] }
-		], false);
-
-		let insertIndex = this.index + 1;
-		let lastCell;
-		for (let j = 1; j < this.cellContents.length; j++, insertIndex++) {
-			lastCell = this.editingDelegate.createCell(insertIndex, this.cellContents[j], this.language, this.cellKind);
-		}
-
-		if (lastCell) {
-			lastCell.focusMode = CellFocusMode.Editor;
-		}
 	}
 }

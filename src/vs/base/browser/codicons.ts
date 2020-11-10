@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderCodiconsRegex } from 'vs/base/common/codicons';
 
-export function renderCodiconsAsElement(text: string): Array<HTMLSpanElement | string> {
+const renderCodiconsRegex = /(\\)?\$\((([a-z0-9\-]+?)(?:~([a-z0-9\-]*?))?)\)/gi;
+
+export function renderCodicons(text: string): Array<HTMLSpanElement | string> {
 	const elements = new Array<HTMLSpanElement | string>();
 	let match: RegExpMatchArray | null;
 
@@ -17,11 +18,15 @@ export function renderCodiconsAsElement(text: string): Array<HTMLSpanElement | s
 		textStart = (match.index || 0) + match[0].length;
 
 		const [, escaped, codicon, name, animation] = match;
-		elements.push(escaped ? `$(${codicon})` : dom.$(`span.codicon.codicon-${name}${animation ? `.codicon-animation-${animation}` : ''}`));
+		elements.push(escaped ? `$(${codicon})` : renderCodicon(name, animation));
 	}
 
 	if (textStart < text.length) {
 		elements.push(text.substring(textStart));
 	}
 	return elements;
+}
+
+export function renderCodicon(name: string, animation: string): HTMLSpanElement {
+	return dom.$(`span.codicon.codicon-${name}${animation ? `.codicon-animation-${animation}` : ''}`);
 }

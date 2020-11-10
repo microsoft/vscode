@@ -5,8 +5,8 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 
@@ -28,6 +28,15 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 	}
 
+	dispose() {
+		super.dispose();
+
+		dispose(this._webviewViewProviders.values());
+		this._webviewViewProviders.clear();
+
+		dispose(this._webviewViews.values());
+	}
+
 	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
 		const webviewView = this.getWebviewView(handle);
 		webviewView.title = value;
@@ -43,12 +52,18 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		webviewView.show(preserveFocus);
 	}
 
-	public $registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void {
+	public $registerWebviewViewProvider(
+		extensionData: extHostProtocol.WebviewExtensionDescription,
+		viewType: string,
+		options?: { retainContextWhenHidden?: boolean }
+	): void {
 		if (this._webviewViewProviders.has(viewType)) {
 			throw new Error(`View provider for ${viewType} already registered`);
 		}
 
-		this._webviewViewService.register(viewType, {
+		const extension = reviveWebviewExtension(extensionData);
+
+		const registration = this._webviewViewService.register(viewType, {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
 				const handle = webviewView.webview.id;
 
@@ -64,6 +79,8 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 					}
 				}
 
+				webviewView.webview.extension = extension;
+
 				if (options) {
 					webviewView.webview.options = options;
 				}
@@ -78,13 +95,15 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 				});
 
 				try {
-					await this._proxy.$resolveWebviewView(handle, viewType, state, cancellation);
+					await this._proxy.$resolveWebviewView(handle, viewType, webviewView.title, state, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewView.webview.html = this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
 				}
 			}
 		});
+
+		this._webviewViewProviders.set(viewType, registration);
 	}
 
 	public $unregisterWebviewViewProvider(viewType: string): void {

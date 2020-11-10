@@ -349,7 +349,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 							term1Write.fire('write1');
 
 							// Wait until the data is written
-							await new Promise(resolve => { resolveOnceDataWritten = resolve; });
+							await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
 
 							term1Close.fire();
 

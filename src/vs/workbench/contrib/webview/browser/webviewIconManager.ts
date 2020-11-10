@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class WebviewIconManager {
@@ -61,6 +61,6 @@ export class WebviewIconManager {
 				}
 			}
 		}
-		this._styleElement.innerHTML = cssRules.join('\n');
+		this._styleElement.textContent = cssRules.join('\n');
 	}
 }

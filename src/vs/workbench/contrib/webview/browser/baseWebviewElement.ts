@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -15,7 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -83,7 +82,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		public readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		public extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
@@ -103,9 +102,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
 			this._logService.debug(`Webview(${this.id}): webview ready`);
 
-			if (this.element) {
-				addClass(this.element, 'ready');
-			}
+			this.element?.classList.add('ready');
 
 			if (this._state.type === WebviewState.Type.Initializing) {
 				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
@@ -171,8 +168,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		if (this.element) {
 			this.element.remove();
 		}
-
 		this._element = undefined;
+
+		this._onDidDispose.fire();
+
 		super.dispose();
 	}
 
@@ -202,6 +201,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur = this._onDidBlur.event;
+
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this._onDidDispose.event;
 
 	public postMessage(data: any): void {
 		this._send('message', data);

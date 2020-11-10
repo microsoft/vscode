@@ -17,9 +17,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -27,7 +26,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isMacintosh } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
@@ -40,7 +39,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService contextService: WorkspaceService,
-		@IElectronService private electronService: IElectronService,
+		@INativeHostService private nativeHostService: INativeHostService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private extensionService: IExtensionService,
@@ -50,7 +49,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService protected dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -82,7 +81,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // only care about untitled workspaces to ask for saving
 		}
 
-		const windowCount = await this.electronService.getWindowCount();
+		const windowCount = await this.nativeHostService.getWindowCount();
 		if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
@@ -144,7 +143,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
-		const windows = await this.electronService.getWindows();
+		const windows = await this.nativeHostService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => !!window.workspace && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, path))) {
@@ -171,14 +170,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			await this.migrateStorage(result.workspace);
 
 			// Reinitialize backup service
-			this.environmentService.configuration.backupPath = result.backupPath;
+			this.environmentService.updateBackupPath(result.backupPath);
 			if (this.backupFileService instanceof BackupFileService) {
 				this.backupFileService.reinitialize();
 			}
 		}
 
 		// TODO@aeschli: workaround until restarting works
-		if (this.environmentService.configuration.remoteAuthority) {
+		if (this.environmentService.remoteAuthority) {
 			this.hostService.reload();
 		}
 

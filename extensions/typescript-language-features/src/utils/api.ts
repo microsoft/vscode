@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class API {
-	private static fromSimpleString(value: string): API {
+	public static fromSimpleString(value: string): API {
 		return new API(value, value, value);
 	}
 

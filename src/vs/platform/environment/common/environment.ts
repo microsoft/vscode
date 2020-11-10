@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+export const INativeEnvironmentService = createDecorator<INativeEnvironmentService>('nativeEnvironmentService');
 
 export interface IDebugParams {
 	port: number | null;
@@ -25,13 +26,18 @@ export interface IExtensionHostDebugParams extends IDebugParams {
  */
 export interface IEnvironmentService {
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
-	//       - PUT NON-WEB PROPERTIES INTO NATIVE ENV SERVICE
-	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 	readonly _serviceBrand: undefined;
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
 	userRoamingDataHome: URI;
@@ -43,15 +49,13 @@ export interface IEnvironmentService {
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 
 	// --- settings sync
-	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
+	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
-	enableSyncByDefault: boolean;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -66,15 +70,21 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	isBuilt: boolean;
 
-	// --- misc
+	// --- telemetry
 	disableTelemetry: boolean;
+	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
-	//       - PUT NON-WEB PROPERTIES INTO NATIVE ENV SERVICE
-	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 /**
@@ -83,10 +93,15 @@ export interface IEnvironmentService {
  */
 export interface INativeEnvironmentService extends IEnvironmentService {
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
-	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- CLI Arguments
 	args: NativeParsedArgs;
@@ -95,15 +110,12 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
+	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
-	backupHome: string;
-	backupWorkspacesPath: string;
-	nodeCachedDataDir?: string;
 	installSourcePath: string;
 
 	// --- IPC Handles
-	mainIPCHandle: string;
 	sharedIPCHandle: string;
 
 	// --- Extensions
@@ -113,14 +125,15 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- Smoke test support
 	driverHandle?: string;
-	driverVerbose: boolean;
 
-	// --- Misc. config
-	disableUpdates: boolean;
-	sandbox: boolean;
-
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
-	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }

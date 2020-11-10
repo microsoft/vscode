@@ -10,9 +10,8 @@ import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/ba
 import { Action, IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
 import { basename } from 'vs/base/common/resources';
@@ -20,7 +19,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { reset } from 'vs/base/browser/dom';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
-	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
+	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
 
 export function isSCMInput(element: any): element is ISCMInput {
@@ -75,10 +74,10 @@ export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: Acti
 	}, g => /^inline/.test(g));
 }
 
-export function collectContextMenuActions(menu: IMenu, contextMenuService: IContextMenuService): [IAction[], IDisposable] {
+export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable] {
 	const primary: IAction[] = [];
 	const actions: IAction[] = [];
-	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, contextMenuService, g => /^inline/.test(g));
+	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, g => /^inline/.test(g));
 	return [actions, disposable];
 }
 
@@ -105,7 +104,7 @@ export class StatusBarActionViewItem extends ActionViewItem {
 
 	updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderCodiconsAsElement(this.getAction().label));
+			reset(this.label, ...renderCodicons(this.getAction().label));
 		}
 	}
 }

@@ -14,7 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { EventType, $, removeNode, isHTMLElement } from 'vs/base/browser/dom';
+import { EventType, $, isHTMLElement } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -132,7 +132,7 @@ export class ContextMenuHandler {
 				}
 
 				if (this.block) {
-					removeNode(this.block);
+					this.block.remove();
 					this.block = null;
 				}
 

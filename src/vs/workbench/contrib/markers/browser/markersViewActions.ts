@@ -183,7 +183,8 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			{
 				actionRunner,
 				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+				menuAsChild: true
 			}
 		);
 	}
@@ -392,7 +393,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private updateBadge(): void {
 		if (this.filterBadge) {
 			const { total, filtered } = this.filterController.getFilterStats();
-			this.filterBadge.classList.toggle('hidden', total === filtered || filtered === 0);
+			this.filterBadge.classList.toggle('hidden', total === filtered || total === 0);
 			this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 			this.adjustInputBox();
 		}

@@ -27,8 +27,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-const developerCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -36,7 +35,7 @@ class InspectContextKeysAction extends Action2 {
 		super({
 			id: 'workbench.action.inspectContextKeys',
 			title: { value: nls.localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -98,7 +97,7 @@ class ToggleScreencastModeAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
 			title: { value: nls.localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -243,7 +242,7 @@ class LogStorageAction extends Action2 {
 		super({
 			id: 'workbench.action.logStorage',
 			title: { value: nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -259,7 +258,7 @@ class LogWorkingCopiesAction extends Action2 {
 		super({
 			id: 'workbench.action.logWorkingCopies',
 			title: { value: nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -285,8 +284,9 @@ registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 
+// --- Configuration
 
-// Screencast Mode
+// Screen Cast Mode
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'screencastMode',

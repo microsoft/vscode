@@ -12,7 +12,6 @@ import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyCodiconAware, parseCodicons } from 'vs/base/common/codicon';
 import { compareAnything } from 'vs/base/common/comparers';
 import { Emitter, Event } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -73,7 +72,7 @@ class ListElement implements IListElement, IDisposable {
 	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
-		assign(this, init);
+		Object.assign(this, init);
 	}
 
 	dispose() {
@@ -180,11 +179,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		} else {
 			data.separator.style.display = 'none';
 		}
-		if (element.separator) {
-			dom.addClass(data.entry, 'quick-input-list-separator-border');
-		} else {
-			dom.removeClass(data.entry, 'quick-input-list-separator-border');
-		}
+		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
 
 		// Actions
 		data.actionBar.clear();
@@ -205,9 +200,9 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				action.tooltip = button.tooltip || '';
 				return action;
 			}), { icon: true, label: false });
-			dom.addClass(data.entry, 'has-actions');
+			data.entry.classList.add('has-actions');
 		} else {
-			dom.removeClass(data.entry, 'has-actions');
+			data.entry.classList.remove('has-actions');
 		}
 	}
 

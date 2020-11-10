@@ -135,7 +135,14 @@ export interface ITerminalConfiguration {
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
+	localEchoLatencyThreshold: number;
+	localEchoExcludePrograms: ReadonlyArray<string>;
+	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
+	serverSpawn: boolean;
+	enablePersistentSessions: boolean;
 }
+
+export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
@@ -161,6 +168,15 @@ export interface ITerminalFont {
 
 export interface ITerminalEnvironment {
 	[key: string]: string | null;
+}
+
+export interface IRemoteTerminalAttachTarget {
+	id: number;
+	pid: number;
+	title: string;
+	cwd: string;
+	workspaceId: string;
+	workspaceName: string;
 }
 
 export interface IShellLaunchConfig {
@@ -216,6 +232,11 @@ export interface IShellLaunchConfig {
 	isExtensionTerminal?: boolean;
 
 	/**
+	 * This is a terminal that attaches to an already running remote terminal.
+	 */
+	remoteAttach?: { id: number; pid: number; title: string; cwd: string; };
+
+	/**
 	 * Whether the terminal process environment should be exactly as provided in
 	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 	 * window's environment and also apply configured platform settings like
@@ -232,6 +253,12 @@ export interface IShellLaunchConfig {
 	 * as normal.
 	 */
 	hideFromUser?: boolean;
+
+	/**
+	 * Whether this terminal is not a terminal that the user directly created and uses, but rather
+	 * a terminal used to drive some VS Code feature.
+	 */
+	isFeatureTerminal?: boolean;
 }
 
 /**
@@ -266,6 +293,13 @@ export interface ITerminalDimensions {
 	readonly rows: number;
 }
 
+export interface ITerminalDimensionsOverride extends ITerminalDimensions {
+	/**
+	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
+	 */
+	forceExactSize?: boolean;
+}
+
 export interface ICommandTracker {
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
@@ -289,6 +323,11 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
+export interface IProcessDataEvent {
+	data: string;
+	sync: boolean;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
@@ -300,10 +339,10 @@ export interface ITerminalProcessManager extends IDisposable {
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
-	readonly onProcessData: Event<string>;
+	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessTitle: Event<string>;
 	readonly onProcessExit: Event<number | undefined>;
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
+	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
@@ -414,11 +453,11 @@ export interface ITerminalLaunchError {
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
-	onProcessData: Event<string>;
+	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 
 	/**
@@ -507,7 +546,8 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
 	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation',
-	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace'
+	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace',
+	ATTACH_TO_REMOTE_TERMINAL = 'workbench.action.terminal.attachToSession'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

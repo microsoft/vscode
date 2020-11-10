@@ -30,6 +30,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
 
+	private _extension: WebviewExtensionDescription | undefined;
 	private _contentOptions: WebviewContentOptions;
 	private _options: WebviewOptions;
 
@@ -42,13 +43,14 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		public readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		extension: WebviewExtensionDescription | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
+		this._extension = extension;
 		this._options = initialOptions;
 		this._contentOptions = initialContentOptions;
 
@@ -59,12 +61,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		return !!this._webview.value?.isFocused;
 	}
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	public onDispose = this._onDispose.event;
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	public onDidDispose = this._onDidDispose.event;
 
 	dispose() {
 		this.container.remove();
-		this._onDispose.fire();
+		this._onDidDispose.fire();
 		super.dispose();
 	}
 
@@ -106,6 +108,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		const frameRect = element.getBoundingClientRect();
 		const containerRect = this.container.parentElement.getBoundingClientRect();
 		this.container.style.position = 'absolute';
+		this.container.style.overflow = 'hidden';
 		this.container.style.top = `${frameRect.top - containerRect.top}px`;
 		this.container.style.left = `${frameRect.left - containerRect.left}px`;
 		this.container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
@@ -172,6 +175,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	public set state(value: string | undefined) {
 		this._state = value;
 		this.withWebview(webview => webview.state = value);
+	}
+
+	public get extension(): WebviewExtensionDescription | undefined { return this._extension; }
+	public set extension(value: WebviewExtensionDescription | undefined) {
+		this._extension = value;
+		this.withWebview(webview => webview.extension = value);
 	}
 
 	public get options(): WebviewOptions { return this._options; }

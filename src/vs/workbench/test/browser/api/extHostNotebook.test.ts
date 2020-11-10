@@ -77,6 +77,7 @@ suite('NotebookCell#Document', function () {
 					cellKind: CellKind.Code,
 					outputs: [],
 				}],
+				contentOptions: { transientMetadata: {}, transientOutputs: false }
 			}],
 			addedEditors: [{
 				documentUri: notebookUri,
@@ -160,25 +161,29 @@ suite('NotebookCell#Document', function () {
 		});
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
-			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.notebookDocument.version + 1,
-			changes: [[0, 0, [{
-				handle: 2,
-				uri: CellUri.generate(notebookUri, 2),
-				source: ['Hello', 'World', 'Hello World!'],
-				eol: '\n',
-				language: 'test',
-				cellKind: CellKind.Code,
-				outputs: [],
-			}, {
-				handle: 3,
-				uri: CellUri.generate(notebookUri, 3),
-				source: ['Hallo', 'Welt', 'Hallo Welt!'],
-				eol: '\n',
-				language: 'test',
-				cellKind: CellKind.Code,
-				outputs: [],
-			}]]]
+			rawEvents: [
+				{
+					kind: NotebookCellsChangeType.ModelChange,
+					changes: [[0, 0, [{
+						handle: 2,
+						uri: CellUri.generate(notebookUri, 2),
+						source: ['Hello', 'World', 'Hello World!'],
+						eol: '\n',
+						language: 'test',
+						cellKind: CellKind.Code,
+						outputs: [],
+					}, {
+						handle: 3,
+						uri: CellUri.generate(notebookUri, 3),
+						source: ['Hallo', 'Welt', 'Hallo Welt!'],
+						eol: '\n',
+						language: 'test',
+						cellKind: CellKind.Code,
+						outputs: [],
+					}]]]
+				}
+			]
 		}, false);
 
 		await p;
@@ -232,9 +237,13 @@ suite('NotebookCell#Document', function () {
 		const [cell1, cell2] = notebook.notebookDocument.cells;
 
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
-			kind: NotebookCellsChangeType.ModelChange,
 			versionId: 2,
-			changes: [[0, 1, []]]
+			rawEvents: [
+				{
+					kind: NotebookCellsChangeType.ModelChange,
+					changes: [[0, 1, []]]
+				}
+			]
 		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1);
@@ -248,5 +257,52 @@ suite('NotebookCell#Document', function () {
 		for (let cells of notebook.notebookDocument.cells) {
 			assert.equal(cells.document.notebook === notebook.notebookDocument, true);
 		}
+	});
+
+	test('cell#index', function () {
+
+		assert.equal(notebook.notebookDocument.cells.length, 2);
+		const [first, second] = notebook.notebookDocument.cells;
+		assert.equal(first.index, 0);
+		assert.equal(second.index, 1);
+
+		// remove first cell
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			versionId: notebook.notebookDocument.version + 1,
+			rawEvents: [{
+				kind: NotebookCellsChangeType.ModelChange,
+				changes: [[0, 1, []]]
+			}]
+		}, false);
+
+		assert.equal(notebook.notebookDocument.cells.length, 1);
+		assert.equal(second.index, 0);
+
+		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			versionId: notebook.notebookDocument.version + 1,
+			rawEvents: [{
+				kind: NotebookCellsChangeType.ModelChange,
+				changes: [[0, 0, [{
+					handle: 2,
+					uri: CellUri.generate(notebookUri, 2),
+					source: ['Hello', 'World', 'Hello World!'],
+					eol: '\n',
+					language: 'test',
+					cellKind: CellKind.Code,
+					outputs: [],
+				}, {
+					handle: 3,
+					uri: CellUri.generate(notebookUri, 3),
+					source: ['Hallo', 'Welt', 'Hallo Welt!'],
+					eol: '\n',
+					language: 'test',
+					cellKind: CellKind.Code,
+					outputs: [],
+				}]]]
+			}]
+		}, false);
+
+		assert.equal(notebook.notebookDocument.cells.length, 3);
+		assert.equal(second.index, 2);
 	});
 });

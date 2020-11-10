@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -73,10 +73,18 @@ export class LaunchMainService implements ILaunchMainService {
 	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
-		// Since we now start to open a window, make sure the app has focus.
-		// Focussing a window will not ensure that the application itself
-		// has focus, so we use the `steal: true` hint to force focus.
-		app.focus({ steal: true });
+		// macOS: Electron > 7.x changed its behaviour to not
+		// bring the application to the foreground when a window
+		// is focused programmatically. Only via `app.focus` and
+		// the option `steal: true` can you get the previous
+		// behaviour back. The only reason to use this option is
+		// when a window is getting focused while the application
+		// is not in the foreground and since we got instructed
+		// to open a new window from another instance, we ensure
+		// that the app has focus.
+		if (isMacintosh) {
+			app.focus({ steal: true });
+		}
 
 		// Check early for open-url which is handled in URL service
 		const urlsToOpen = parseOpenUrl(args);
@@ -230,7 +238,7 @@ export class LaunchMainService implements ILaunchMainService {
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
 		const windows = this.windowsMainService.getWindows();
 		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
-			return new Promise((resolve, reject) => {
+			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
 				const remoteAuthority = window.remoteAuthority;
 				if (remoteAuthority) {
 					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
@@ -254,7 +262,7 @@ export class LaunchMainService implements ILaunchMainService {
 						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
 					}, 5000);
 				} else {
-					resolve();
+					resolve(undefined);
 				}
 			});
 		});

@@ -8,7 +8,6 @@ import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
 import * as nls from 'vs/nls';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, IMenuStyles, Direction } from 'vs/base/browser/ui/menu/menu';
@@ -16,7 +15,7 @@ import { ActionRunner, IAction, IActionRunner, SubmenuAction, Separator } from '
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, ResolvedKeybinding, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
@@ -100,7 +99,7 @@ export class MenuBar extends Disposable {
 
 		this.container.setAttribute('role', 'menubar');
 		if (this.options.compactMode !== undefined) {
-			DOM.addClass(this.container, 'compact');
+			this.container.classList.add('compact');
 		}
 
 		this.menuCache = [];
@@ -120,7 +119,7 @@ export class MenuBar extends Disposable {
 			this.setUnfocusedState();
 		}));
 
-		this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+		this._register(DOM.ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
@@ -425,12 +424,12 @@ export class MenuBar extends Disposable {
 		super.dispose();
 
 		this.menuCache.forEach(menuBarMenu => {
-			DOM.removeNode(menuBarMenu.titleElement);
-			DOM.removeNode(menuBarMenu.buttonElement);
+			menuBarMenu.titleElement.remove();
+			menuBarMenu.buttonElement.remove();
 		});
 
-		DOM.removeNode(this.overflowMenu.titleElement);
-		DOM.removeNode(this.overflowMenu.buttonElement);
+		this.overflowMenu.titleElement.remove();
+		this.overflowMenu.buttonElement.remove();
 
 		dispose(this.overflowLayoutScheduled);
 		this.overflowLayoutScheduled = undefined;
@@ -509,7 +508,7 @@ export class MenuBar extends Disposable {
 			}
 
 			if (this.overflowMenu.buttonElement.nextElementSibling !== this.menuCache[this.numMenusShown].buttonElement) {
-				DOM.removeNode(this.overflowMenu.buttonElement);
+				this.overflowMenu.buttonElement.remove();
 				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
 				this.overflowMenu.buttonElement.style.visibility = 'visible';
 			}
@@ -520,7 +519,7 @@ export class MenuBar extends Disposable {
 				this.overflowMenu.actions.push(...compactMenuActions);
 			}
 		} else {
-			DOM.removeNode(this.overflowMenu.buttonElement);
+			this.overflowMenu.buttonElement.remove();
 			this.container.appendChild(this.overflowMenu.buttonElement);
 			this.overflowMenu.buttonElement.style.visibility = 'hidden';
 		}
@@ -532,25 +531,31 @@ export class MenuBar extends Disposable {
 		// Update the button label to reflect mnemonics
 
 		if (this.options.enableMnemonics) {
-			let innerHtml = strings.escape(label);
+			let cleanLabel = strings.escape(label);
 
 			// This is global so reset it
 			MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
-			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 
 			// We can't use negative lookbehind so we match our negative and skip
 			while (escMatch && escMatch[1]) {
-				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 			}
+
+			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				innerHtml = `${innerHtml.substr(0, escMatch.index)}<mnemonic aria-hidden="true">${escMatch[3]}</mnemonic>${innerHtml.substr(escMatch.index + escMatch[0].length)}`;
+				titleElement.innerText = '';
+				titleElement.append(
+					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
+					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
+					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
+				);
+			} else {
+				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
 			}
-
-			innerHtml = innerHtml.replace(/&amp;&amp;/g, '&amp;');
-			titleElement.innerHTML = innerHtml;
 		} else {
-			titleElement.innerHTML = cleanMenuLabel.replace(/&&/g, '&');
+			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
@@ -854,8 +859,8 @@ export class MenuBar extends Disposable {
 		}
 	}
 
-	private onModifierKeyToggled(modifierKeyStatus: IModifierKeyStatus): void {
-		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey;
+	private onModifierKeyToggled(modifierKeyStatus: DOM.IModifierKeyStatus): void {
+		const allModifiersReleased = !modifierKeyStatus.altKey && !modifierKeyStatus.ctrlKey && !modifierKeyStatus.shiftKey && !modifierKeyStatus.metaKey;
 
 		if (this.options.visibility === 'hidden') {
 			return;
@@ -917,7 +922,7 @@ export class MenuBar extends Disposable {
 
 			if (this.focusedMenu.holder) {
 				if (this.focusedMenu.holder.parentElement) {
-					DOM.removeClass(this.focusedMenu.holder.parentElement, 'open');
+					this.focusedMenu.holder.parentElement.classList.remove('open');
 				}
 
 				this.focusedMenu.holder.remove();
@@ -941,18 +946,20 @@ export class MenuBar extends Disposable {
 
 		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
 
-		DOM.addClass(customMenu.buttonElement, 'open');
+		customMenu.buttonElement.classList.add('open');
+
+		const buttonBoundingRect = customMenu.buttonElement.getBoundingClientRect();
 
 		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `0px`;
-			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left + this.container.clientWidth}px`;
+			menuHolder.style.top = `${buttonBoundingRect.top}px`;
+			menuHolder.style.left = `${buttonBoundingRect.left + this.container.clientWidth}px`;
 		} else if (this.options.compactMode === Direction.Left) {
-			menuHolder.style.top = `0px`;
+			menuHolder.style.top = `${buttonBoundingRect.top}px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
 			menuHolder.style.top = `${this.container.clientHeight}px`;
-			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+			menuHolder.style.left = `${buttonBoundingRect.left}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
@@ -986,121 +993,5 @@ export class MenuBar extends Disposable {
 			holder: menuHolder,
 			widget: menuWidget
 		};
-	}
-}
-
-type ModifierKey = 'alt' | 'ctrl' | 'shift';
-
-interface IModifierKeyStatus {
-	altKey: boolean;
-	shiftKey: boolean;
-	ctrlKey: boolean;
-	lastKeyPressed?: ModifierKey;
-	lastKeyReleased?: ModifierKey;
-	event?: KeyboardEvent;
-}
-
-
-class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
-
-	private readonly _subscriptions = new DisposableStore();
-	private _keyStatus: IModifierKeyStatus;
-	private static instance: ModifierKeyEmitter;
-
-	private constructor() {
-		super();
-
-		this._keyStatus = {
-			altKey: false,
-			shiftKey: false,
-			ctrlKey: false
-		};
-
-		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
-			const event = new StandardKeyboardEvent(e);
-
-			if (e.altKey && !this._keyStatus.altKey) {
-				this._keyStatus.lastKeyPressed = 'alt';
-			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
-				this._keyStatus.lastKeyPressed = 'ctrl';
-			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
-				this._keyStatus.lastKeyPressed = 'shift';
-			} else if (event.keyCode !== KeyCode.Alt) {
-				this._keyStatus.lastKeyPressed = undefined;
-			} else {
-				return;
-			}
-
-			this._keyStatus.altKey = e.altKey;
-			this._keyStatus.ctrlKey = e.ctrlKey;
-			this._keyStatus.shiftKey = e.shiftKey;
-
-			if (this._keyStatus.lastKeyPressed) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
-			}
-		}));
-
-		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
-			if (!e.altKey && this._keyStatus.altKey) {
-				this._keyStatus.lastKeyReleased = 'alt';
-			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
-				this._keyStatus.lastKeyReleased = 'ctrl';
-			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
-				this._keyStatus.lastKeyReleased = 'shift';
-			} else {
-				this._keyStatus.lastKeyReleased = undefined;
-			}
-
-			if (this._keyStatus.lastKeyPressed !== this._keyStatus.lastKeyReleased) {
-				this._keyStatus.lastKeyPressed = undefined;
-			}
-
-			this._keyStatus.altKey = e.altKey;
-			this._keyStatus.ctrlKey = e.ctrlKey;
-			this._keyStatus.shiftKey = e.shiftKey;
-
-			if (this._keyStatus.lastKeyReleased) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
-			}
-		}));
-
-		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-		}));
-
-		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-		}));
-
-		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
-			if (e.buttons) {
-				this._keyStatus.lastKeyPressed = undefined;
-			}
-		}));
-
-		this._subscriptions.add(domEvent(window, 'blur')(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-			this._keyStatus.lastKeyReleased = undefined;
-			this._keyStatus.altKey = false;
-			this._keyStatus.shiftKey = false;
-			this._keyStatus.shiftKey = false;
-
-			this.fire(this._keyStatus);
-		}));
-	}
-
-	static getInstance() {
-		if (!ModifierKeyEmitter.instance) {
-			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
-		}
-
-		return ModifierKeyEmitter.instance;
-	}
-
-	dispose() {
-		super.dispose();
-		this._subscriptions.dispose();
 	}
 }

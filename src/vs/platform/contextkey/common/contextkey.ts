@@ -884,6 +884,10 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 			}
 		}
 
+		if (expr.length === 1) {
+			return expr[0];
+		}
+
 		return new ContextKeyAndExpr(expr);
 	}
 
@@ -1134,6 +1138,8 @@ export interface IContextKeyService {
 
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
 	getContext(target: IContextKeyServiceTarget | null): IContext;
+
+	updateParent(parentContextKeyService: IContextKeyService): void;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

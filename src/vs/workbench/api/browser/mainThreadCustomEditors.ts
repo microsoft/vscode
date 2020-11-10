@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/co
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
+import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
@@ -29,12 +30,13 @@ import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/brow
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -153,7 +155,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				webviewInput.webview.onDispose(() => {
+				webviewInput.webview.onDidDispose(() => {
 					// If the model is still dirty, make sure we have time to save it
 					if (modelRef.object.isDirty()) {
 						const sub = modelRef.object.onDidChangeDirty(() => {
@@ -314,6 +316,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IPathService private readonly _pathService: IPathService
 	) {
 		super();
 
@@ -344,10 +347,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	private static toWorkingCopyResource(viewType: string, resource: URI) {
+		const authority = viewType.replace(/[^a-z0-9\-_]/gi, '-');
+		const path = `/${multibyteAwareBtoa(resource.with({ query: null, fragment: null }).toString(true))}`;
 		return URI.from({
 			scheme: Schemas.vscodeCustomEditor,
-			authority: viewType,
-			path: resource.path,
+			authority: authority,
+			path: path,
 			query: JSON.stringify(resource.toJSON()),
 		});
 	}
@@ -357,7 +362,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public get capabilities(): WorkingCopyCapabilities {
-		return WorkingCopyCapabilities.None;
+		return this.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 	}
 
 	public isDirty(): boolean {
@@ -368,6 +373,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return this._savePoint !== this._currentEditIndex;
 		}
 		return this._fromBackup;
+	}
+
+	private isUntitled() {
+		return this._editorResource.scheme === Schemas.untitled;
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
@@ -499,7 +508,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return undefined;
 		}
 
-		if (this._editorResource.scheme === Schemas.untitled) {
+		if (this.isUntitled()) {
 			const targetUri = await this.suggestUntitledSavePath(options);
 			if (!targetUri) {
 				return undefined;
@@ -513,29 +522,32 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this._ongoingSave?.cancel();
 		this._ongoingSave = savePromise;
 
-		this.change(() => {
-			this._isDirtyFromContentChange = false;
-			this._savePoint = this._currentEditIndex;
-			this._fromBackup = false;
-		});
-
 		try {
 			await savePromise;
+
+			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
+				this.change(() => {
+					this._isDirtyFromContentChange = false;
+					this._savePoint = this._currentEditIndex;
+					this._fromBackup = false;
+				});
+			}
 		} finally {
-			if (this._ongoingSave === savePromise) {
+			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
 				this._ongoingSave = undefined;
 			}
 		}
+
 		return this._editorResource;
 	}
 
 	private suggestUntitledSavePath(options: ISaveOptions | undefined): Promise<URI | undefined> {
-		if (this._editorResource.scheme !== Schemas.untitled) {
+		if (!this.isUntitled()) {
 			throw new Error('Resource is not untitled');
 		}
 
-		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
-		const localResource = toLocalResource(this._editorResource, remoteAuthority);
+		const remoteAuthority = this._environmentService.remoteAuthority;
+		const localResource = toLocalResource(this._editorResource, remoteAuthority, this._pathService.defaultUriScheme);
 
 		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems);
 	}
@@ -555,7 +567,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 	}
 
-	public async backup(): Promise<IWorkingCopyBackup> {
+	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();
 		if (!editors.length) {
 			throw new Error('No editors found for resource, cannot back up');
