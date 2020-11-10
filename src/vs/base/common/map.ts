@@ -235,7 +235,7 @@ export class TernarySearchTree<K, V> {
 		return new TernarySearchTree<URI, E>(new UriIterator(key => ignorePathCasing ?? (key.scheme === Schemas.file && isLinux)));
 	}
 
-	static forUris2<E>(ignorePathCasing: (key: URI) => boolean): TernarySearchTree<URI, E> {
+	static forUris2<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
