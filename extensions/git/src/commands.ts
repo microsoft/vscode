@@ -2606,20 +2606,23 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await this.getStashMessage();
+		let message: string | undefined;
+
+		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.sourceControl.commitTemplate || repository.inputBox.value !== repository.sourceControl.commitTemplate)) {
+			message = repository.inputBox.value;
+		}
+
+		message = await window.showInputBox({
+			value: message,
+			prompt: localize('provide stash message', "Optionally provide a stash message"),
+			placeHolder: localize('stash message', "Stash message")
+		});
 
 		if (typeof message === 'undefined') {
 			return;
 		}
 
 		await repository.createStash(message, includeUntracked);
-	}
-
-	private async getStashMessage(): Promise<string | undefined> {
-		return await window.showInputBox({
-			prompt: localize('provide stash message', "Optionally provide a stash message"),
-			placeHolder: localize('stash message', "Stash message")
-		});
 	}
 
 	@command('git.stash', { repository: true })
