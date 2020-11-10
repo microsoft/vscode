@@ -87,42 +87,46 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
 	quickpick.ignoreFocusOut = true;
 
-	const targetedProvider = model.getRemoteProviders().filter(provider => provider.name === options.providerName);
-	if (targetedProvider && targetedProvider.length === 1) {
-		return await pickProviderSource(targetedProvider[0]);
-	} else {
-		const providers = model.getRemoteProviders()
-			.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
+	if (options.providerName) {
+		const provider = model.getRemoteProviders()
+			.filter(provider => provider.name === options.providerName)[0];
 
-		quickpick.placeholder = providers.length === 0
-			? localize('provide url', "Provide repository URL")
-			: localize('provide url or pick', "Provide repository URL or pick a repository source.");
+		if (provider) {
+			return await pickProviderSource(provider);
+		}
+	}
 
-		const updatePicks = (value?: string) => {
-			if (value) {
-				quickpick.items = [{
-					label: options.urlLabel ?? localize('url', "URL"),
-					description: value,
-					alwaysShow: true,
-					url: value
-				},
-				...providers];
-			} else {
-				quickpick.items = providers;
-			}
-		};
+	const providers = model.getRemoteProviders()
+		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
 
-		quickpick.onDidChangeValue(updatePicks);
-		updatePicks();
+	quickpick.placeholder = providers.length === 0
+		? localize('provide url', "Provide repository URL")
+		: localize('provide url or pick', "Provide repository URL or pick a repository source.");
 
-		const result = await getQuickPickResult(quickpick);
+	const updatePicks = (value?: string) => {
+		if (value) {
+			quickpick.items = [{
+				label: options.urlLabel ?? localize('url', "URL"),
+				description: value,
+				alwaysShow: true,
+				url: value
+			},
+			...providers];
+		} else {
+			quickpick.items = providers;
+		}
+	};
 
-		if (result) {
-			if (result.url) {
-				return result.url;
-			} else if (result.provider) {
-				return await pickProviderSource(result.provider);
-			}
+	quickpick.onDidChangeValue(updatePicks);
+	updatePicks();
+
+	const result = await getQuickPickResult(quickpick);
+
+	if (result) {
+		if (result.url) {
+			return result.url;
+		} else if (result.provider) {
+			return await pickProviderSource(result.provider);
 		}
 	}
 
