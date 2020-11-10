@@ -397,6 +397,10 @@ export class ConfigurationManager implements IConfigurationManager {
 				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
 				this.storageService.store2(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
 			}
+		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
+			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration
+			const nameToSet = names.length ? names[0] : undefined;
+			this.setSelectedLaunchName(nameToSet);
 		}
 
 		this.selectedConfig = config;
