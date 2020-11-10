@@ -1342,7 +1342,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 0 12px 4px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 
 	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
