@@ -6,6 +6,8 @@
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareSubstringIgnoreCase, compare, compareSubstring, compareIgnoreCase } from 'vs/base/common/strings';
+import { isLinux } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -138,7 +140,7 @@ export class UriIterator implements IKeyIterator<URI> {
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
 
-	constructor(private readonly _ignorePathCasing: boolean) { }
+	constructor(private readonly _ignorePathCasing: boolean | undefined) { }
 
 	reset(key: URI): this {
 		this._value = key;
@@ -150,7 +152,10 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			this._pathIterator = new PathIterator(false, !this._ignorePathCasing);
+			this._pathIterator = new PathIterator(false, this._ignorePathCasing === undefined
+				? key.scheme === Schemas.file && isLinux
+				: !this._ignorePathCasing
+			);
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
@@ -226,7 +231,7 @@ class TernarySearchTreeNode<K, V> {
 
 export class TernarySearchTree<K, V> {
 
-	static forUris<E>(ignorePathCasing: boolean = false): TernarySearchTree<URI, E> {
+	static forUris<E>(ignorePathCasing?: boolean): TernarySearchTree<URI, E> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
