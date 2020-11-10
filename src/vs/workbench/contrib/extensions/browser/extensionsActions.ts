@@ -948,47 +948,21 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 
 export class ExtensionEditorManageExtensionAction extends ExtensionDropDownAction {
 
-	private static readonly ID = 'extensionEditor.manageExtension';
-
-	private static readonly Class = `${ExtensionAction.ICON_ACTION_CLASS} manage codicon-gear`;
-	private static readonly HideManageExtensionClass = `${ExtensionEditorManageExtensionAction.Class} hide`;
-
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-
-		super(ExtensionEditorManageExtensionAction.ID, '', '', true, true, instantiationService);
+		super('extensionEditor.manageExtension', '', `${ExtensionAction.ICON_ACTION_CLASS} manage codicon-gear`, true, true, instantiationService);
 		this.tooltip = localize('manage', "Manage");
-		this.update();
 	}
 
-	async getActionGroups(runningExtensions: IExtensionDescription[]): Promise<IAction[][]> {
-		const groups: IAction[][] = [];
-		getContextMenuActions(this.extension, true, this.instantiationService).forEach(actions => groups.push(actions));
-		groups.forEach(group => group.forEach(extensionAction => {
-			if (extensionAction instanceof ExtensionAction) {
-				extensionAction.extension = this.extension;
-			}
-		}));
-		return groups;
+	update(): void { }
+
+	run(): Promise<any> {
+		const actionGroups: IAction[][] = [];
+		getContextMenuActions(this.extension, true, this.instantiationService).forEach(actions => actionGroups.push(actions));
+		return super.run({ actionGroups, disposeActionsOnHide: true });
 	}
 
-	async run(): Promise<any> {
-		const runtimeExtensions = await this.extensionService.getExtensions();
-		return super.run({ actionGroups: await this.getActionGroups(runtimeExtensions), disposeActionsOnHide: true });
-	}
-
-	update(): void {
-		this.class = ExtensionEditorManageExtensionAction.HideManageExtensionClass;
-		this.enabled = false;
-		if (this.extension) {
-			const state = this.extension.state;
-			this.enabled = state === ExtensionState.Installed;
-			this.class = this.enabled || state === ExtensionState.Uninstalling ? ExtensionEditorManageExtensionAction.Class : ExtensionEditorManageExtensionAction.HideManageExtensionClass;
-			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
-		}
-	}
 }
 
 export class MenuItemExtensionAction extends ExtensionAction {
@@ -1032,7 +1006,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && this.extension.state !== ExtensionState.Uninstalling && this.extension.state !== ExtensionState.Installing;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && this.extension.state === ExtensionState.Installed;
 	}
 
 	run(): Promise<any> {
