@@ -712,10 +712,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		label = this._commentThread.label;
 
 		if (label === undefined) {
-			if (this._commentThread.comments && this._commentThread.comments.length) {
-				const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-				label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
-			} else {
+			if (!(this._commentThread.comments && this._commentThread.comments.length)) {
 				label = nls.localize('startThread', "Start discussion");
 			}
 		}
