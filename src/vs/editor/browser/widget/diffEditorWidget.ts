@@ -1110,8 +1110,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _adjustOptionsForSubEditor(options: editorBrowser.IDiffEditorConstructionOptions): editorBrowser.IDiffEditorConstructionOptions {
 		const clonedOptions: editorBrowser.IDiffEditorConstructionOptions = objects.deepClone(options || {});
 		clonedOptions.inDiffEditor = true;
-		clonedOptions.wordWrap = 'off';
-		clonedOptions.wordWrapMinified = false;
 		clonedOptions.automaticLayout = false;
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
