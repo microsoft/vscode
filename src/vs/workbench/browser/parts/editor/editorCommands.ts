@@ -23,6 +23,8 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -36,6 +38,7 @@ export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOt
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
+export const KEEP_EDITORS_COMMAND_ID = 'workbench.action.keepEditors';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
@@ -44,6 +47,9 @@ export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
 export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
+export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
+export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
+export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
@@ -265,14 +271,52 @@ function registerDiffEditorCommands(): void {
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
 
-	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+	function getActiveTextDiffEditor(accessor: ServicesAccessor): TextDiffEditor | undefined {
 		const editorService = accessor.get(IEditorService);
-		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(editor => editor instanceof TextDiffEditor);
 
-		if (candidates.length > 0) {
-			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
+		for (const editor of [editorService.activeEditorPane, ...editorService.visibleEditorPanes]) {
+			if (editor instanceof TextDiffEditor) {
+				return editor;
+			}
+		}
+
+		return undefined;
+	}
+
+	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
+
+		if (activeTextDiffEditor) {
+			const navigator = activeTextDiffEditor.getDiffNavigator();
 			if (navigator) {
 				next ? navigator.next() : navigator.previous();
+			}
+		}
+	}
+
+	enum FocusTextDiffEditorMode {
+		Original,
+		Modified,
+		Toggle
+	}
+
+	function focusInDiffEditor(accessor: ServicesAccessor, mode: FocusTextDiffEditorMode): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
+
+		if (activeTextDiffEditor) {
+			switch (mode) {
+				case FocusTextDiffEditorMode.Original:
+					activeTextDiffEditor.getControl()?.getOriginalEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Modified:
+					activeTextDiffEditor.getControl()?.getModifiedEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Toggle:
+					if (activeTextDiffEditor.getControl()?.getModifiedEditor().hasWidgetFocus()) {
+						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original);
+					} else {
+						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified);
+					}
 			}
 		}
 	}
@@ -297,6 +341,30 @@ function registerDiffEditorCommands(): void {
 		when: undefined,
 		primary: undefined,
 		handler: accessor => toggleDiffSideBySide(accessor)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_PRIMARY_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_SECONDARY_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_OTHER_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Toggle)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -707,6 +775,27 @@ function registerOtherEditorCommands(): void {
 			if (group && editor) {
 				return group.pinEditor(editor);
 			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: KEEP_EDITORS_COMMAND_ID,
+		handler: accessor => {
+			const configurationService = accessor.get(IConfigurationService);
+			const notificationService = accessor.get(INotificationService);
+			const openerService = accessor.get(IOpenerService);
+
+			// Update setting
+			configurationService.updateValue('workbench.editor.enablePreview', false);
+
+			// Inform user
+			notificationService.prompt(
+				Severity.Info,
+				nls.localize('disablePreview', "Preview editors have been disabled in settings."),
+				[{
+					label: nls.localize('learnMode', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
+				}]
+			);
 		}
 	});
 

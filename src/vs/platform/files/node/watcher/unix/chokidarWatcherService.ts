@@ -142,7 +142,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 		}
 
 		if (this.verboseLogging) {
-			this.log(`Start watching with chockidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
+			this.log(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 		}
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);

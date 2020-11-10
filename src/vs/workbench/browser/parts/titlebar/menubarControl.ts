@@ -21,7 +21,7 @@ import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SEL
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -122,7 +122,7 @@ export abstract class MenubarControl extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Listen to update service
-		this.updateService.onStateChange(() => this.updateMenubar());
+		this.updateService.onStateChange(() => this.onUpdateStateChange());
 
 		// Listen for changes in recently opened menu
 		this._register(this.workspacesService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
@@ -146,6 +146,14 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		return label;
+	}
+
+	protected onUpdateStateChange(): void {
+		this.updateMenubar();
+	}
+
+	protected onUpdateKeybindings(): void {
+		this.updateMenubar();
 	}
 
 	protected getOpenRecentActions(): (Separator | IAction & { uri: URI })[] {
@@ -193,7 +201,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 	}
 
-	private onRecentlyOpenedChange(): void {
+	protected onRecentlyOpenedChange(): void {
 		this.workspacesService.getRecentlyOpened().then(recentlyOpened => {
 			this.recentlyOpened = recentlyOpened;
 			this.updateMenubar();
@@ -257,7 +265,7 @@ export abstract class MenubarControl extends Disposable {
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
+		this.storageService.store2('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 }
 
@@ -266,6 +274,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private container: HTMLElement | undefined;
 	private alwaysOnMnemonics: boolean = false;
 	private focusInsideMenubar: boolean = false;
+	private visible: boolean = true;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -530,6 +539,12 @@ export class CustomMenubarControl extends MenubarControl {
 		return currentSidebarLocation === 'right' ? Direction.Left : Direction.Right;
 	}
 
+	private onDidVisibilityChange(visible: boolean): void {
+		this.visible = visible;
+		this.onRecentlyOpenedChange();
+		this._onVisibilityChange.fire(visible);
+	}
+
 	private setupCustomMenubar(firstTime: boolean): void {
 		// If there is no container, we cannot setup the menubar
 		if (!this.container) {
@@ -554,7 +569,7 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 			}));
 
-			this._register(this.menubar.onVisibilityChange(e => this._onVisibilityChange.fire(e)));
+			this._register(this.menubar.onVisibilityChange(e => this.onDidVisibilityChange(e)));
 
 			// Before we focus the menubar, stop updates to it so that focus-related context keys will work
 			this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_IN, () => {
@@ -668,6 +683,10 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	protected onDidChangeWindowFocus(hasFocus: boolean): void {
+		if (!this.visible) {
+			return;
+		}
+
 		super.onDidChangeWindowFocus(hasFocus);
 
 		if (this.container) {
@@ -680,6 +699,30 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 			}
 		}
+	}
+
+	protected onUpdateStateChange(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		super.onUpdateStateChange();
+	}
+
+	protected onRecentlyOpenedChange(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		super.onRecentlyOpenedChange();
+	}
+
+	protected onUpdateKeybindings(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		super.onUpdateKeybindings();
 	}
 
 	protected registerListeners(): void {

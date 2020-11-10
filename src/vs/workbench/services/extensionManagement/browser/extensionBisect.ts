@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
@@ -33,9 +33,9 @@ export interface IExtensionBisectService {
 	isDisabledByBisect(extension: IExtension): boolean;
 	isActive: boolean;
 	disabledCount: number;
-	start(extensions: ILocalExtension[]): void;
-	next(seeingBad: boolean): { id: string, bad: boolean } | undefined;
-	reset(): void;
+	start(extensions: ILocalExtension[]): Promise<void>;
+	next(seeingBad: boolean): Promise<{ id: string, bad: boolean } | undefined>;
+	reset(): Promise<void>;
 }
 
 class BisectState {
@@ -106,23 +106,23 @@ class ExtensionBisectService implements IExtensionBisectService {
 		return disabled ?? false;
 	}
 
-	start(extensions: ILocalExtension[]): void {
+	async start(extensions: ILocalExtension[]): Promise<void> {
 		if (this._state) {
 			throw new Error('invalid state');
 		}
 		const extensionIds = extensions.map(ext => ext.identifier.id);
 		const newState = new BisectState(extensionIds, 0, extensionIds.length);
-		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.GLOBAL);
-		this._storageService.flush();
+		this._storageService.store2(ExtensionBisectService._storageKey, JSON.stringify(newState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		await this._storageService.flush();
 	}
 
-	next(seeingBad: boolean): { id: string, bad: boolean } | undefined {
+	async next(seeingBad: boolean): Promise<{ id: string; bad: boolean; } | undefined> {
 		if (!this._state) {
 			throw new Error('invalid state');
 		}
 		// check if there is only one left
 		if (this._state.low === this._state.high - 1) {
-			this.reset();
+			await this.reset();
 			return { id: this._state.extensions[this._state.low], bad: seeingBad };
 		}
 		// the second half is disabled so if there is still bad it must be
@@ -132,14 +132,14 @@ class ExtensionBisectService implements IExtensionBisectService {
 			seeingBad ? this._state.low : this._state.mid,
 			seeingBad ? this._state.mid : this._state.high,
 		);
-		this._storageService.store(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.GLOBAL);
-		this._storageService.flush();
+		this._storageService.store2(ExtensionBisectService._storageKey, JSON.stringify(nextState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		await this._storageService.flush();
 		return undefined;
 	}
 
-	reset(): void {
+	async reset(): Promise<void> {
 		this._storageService.remove(ExtensionBisectService._storageKey, StorageScope.GLOBAL);
-		this._storageService.flush();
+		await this._storageService.flush();
 	}
 }
 
@@ -220,7 +220,7 @@ registerAction2(class extends Action2 {
 		});
 
 		if (res.confirmed) {
-			extensionsBisect.start(extensions);
+			await extensionsBisect.start(extensions);
 			hostService.reload();
 		}
 	}
@@ -252,11 +252,11 @@ registerAction2(class extends Action2 {
 			seeingBad = await this._checkForBad(dialogService);
 		}
 		if (seeingBad === undefined) {
-			bisectService.reset();
+			await bisectService.reset();
 			hostService.reload();
 			return;
 		}
-		const done = bisectService.next(seeingBad);
+		const done = await bisectService.next(seeingBad);
 		if (!done) {
 			hostService.reload();
 			return;
@@ -286,7 +286,7 @@ registerAction2(class extends Action2 {
 				await issueService.openReporter({ extensionId: done.id });
 			}
 		}
-		bisectService.reset();
+		await bisectService.reset();
 		hostService.reload();
 	}
 
@@ -322,8 +322,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionsBisect = accessor.get(IExtensionBisectService);
 		const hostService = accessor.get(IHostService);
-
-		extensionsBisect.reset();
-		hostService.reload(); //todo@jrieken reloadExtensionHost instead? update ext viewlet etc?
+		await extensionsBisect.reset();
+		hostService.reload();
 	}
 });

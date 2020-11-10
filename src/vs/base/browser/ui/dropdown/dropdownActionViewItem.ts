@@ -35,6 +35,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	private menuActionsOrProvider: readonly IAction[] | IActionProvider;
 	private dropdownMenu: DropdownMenu | undefined;
 	private contextMenuProvider: IContextMenuProvider;
+	private actionItem: HTMLElement | null = null;
 
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
@@ -56,6 +57,8 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	render(container: HTMLElement): void {
+		this.actionItem = container;
+
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label'));
 
@@ -115,6 +118,8 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 				}
 			};
 		}
+
+		this.updateEnabled();
 	}
 
 	setActionContext(newContext: unknown): void {
@@ -133,6 +138,12 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		if (this.dropdownMenu) {
 			this.dropdownMenu.show();
 		}
+	}
+
+	protected updateEnabled(): void {
+		const disabled = !this.getAction().enabled;
+		this.actionItem?.classList.toggle('disabled', disabled);
+		this.element?.classList.toggle('disabled', disabled);
 	}
 }
 

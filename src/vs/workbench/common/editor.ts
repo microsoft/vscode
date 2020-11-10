@@ -734,7 +734,7 @@ export class SideBySideEditorInput extends EditorInput {
 
 	constructor(
 		protected readonly name: string | undefined,
-		private readonly description: string | undefined,
+		protected readonly description: string | undefined,
 		private readonly _secondary: EditorInput,
 		private readonly _primary: EditorInput
 	) {
@@ -1266,6 +1266,7 @@ interface IEditorPartConfiguration {
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitSizing?: 'split' | 'distribute';
+	splitOnDragAndDrop?: boolean;
 	limit?: {
 		enabled?: boolean;
 		value?: number;

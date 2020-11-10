@@ -505,13 +505,40 @@
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.checkJs%",
+          "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
+          "markdownDeprecationMessage": "%configuration.javascript.checkJs.checkJs.deprecation%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.checkJs": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
           "scope": "window"
         },
         "javascript.implicitProjectConfig.experimentalDecorators": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
+          "markdownDeprecationMessage": "%configuration.javascript.checkJs.experimentalDecorators.deprecation%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.experimentalDecorators": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.strictNullChecks": {
+          "title": "",
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.implicitProjectConfig.strictNullChecks%",
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.strictFunctionTypes": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
           "scope": "window"
         },
         "javascript.suggest.names": {

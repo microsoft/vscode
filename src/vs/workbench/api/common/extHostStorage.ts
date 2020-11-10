@@ -7,7 +7,7 @@ import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extH
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/storageKeys';
+import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 export interface IStorageChangeEvent {
 	shared: boolean;

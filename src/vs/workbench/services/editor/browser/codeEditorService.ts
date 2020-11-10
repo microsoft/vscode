@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor, isCodeEditor, isDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, isCompositeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -69,12 +69,34 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 	}
 
 	private async doOpenCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+
+		// Special case: we want to detect the request to open an editor that
+		// is different from the current one to decide wether the current editor
+		// should be pinned or not. This ensures that the source of a navigation
+		// is not being replaced by the target. An example is "Goto definition"
+		// that otherwise would replace the editor everytime the user navigates.
+		if (
+			source &&											// we need to know the origin of the navigation
+			!input.options?.pinned &&							// we only need to look at preview editors that open
+			!sideBySide &&										// we only need to care if editor opens in same group
+			!isEqual(source.getModel()?.uri, input.resource)	// we only need to do this if the editor is about to change
+		) {
+			for (const visiblePane of this.editorService.visibleEditorPanes) {
+				if (getCodeEditor(visiblePane.getControl()) === source) {
+					visiblePane.group.pinEditor();
+					break;
+				}
+			}
+		}
+
+		// Open as editor
 		const control = await this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		if (control) {
 			const widget = control.getControl();
 			if (isCodeEditor(widget)) {
 				return widget;
 			}
+
 			if (isCompositeEditor(widget) && isCodeEditor(widget.activeCodeEditor)) {
 				return widget.activeCodeEditor;
 			}
