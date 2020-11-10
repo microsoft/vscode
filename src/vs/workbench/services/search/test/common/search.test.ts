@@ -95,6 +95,20 @@ suite('TextSearchResult', () => {
 		assert.equal((<SearchRange>result.preview.matches).endColumn, 3);
 	});
 
+	test('compacts multiple ranges on long lines', () => {
+		const previewOptions: ITextSearchPreviewOptions = {
+			matchLines: 1,
+			charsPerLine: 10
+		};
+
+		const range1 = new SearchRange(5, 4, 5, 7);
+		const range2 = new SearchRange(5, 53, 5, 56);
+		const range3 = new SearchRange(5, 61, 5, 64);
+		const result = new TextSearchMatch('foo bar 1234567890123456789012345678901234567890 foo bar baz bar', [range1, range2, range3], previewOptions);
+		assert.deepEqual(result.preview.matches, [new SearchRange(0, 4, 0, 7), new SearchRange(0, 19, 0, 22), new SearchRange(0, 27, 0, 30)]);
+		assert.equal(result.preview.text, 'foo bar 123456...o bar baz bar');
+	});
+
 	// test('all lines of multiline match', () => {
 	// 	const previewOptions: ITextSearchPreviewOptions = {
 	// 		matchLines: 5,

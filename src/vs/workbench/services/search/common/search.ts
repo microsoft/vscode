@@ -24,6 +24,8 @@ export const VIEW_ID = 'workbench.view.search';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 
+const SEARCH_SINGLE_RANGE_DIVIDER = '...';
+
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
 /**
@@ -260,24 +262,31 @@ export class TextSearchMatch implements ITextSearchMatch {
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
-		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1) && isSingleLineRange(range)) {
-			const oneRange = Array.isArray(range) ? range[0] : range;
-
+		const ranges = Array.isArray(range) ? range : [range];
+		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
+
+			let result = '';
+			let shift = 0;
+			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const previewStart = Math.max(oneRange.startColumn - leadingChars, 0);
-			const previewText = text.substring(previewStart, previewOptions.charsPerLine + previewStart);
+			const matches: ISearchRange[] = [];
+			for (const range of ranges) {
+				const previewStart = Math.max(range.startColumn - leadingChars, 0);
+				const previewEnd = range.startColumn + previewOptions.charsPerLine;
+				if (previewStart > lastEnd + leadingChars) {
+					result += SEARCH_SINGLE_RANGE_DIVIDER + text.slice(previewStart, previewEnd);
+					shift += previewStart - (lastEnd + SEARCH_SINGLE_RANGE_DIVIDER.length);
+				} else {
+					result += text.slice(lastEnd, previewEnd);
+				}
 
-			const endColInPreview = (oneRange.endLineNumber - oneRange.startLineNumber + 1) <= previewOptions.matchLines ?
-				Math.min(previewText.length, oneRange.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
-				previewText.length; // if number of lines is trimmed
+				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
+				lastEnd = previewEnd;
+			}
 
-			const oneLineRange = new OneLineRange(0, oneRange.startColumn - previewStart, endColInPreview);
-			this.preview = {
-				text: previewText,
-				matches: Array.isArray(range) ? [oneLineRange] : oneLineRange
-			};
+			this.preview = { text: result, matches: matches.length === 1 ? matches[0] : matches };
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
@@ -289,10 +298,15 @@ export class TextSearchMatch implements ITextSearchMatch {
 	}
 }
 
-function isSingleLineRange(range: ISearchRange | ISearchRange[]): boolean {
-	return Array.isArray(range) ?
-		range[0].startLineNumber === range[0].endLineNumber :
-		range.startLineNumber === range.endLineNumber;
+function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
+	const line = ranges[0].startLineNumber;
+	for (const r of ranges) {
+		if (r.startLineNumber !== line || r.endLineNumber !== line) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 export class SearchRange implements ISearchRange {
