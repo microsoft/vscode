@@ -92,7 +92,6 @@ class NullContext extends Context {
 }
 
 class ConfigAwareContextValuesContainer extends Context {
-	private static readonly _configContextObject = Object.freeze({});
 	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = TernarySearchTree.forConfigKeys<any>();
@@ -108,7 +107,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener = this._configurationService.onDidChangeConfiguration(event => {
 			if (event.source === ConfigurationTarget.DEFAULT) {
 				// new setting, reset everything
-				const allKeys = Array.from(Iterable.map(this._values, ([k, v]) => k));
+				const allKeys = Array.from(Iterable.map(this._values, ([k]) => k));
 				this._values.clear();
 				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
@@ -160,7 +159,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				if (Array.isArray(configValue)) {
 					value = JSON.stringify(configValue);
 				} else {
-					value = ConfigAwareContextValuesContainer._configContextObject;
+					value = configValue;
 				}
 		}
 
