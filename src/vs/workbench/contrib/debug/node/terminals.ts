@@ -111,7 +111,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 			};
 
 			if (cwd) {
-				command += `cd '${cwd}'; `;
+				command += `cd ${quote(cwd)}; `;
 			}
 			if (env) {
 				for (let key in env) {

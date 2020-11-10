@@ -1183,6 +1183,7 @@ export namespace FoldingRangeKind {
 
 export interface TextEditorOpenOptions extends vscode.TextDocumentShowOptions {
 	background?: boolean;
+	override?: boolean;
 }
 
 export namespace TextEditorOpenOptions {
@@ -1194,6 +1195,7 @@ export namespace TextEditorOpenOptions {
 				inactive: options.background,
 				preserveFocus: options.preserveFocus,
 				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+				override: typeof options.override === 'boolean' ? false : undefined
 			};
 		}
 

@@ -292,6 +292,7 @@ export const enum Operation {
 	Fetch = 'Fetch',
 	Pull = 'Pull',
 	Push = 'Push',
+	CherryPick = 'CherryPick',
 	Sync = 'Sync',
 	Show = 'Show',
 	Stage = 'Stage',
@@ -315,6 +316,8 @@ export const enum Operation {
 	Blame = 'Blame',
 	Log = 'Log',
 	LogFile = 'LogFile',
+
+	Move = 'Move'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -746,11 +749,11 @@ export class Repository implements Disposable {
 		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
 		updateIndexGroupVisibility();
 
-		const onConfigListenerForBranchSortOrder = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchSortOrder', root));
-		onConfigListenerForBranchSortOrder(this.updateModelState, this, this.disposables);
-
-		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.untrackedChanges', root));
-		onConfigListenerForUntracked(this.updateModelState, this, this.disposables);
+		filterEvent(workspace.onDidChangeConfiguration, e =>
+			e.affectsConfiguration('git.branchSortOrder', root)
+			|| e.affectsConfiguration('git.untrackedChanges', root)
+			|| e.affectsConfiguration('git.ignoreSubmodules', root)
+		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -862,6 +865,12 @@ export class Repository implements Disposable {
 	provideOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;
+		}
+
+		const path = uri.path;
+
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
+			return undefined;
 		}
 
 		return toGitUri(uri, '', { replaceFileExtension: true });
@@ -976,7 +985,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.RevertFiles, () => this.repository.revert('HEAD', resources.map(r => r.fsPath)));
 	}
 
-	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
+	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
 		if (this.rebaseCommit) {
 			await this.run(Operation.RebaseContinue, async () => {
 				if (opts.all) {
@@ -1053,6 +1062,14 @@ export class Repository implements Disposable {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
+	async cherryPick(commitHash: string): Promise<void> {
+		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
+	}
+
+	async move(from: string, to: string): Promise<void> {
+		await this.run(Operation.Move, () => this.repository.move(from, to));
+	}
+
 	async getBranch(name: string): Promise<Branch> {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
@@ -1081,8 +1098,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async checkout(treeish: string): Promise<void> {
-		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
+	async checkout(treeish: string, opts?: { detached?: boolean }): Promise<void> {
+		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, [], opts));
 	}
 
 	async checkoutTracking(treeish: string): Promise<void> {
@@ -1119,21 +1136,31 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch(options));
+		await this._fetch({ silent: options.silent });
 	}
 
 	@throttle
 	async fetchPrune(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }));
+		await this._fetch({ prune: true });
 	}
 
 	@throttle
 	async fetchAll(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
+		await this._fetch({ all: true });
 	}
 
 	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref, depth }));
+		await this._fetch({ remote, ref, depth });
+	}
+
+	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
+		if (!options.prune) {
+			const config = workspace.getConfiguration('git', Uri.file(this.root));
+			const prune = config.get<boolean>('pruneOnFetch');
+			options.prune = prune;
+		}
+
+		await this.run(Operation.Fetch, async () => this.repository.fetch(options));
 	}
 
 	@throttle
@@ -1169,11 +1196,12 @@ export class Repository implements Disposable {
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 
+				// When fetchOnPull is enabled, fetch all branches when pulling
 				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { unshallow, tags });
-				} else {
-					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+					await this.repository.fetch({ all: true });
 				}
+
+				await this.repository.pull(rebase, remote, branch, { unshallow, tags });
 			});
 		});
 	}
@@ -1197,6 +1225,10 @@ export class Repository implements Disposable {
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
+	}
+
+	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
+		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
 	}
 
 	async blame(path: string): Promise<string> {
@@ -1229,11 +1261,18 @@ export class Repository implements Disposable {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
+				const followTags = config.get<boolean>('followTagsWhenSync');
 				const supportCancellation = config.get<boolean>('supportCancellation');
 
-				const fn = fetchOnPull
-					? async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, undefined, undefined, { tags, cancellationToken })
-					: async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+				const fn = async (cancellationToken?: CancellationToken) => {
+					// When fetchOnPull is enabled, fetch all branches when pulling
+					if (fetchOnPull) {
+						await this.repository.fetch({ all: true, cancellationToken });
+					}
+
+					await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+				};
+
 
 				if (supportCancellation) {
 					const opts: ProgressOptions = {
@@ -1256,7 +1295,7 @@ export class Repository implements Disposable {
 				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
-					await this._push(remoteName, pushBranch);
+					await this._push(remoteName, pushBranch, false, followTags);
 				}
 			});
 		});
@@ -1418,9 +1457,9 @@ export class Repository implements Disposable {
 		return ignored;
 	}
 
-	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
+	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		try {
-			await this.repository.push(remote, refspec, setUpstream, tags, forcePushMode);
+			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
 			if (!remote || !refspec) {
 				throw err;
@@ -1518,9 +1557,12 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateModelState(): Promise<void> {
-		const { status, didHitLimit } = await this.repository.getStatus();
-		const config = workspace.getConfiguration('git');
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
+
+		const { status, didHitLimit } = await this.repository.getStatus({ ignoreSubmodules });
+
+		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
 		this.isRepositoryHuge = didHitLimit;

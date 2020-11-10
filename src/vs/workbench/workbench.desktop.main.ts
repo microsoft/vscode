@@ -75,7 +75,6 @@ import 'vs/workbench/services/extensionManagement/electron-browser/extensionTips
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/workbench/services/userDataSync/electron-browser/storageKeysSyncRegistryService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
@@ -132,6 +131,9 @@ import 'vs/workbench/contrib/debug/node/debugHelperService';
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
+
+// Dialogs
+import 'vs/workbench/contrib/dialogs/electron-sandbox/dialog.contribution';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

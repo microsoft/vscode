@@ -10,11 +10,10 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -83,7 +82,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
 		private readonly notificationService: INotificationService,
-		private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		private readonly storageService: IStorageService,
 		private readonly quickInputService: IQuickInputService,
 		private readonly dialogService: IDialogService
@@ -100,9 +98,15 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	public manageTrustedExtensions(accountName: string) {
+		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
+
+		if (!allowedExtensions.length) {
+			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."), []);
+			return;
+		}
+
 		const quickPick = this.quickInputService.createQuickPick<{ label: string, description: string, extension: AllowedExtension }>();
 		quickPick.canSelectMany = true;
-		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
 		const usages = readAccountUsages(this.storageService, this.id, accountName);
 		const items = allowedExtensions.map(extension => {
 			const usage = usages.find(usage => extension.id === usage.extensionId);
@@ -122,7 +126,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 		quickPick.onDidAccept(() => {
 			const updatedAllowedList = quickPick.selectedItems.map(item => item.extension);
-			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL);
+			this.storageService.store2(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL, StorageTarget.USER);
 
 			quickPick.dispose();
 		});
@@ -153,8 +157,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		} else {
 			this._accounts.set(session.account.label, [session.id]);
 		}
-
-		this.storageKeysSyncRegistryService.registerStorageKey({ key: `${this.id}-${session.account.label}`, version: 1 });
 	}
 
 	async signOut(accountName: string): Promise<void> {
@@ -171,6 +173,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		if (result.confirmed) {
 			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 			removeAccountUsage(this.storageService, this.id, accountName);
+			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.GLOBAL);
 		}
 	}
 
@@ -220,7 +223,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -259,7 +261,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, this.storageKeysSyncRegistryService, this.storageService, this.quickInputService, this.dialogService);
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, this.storageService, this.quickInputService, this.dialogService);
 		await provider.initialize();
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
@@ -383,7 +385,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 				if (!allowList.find(allowed => allowed.id === extensionId)) {
 					allowList.push({ id: extensionId, name: extensionName });
-					this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+					this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 				}
 
 				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL);
@@ -435,7 +437,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (allow) {
 			addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
 			allowList.push({ id: extensionId, name: extensionName });
-			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+			this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 
 		return allow;
@@ -458,10 +460,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		if (!allowList.find(allowed => allowed.id === extensionId)) {
 			allowList.push({ id: extensionId, name: extensionName });
-			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+			this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
+		addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
 	}
 
 	private getFullKey(extensionId: string): string {

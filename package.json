@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.52.0",
-  "distro": "d32b7eb5181a656f005556e20c54bc5fd73fd080",
+  "distro": "8c7413ba1917b58eecc155ef75a6fa8b8e247267",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -67,7 +67,7 @@
     "vscode-nsfw": "1.2.9",
     "vscode-oniguruma": "1.3.1",
     "vscode-proxy-agent": "^0.5.2",
-    "vscode-ripgrep": "1.10.0",
+    "vscode-ripgrep": "^1.11.0",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
     "xterm": "4.10.0-beta.4",
@@ -167,7 +167,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^4.4.2",
     "tsec": "googleinterns/tsec",
-    "typescript": "^4.1.0-dev.20201018",
+    "typescript": "^4.2.0-dev.20201104",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

@@ -591,12 +591,13 @@ export class CodeApplication extends Disposable {
 				return undefined;
 			}
 		})).filter(pendingUriToHandle => {
-			// if URI should be blocked, filter it out
+
+			// If URI should be blocked, filter it out
 			if (this.shouldBlockURI(pendingUriToHandle)) {
 				return false;
 			}
 
-			// filter out any protocol link that wants to open as window so that
+			// Filter out any protocol link that wants to open as window so that
 			// we open the right set of windows on startup and not restore the
 			// previous workspace too.
 			const windowOpenable = this.getWindowOpenableFromProtocolLink(pendingUriToHandle);
@@ -614,7 +615,8 @@ export class CodeApplication extends Disposable {
 		const environmentService = this.environmentService;
 		urlService.registerHandler({
 			async handleURL(uri: URI): Promise<boolean> {
-				// if URI should be blocked, behave as if it's handled
+
+				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
 					return true;
 				}

@@ -14,6 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { splitLines } from 'vs/base/common/strings';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -412,7 +413,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			}
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, this.textFileService, content => {
-				const dependencies: string[] = content.value.split(/\r\n|\r|\n/);
+				const dependencies: string[] = splitLines(content.value);
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
 					const format1 = dependency.split('==');
@@ -423,7 +424,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, this.textFileService, content => {
-				let dependencies: string[] = content.value.split(/\r\n|\r|\n/);
+				let dependencies: string[] = splitLines(content.value);
 
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);

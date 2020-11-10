@@ -53,7 +53,6 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { BrowserKeymapService } from 'vs/workbench/services/keybinding/browser/keymapService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -671,32 +670,6 @@ registerSingleton(IUserDataSyncStoreManagementService, SimpleUserDataSyncStoreMa
 
 //#endregion
 
-//#region IStorageKeysSyncRegistryService
-
-class SimpleStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeStorageKeys = Event.None;
-
-	storageKeys = [];
-
-	registerStorageKey(): void { }
-
-	onDidChangeExtensionStorageKeys = Event.None;
-
-	extensionsStorageKeys = [];
-
-	getExtensioStorageKeys() { return undefined; }
-
-	registerExtensionStorageKeys(): void { }
-}
-
-registerSingleton(IStorageKeysSyncRegistryService, SimpleStorageKeysSyncRegistryService);
-
-//#endregion
-
-
 //#region Task
 
 class SimpleTaskService implements ITaskService {
@@ -725,6 +698,7 @@ class SimpleTaskService implements ITaskService {
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
 	getTasksForGroup(group: string): Promise<Task[]> { throw new Error('Method not implemented.'); }
 	getRecentlyUsedTasks(): LinkedMap<string, string> { throw new Error('Method not implemented.'); }
+	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void { throw new Error('Method not implemented.'); }
 	migrateRecentTasks(tasks: Task[]): Promise<void> { throw new Error('Method not implemented.'); }
 	createSorter(): TaskSorter { throw new Error('Method not implemented.'); }
 	getTaskDescription(task: CustomTask | ContributedTask | InMemoryTask | ConfiguringTask): string | undefined { throw new Error('Method not implemented.'); }
