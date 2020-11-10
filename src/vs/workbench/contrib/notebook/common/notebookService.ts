@@ -52,7 +52,7 @@ export interface INotebookService {
 	transformEditsOutputs(textModel: NotebookTextModel, edits: ICellEditOperation[]): void;
 	transformSpliceOutputs(textModel: NotebookTextModel, splices: NotebookCellOutputsSplice[]): void;
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable;
-	getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
+	getContributedNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 

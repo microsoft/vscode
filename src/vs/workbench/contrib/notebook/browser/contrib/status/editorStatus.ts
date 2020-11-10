@@ -49,7 +49,7 @@ registerAction2(class extends Action2 {
 		const activeKernel = editor.activeKernel;
 
 		const tokenSource = new CancellationTokenSource();
-		const availableKernels2 = await notebookService.getContributedNotebookKernels2(editor.viewModel!.viewType, editor.viewModel!.uri, tokenSource.token);
+		const availableKernels2 = await notebookService.getContributedNotebookKernels(editor.viewModel!.viewType, editor.viewModel!.uri, tokenSource.token);
 		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = [...availableKernels2].map((a) => {
 			return {
 				id: a.id,

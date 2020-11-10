@@ -728,7 +728,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
 		const provider = this.notebookService.getContributedNotebookProvider(textModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(textModel.viewType, textModel.uri, tokenSource.token);
+		const availableKernels = await this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri, tokenSource.token);
 
 		if (tokenSource.token.isCancellationRequested) {
 			return;
@@ -738,7 +738,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		if ((availableKernels2.length) > 1) {
+		if ((availableKernels.length) > 1) {
 			this._notebookHasMultipleKernels!.set(true);
 			this.multipleKernelsAvailable = true;
 		} else {
@@ -746,22 +746,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.multipleKernelsAvailable = false;
 		}
 
-		const activeKernelStillExist = [...availableKernels2].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
+		const activeKernelStillExist = [...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
 
 		if (activeKernelStillExist) {
 			// the kernel still exist, we don't want to modify the selection otherwise user's temporary preference is lost
 			return;
 		}
 
-		if (availableKernels2.length) {
-			return this._setKernelsFromProviders(provider, availableKernels2, tokenSource);
+		if (availableKernels.length) {
+			return this._setKernelsFromProviders(provider, availableKernels, tokenSource);
 		}
-
-		// the provider doesn't have a builtin kernel, choose a kernel
-		// this.activeKernel = availableKernels[0];
-		// if (this.activeKernel) {
-		// 	await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
-		// }
 
 		tokenSource.dispose();
 	}
@@ -1520,7 +1514,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// pick active kernel
 
 		const tokenSource = new CancellationTokenSource();
-		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(this.viewModel!.viewType, this.viewModel!.uri, tokenSource.token);
+		const availableKernels2 = await this.notebookService.getContributedNotebookKernels(this.viewModel!.viewType, this.viewModel!.uri, tokenSource.token);
 		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = availableKernels2.map((a) => {
 			return {
 				id: a.id,
