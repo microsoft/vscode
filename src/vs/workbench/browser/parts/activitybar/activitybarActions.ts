@@ -246,14 +246,14 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const accountsActions: IAction[] = [];
 		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
-		const customOrMac = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' || isMacintosh; // using the location logic on mac helps with #40262
+		const customMenus = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' && !isMacintosh; // see #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		const actions = await this.getActions(accountsMenu);
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => customOrMac ? this.container : e || this.container,
-			anchorAlignment: customOrMac ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
-			anchorAxisAlignment: customOrMac ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
+			getAnchor: () => customMenus ? this.container : e || this.container,
+			anchorAlignment: customMenus ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
+			anchorAxisAlignment: customMenus ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
 			getActions: () => actions,
 			onHide: () => {
 				accountsMenu.dispose();
@@ -307,13 +307,13 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		const globalActivityActions: IAction[] = [];
 		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
-		const customOrMac = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' || isMacintosh; // using the location logic on mac helps with #40262
+		const customMenus = getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' && !isMacintosh; // see #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => customOrMac ? this.container : e || this.container,
-			anchorAlignment: customOrMac ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
-			anchorAxisAlignment: customOrMac ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
+			getAnchor: () => customMenus ? this.container : e || this.container,
+			anchorAlignment: customMenus ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
+			anchorAxisAlignment: customMenus ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
 			getActions: () => globalActivityActions,
 			onHide: () => {
 				globalActivityMenu.dispose();
