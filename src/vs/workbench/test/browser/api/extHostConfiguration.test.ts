@@ -15,6 +15,7 @@ import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/
 import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 suite('ExtHostConfiguration', function () {
 
@@ -27,7 +28,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function createExtHostWorkspace(): ExtHostWorkspace {
-		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new NullLogService());
+		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { }, new NullLogService());
 	}
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
