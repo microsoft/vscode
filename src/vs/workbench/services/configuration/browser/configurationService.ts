@@ -32,6 +32,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 class Workspace extends BaseWorkspace {
 	initialized: boolean = false;
@@ -55,6 +56,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	private readonly logService: ILogService;
 	private readonly fileService: IFileService;
+	private readonly uriIdentityService: IUriIdentityService;
 
 	protected readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -79,6 +81,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		environmentService: IWorkbenchEnvironmentService,
 		fileService: IFileService,
 		remoteAgentService: IRemoteAgentService,
+		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
 	) {
 		super();
@@ -94,6 +97,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
 		this.fileService = fileService;
+		this.uriIdentityService = uriIdentityService;
 		this.logService = logService;
 		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
@@ -371,20 +375,20 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				const workspaceConfigPath = workspaceIdentifier.configPath;
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath);
 				const workspaceId = workspaceIdentifier.id;
-				const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
+				const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 				workspace.initialized = this.workspaceConfiguration.initialized;
 				return workspace;
 			});
 	}
 
 	private createSingleFolderWorkspace(singleFolder: ISingleFolderWorkspaceInitializationPayload): Promise<Workspace> {
-		const workspace = new Workspace(singleFolder.id, [toWorkspaceFolder(singleFolder.folder)]);
+		const workspace = new Workspace(singleFolder.id, [toWorkspaceFolder(singleFolder.folder)], null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = true;
 		return Promise.resolve(workspace);
 	}
 
 	private createEmptyWorkspace(emptyWorkspace: IEmptyWorkspaceInitializationPayload): Promise<Workspace> {
-		const workspace = new Workspace(emptyWorkspace.id);
+		const workspace = new Workspace(emptyWorkspace.id, [], null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = true;
 		return Promise.resolve(workspace);
 	}
