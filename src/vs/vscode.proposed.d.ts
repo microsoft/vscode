@@ -1115,19 +1115,17 @@ declare module 'vscode' {
 	export interface OnTypeRenameProvider {
 		/**
 		 * For a given position in a document, returns the range of the symbol at the position and all ranges
-		 * that have the same content and can be renamed together. Optionally a result specific word pattern can be returned as well
-		 * that describes valid contents. A rename to one of the ranges can be applied to all other ranges if the new content
-		 * matches the word pattern.
-		 * If no result-specific word pattern is provided, the word pattern defined when registering the provider is used.
+		 * that have the same content and can be renamed together. Optionally a word pattern can be returned
+		 * to describe valid contents. A rename to one of the ranges can be applied to all other ranges if the new content
+		 * is valid.
+		 * If no result-specific word pattern is provided, the word pattern from the language configuration is used.
 		 *
 		 * @param document The document in which the provider was invoked.
 		 * @param position The position at which the provider was invoked.
 		 * @param token A cancellation token.
-		 * @return A list of ranges that can be renamed together. The ranges must have
-		 * identical length and contain identical text content. The ranges cannot overlap. Optionally a word pattern
-		 * that overrides the word pattern defined when registering the provider can be provided.
+		 * @return A list of ranges that can be renamed together
 		 */
-		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<{ ranges: Range[]; wordPattern?: RegExp; }>;
+		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
 	}
 
 	namespace languages {
@@ -1140,10 +1138,28 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An 'on type' rename provider.
-		 * @param wordPattern A word pattern to describes valid contents of renamed ranges.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, wordPattern?: RegExp): Disposable;
+		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider): Disposable;
+	}
+
+	/**
+	 * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
+	 */
+	export class OnTypeRenameRanges {
+		constructor(ranges: Range[], wordPattern?: RegExp);
+
+		/**
+		 * A list of ranges that can be renamed together. The ranges must have
+		 * identical length and contain identical text content. The ranges cannot overlap.
+		 */
+		readonly ranges: Range[];
+
+		/**
+		 * An optional word pattern that describes valid contents for the given ranges.
+		 * If no pattern is provided, the language configuration's word pattern will be used.
+		 */
+		readonly wordPattern?: RegExp;
 	}
 
 	//#endregion

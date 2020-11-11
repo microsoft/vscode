@@ -671,6 +671,14 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
 }
 
+function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
+	const flowToParentId = node.dataset[parentFlowToDataKey];
+	if (typeof flowToParentId === 'string') {
+		return document.getElementById(flowToParentId);
+	}
+	return null;
+}
+
 /**
  * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
  * parents set by `setParentFlowTo`.
@@ -683,13 +691,10 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 		}
 
 		if (node instanceof HTMLElement) {
-			const flowToParentId = node.dataset[parentFlowToDataKey];
-			if (typeof flowToParentId === 'string') {
-				const flowToParentElement = document.getElementById(flowToParentId);
-				if (flowToParentElement) {
-					node = flowToParentElement;
-					continue;
-				}
+			const flowToParentElement = getParentFlowToElement(node);
+			if (flowToParentElement) {
+				node = flowToParentElement;
+				continue;
 			}
 		}
 		node = node.parentNode;

@@ -99,7 +99,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 		let newStyle = `
 		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px;}
-		.monaco-editor .codelens-decoration.${this._styleClassName} > a > .codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
+		.monaco-editor .codelens-decoration.${this._styleClassName} span.codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
 		`;
 		if (fontFamily) {
 			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: ${fontFamily}}`;
@@ -185,7 +185,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 				// render lenses
 				this._renderCodeLensSymbols(result);
-				this._resolveCodeLensesInViewportSoon();
+				this._resolveCodeLensesInViewport();
 			}, onUnexpectedError);
 
 		}, this._getCodeLensModelDelays.get(model));
@@ -219,9 +219,10 @@ export class CodeLensContribution implements IEditorContribution {
 				});
 			});
 
-			// Compute new `visible` code lenses
-			this._resolveCodeLensesInViewportSoon();
 			// Ask for all references again
+			scheduler.schedule();
+		}));
+		this._localToDispose.add(this._editor.onDidFocusEditorWidget(() => {
 			scheduler.schedule();
 		}));
 		this._localToDispose.add(this._editor.onDidScrollChange(e => {

@@ -58,6 +58,10 @@
 	};
 
 	const defaultCssRules = `
+	html {
+		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+	}
+
 	body {
 		background-color: transparent;
 		color: var(--vscode-editor-foreground);

@@ -14,8 +14,6 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox/fileCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -37,8 +35,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: (accessor: ServicesAccessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	handler: (accessor: ServicesAccessor, _resource: URI | object) => {
+		const explorerService = accessor.get(IExplorerService);
+		const resources = explorerService.getContext(false).map(item => item.resource);
 		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });

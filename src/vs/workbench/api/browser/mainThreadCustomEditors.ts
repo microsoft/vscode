@@ -604,6 +604,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 				this._proxy.$backup(this._editorResource.toJSON(), this.viewType, token)));
 		this._hotExitState = pendingState;
 
+		token.onCancellationRequested(() => {
+			pendingState.operation.cancel();
+		});
+
 		try {
 			const backupId = await pendingState.operation;
 			// Make sure state has not changed in the meantime

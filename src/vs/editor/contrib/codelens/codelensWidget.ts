@@ -237,7 +237,9 @@ export class CodeLensWidget {
 	private _createContentWidgetIfNecessary(): void {
 		if (!this._contentWidget) {
 			this._contentWidget = new CodeLensContentWidget(this._editor, this._className, this._viewZone.afterLineNumber + 1);
-			this._editor.addContentWidget(this._contentWidget!);
+			this._editor.addContentWidget(this._contentWidget);
+		} else {
+			this._editor.layoutContentWidget(this._contentWidget);
 		}
 	}
 

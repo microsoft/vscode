@@ -9,12 +9,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -36,6 +38,8 @@ export class WebviewEditor extends EditorPane {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -44,6 +48,7 @@ export class WebviewEditor extends EditorPane {
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@IHostService private readonly _hostService: IHostService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 	}
@@ -52,11 +57,17 @@ export class WebviewEditor extends EditorPane {
 		return this.input instanceof WebviewInput ? this.input.webview : undefined;
 	}
 
+	get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._scopedContextKeyService.value;
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		const element = document.createElement('div');
 		this._element = element;
 		this._element.id = `webview-editor-element-${generateUuid()}`;
 		parent.appendChild(element);
+
+		this._scopedContextKeyService.value = this._contextKeyService.createScoped(element);
 	}
 
 	public dispose(): void {
@@ -141,7 +152,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private claimWebview(input: WebviewInput): void {
-		input.webview.claim(this);
+		input.webview.claim(this, this.scopedContextKeyService);
 
 		if (this._element) {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);
@@ -155,19 +166,7 @@ export class WebviewEditor extends EditorPane {
 			containsGroup: (group) => this.group?.id === group.group.id
 		}));
 
-		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
-			this.webview?.windowDidDragStart();
-		}));
-
-		const onDragEnd = () => {
-			this.webview?.windowDidDragEnd();
-		};
-		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_END, onDragEnd));
-		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.MOUSE_MOVE, currentEvent => {
-			if (currentEvent.buttons === 0) {
-				onDragEnd();
-			}
-		}));
+		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(() => this.webview));
 
 		this.synchronizeWebviewContainerDimensions(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));

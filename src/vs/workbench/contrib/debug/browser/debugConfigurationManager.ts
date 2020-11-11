@@ -370,7 +370,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
-		} else if (dynamicConfig) {
+		} else if (dynamicConfig && dynamicConfig.type) {
 			// We could not find the previously used name and config is not passed. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
 			let nameToSet = config ? config.name : names.length ? names[0] : undefined;
@@ -397,6 +397,10 @@ export class ConfigurationManager implements IConfigurationManager {
 				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
 				this.storageService.store2(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
 			}
+		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
+			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration
+			const nameToSet = names.length ? names[0] : undefined;
+			this.setSelectedLaunchName(nameToSet);
 		}
 
 		this.selectedConfig = config;

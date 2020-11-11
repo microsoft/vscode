@@ -1332,15 +1332,21 @@ export class Repository {
 		}
 	}
 
-	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
+	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const args = ['commit', '--quiet', '--allow-empty-message'];
 
 		if (opts.all) {
 			args.push('--all');
 		}
 
-		if (opts.amend) {
+		if (opts.amend && message) {
 			args.push('--amend');
+		}
+
+		if (opts.amend && !message) {
+			args.push('--amend', '--no-edit');
+		} else {
+			args.push('--file', '-');
 		}
 
 		if (opts.signoff) {
@@ -1360,7 +1366,7 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args, { input: message || '' });
+			await this.run(args, !opts.amend || message ? { input: message || '' } : {});
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}

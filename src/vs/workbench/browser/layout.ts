@@ -41,7 +41,6 @@ import { INotificationService, NotificationsFilter } from 'vs/platform/notificat
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { URI } from 'vs/base/common/uri';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -89,21 +88,6 @@ enum Classes {
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	WINDOW_BORDER = 'border'
-}
-
-interface PanelActivityState {
-	id: string;
-	name?: string;
-	pinned: boolean;
-	order: number;
-	visible: boolean;
-}
-
-interface SideBarActivityState {
-	id: string;
-	pinned: boolean;
-	order: number;
-	visible: boolean;
 }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
@@ -585,167 +569,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const { views } = defaultLayout;
 		if (views?.length) {
 			this.state.views.defaults = views.map(v => v.id);
-
-			return;
-		}
-
-		// TODO@eamodio Everything below here is deprecated and will be removed once Codespaces migrates
-
-		const { sidebar } = defaultLayout;
-		if (sidebar) {
-			if (sidebar.visible !== undefined) {
-				if (sidebar.visible) {
-					storageService.remove(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE);
-				} else {
-					storageService.store2(Storage.SIDEBAR_HIDDEN, true, StorageScope.WORKSPACE, StorageTarget.USER);
-				}
-			}
-
-			if (sidebar.containers?.length) {
-				const sidebarState: SideBarActivityState[] = [];
-
-				let order = -1;
-				for (const container of sidebar.containers.sort((a, b) => (a.order ?? 1) - (b.order ?? 1))) {
-					let viewletId;
-					switch (container.id) {
-						case 'explorer':
-							viewletId = 'workbench.view.explorer';
-							break;
-						case 'run':
-							viewletId = 'workbench.view.debug';
-							break;
-						case 'scm':
-							viewletId = 'workbench.view.scm';
-							break;
-						case 'search':
-							viewletId = 'workbench.view.search';
-							break;
-						case 'extensions':
-							viewletId = 'workbench.view.extensions';
-							break;
-						case 'remote':
-							viewletId = 'workbench.view.remote';
-							break;
-						default:
-							viewletId = `workbench.view.extension.${container.id}`;
-					}
-
-					if (container.active) {
-						storageService.store2(SidebarPart.activeViewletSettingsKey, viewletId, StorageScope.WORKSPACE, StorageTarget.USER);
-					}
-
-					if (container.order !== undefined || (container.active === undefined && container.visible !== undefined)) {
-						order = container.order ?? (order + 1);
-						const state: SideBarActivityState = {
-							id: viewletId,
-							order: order,
-							pinned: (container.active || container.visible) ?? true,
-							visible: (container.active || container.visible) ?? true
-						};
-
-						sidebarState.push(state);
-					}
-
-					if (container.views !== undefined) {
-						const viewsState: { id: string, isHidden?: boolean, order?: number }[] = [];
-						const viewsWorkspaceState: { [id: string]: { collapsed: boolean, isHidden?: boolean, size?: number } } = {};
-
-						for (const view of container.views) {
-							if (view.order !== undefined || view.visible !== undefined) {
-								viewsState.push({
-									id: view.id,
-									isHidden: view.visible === undefined ? undefined : !view.visible,
-									order: view.order === undefined ? undefined : view.order
-								});
-							}
-
-							if (view.collapsed !== undefined) {
-								viewsWorkspaceState[view.id] = {
-									collapsed: view.collapsed,
-									isHidden: view.visible === undefined ? undefined : !view.visible,
-								};
-							}
-						}
-
-						storageService.store2(`${viewletId}.state.hidden`, JSON.stringify(viewsState), StorageScope.GLOBAL, StorageTarget.USER);
-						storageService.store2(`${viewletId}.state`, JSON.stringify(viewsWorkspaceState), StorageScope.WORKSPACE, StorageTarget.USER);
-					}
-				}
-
-				if (sidebarState.length) {
-					storageService.store2(ActivitybarPart.PINNED_VIEW_CONTAINERS, JSON.stringify(sidebarState), StorageScope.GLOBAL, StorageTarget.USER);
-				}
-			}
-		}
-
-		const { panel } = defaultLayout;
-		if (panel) {
-			if (panel.visible !== undefined) {
-				if (panel.visible) {
-					storageService.store2(Storage.PANEL_HIDDEN, false, StorageScope.WORKSPACE, StorageTarget.USER);
-				} else {
-					storageService.remove(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE);
-				}
-			}
-
-			if (panel.containers?.length) {
-				const panelState: PanelActivityState[] = [];
-
-				let order = -1;
-				for (const container of panel.containers.sort((a, b) => (a.order ?? 1) - (b.order ?? 1))) {
-					let name;
-					let panelId = container.id;
-					switch (panelId) {
-						case 'terminal':
-							name = 'Terminal';
-							panelId = 'workbench.panel.terminal';
-							break;
-						case 'debug':
-							name = 'Debug Console';
-							panelId = 'workbench.panel.repl';
-							break;
-						case 'problems':
-							name = 'Problems';
-							panelId = 'workbench.panel.markers';
-							break;
-						case 'output':
-							name = 'Output';
-							panelId = 'workbench.panel.output';
-							break;
-						case 'comments':
-							name = 'Comments';
-							panelId = 'workbench.panel.comments';
-							break;
-						case 'refactor':
-							name = 'Refactor Preview';
-							panelId = 'refactorPreview';
-							break;
-						default:
-							continue;
-					}
-
-					if (container.active) {
-						storageService.store2(PanelPart.activePanelSettingsKey, panelId, StorageScope.WORKSPACE, StorageTarget.USER);
-					}
-
-					if (container.order !== undefined || (container.active === undefined && container.visible !== undefined)) {
-						order = container.order ?? (order + 1);
-						const state: PanelActivityState = {
-							id: panelId,
-							name: name,
-							order: order,
-							pinned: (container.active || container.visible) ?? true,
-							visible: (container.active || container.visible) ?? true
-						};
-
-						panelState.push(state);
-					}
-				}
-
-				if (panelState.length) {
-					storageService.store2(PanelPart.PINNED_PANELS, JSON.stringify(panelState), StorageScope.GLOBAL, StorageTarget.USER);
-				}
-			}
 		}
 	}
 

@@ -109,10 +109,8 @@ stages:
 
   - job: LinuxAlpine
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
-    variables:
-      VSCODE_ARCH: alpine
     steps:
-    - template: linux/product-build-linux-multiarch.yml
+    - template: linux/product-build-alpine.yml
 
   - job: LinuxWeb
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))

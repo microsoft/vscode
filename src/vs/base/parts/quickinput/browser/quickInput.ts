@@ -1696,7 +1696,7 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
 			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
-			this.ui.container.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : '';
+			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.inputBox.style(this.styles.inputBox);
 			this.ui.count.style(this.styles.countBadge);
 			this.ui.ok.style(this.styles.button);

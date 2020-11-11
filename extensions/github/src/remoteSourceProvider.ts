@@ -28,17 +28,31 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 
 	async getRemoteSources(query?: string): Promise<RemoteSource[]> {
 		const octokit = await getOctokit();
-		const [fromUser, fromQuery] = await Promise.all([
+
+		if (query) {
+			const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(query)
+				|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(query);
+
+			if (match) {
+				const raw = await octokit.repos.get({ owner: match[1], repo: match[2] });
+				return [asRemoteSource(raw.data)];
+			}
+		}
+
+		const all = await Promise.all([
 			this.getUserRemoteSources(octokit, query),
 			this.getQueryRemoteSources(octokit, query)
 		]);
 
-		const userRepos = new Set(fromUser.map(r => r.name));
+		const map = new Map<string, RemoteSource>();
 
-		return [
-			...fromUser,
-			...fromQuery.filter(r => !userRepos.has(r.name))
-		];
+		for (const group of all) {
+			for (const remoteSource of group) {
+				map.set(remoteSource.name, remoteSource);
+			}
+		}
+
+		return [...map.values()];
 	}
 
 	private async getUserRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
