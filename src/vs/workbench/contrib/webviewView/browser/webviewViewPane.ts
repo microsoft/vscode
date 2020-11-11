@@ -147,7 +147,7 @@ export class WebviewViewPane extends ViewPane {
 	private updateTreeVisibility() {
 		if (this.isBodyVisible()) {
 			this.activate();
-			this._webview.value?.claim(this);
+			this._webview.value?.claim(this, undefined);
 		} else {
 			this._webview.value?.release(this);
 		}
