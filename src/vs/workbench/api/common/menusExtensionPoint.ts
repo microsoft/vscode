@@ -176,11 +176,6 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.TimelineItemContext,
 		description: localize('view.timelineContext', "The Timeline view item context menu")
 	},
-	{
-		key: 'search/context',
-		id: MenuId.SearchContext,
-		description: localize('menus.searchContext', "The search context menu")
-	},
 ];
 
 namespace schema {

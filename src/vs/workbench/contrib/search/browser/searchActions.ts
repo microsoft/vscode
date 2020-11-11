@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IFileMatchContext, IFolderMatchWithResourceContext, IRenderableMatchContext, SearchView } from 'vs/workbench/contrib/search/browser/searchView';
+import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { FolderMatch, FileMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
@@ -776,8 +776,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 }
 
-export const copyPathCommand: ICommandHandler = async (accessor, fileMatchArg: [IFileMatchContext | IFolderMatchWithResourceContext] | undefined) => {
-	let fileMatch = fileMatchArg ? fileMatchArg[0].renderableMatch : undefined; // For the time being we only support single-select
+export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatchWithResource | undefined) => {
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
 		if (!(selection instanceof FileMatch || selection instanceof FolderMatchWithResource)) {
@@ -853,8 +852,7 @@ function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch,
 }
 
 const maxClipboardMatches = 1e4;
-export const copyMatchCommand: ICommandHandler = async (accessor, matchArg: [IRenderableMatchContext] | undefined) => {
-	let match = matchArg ? matchArg[0].renderableMatch : undefined; // For the time being we only support single-select
+export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch | undefined) => {
 	if (!match) {
 		const selection = getSelectedRow(accessor);
 		if (!selection) {
