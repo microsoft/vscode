@@ -14,6 +14,7 @@ import { IConfirmation, IConfirmationResult, IDialogHandler, IDialogOptions, ISh
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 interface IMassagedMessageBoxOptions {
 

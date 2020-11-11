@@ -516,8 +516,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (!editor.getModel()) {
 				return;
 			}
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.wrappingInfo)) {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateDecorationsRunner.schedule();
+			}
+			if (e.hasChanged(EditorOption.wrappingInfo)) {
+				this._updateDecorationsRunner.cancel();
+				this._updateDecorations();
 			}
 		}));
 
@@ -574,8 +578,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (!editor.getModel()) {
 				return;
 			}
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.wrappingInfo)) {
+			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateDecorationsRunner.schedule();
+			}
+			if (e.hasChanged(EditorOption.wrappingInfo)) {
+				this._updateDecorationsRunner.cancel();
+				this._updateDecorations();
 			}
 		}));
 
