@@ -23,7 +23,6 @@ import { flatten } from 'vs/base/common/arrays';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { canceled } from 'vs/base/common/errors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensioManagementService {
@@ -45,7 +44,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IDownloadService protected readonly downloadService: IDownloadService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
@@ -327,31 +326,28 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (!this.userDataAutoSyncEnablementService.isEnabled() || !this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions)) {
 			return false;
 		}
-		return this.instantiationService.invokeFunction(async accessor => {
-			const dialogService = accessor.get(IDialogService);
-			const result = await dialogService.show(
-				Severity.Info,
-				extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
-				[
-					localize('install', "Install"),
-					localize('install and do no sync', "Install (Do not sync)"),
-					localize('cancel', "Cancel"),
-				],
-				{
-					cancelId: 2,
-					detail: extensions.length === 1
-						? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
-						: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?")
-				}
-			);
-			switch (result.choice) {
-				case 0:
-					return false;
-				case 1:
-					return true;
+		const result = await this.dialogService.show(
+			Severity.Info,
+			extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
+			[
+				localize('install', "Install"),
+				localize('install and do no sync', "Install (Do not sync)"),
+				localize('cancel', "Cancel"),
+			],
+			{
+				cancelId: 2,
+				detail: extensions.length === 1
+					? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
+					: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?")
 			}
-			throw canceled();
-		});
+		);
+		switch (result.choice) {
+			case 0:
+				return false;
+			case 1:
+				return true;
+		}
+		throw canceled();
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {
