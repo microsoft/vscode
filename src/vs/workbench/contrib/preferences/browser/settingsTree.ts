@@ -55,6 +55,7 @@ import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const $ = DOM.$;
 
@@ -257,10 +258,10 @@ function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem
 	});
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
+export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
 	const allSettings = getFlatSettings(coreSettingsGroups);
 	return {
-		tree: _resolveSettingsTree(tocData, allSettings),
+		tree: _resolveSettingsTree(tocData, allSettings, logService),
 		leftoverSettings: allSettings
 	};
 }
@@ -288,17 +289,17 @@ export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
 	};
 }
 
-function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): ITOCEntry {
+function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry {
 	let children: ITOCEntry[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
-			.map(child => _resolveSettingsTree(child, allSettings))
+			.map(child => _resolveSettingsTree(child, allSettings, logService))
 			.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length));
 	}
 
 	let settings: ISetting[] | undefined;
 	if (tocData.settings) {
-		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern)));
+		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern, logService)));
 	}
 
 	if (!children && !settings) {
@@ -313,7 +314,7 @@ function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): I
 	};
 }
 
-function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISetting[] {
+function getMatchingSettings(allSettings: Set<ISetting>, pattern: string, logService: ILogService): ISetting[] {
 	const result: ISetting[] = [];
 
 	allSettings.forEach(s => {
@@ -323,6 +324,9 @@ function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISett
 		}
 	});
 
+	if (!result.length) {
+		logService.warn(`Settings pattern "${pattern}" doesn't match any settings`);
+	}
 
 	return result.sort((a, b) => a.key.localeCompare(b.key));
 }
