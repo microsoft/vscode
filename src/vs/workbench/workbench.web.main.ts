@@ -18,6 +18,13 @@ import 'vs/workbench/workbench.common.main';
 //#endregion
 
 
+//#region --- workbench parts
+
+import 'vs/workbench/browser/parts/dialogs/dialog.web.contribution';
+
+//#endregion
+
+
 //#region --- workbench (web main)
 
 import 'vs/workbench/browser/web.main';
@@ -115,9 +122,6 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
-
-// Dialog
-import 'vs/workbench/contrib/dialogs/browser/dialog.contribution';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';
