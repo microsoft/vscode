@@ -5841,7 +5841,7 @@ declare namespace monaco.languages {
 	export interface OnTypeRenameRanges {
 		/**
 		 * A list of ranges that can be renamed together. The ranges must have
-		 * identical length and contain identical text content. The ranges cannot overlap.
+		 * identical length and contain identical text content. The ranges cannot overlap
 		 */
 		ranges: IRange[];
 		/**
