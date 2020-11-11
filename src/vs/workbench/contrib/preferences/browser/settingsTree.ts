@@ -333,7 +333,7 @@ function createSettingMatchRegExp(pattern: string): RegExp {
 	pattern = escapeRegExpCharacters(pattern)
 		.replace(/\\\*/g, '.*');
 
-	return new RegExp(`^${pattern}`, 'i');
+	return new RegExp(`^${pattern}$`, 'i');
 }
 
 function settingMatches(s: ISetting, pattern: string): boolean {
