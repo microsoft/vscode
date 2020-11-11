@@ -13,7 +13,7 @@ export interface IMergeResult {
 	remote: IStringDictionary<IStorageValue> | null;
 }
 
-export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: { machine: ReadonlyArray<string>, user: ReadonlyArray<string> }, logService: ILogService): IMergeResult {
+export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: { machine: ReadonlyArray<string>, unregistered: ReadonlyArray<string> }, logService: ILogService): IMergeResult {
 	if (!remoteStorage) {
 		return { remote: Object.keys(localStorage).length > 0 ? localStorage : null, local: { added: {}, removed: [], updated: {} } };
 	}
@@ -93,8 +93,8 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 
 	// Removed in local
 	for (const key of baseToLocal.removed.values()) {
-		// Do not remove from remote if key is neither machine scoped nor user scoped.
-		if (!storageKeys.machine.includes(key) && !storageKeys.user.includes(key)) {
+		// Do not remove from remote if key not registered.
+		if (storageKeys.unregistered.includes(key)) {
 			continue;
 		}
 		// do not remove from remote if it is updated in remote
