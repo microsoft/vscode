@@ -1109,6 +1109,10 @@ export class CommandCenter {
 
 	@command('git.stageChange')
 	async stageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
 		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
 
 		if (!textEditor) {
@@ -1159,6 +1163,10 @@ export class CommandCenter {
 
 	@command('git.revertChange')
 	async revertChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
 		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
 
 		if (!textEditor) {
