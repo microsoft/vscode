@@ -175,6 +175,10 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
+	test('disallows nested keys (#77289)', () => {
+		assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} ${env:key1${env:key2}}'), 'Value for key1 ${env:key1${env:key2}}');
+	});
+
 	// test('substitute keys and values in object', () => {
 	// 	const myObject = {
 	// 		'${workspaceRootFolderName}': '${lineNumber}',
