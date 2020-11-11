@@ -173,12 +173,19 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 	}
 
 	private static getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration): string[] {
+		const args: string[] = [];
+
 		const debugPort = this.getDebugPort(kind);
-		const inspectFlag = process.env['TSS_DEBUG_BRK'] ? '--inspect-brk' : '--inspect';
-		return [
-			...(debugPort ? [`${inspectFlag}=${debugPort}`] : []),
-			...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
-		];
+		if (debugPort) {
+			const inspectFlag = ChildServerProcess.getTssDebugBrk() ? '--inspect-brk' : '--inspect';
+			args.push(`${inspectFlag}=${debugPort}`);
+		}
+
+		if (configuration.maxTsServerMemory) {
+			args.push(`--max-old-space-size=${configuration.maxTsServerMemory}`);
+		}
+
+		return args;
 	}
 
 	private static getDebugPort(kind: TsServerProcessKind): number | undefined {
@@ -186,7 +193,7 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 			// We typically only want to debug the main semantic server
 			return undefined;
 		}
-		const value = process.env['TSS_DEBUG_BRK'] || process.env['TSS_DEBUG'];
+		const value = ChildServerProcess.getTssDebugBrk() || ChildServerProcess.getTssDebug();
 		if (value) {
 			const port = parseInt(value);
 			if (!isNaN(port)) {
@@ -194,6 +201,14 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 			}
 		}
 		return undefined;
+	}
+
+	private static getTssDebug(): string | undefined {
+		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG' : 'TSS_DEBUG'];
+	}
+
+	private static getTssDebugBrk(): string | undefined {
+		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG_BRK' : 'TSS_DEBUG_BRK'];
 	}
 
 	private constructor(

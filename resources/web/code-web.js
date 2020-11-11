@@ -18,6 +18,7 @@ const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 const remote = require('gulp-remote-retry-src');
 const vfs = require('vinyl-fs');
+const uuid = require('uuid');
 
 const extensions = require('../../build/lib/extensions');
 
@@ -27,21 +28,24 @@ const BUILTIN_MARKETPLACE_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'built
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
-const WEB_PLAYGROUND_VERSION = '0.0.1';
+const WEB_PLAYGROUND_VERSION = '0.0.10';
 
 const args = minimist(process.argv, {
 	boolean: [
 		'no-launch',
 		'help',
 		'verbose',
-		'wrap-iframe'
+		'wrap-iframe',
+		'enable-sync',
+		'trusted-types'
 	],
 	string: [
 		'scheme',
 		'host',
 		'port',
 		'local_port',
-		'extension'
+		'extension',
+		'github-auth'
 	],
 });
 
@@ -50,11 +54,15 @@ if (args.help) {
 		'yarn web [options]\n' +
 		' --no-launch      Do not open VSCode web in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
+		' --trusted-types  Enable trusted types (report only)\n' +
+		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
 		' --port           Remote/Local port\n' +
 		' --local_port     Local port override\n' +
+		' --secondary-port Secondary port\n' +
 		' --extension      Path of an extension to include\n' +
+		' --github-auth    Github authentication token\n' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
 		'[Example]\n' +
@@ -65,6 +73,7 @@ if (args.help) {
 
 const PORT = args.port || process.env.PORT || 8080;
 const LOCAL_PORT = args.local_port || process.env.LOCAL_PORT || PORT;
+const SECONDARY_PORT = args['secondary-port'] || (parseInt(PORT, 10) + 1);
 const SCHEME = args.scheme || process.env.VSCODE_SCHEME || 'http';
 const HOST = args.host || 'localhost';
 const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
@@ -144,7 +153,7 @@ async function ensureWebDevExtensions() {
 	}
 }
 
-async function getDefaultExtensionInfos() {
+async function getCommandlineProvidedExtensionInfos() {
 	const extensions = [];
 
 	/** @type {Object.<string, string>} */
@@ -196,11 +205,15 @@ async function getExtensionPackageJSON(extensionPath) {
 }
 
 const builtInExtensionsPromise = getBuiltInExtensionInfos();
-const defaultExtensionsPromise = getDefaultExtensionInfos();
+const commandlineProvidedExtensionsPromise = getCommandlineProvidedExtensionInfos();
 
 const mapCallbackUriToRequestId = new Map();
 
-const server = http.createServer((req, res) => {
+/**
+ * @param req {http.IncomingMessage}
+ * @param res {http.ServerResponse}
+ */
+const requestHandler = (req, res) => {
 	const parsedUrl = url.parse(req.url, true);
 	const pathname = parsedUrl.pathname;
 
@@ -245,16 +258,25 @@ const server = http.createServer((req, res) => {
 
 		return serveError(req, res, 500, 'Internal Server Error.');
 	}
-});
+};
 
+const server = http.createServer(requestHandler);
 server.listen(LOCAL_PORT, () => {
 	if (LOCAL_PORT !== PORT) {
-		console.log(`Operating location at http://0.0.0.0:${LOCAL_PORT}`);
+		console.log(`Operating location at         http://0.0.0.0:${LOCAL_PORT}`);
 	}
-	console.log(`Web UI available at   ${SCHEME}://${AUTHORITY}`);
+	console.log(`Web UI available at           ${SCHEME}://${AUTHORITY}`);
+});
+server.on('error', err => {
+	console.error(`Error occurred in server:`);
+	console.error(err);
 });
 
-server.on('error', err => {
+const secondaryServer = http.createServer(requestHandler);
+secondaryServer.listen(SECONDARY_PORT, () => {
+	console.log(`Secondary server available at ${SCHEME}://${HOST}:${SECONDARY_PORT}`);
+});
+secondaryServer.on('error', err => {
 	console.error(`Error occurred in server:`);
 	console.error(err);
 });
@@ -269,12 +291,13 @@ async function handleStatic(req, res, parsedUrl) {
 	if (/^\/static\/extensions\//.test(parsedUrl.pathname)) {
 		const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/static/extensions/'.length));
 		const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
-		if (!filePath) {
-			return serveError(req, res, 400, `Bad request.`);
-		}
-		return serveFile(req, res, filePath, {
+		const responseHeaders = {
 			'Access-Control-Allow-Origin': '*'
-		});
+		};
+		if (!filePath) {
+			return serveError(req, res, 400, `Bad request.`, responseHeaders);
+		}
+		return serveFile(req, res, filePath, responseHeaders);
 	}
 
 	// Strip `/static/` from the path
@@ -291,13 +314,14 @@ async function handleStatic(req, res, parsedUrl) {
 async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
-	const filePath = getExtensionFilePath(relativePath, (await defaultExtensionsPromise).locations);
-	if (!filePath) {
-		return serveError(req, res, 400, `Bad request.`);
-	}
-	return serveFile(req, res, filePath, {
+	const filePath = getExtensionFilePath(relativePath, (await commandlineProvidedExtensionsPromise).locations);
+	const responseHeaders = {
 		'Access-Control-Allow-Origin': '*'
-	});
+	};
+	if (!filePath) {
+		return serveError(req, res, 400, `Bad request.`, responseHeaders);
+	}
+	return serveFile(req, res, filePath, responseHeaders);
 }
 
 /**
@@ -335,28 +359,58 @@ async function handleRoot(req, res) {
 	}
 
 	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
-	const { extensions: staticExtensions } = await defaultExtensionsPromise;
+	const { extensions: staticExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
+
+	const dedupedBuiltInExtensions = [];
+	for (const builtInExtension of builtInExtensions) {
+		const extensionId = `${builtInExtension.packageJSON.publisher}.${builtInExtension.packageJSON.name}`;
+		if (staticLocations[extensionId]) {
+			fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: Ignoring built-in ${extensionId} because it was overridden via --extension argument`);
+			continue;
+		}
+
+		dedupedBuiltInExtensions.push(builtInExtension);
+	}
 
 	if (args.verbose) {
-		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${builtInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
+		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${dedupedBuiltInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
 		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
 	}
 
 	const webConfigJSON = {
 		folderUri: folderUri,
 		staticExtensions,
+		enableSyncByDefault: args['enable-sync'],
+		webWorkerExtensionHostIframeSrc: `${SCHEME}://${HOST}:${SECONDARY_PORT}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;
 	}
+	if (req.headers['x-forwarded-host']) {
+		// support for running in codespace => no iframe wrapping
+		delete webConfigJSON.webWorkerExtensionHostIframeSrc;
+	}
+
+	const authSessionInfo = args['github-auth'] ? {
+		id: uuid.v4(),
+		providerId: 'github',
+		accessToken: args['github-auth'],
+		scopes: [['user:email'], ['repo']]
+	} : undefined;
 
 	const data = (await readFile(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => escapeAttribute(JSON.stringify(webConfigJSON))) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
-		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(builtInExtensions)))
-		.replace('{{WEBVIEW_ENDPOINT}}', '')
-		.replace('{{REMOTE_USER_DATA_URI}}', '');
+		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(dedupedBuiltInExtensions)))
+		.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
+		.replace('{{WEBVIEW_ENDPOINT}}', '');
 
-	res.writeHead(200, { 'Content-Type': 'text/html' });
+
+	const headers = { 'Content-Type': 'text/html' };
+	if (args['trusted-types']) {
+		headers['Content-Security-Policy-Report-Only'] = 'require-trusted-types-for \'script\';';
+	}
+
+	res.writeHead(200, headers);
 	return res.end(data);
 }
 
@@ -485,8 +539,9 @@ function getExtensionFilePath(relativePath, locations) {
  * @param {import('http').ServerResponse} res
  * @param {string} errorMessage
  */
-function serveError(req, res, errorCode, errorMessage) {
-	res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
+function serveError(req, res, errorCode, errorMessage, responseHeaders = Object.create(null)) {
+	responseHeaders['Content-Type'] = 'text/plain';
+	res.writeHead(errorCode, responseHeaders);
 	res.end(errorMessage);
 }
 
@@ -551,7 +606,8 @@ async function serveFile(req, res, filePath, responseHeaders = Object.create(nul
 		fs.createReadStream(filePath).pipe(res);
 	} catch (error) {
 		console.error(error.toString());
-		res.writeHead(404, { 'Content-Type': 'text/plain' });
+		responseHeaders['Content-Type'] = 'text/plain';
+		res.writeHead(404, responseHeaders);
 		return res.end('Not found');
 	}
 }

@@ -10,8 +10,6 @@ import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassific
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
@@ -32,17 +30,16 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -53,6 +50,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -264,7 +262,7 @@ export class ExplorerView extends ViewPane {
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this._register(this.editorService.onDidActiveEditorChange(() => {
-			this.selectActiveFile(true);
+			this.selectActiveFile();
 		}));
 
 		// Also handle configuration updates
@@ -278,7 +276,7 @@ export class ExplorerView extends ViewPane {
 					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
-				this.selectActiveFile(false, true);
+				this.selectActiveFile(true);
 			}
 		}));
 	}
@@ -309,6 +307,10 @@ export class ExplorerView extends ViewPane {
 		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
 	}
 
+	isItemVisible(item: ExplorerItem): boolean {
+		return this.filter.filter(item, TreeVisibility.Visible);
+	}
+
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
 		if (isEditing) {
 			this.horizontalScrolling = this.tree.options.horizontalScrolling;
@@ -324,32 +326,31 @@ export class ExplorerView extends ViewPane {
 			}
 
 			this.horizontalScrolling = undefined;
-			DOM.removeClass(this.treeContainer, 'highlight');
+			this.treeContainer.classList.remove('highlight');
 		}
 
 		await this.refresh(false, stat.parent, false);
 
 		if (isEditing) {
-			DOM.addClass(this.treeContainer, 'highlight');
+			this.treeContainer.classList.add('highlight');
 			this.tree.reveal(stat);
 		} else {
 			this.tree.domFocus();
 		}
 	}
 
-	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
+	private selectActiveFile(reveal = this.autoReveal): void {
 		if (this.autoReveal) {
-			const activeFile = this.getActiveFile();
+			const activeFile = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+
 			if (activeFile) {
 				const focus = this.tree.getFocus();
-				if (focus.length === 1 && focus[0].resource.toString() === activeFile.toString()) {
-					// No action needed, active file is already focused
+				const selection = this.tree.getSelection();
+				if (focus.length === 1 && this.uriIdentityService.extUri.isEqual(focus[0].resource, activeFile) && selection.length === 1 && this.uriIdentityService.extUri.isEqual(selection[0].resource, activeFile)) {
+					// No action needed, active file is already focused and selected
 					return;
 				}
 				this.explorerService.select(activeFile, reveal);
-			} else if (deselect) {
-				this.tree.setSelection([]);
-				this.tree.setFocus([]);
 			}
 		}
 	}
@@ -462,7 +463,7 @@ export class ExplorerView extends ViewPane {
 
 		// save view state
 		this._register(this.storageService.onWillSaveState(() => {
-			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE);
+			this.storageService.store2(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}));
 	}
 
@@ -526,7 +527,7 @@ export class ExplorerView extends ViewPane {
 		} else {
 			arg = roots.length === 1 ? roots[0].resource : {};
 		}
-		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService));
+		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
@@ -586,6 +587,30 @@ export class ExplorerView extends ViewPane {
 
 		const toRefresh = item || this.tree.getInput();
 		return this.tree.updateChildren(toRefresh, recursive);
+	}
+
+	focusNeighbourIfItemFocused(item: ExplorerItem): void {
+		const focus = this.tree.getFocus();
+		if (focus.length !== 1) {
+			return;
+		}
+		const compressedController = this.renderer.getCompressedNavigationController(focus[0]) || this.renderer.getCompressedNavigationController(item);
+		const indexOfItem = compressedController?.items.indexOf(item) || -1;
+		const itemsCompressedTogether = compressedController && (compressedController.items.indexOf(focus[0]) >= 0) && (indexOfItem >= 0);
+
+		if (focus[0] === item || itemsCompressedTogether) {
+			if (itemsCompressedTogether && indexOfItem > 0 && item.parent) {
+				// In case of compact items just focus the parent if it is part of the compact item. So the focus stays
+				this.tree.setFocus([item.parent]);
+			} else {
+				this.tree.focusNext();
+				const newFocus = this.tree.getFocus();
+				if (newFocus.length === 1 && newFocus[0] === item) {
+					// There was no next item to focus, focus the previous one
+					this.tree.focusPrevious();
+				}
+			}
+		}
 	}
 
 	getOptimalWidth(): number {
@@ -657,18 +682,6 @@ export class ExplorerView extends ViewPane {
 			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
 			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
 		}
-	}
-
-	private getActiveFile(): URI | undefined {
-		const input = this.editorService.activeEditor;
-
-		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
-		if (input instanceof DiffEditorInput) {
-			return undefined;
-		}
-
-		// check for files
-		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.PRIMARY }));
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
@@ -811,8 +824,8 @@ export class ExplorerView extends ViewPane {
 		}
 
 		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.innerHTML) {
-			this.styleElement.innerHTML = newStyles;
+		if (newStyles !== this.styleElement.textContent) {
+			this.styleElement.textContent = newStyles;
 		}
 	}
 
@@ -825,12 +838,12 @@ export class ExplorerView extends ViewPane {
 }
 
 function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
-	DOM.addClass(container, 'file-icon-themable-tree');
-	DOM.addClass(container, 'show-file-icons');
+	container.classList.add('file-icon-themable-tree');
+	container.classList.add('show-file-icons');
 
 	const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
-		DOM.toggleClass(container, 'align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
-		DOM.toggleClass(container, 'hide-arrows', theme.hidesExplorerArrows === true);
+		container.classList.toggle('align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
+		container.classList.toggle('hide-arrows', theme.hidesExplorerArrows === true);
 	};
 
 	onDidChangeFileIconTheme(themeService.getFileIconTheme());

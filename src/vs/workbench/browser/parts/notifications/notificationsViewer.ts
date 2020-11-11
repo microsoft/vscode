@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addClass, toggleClass, addDisposableListener, EventType, EventHelper, $, addClasses, removeClasses } from 'vs/base/browser/dom';
+import { clearNode, addDisposableListener, EventType, EventHelper, $ } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -38,7 +38,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 
 	private createOffsetHelper(container: HTMLElement): HTMLElement {
 		const offsetHelper = document.createElement('div');
-		addClass(offsetHelper, 'notification-offset-helper');
+		offsetHelper.classList.add('notification-offset-helper');
 
 		container.appendChild(offsetHelper);
 
@@ -187,24 +187,23 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 		// Container
 		data.container = document.createElement('div');
-		addClass(data.container, 'notification-list-item');
+		data.container.classList.add('notification-list-item');
 
 		// Main Row
 		data.mainRow = document.createElement('div');
-		addClass(data.mainRow, 'notification-list-item-main-row');
+		data.mainRow.classList.add('notification-list-item-main-row');
 
 		// Icon
 		data.icon = document.createElement('div');
-		addClass(data.icon, 'notification-list-item-icon');
-		addClass(data.icon, 'codicon');
+		data.icon.classList.add('notification-list-item-icon', 'codicon');
 
 		// Message
 		data.message = document.createElement('div');
-		addClass(data.message, 'notification-list-item-message');
+		data.message.classList.add('notification-list-item-message');
 
 		// Toolbar
 		const toolbarContainer = document.createElement('div');
-		addClass(toolbarContainer, 'notification-list-item-toolbar-container');
+		toolbarContainer.classList.add('notification-list-item-toolbar-container');
 		data.toolbar = new ActionBar(
 			toolbarContainer,
 			{
@@ -226,15 +225,15 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 		// Details Row
 		data.detailsRow = document.createElement('div');
-		addClass(data.detailsRow, 'notification-list-item-details-row');
+		data.detailsRow.classList.add('notification-list-item-details-row');
 
 		// Source
 		data.source = document.createElement('div');
-		addClass(data.source, 'notification-list-item-source');
+		data.source.classList.add('notification-list-item-source');
 
 		// Buttons Container
 		data.buttonsContainer = document.createElement('div');
-		addClass(data.buttonsContainer, 'notification-list-item-buttons-container');
+		data.buttonsContainer.classList.add('notification-list-item-buttons-container');
 
 		container.appendChild(data.container);
 
@@ -306,7 +305,13 @@ export class NotificationTemplateRenderer extends Disposable {
 	private render(notification: INotificationViewItem): void {
 
 		// Container
-		toggleClass(this.template.container, 'expanded', notification.expanded);
+		this.template.container.classList.toggle('expanded', notification.expanded);
+		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
+			if (e.button === 1 /* Middle Button */) {
+				// Prevent firing the 'paste' event in the editor textarea - #109322
+				EventHelper.stop(e, true);
+			}
+		}));
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
 			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);
@@ -356,10 +361,10 @@ export class NotificationTemplateRenderer extends Disposable {
 		// first remove, then set as the codicon class names overlap
 		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
 			if (notification.severity !== severity) {
-				removeClasses(this.template.icon, this.toSeverityIcon(severity).classNames);
+				this.template.icon.classList.remove(...this.toSeverityIcon(severity).classNamesArray);
 			}
 		});
-		addClasses(this.template.icon, this.toSeverityIcon(notification.severity).classNames);
+		this.template.icon.classList.add(...this.toSeverityIcon(notification.severity).classNamesArray);
 	}
 
 	private renderMessage(notification: INotificationViewItem): boolean {

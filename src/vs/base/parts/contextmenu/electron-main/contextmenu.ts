@@ -17,7 +17,7 @@ export function registerContextMenuListener(): void {
 			y: options ? options.y : undefined,
 			positioningItem: options ? options.positioningItem : undefined,
 			callback: () => {
-				// Workaround for https://github.com/Microsoft/vscode/issues/72447
+				// Workaround for https://github.com/microsoft/vscode/issues/72447
 				// It turns out that the menu gets GC'ed if not referenced anymore
 				// As such we drag it into this scope so that it is not being GC'ed
 				if (menu) {

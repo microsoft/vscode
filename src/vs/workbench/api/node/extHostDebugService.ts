@@ -14,7 +14,6 @@ import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensi
 import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -39,10 +38,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostCommands commandService: IExtHostCommands
+		@IExtHostTerminalService private _terminalService: IExtHostTerminalService
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, commandService);
+		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
 	}
 
 	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -100,7 +98,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
 				};
-				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
+				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options, true);
 			} else {
 				cwdForPrepareCommand = args.cwd;
 			}

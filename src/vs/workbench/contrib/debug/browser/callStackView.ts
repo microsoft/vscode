@@ -111,8 +111,8 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 }
 
 export class CallStackView extends ViewPane {
-	private pauseMessage!: HTMLSpanElement;
-	private pauseMessageLabel!: HTMLSpanElement;
+	private stateMessage!: HTMLSpanElement;
+	private stateMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private ignoreSelectionChangedEvent = false;
@@ -137,7 +137,7 @@ export class CallStackView extends ViewPane {
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -156,15 +156,19 @@ export class CallStackView extends ViewPane {
 
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
-				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
-				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
-				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
-				this.pauseMessage.hidden = false;
-				this.updateActions();
+				this.stateMessageLabel.textContent = thread.stateLabel;
+				this.stateMessageLabel.title = thread.stateLabel;
+				this.stateMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
+				this.stateMessage.hidden = false;
+			} else if (sessions.length === 1 && sessions[0].state === State.Running) {
+				this.stateMessageLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+				this.stateMessageLabel.title = sessions[0].getLabel();
+				this.stateMessageLabel.classList.remove('exception');
+				this.stateMessage.hidden = false;
 			} else {
-				this.pauseMessage.hidden = true;
-				this.updateActions();
+				this.stateMessage.hidden = true;
 			}
+			this.updateActions();
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
@@ -195,13 +199,13 @@ export class CallStackView extends ViewPane {
 		const titleContainer = dom.append(container, $('.debug-call-stack-title'));
 		super.renderHeaderTitle(titleContainer, this.options.title);
 
-		this.pauseMessage = dom.append(titleContainer, $('span.pause-message'));
-		this.pauseMessage.hidden = true;
-		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
+		this.stateMessage = dom.append(titleContainer, $('span.state-message'));
+		this.stateMessage.hidden = true;
+		this.stateMessageLabel = dom.append(this.stateMessage, $('span.label'));
 	}
 
 	getActions(): IAction[] {
-		if (this.pauseMessage.hidden) {
+		if (this.stateMessage.hidden) {
 			return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 		}
 
@@ -210,8 +214,8 @@ export class CallStackView extends ViewPane {
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		dom.addClass(this.element, 'debug-pane');
-		dom.addClass(container, 'debug-call-stack');
+		this.element.classList.add('debug-pane');
+		container.classList.add('debug-call-stack');
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
@@ -437,7 +441,7 @@ export class CallStackView extends ViewPane {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -547,7 +551,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		data.stateLabel.style.display = '';
 
 		if (thread && thread.stoppedDetails) {
-			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+			data.stateLabel.textContent = thread.stateLabel;
 			if (thread.stoppedDetails.text) {
 				data.session.title = thread.stoppedDetails.text;
 			}
@@ -577,7 +581,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 	renderTemplate(container: HTMLElement): IThreadTemplateData {
 		const thread = dom.append(container, $('.thread'));
 		const name = dom.append(thread, $('.name'));
-		const stateLabel = dom.append(thread, $('span.state.label'));
+		const stateLabel = dom.append(thread, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(thread);
 
@@ -631,11 +635,11 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
-		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
-		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
-		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
+		data.stackFrame.classList.toggle('disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
+		data.stackFrame.classList.toggle('label', stackFrame.presentationHint === 'label');
+		data.stackFrame.classList.toggle('subtle', stackFrame.presentationHint === 'subtle');
 		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
-		dom.toggleClass(data.stackFrame, 'has-actions', hasActions);
+		data.stackFrame.classList.toggle('has-actions', hasActions);
 
 		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {
@@ -648,9 +652,9 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 			if (stackFrame.range.startColumn) {
 				data.lineNumber.textContent += `:${stackFrame.range.startColumn}`;
 			}
-			dom.removeClass(data.lineNumber, 'unavailable');
+			data.lineNumber.classList.remove('unavailable');
 		} else {
-			dom.addClass(data.lineNumber, 'unavailable');
+			data.lineNumber.classList.add('unavailable');
 		}
 
 		data.actionBar.clear();
@@ -930,13 +934,15 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
-			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
+			return nls.localize({ key: 'threadAriaLabel', comment: ['Placeholders stand for the thread name and the thread state.For example "Thread 1" and "Stopped'] }, "Thread {0} {1}", element.name, element.stateLabel);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}, callstack, debug", element.name, element.range.startLineNumber, getSpecificSourceName(element));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}", element.name, element.range.startLineNumber, getSpecificSourceName(element));
 		}
 		if (isDebugSession(element)) {
-			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());
+			const thread = element.getAllThreads().find(t => t.stopped);
+			const state = thread ? thread.stateLabel : nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			return nls.localize({ key: 'sessionLabel', comment: ['Placeholders stand for the session name and the session state. For example "Launch Program" and "Running"'] }, "Session {0} {1}", element.getLabel(), state);
 		}
 		if (typeof element === 'string') {
 			return element;

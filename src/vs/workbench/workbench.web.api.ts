@@ -8,17 +8,17 @@ import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -121,6 +121,51 @@ interface IHomeIndicator {
 	title: string;
 }
 
+interface IWindowIndicator {
+
+	/**
+	 * Triggering this event will cause the window indicator to update.
+	 */
+	onDidChange: Event<void>;
+
+	/**
+	 * Label of the window indicator may include octicons
+	 * e.g. `$(remote) label`
+	 */
+	label: string;
+
+	/**
+	 * Tooltip of the window indicator should not include
+	 * octicons and be descriptive.
+	 */
+	tooltip: string;
+
+	/**
+	 * If provided, overrides the default command that
+	 * is executed when clicking on the window indicator.
+	 */
+	command?: string;
+}
+
+enum ColorScheme {
+	DARK = 'dark',
+	LIGHT = 'light',
+	HIGH_CONTRAST = 'hc'
+}
+
+interface IInitialColorTheme {
+
+	/**
+	 * Initial color theme type.
+	 */
+	themeType: ColorScheme;
+
+	/**
+	 * A list of workbench colors to apply initially.
+	 */
+	colors?: { [colorId: string]: string };
+}
+
 interface IDefaultSideBarLayout {
 	visible?: boolean;
 	containers?: ({
@@ -172,10 +217,6 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
-	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
-	readonly sidebar?: IDefaultSideBarLayout;
-	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
-	readonly panel?: IDefaultPanelLayout;
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 }
@@ -187,6 +228,21 @@ interface IProductQualityChangeHandler {
 	 * `insider` or `stable` product qualities.
 	 */
 	(newQuality: 'insider' | 'stable'): void;
+}
+
+/**
+ * Settings sync options
+ */
+interface ISettingsSyncOptions {
+	/**
+	 * Is settings sync enabled
+	 */
+	readonly enabled: boolean;
+
+	/**
+	 * Handler is being called when the user changes Settings Sync enablement.
+	 */
+	enablementHandler?(enablement: boolean): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -211,6 +267,11 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
+	 * An URL pointing to the web worker extension host <iframe> src.
+	 */
+	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
 	 * A factory for web sockets.
 	 */
 	readonly webSocketFactory?: IWebSocketFactory;
@@ -231,6 +292,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly tunnelProvider?: ITunnelProvider;
 
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 
 
@@ -242,20 +308,18 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * The user data provider is used to handle user specific application
-	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
-	 */
-	userDataProvider?: IFileSystemProvider;
-
-	/**
-	 * Session id of the current authenticated user
-	 */
-	readonly authenticationSessionId?: string;
-
-	/**
-	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 * Enables Settings Sync by default.
+	 *
+	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
+	 *
+	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
 	 */
 	readonly enableSyncByDefault?: boolean;
+
+	/**
+	 * Settings sync options
+	 */
+	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -266,12 +330,6 @@ interface IWorkbenchConstructionOptions {
 	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Service end-point hosting builtin extensions
-	 */
-	readonly builtinExtensionsServiceUrl?: string;
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -345,6 +403,20 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly productConfiguration?: Partial<IProductConfiguration>;
 
+	/**
+	 * Optional override for properties of the window indicator in the status bar.
+	 */
+	readonly windowIndicator?: IWindowIndicator;
+
+	/**
+	 * Specifies the default theme type (LIGHT, DARK..) and allows to provide initial colors that are shown
+	 * until the color theme that is specified in the settings (`editor.colorTheme`) is loaded and applied.
+	 * Once there are persisted colors from a last run these will be used.
+	 *
+	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
+	 */
+	readonly initialColorTheme?: IInitialColorTheme;
+
 	//#endregion
 
 
@@ -360,18 +432,14 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly driver?: boolean;
 
-	/**
-	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
-	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
-
 	//#endregion
 }
 
 interface IWorkbench {
 	commands: {
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	}
+	},
+	shutdown: () => void;
 }
 
 /**
@@ -383,7 +451,7 @@ interface IWorkbench {
 let created = false;
 let workbenchPromiseResolve: Function;
 const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
-async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
 	mark('didLoadWorkbenchMain');
@@ -397,10 +465,6 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 		created = true;
 	}
 
-	// Startup workbench and resolve waiters
-	const workbench = await main(domElement, options);
-	workbenchPromiseResolve(workbench);
-
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
 		for (const command of options.commands) {
@@ -411,6 +475,21 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 			});
 		}
 	}
+
+	// Startup workbench and resolve waiters
+	let instantiatedWorkbench: IWorkbench | undefined = undefined;
+	main(domElement, options).then(workbench => {
+		instantiatedWorkbench = workbench;
+		workbenchPromiseResolve(workbench);
+	});
+
+	return toDisposable(() => {
+		if (instantiatedWorkbench) {
+			instantiatedWorkbench.shutdown();
+		} else {
+			workbenchPromise.then(instantiatedWorkbench => instantiatedWorkbench.shutdown());
+		}
+	});
 }
 
 
@@ -477,6 +556,9 @@ export {
 	// LogLevel
 	LogLevel,
 
+	// SettingsSync
+	ISettingsSyncOptions,
+
 	// Updates/Quality
 	IUpdateProvider,
 	IUpdate,
@@ -504,6 +586,8 @@ export {
 	// Branding
 	IHomeIndicator,
 	IProductConfiguration,
+	IWindowIndicator,
+	IInitialColorTheme,
 
 	// Default layout
 	IDefaultView,

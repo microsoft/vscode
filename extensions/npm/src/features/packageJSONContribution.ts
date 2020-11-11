@@ -249,7 +249,27 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
+	private isValidNPMName(name: string): boolean {
+		// following rules from https://github.com/npm/validate-npm-package-name
+		if (!name || name.length > 214 || name.match(/^[_.]/)) {
+			return false;
+		}
+		const match = name.match(/^(?:@([^/]+?)[/])?([^/]+?)$/);
+		if (match) {
+			const scope = match[1];
+			if (scope && encodeURIComponent(scope) !== scope) {
+				return false;
+			}
+			const name = match[2];
+			return encodeURIComponent(name) === name;
+		}
+		return false;
+	}
+
 	private async fetchPackageInfo(pack: string): Promise<ViewPackageInfo | undefined> {
+		if (!this.isValidNPMName(pack)) {
+			return undefined; // avoid unnecessary lookups
+		}
 		let info: ViewPackageInfo | undefined;
 		if (this.canRunNPM) {
 			info = await this.npmView(pack);
@@ -260,11 +280,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		return info;
 	}
 
-
 	private npmView(pack: string): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
-			const command = 'npm view --json ' + pack + ' description dist-tags.latest homepage version';
-			cp.exec(command, (error, stdout) => {
+			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
+			cp.execFile(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);

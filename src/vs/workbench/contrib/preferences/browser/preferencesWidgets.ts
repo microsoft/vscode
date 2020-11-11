@@ -25,7 +25,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -192,15 +192,15 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 
 	toggleCollapse(collapse: boolean) {
-		DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
+		this.titleContainer.classList.toggle('collapsed', collapse);
 	}
 
 	toggleFocus(focus: boolean): void {
-		DOM.toggleClass(this.titleContainer, 'focused', focus);
+		this.titleContainer.classList.toggle('focused', focus);
 	}
 
 	isCollapsed(): boolean {
-		return DOM.hasClass(this.titleContainer, 'collapsed');
+		return this.titleContainer.classList.contains('collapsed');
 	}
 
 	private layout(): void {
@@ -256,7 +256,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 	private collapse(collapse: boolean) {
 		if (collapse !== this.isCollapsed()) {
-			DOM.toggleClass(this.titleContainer, 'collapsed', collapse);
+			this.titleContainer.classList.toggle('collapsed', collapse);
 			this._onToggled.fire(collapse);
 		}
 	}
@@ -412,17 +412,17 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 			this.anchorElement.title = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri))?.fsPath || '';
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
-			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
+			this.dropDownElement.classList.toggle('hide', workspace.folders.length === 1 || !this._action.checked);
 		} else {
 			const labelText = this.labelWithCount(this._action.label, total);
 			this.labelElement.textContent = labelText;
 			this.detailsElement.textContent = '';
 			this.anchorElement.title = this._action.label;
-			DOM.removeClass(this.dropDownElement, 'hide');
+			this.dropDownElement.classList.remove('hide');
 		}
 
-		DOM.toggleClass(this.anchorElement, 'checked', this._action.checked);
-		DOM.toggleClass(this.container, 'disabled', !this._action.enabled);
+		this.anchorElement.classList.toggle('checked', this._action.checked);
+		this.container.classList.toggle('disabled', !this._action.enabled);
 	}
 
 	private showMenu(): void {
@@ -515,8 +515,8 @@ export class SettingsTargetsWidget extends Widget {
 			this.userLocalSettings.tooltip = uri?.fsPath || '';
 		});
 
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
 		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
 			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
@@ -595,8 +595,8 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private async update(): Promise<void> {
-		DOM.toggleClass(this.settingsSwitcherBar.domNode, 'empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
-		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.configuration.remoteAuthority);
+		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
@@ -697,13 +697,13 @@ export class SearchWidget extends Widget {
 	layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
 			if (this.countElement) {
-				DOM.addClass(this.countElement, 'hide');
+				this.countElement.classList.add('hide');
 			}
 
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
 			if (this.countElement) {
-				DOM.removeClass(this.countElement, 'hide');
+				this.countElement.classList.remove('hide');
 			}
 
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';

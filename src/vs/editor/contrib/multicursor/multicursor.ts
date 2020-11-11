@@ -971,7 +971,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			return;
 		}
 
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
 
 		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
 		allMatches.sort(Range.compareRangesUsingStarts);
@@ -1016,6 +1016,11 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		});
 
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
+
+		const currentFindState = CommonFindController.get(this.editor).getState();
+		if (currentFindState.isRegex || currentFindState.matchCase || currentFindState.wholeWord) {
+			CommonFindController.get(this.editor).highlightFindOptions();
+		}
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({

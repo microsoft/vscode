@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
@@ -13,9 +13,7 @@ import { ExtensionType, IExtensionManifest, IExtensionIdentifier } from 'vs/plat
 import { areSameExtensions, ExtensionIdentifierWithVersion, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Limiter, Queue } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -23,7 +21,8 @@ import { CancellationToken } from 'vscode';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { isWindows } from 'vs/base/common/platform';
 import { flatten } from 'vs/base/common/arrays';
-import { assign } from 'vs/base/common/objects';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { FileAccess } from 'vs/base/common/network';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -31,7 +30,9 @@ const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 
-export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; }>;
+export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean }>;
+export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
+type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
 
 export class ExtensionsScanner extends Disposable {
 
@@ -43,7 +44,7 @@ export class ExtensionsScanner extends Disposable {
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 	) {
 		super();
@@ -69,7 +70,12 @@ export class ExtensionsScanner extends Disposable {
 			promises.push(this.scanUserExtensions(true).then(null, e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_USER_EXTENSIONS))));
 		}
 
-		return Promise.all<ILocalExtension[]>(promises).then(flatten, errors => Promise.reject(this.joinErrors(errors)));
+		try {
+			const result = await Promise.all(promises);
+			return flatten(result);
+		} catch (error) {
+			throw this.joinErrors(error);
+		}
 	}
 
 	async scanUserExtensions(excludeOutdated: boolean): Promise<ILocalExtension[]> {
@@ -89,7 +95,6 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, token: CancellationToken): Promise<ILocalExtension> {
-		const { identifier } = identifierWithVersion;
 		const folderName = identifierWithVersion.key();
 		const tempPath = path.join(this.extensionsPath, `.${folderName}`);
 		const extensionPath = path.join(this.extensionsPath, folderName);
@@ -100,12 +105,12 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				await pfs.rimraf(extensionPath);
 			} catch (e) { /* ignore */ }
-			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, identifier.id), INSTALL_ERROR_DELETING);
+			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, identifierWithVersion.id), INSTALL_ERROR_DELETING);
 		}
 
-		await this.extractAtLocation(identifier, zipPath, tempPath, token);
+		await this.extractAtLocation(identifierWithVersion, zipPath, tempPath, token);
 		try {
-			await this.rename(identifier, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			await this.rename(identifierWithVersion, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
 			this.logService.info('Renamed to', extensionPath);
 		} catch (error) {
 			this.logService.info('Rename failed. Deleting from extracted location', tempPath);
@@ -131,10 +136,11 @@ export class ExtensionsScanner extends Disposable {
 
 		// unset if false
 		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
+		metadata.isBuiltin = metadata.isBuiltin || undefined;
 		const manifestPath = path.join(local.location.fsPath, 'package.json');
 		const raw = await pfs.readFile(manifestPath, 'utf8');
 		const { manifest } = await this.parseManifest(raw);
-		assign(manifest, { __metadata: metadata });
+		(manifest as ILocalExtensionManifest).__metadata = metadata;
 		await pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
 		return local;
 	}
@@ -143,22 +149,33 @@ export class ExtensionsScanner extends Disposable {
 		return this.withUninstalledExtensions(uninstalled => uninstalled);
 	}
 
-	async withUninstalledExtensions<T>(fn: (uninstalled: { [id: string]: boolean; }) => T): Promise<T> {
+	async withUninstalledExtensions<T>(fn: (uninstalled: IStringDictionary<boolean>) => T): Promise<T> {
 		return this.uninstalledFileLimiter.queue(async () => {
-			let result: T | null = null;
-			return pfs.readFile(this.uninstalledPath, 'utf8')
-				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
-				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
-				.then(uninstalled => { result = fn(uninstalled); return uninstalled; })
-				.then(uninstalled => {
-					if (Object.keys(uninstalled).length === 0) {
-						return pfs.rimraf(this.uninstalledPath);
-					} else {
-						const raw = JSON.stringify(uninstalled);
-						return pfs.writeFile(this.uninstalledPath, raw);
-					}
-				})
-				.then(() => result);
+			let raw: string | undefined;
+			try {
+				raw = await pfs.readFile(this.uninstalledPath, 'utf8');
+			} catch (err) {
+				if (err.code !== 'ENOENT') {
+					throw err;
+				}
+			}
+
+			let uninstalled = {};
+			if (raw) {
+				try {
+					uninstalled = JSON.parse(raw);
+				} catch (e) { /* ignore */ }
+			}
+
+			const result = fn(uninstalled);
+
+			if (Object.keys(uninstalled).length) {
+				await pfs.writeFile(this.uninstalledPath, JSON.stringify(uninstalled));
+			} else {
+				await pfs.rimraf(this.uninstalledPath);
+			}
+
+			return result;
 		});
 	}
 
@@ -173,27 +190,35 @@ export class ExtensionsScanner extends Disposable {
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[new ExtensionIdentifierWithVersion(extension.identifier, extension.manifest.version).key()]);
 	}
 
-	private extractAtLocation(identifier: IExtensionIdentifier, zipPath: string, location: string, token: CancellationToken): Promise<void> {
+	private async extractAtLocation(identifier: IExtensionIdentifier, zipPath: string, location: string, token: CancellationToken): Promise<void> {
 		this.logService.trace(`Started extracting the extension from ${zipPath} to ${location}`);
-		return pfs.rimraf(location)
-			.then(
-				() => extract(zipPath, location, { sourcePath: 'extension', overwrite: true }, token)
-					.then(
-						() => this.logService.info(`Extracted extension to ${location}:`, identifier.id),
-						e => pfs.rimraf(location).finally(() => { })
-							.then(() => Promise.reject(new ExtensionManagementError(e.message, e instanceof ExtractError && e.type ? e.type : INSTALL_ERROR_EXTRACTING)))),
-				e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
+
+		// Clean the location
+		try {
+			await pfs.rimraf(location);
+		} catch (e) {
+			throw new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING);
+		}
+
+		try {
+			await extract(zipPath, location, { sourcePath: 'extension', overwrite: true }, token);
+			this.logService.info(`Extracted extension to ${location}:`, identifier.id);
+		} catch (e) {
+			try { await pfs.rimraf(location); } catch (e) { /* Ignore */ }
+			throw new ExtensionManagementError(e.message, e instanceof ExtractError && e.type ? e.type : INSTALL_ERROR_EXTRACTING);
+		}
 	}
 
-	private rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
-		return pfs.rename(extractPath, renamePath)
-			.then(undefined, error => {
-				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
-					return this.rename(identifier, extractPath, renamePath, retryUntil);
-				}
-				return Promise.reject(new ExtensionManagementError(error.message || localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING));
-			});
+	private async rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
+		try {
+			await pfs.rename(extractPath, renamePath);
+		} catch (error) {
+			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
+				this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
+				return this.rename(identifier, extractPath, renamePath, retryUntil);
+			}
+			throw new ExtensionManagementError(error.message || localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING);
+		}
 	}
 
 	private async scanSystemExtensions(): Promise<ILocalExtension[]> {
@@ -229,7 +254,7 @@ export class ExtensionsScanner extends Disposable {
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : undefined;
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false };
+			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
 			if (metadata) {
 				this.setMetadata(local, metadata);
 			}
@@ -257,11 +282,12 @@ export class ExtensionsScanner extends Disposable {
 		}
 	}
 
-	private setMetadata(local: ILocalExtension, metadata: IMetadata): void {
+	private setMetadata(local: IRelaxedLocalExtension, metadata: IMetadata): void {
 		local.publisherDisplayName = metadata.publisherDisplayName || null;
 		local.publisherId = metadata.publisherId || null;
 		local.identifier.uuid = metadata.id;
 		local.isMachineScoped = !!metadata.isMachineScoped;
+		local.isBuiltin = local.type === ExtensionType.System || !!metadata.isBuiltin;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {
@@ -312,7 +338,7 @@ export class ExtensionsScanner extends Disposable {
 	private _devSystemExtensionsPath: string | null = null;
 	private get devSystemExtensionsPath(): string {
 		if (!this._devSystemExtensionsPath) {
-			this._devSystemExtensionsPath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
+			this._devSystemExtensionsPath = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions'));
 		}
 		return this._devSystemExtensionsPath;
 	}
@@ -338,7 +364,6 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				const manifest = JSON.parse(raw);
 				const metadata = manifest.__metadata || null;
-				delete manifest.__metadata;
 				c({ manifest, metadata });
 			} catch (err) {
 				e(new Error(localize('invalidManifest', "Extension invalid: package.json is not a JSON file.")));

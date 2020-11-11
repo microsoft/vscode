@@ -61,7 +61,12 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'debug/callstack/context',
 		id: MenuId.DebugCallStackContext,
-		description: localize('menus.debugCallstackContext', "The debug callstack context menu")
+		description: localize('menus.debugCallstackContext', "The debug callstack view context menu")
+	},
+	{
+		key: 'debug/variables/context',
+		id: MenuId.DebugVariablesContext,
+		description: localize('menus.debugVariablesContext', "The debug variables view context menu")
 	},
 	{
 		key: 'debug/toolBar',
@@ -74,6 +79,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
 		proposed: true,
 		supportsSubmenus: false
+	},
+	{
+		key: 'menuBar/file',
+		id: MenuId.MenubarFileMenu,
+		description: localize('menus.file', "The top level file menu"),
+		proposed: true
 	},
 	{
 		key: 'scm/title',
@@ -363,7 +374,7 @@ namespace schema {
 	};
 
 	export const submenusContribution: IJSONSchema = {
-		description: localize('vscode.extension.contributes.submenus', "(Proposed API) Contributes submenu items to the editor"),
+		description: localize('vscode.extension.contributes.submenus', "Contributes submenu items to the editor"),
 		type: 'array',
 		items: submenu
 	};
@@ -575,13 +586,12 @@ submenusExtensionPoint.setHandler(extensions => {
 				collector.warn(localize('submenuId.invalid.id', "`{0}` is not a valid submenu identifier", entry.value.id));
 				return;
 			}
-			if (!entry.value.label) {
-				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
+			if (_submenus.has(entry.value.id)) {
+				collector.warn(localize('submenuId.duplicate.id', "The `{0}` submenu was already previously registered.", entry.value.id));
 				return;
 			}
-
-			if (!extension.description.enableProposedApi) {
-				collector.error(localize('submenu.proposedAPI.invalid', "Submenus are proposed API and are only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
+			if (!entry.value.label) {
+				collector.warn(localize('submenuId.invalid.label', "`{0}` is not a valid submenu label", entry.value.label));
 				return;
 			}
 
@@ -610,6 +620,7 @@ submenusExtensionPoint.setHandler(extensions => {
 
 const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
+const _submenuMenuItems = new Map<number /* menu id */, Set<number /* submenu id */>>();
 
 const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
 	extensionPoint: 'menus',
@@ -621,6 +632,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 	// remove all previous menu registrations
 	_menuRegistrations.clear();
+	_submenuMenuItems.clear();
 
 	const items: { id: MenuId, item: IMenuItem | ISubmenuItem }[] = [];
 
@@ -633,7 +645,6 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			let menu = _apiMenusByKey.get(entry.key);
-			let isSubmenu = false;
 
 			if (!menu) {
 				const submenu = _submenus.get(entry.key);
@@ -644,7 +655,6 @@ menusExtensionPoint.setHandler(extensions => {
 						id: submenu.id,
 						description: ''
 					};
-					isSubmenu = true;
 				}
 			}
 
@@ -655,11 +665,6 @@ menusExtensionPoint.setHandler(extensions => {
 
 			if (menu.proposed && !extension.description.enableProposedApi) {
 				collector.error(localize('proposedAPI.invalid', "{0} is a proposed menu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
-				return;
-			}
-
-			if (isSubmenu && !extension.description.enableProposedApi) {
-				collector.error(localize('proposedAPI.invalid.submenu', "{0} is a submenu identifier and is only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", entry.key, extension.description.identifier.value));
 				return;
 			}
 
@@ -683,13 +688,8 @@ menusExtensionPoint.setHandler(extensions => {
 
 					item = { command, alt, group: undefined, order: undefined, when: undefined };
 				} else {
-					if (!extension.description.enableProposedApi) {
-						collector.error(localize('proposedAPI.invalid.submenureference', "Menu item references a submenu which is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
-						continue;
-					}
-
 					if (menu.supportsSubmenus === false) {
-						collector.error(localize('proposedAPI.unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));
+						collector.error(localize('unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));
 						continue;
 					}
 
@@ -699,6 +699,20 @@ menusExtensionPoint.setHandler(extensions => {
 						collector.error(localize('missing.submenu', "Menu item references a submenu `{0}` which is not defined in the 'submenus' section.", menuItem.submenu));
 						continue;
 					}
+
+					let submenuRegistrations = _submenuMenuItems.get(menu.id.id);
+
+					if (!submenuRegistrations) {
+						submenuRegistrations = new Set();
+						_submenuMenuItems.set(menu.id.id, submenuRegistrations);
+					}
+
+					if (submenuRegistrations.has(submenu.id.id)) {
+						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry.key));
+						continue;
+					}
+
+					submenuRegistrations.add(submenu.id.id);
 
 					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group: undefined, order: undefined, when: undefined };
 				}

@@ -5,7 +5,7 @@
 
 /* --------------------------------------------------------------------------------------------
  * Includes code from typescript-sublime-plugin project, obtained from
- * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
+ * https://github.com/microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
@@ -29,12 +29,6 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as ProjectStatus from './utils/largeProjectStatus';
-
-namespace Experimental {
-	export interface Diagnostic extends Proto.Diagnostic {
-		readonly reportsDeprecated?: {}
-	}
-}
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -229,7 +223,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
-		// See https://github.com/Microsoft/TypeScript/issues/10384
+		// See https://github.com/microsoft/TypeScript/issues/10384
 		const body = event.body;
 		if (!body || !body.diagnostics || !body.configFile) {
 			return;
@@ -256,7 +250,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Experimental.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));

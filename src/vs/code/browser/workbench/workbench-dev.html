@@ -14,11 +14,11 @@
 		<!-- Workbench Configuration -->
 		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
 
+		<!-- Workbench Auth Session -->
+		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
+
 		<!-- Builtin Extensions (running out of sources) -->
 		<meta id="vscode-workbench-builtin-extensions" data-settings="{{WORKBENCH_BUILTIN_EXTENSIONS}}">
-
-		<!-- Workarounds/Hacks (remote user data uri) -->
-		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
 
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
@@ -33,6 +33,7 @@
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
+			createTrustedScriptURL: value => value,
 			paths: {
 				'vscode-textmate': `${window.location.origin}/static/remote/web/node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `${window.location.origin}/static/remote/web/node_modules/vscode-oniguruma/release/main`,
@@ -40,7 +41,7 @@
 				'xterm-addon-search': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
 				'xterm-addon-unicode11': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
 				'xterm-addon-webgl': `${window.location.origin}/static/remote/web/node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-				'semver-umd': `${window.location.origin}/static/remote/web/node_modules/semver-umd/lib/semver-umd.js`,
+				'tas-client-umd': `${window.location.origin}/static/remote/web/node_modules/tas-client-umd/lib/tas-client-umd.js`,
 				'iconv-lite-umd': `${window.location.origin}/static/remote/web/node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
 				'jschardet': `${window.location.origin}/static/remote/web/node_modules/jschardet/dist/jschardet.min.js`,
 			}

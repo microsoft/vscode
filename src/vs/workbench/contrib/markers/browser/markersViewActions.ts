@@ -183,7 +183,8 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			{
 				actionRunner,
 				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+				menuAsChild: true
 			}
 		);
 	}
@@ -250,7 +251,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 	}
 
 	updateChecked(): void {
-		DOM.toggleClass(this.element!, 'checked', this._action.checked);
+		this.element!.classList.toggle('checked', this._action.checked);
 	}
 
 }
@@ -274,7 +275,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, action);
 		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
-		this.delayedFilterUpdate = new Delayer<void>(200);
+		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 		this._register(filterController.onDidFocusFilter(() => this.focus()));
 		this._register(filterController.onDidClearFilterText(() => this.clearFilterText()));
@@ -285,7 +286,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'markers-panel-action-filter-container');
+		this.container.classList.add('markers-panel-action-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;
@@ -392,7 +393,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private updateBadge(): void {
 		if (this.filterBadge) {
 			const { total, filtered } = this.filterController.getFilterStats();
-			DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
+			this.filterBadge.classList.toggle('hidden', total === filtered || total === 0);
 			this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 			this.adjustInputBox();
 		}
@@ -400,7 +401,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 
 	private adjustInputBox(): void {
 		if (this.element && this.filterInputBox && this.filterBadge) {
-			this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.element, 'small') || DOM.hasClass(this.filterBadge, 'hidden') ? '25px' : '150px';
+			this.filterInputBox.inputElement.style.paddingRight = this.element.classList.contains('small') || this.filterBadge.classList.contains('hidden') ? '25px' : '150px';
 		}
 	}
 
@@ -430,7 +431,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	protected updateClass(): void {
 		if (this.element && this.container) {
 			this.element.className = this.class;
-			DOM.toggleClass(this.container, 'grow', DOM.hasClass(this.element, 'grow'));
+			this.container.classList.toggle('grow', this.element.classList.contains('grow'));
 			this.adjustInputBox();
 		}
 	}

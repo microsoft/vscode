@@ -302,7 +302,11 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		if (previewResource.mergeState === MergeState.Accepted) {
 			if (previewResource.localChange !== Change.Deleted && previewResource.remoteChange !== Change.Deleted) {
 				// Do not open deleted preview
-				await this.editorService.openEditor({ resource: previewResource.accepted, label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)) });
+				await this.editorService.openEditor({
+					resource: previewResource.accepted,
+					label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)),
+					options: { pinned: true }
+				});
 			}
 		} else {
 			const leftResource = previewResource.remote;
@@ -314,9 +318,11 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 				leftResource,
 				rightResource,
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: true,
 					revealIfVisible: true,
+					pinned: true
 				},
 			});
 		}

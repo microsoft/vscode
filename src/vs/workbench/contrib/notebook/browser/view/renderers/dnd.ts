@@ -9,7 +9,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_GAP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { BaseCellRenderTemplate, CellEditState, ICellViewModel, INotebookCellList, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -151,7 +151,7 @@ export class CellDragAndDropController extends Disposable {
 
 		const dropDirection = this.getDropInsertDirection(event);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? event.cellTop : event.cellTop + event.cellHeight;
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_HEIGHT / 2;
+		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_GAP / 2;
 		if (insertionIndicatorTop >= 0) {
 			this.listInsertionIndicator.style.top = `${insertionIndicatorTop}px`;
 			this.setInsertIndicatorVisibility(true);
@@ -191,7 +191,7 @@ export class CellDragAndDropController extends Disposable {
 
 		const dropDirection = this.getDropInsertDirection(event);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? event.cellTop : event.cellTop + event.cellHeight;
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_HEIGHT / 2;
+		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_GAP / 2;
 		const editorHeight = this.notebookEditor.getDomNode().getBoundingClientRect().height;
 		if (insertionIndicatorTop < 0 || insertionIndicatorTop > editorHeight) {
 			// Ignore drop, insertion point is off-screen
@@ -256,7 +256,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private copyCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		this.notebookEditor.textModel!.pushStackElement('Copy Cells');
+		this.notebookEditor.textModel!.pushStackElement('Copy Cells', undefined, undefined);
 		let firstNewCell: ICellViewModel | undefined = undefined;
 		let firstNewCellState: CellEditState = CellEditState.Preview;
 		for (let i = 0; i < draggedCells.length; i++) {
@@ -273,6 +273,6 @@ export class CellDragAndDropController extends Disposable {
 			this.notebookEditor.focusNotebookCell(firstNewCell, firstNewCellState === CellEditState.Editing ? 'editor' : 'container');
 		}
 
-		this.notebookEditor.textModel!.pushStackElement('Copy Cells');
+		this.notebookEditor.textModel!.pushStackElement('Copy Cells', undefined, undefined);
 	}
 }

@@ -8,18 +8,17 @@ import { timeout } from 'vs/base/common/async';
 import { promisify } from 'util';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { didUseCachedData } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
@@ -27,14 +26,14 @@ export class StartupTimings implements IWorkbenchContribution {
 
 	constructor(
 		@ITimerService private readonly _timerService: ITimerService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IViewletService private readonly _viewletService: IViewletService,
 		@IPanelService private readonly _panelService: IPanelService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
-		@IWorkbenchEnvironmentService private readonly _envService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService
 	) {
 		//
@@ -47,7 +46,7 @@ export class StartupTimings implements IWorkbenchContribution {
 	}
 
 	private async _appendStartupTimes(standardStartupError: string | undefined) {
-		const appendTo = this._envService.args['prof-append-timers'];
+		const appendTo = this._environmentService.args['prof-append-timers'];
 		if (!appendTo) {
 			// nothing to do
 			return;
@@ -61,10 +60,10 @@ export class StartupTimings implements IWorkbenchContribution {
 		]).then(([startupMetrics]) => {
 			return promisify(appendFile)(appendTo, `${startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
 		}).then(() => {
-			this._electronService.quit();
+			this._nativeHostService.quit();
 		}).catch(err => {
 			console.error(err);
-			this._electronService.quit();
+			this._nativeHostService.quit();
 		});
 	}
 
@@ -78,7 +77,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
 			return StartupKindToString(this._lifecycleService.startupKind);
 		}
-		const windowCount = await this._electronService.getWindowCount();
+		const windowCount = await this._nativeHostService.getWindowCount();
 		if (windowCount !== 1) {
 			return 'Expected window count : 1, Actual : ' + windowCount;
 		}

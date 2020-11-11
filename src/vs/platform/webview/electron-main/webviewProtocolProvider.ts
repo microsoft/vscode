@@ -7,11 +7,10 @@ import { protocol, session } from 'electron';
 import { Readable } from 'stream';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { loadLocalResource, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -131,13 +130,12 @@ export class WebviewProtocolProvider extends Disposable {
 			const uri = URI.parse(request.url);
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
 			if (typeof entry === 'string') {
-				let url: string;
-				if (uri.path.startsWith('/electron-browser')) {
-					url = require.toUrl(`vs/workbench/contrib/webview/electron-browser/pre/${entry}`);
-				} else {
-					url = require.toUrl(`vs/workbench/contrib/webview/browser/pre/${entry}`);
-				}
-				return callback(decodeURIComponent(url.replace('file://', '')));
+				const relativeResourcePath = uri.path.startsWith('/electron-browser')
+					? `vs/workbench/contrib/webview/electron-browser/pre/${entry}`
+					: `vs/workbench/contrib/webview/browser/pre/${entry}`;
+
+				const url = FileAccess.asFileUri(relativeResourcePath, require);
+				return callback(decodeURIComponent(url.fsPath));
 			}
 		} catch {
 			// noop
@@ -161,7 +159,7 @@ export class WebviewProtocolProvider extends Disposable {
 				if (metadata.remoteConnectionData) {
 					rewriteUri = (uri) => {
 						if (metadata.remoteConnectionData) {
-							if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === REMOTE_HOST_SCHEME)) {
+							if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === Schemas.vscodeRemote)) {
 								return URI.parse(`http://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
 									path: '/vscode-remote-resource',
 									query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,

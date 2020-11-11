@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
+import { timeout } from 'vs/base/common/async';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -32,7 +33,7 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 }
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
-	readonly extensionRuntime = ExtensionRuntime.Node;
+	readonly extensionRuntime = ExtensionRuntime.Webworker;
 
 	private _fakeModules?: WorkerRequireInterceptor;
 
@@ -41,6 +42,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
 		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
 		await this._fakeModules.install();
+		await this._waitForDebuggerAttachment();
 	}
 
 	protected _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined {
@@ -85,6 +87,18 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
 		throw new Error('Not supported');
+	}
+
+	private async _waitForDebuggerAttachment(waitTimeout = 5000) {
+		// debugger attaches async, waiting for it fixes #106698 and #99222
+		if (!this._initData.environment.isExtensionDevelopmentDebug) {
+			return;
+		}
+
+		const deadline = Date.now() + waitTimeout;
+		while (Date.now() < deadline && !('__jsDebugIsReady' in globalThis)) {
+			await timeout(10);
+		}
 	}
 }
 

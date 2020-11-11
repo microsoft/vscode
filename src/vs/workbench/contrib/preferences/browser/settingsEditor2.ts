@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
 import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
@@ -29,31 +29,36 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } f
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { IUserDataAutoSyncService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorMemento, IEditorPane } from 'vs/workbench/common/editor';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers, updateSettingTreeTabOrder } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
+
+export const enum SettingsFocusContext {
+	Search,
+	TableOfContents,
+	SettingTree,
+	SettingControl
+}
 
 function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
@@ -76,7 +81,7 @@ const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 
 const SETTINGS_AUTOSAVE_NOTIFIED_KEY = 'hasNotifiedOfSettingsAutosave';
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
-export class SettingsEditor2 extends BaseEditor {
+export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
@@ -121,8 +126,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private tocTreeContainer!: HTMLElement;
 	private tocTree!: TOCTree;
 
-	private settingsAriaExtraLabelsContainer!: HTMLElement;
-
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
@@ -136,13 +139,16 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
+	private searchResultLabel: string | null = null;
+	private lastSyncedLabel: string | null = null;
 
 	private tocRowFocused: IContextKey<boolean>;
+	private settingRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
-	private lastFocusedSettingElement: string | null = null;
+	private _currentFocusContext: SettingsFocusContext = SettingsFocusContext.Search;
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings = false;
@@ -166,10 +172,8 @@ export class SettingsEditor2 extends BaseEditor {
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -185,6 +189,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
+		this.settingRowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
 
 		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
 
@@ -195,14 +200,12 @@ export class SettingsEditor2 extends BaseEditor {
 				this.onConfigUpdate(e.affectedKeys);
 			}
 		}));
-
-		storageKeysSyncRegistryService.registerStorageKey({ key: SETTINGS_AUTOSAVE_NOTIFIED_KEY, version: 1 });
 	}
 
 	get minimumWidth(): number { return 375; }
 	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
+	// these setters need to exist because this extends from EditorPane
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
@@ -217,12 +220,20 @@ export class SettingsEditor2 extends BaseEditor {
 	private set searchResultModel(value: SearchResultModel | null) {
 		this._searchResultModel = value;
 
-		DOM.toggleClass(this.rootElement, 'search-mode', !!this._searchResultModel);
+		this.rootElement.classList.toggle('search-mode', !!this._searchResultModel);
 	}
 
-	private get currentSettingsContextMenuKeyBindingLabel(): string {
-		const keybinding = this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		return (keybinding && keybinding.getAriaLabel()) || '';
+	private get focusedSettingDOMElement(): HTMLElement | undefined {
+		const focused = this.settingsTree.getFocus()[0];
+		if (!(focused instanceof SettingsTreeSettingElement)) {
+			return;
+		}
+
+		return this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), focused.setting.key)[0];
+	}
+
+	get currentFocusContext() {
+		return this._currentFocusContext;
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -235,9 +246,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, token: CancellationToken): Promise<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
-		return super.setInput(input, options, token)
+		return super.setInput(input, options, context, token)
 			.then(() => timeout(0)) // Force setInput to be async
 			.then(() => {
 				// Don't block setInput on render (which can trigger an async search)
@@ -319,46 +330,43 @@ export class SettingsEditor2 extends BaseEditor {
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
-		this.searchWidget.layout({ height: 20, width: monacoWidth });
+		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
-		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
-		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
+		this.rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
 	}
 
 	focus(): void {
-		if (this.lastFocusedSettingElement) {
-			const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), this.lastFocusedSettingElement);
-			if (elements.length) {
-				const control = elements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+		if (this._currentFocusContext === SettingsFocusContext.Search) {
+			this.focusSearch();
+		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
+			const element = this.focusedSettingDOMElement;
+			if (element) {
+				const control = element.querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
 					(<HTMLElement>control).focus();
 					return;
 				}
 			}
+		} else if (this._currentFocusContext === SettingsFocusContext.SettingTree) {
+			this.settingsTree.domFocus();
+		} else if (this._currentFocusContext === SettingsFocusContext.TableOfContents) {
+			this.tocTree.domFocus();
 		}
-
-		this.focusSearch();
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 
 		if (!visible) {
-			this.searchWidget.onHide();
+			// Wait for editor to be removed from DOM #106303
+			setTimeout(() => {
+				this.searchWidget.onHide();
+			}, 0);
 		}
 	}
 
 	focusSettings(focusSettingInput = false): void {
-		// TODO@roblourens is this in the right place?
-		// Update ARIA global labels
-		const labelElement = this.settingsAriaExtraLabelsContainer.querySelector('#settings_aria_more_actions_shortcut_label');
-		if (labelElement) {
-			const settingsContextMenuShortcut = this.currentSettingsContextMenuKeyBindingLabel;
-			if (settingsContextMenuShortcut) {
-				labelElement.setAttribute('aria-label', localize('settingsContextMenuAriaShortcut', "For more actions, Press {0}.", settingsContextMenuShortcut));
-			}
-		}
-
 		const focused = this.settingsTree.getFocus();
 		if (!focused.length) {
 			this.settingsTree.focusFirst();
@@ -379,24 +387,10 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	showContextMenu(): void {
-		const activeElement = this.getActiveElementInSettingsTree();
-		if (!activeElement) {
-			return;
-		}
-
-		const settingDOMElement = this.settingRenderers.getSettingDOMElementForDOMElement(activeElement);
-		if (!settingDOMElement) {
-			return;
-		}
-
-		const focusedKey = this.settingRenderers.getKeyForDOMElementInSetting(settingDOMElement);
-		if (!focusedKey) {
-			return;
-		}
-
-		const elements = this.currentSettingsModel.getElementsByName(focusedKey);
-		if (elements && elements[0]) {
-			this.settingRenderers.showContextMenu(elements[0], settingDOMElement);
+		const focused = this.settingsTree.getFocus()[0];
+		const rowElement = this.focusedSettingDOMElement;
+		if (rowElement && focused instanceof SettingsTreeSettingElement) {
+			this.settingRenderers.showContextMenu(focused, rowElement);
 		}
 	}
 
@@ -423,10 +417,16 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue(query.trim());
 	}
 
-	private updateInputAriaLabel(lastSyncedLabel: string) {
-		const label = lastSyncedLabel ?
-			`${searchBoxLabel}. ${lastSyncedLabel}` :
-			searchBoxLabel;
+	private updateInputAriaLabel() {
+		let label = searchBoxLabel;
+		if (this.searchResultLabel) {
+			label += `. ${this.searchResultLabel}`;
+		}
+
+		if (this.lastSyncedLabel) {
+			label += `. ${this.lastSyncedLabel}`;
+		}
+
 		this.searchWidget.updateAriaLabel(label);
 	}
 
@@ -446,11 +446,9 @@ export class SettingsEditor2 extends BaseEditor {
 			placeholderText: searchBoxLabel,
 			focusContextKey: this.searchFocusContextKey,
 			// TODO: Aria-live
-		})
-		);
-
+		}));
 		this._register(this.searchWidget.onFocus(() => {
-			this.lastFocusedSettingElement = '';
+			this._currentFocusContext = SettingsFocusContext.Search;
 		}));
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
@@ -482,10 +480,19 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
+		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.DownArrow) {
+				this.focusSettings();
+			}
+		}));
 
-		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncService.canToggleEnablement()) {
+		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncEnablementService.canToggleEnablement()) {
 			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
-			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
+			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
+				this.lastSyncedLabel = lastSyncedLabel;
+				this.updateInputAriaLabel();
+			}));
 		}
 
 		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
@@ -614,6 +621,10 @@ export class SettingsEditor2 extends BaseEditor {
 			})),
 			this.viewState));
 
+		this._register(this.tocTree.onDidFocus(() => {
+			this._currentFocusContext = SettingsFocusContext.TableOfContents;
+		}));
+
 		this._register(this.tocTree.onDidChangeFocus(e => {
 			const element: SettingsTreeGroupElement | null = e.elements[0];
 			if (this.tocFocusedElement === element) {
@@ -646,14 +657,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
-		// Add  ARIA extra labels div
-		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsTreeContainer, $('.settings-aria-extra-labels'));
-		this.settingsAriaExtraLabelsContainer.id = 'settings_aria_extra_labels';
-		// Add global labels here
-		const labelDiv = DOM.append(this.settingsAriaExtraLabelsContainer, $('.settings-aria-extra-label'));
-		labelDiv.id = 'settings_aria_more_actions_shortcut_label';
-		labelDiv.setAttribute('aria-label', '');
-
 		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
@@ -661,8 +664,9 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
-			this.lastFocusedSettingElement = element.setting.key;
-			this.settingsTree.reveal(element);
+			this.settingsTree.setFocus([element]);
+			this._currentFocusContext = SettingsFocusContext.SettingControl;
+			this.settingRowFocused.set(false);
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {
@@ -687,13 +691,23 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.settingsTreeScrollTop = this.settingsTree.scrollTop;
-			updateSettingTreeTabOrder(this.settingsTreeContainer);
 
 			// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
 			// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
 			setTimeout(() => {
 				this.updateTreeScrollSync();
 			}, 0);
+		}));
+
+		this._register(this.settingsTree.onDidFocus(() => {
+			if (document.activeElement?.classList.contains('monaco-list')) {
+				this._currentFocusContext = SettingsFocusContext.SettingTree;
+				this.settingRowFocused.set(true);
+			}
+		}));
+
+		this._register(this.settingsTree.onDidBlur(() => {
+			this.settingRowFocused.set(false);
 		}));
 
 		// There is no different select state in the settings tree
@@ -703,17 +717,23 @@ export class SettingsEditor2 extends BaseEditor {
 				return;
 			}
 
-			this.treeFocusedElement = element;
-			this.settingsTree.setSelection(element ? [element] : []);
+			if (this.treeFocusedElement) {
+				this.treeFocusedElement.tabbable = false;
+			}
 
-			// Wait for rendering to complete
-			setTimeout(() => updateSettingTreeTabOrder(this.settingsTreeContainer), 0);
+			this.treeFocusedElement = element;
+
+			if (this.treeFocusedElement) {
+				this.treeFocusedElement.tabbable = true;
+			}
+
+			this.settingsTree.setSelection(element ? [element] : []);
 		}));
 	}
 
 	private notifyNoSaveNeeded() {
 		if (!this.storageService.getBoolean(SETTINGS_AUTOSAVE_NOTIFIED_KEY, StorageScope.GLOBAL, false)) {
-			this.storageService.store(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL);
+			this.storageService.store2(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
 	}
@@ -842,19 +862,19 @@ export class SettingsEditor2 extends BaseEditor {
 			const remoteResult = props.searchResults[SearchResultIdx.Remote];
 			const localResult = props.searchResults[SearchResultIdx.Local];
 
-			const localIndex = arrays.firstIndex(localResult!.filterMatches, m => m.setting.key === props.key);
+			const localIndex = localResult!.filterMatches.findIndex(m => m.setting.key === props.key);
 			groupId = localIndex >= 0 ?
 				'local' :
 				'remote';
 
 			displayIndex = localIndex >= 0 ?
 				localIndex :
-				remoteResult && (arrays.firstIndex(remoteResult.filterMatches, m => m.setting.key === props.key) + localResult.filterMatches.length);
+				remoteResult && (remoteResult.filterMatches.findIndex(m => m.setting.key === props.key) + localResult.filterMatches.length);
 
 			if (this.searchResultModel) {
 				const rawResults = this.searchResultModel.getRawResults();
 				if (rawResults[SearchResultIdx.Remote]) {
-					const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
+					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
 				}
 			}
@@ -912,9 +932,9 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onSearchModeToggled(): void {
-		DOM.removeClass(this.rootElement, 'no-toc-search');
+		this.rootElement.classList.remove('no-toc-search');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			DOM.toggleClass(this.rootElement, 'no-toc-search', !!this.searchResultModel);
+			this.rootElement.classList.toggle('no-toc-search', !!this.searchResultModel);
 		}
 	}
 
@@ -943,7 +963,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
-		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
+		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
 		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core);
 		const resolvedSettingsRoot = settingsResult.tree;
 
@@ -1009,7 +1029,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private getActiveElementInSettingsTree(): HTMLElement | null {
+	private getActiveControlInSettingsTree(): HTMLElement | null {
 		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
 			<HTMLElement>document.activeElement :
 			null;
@@ -1031,7 +1051,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
-		const activeElement = this.getActiveElementInSettingsTree();
+		const activeElement = this.getActiveControlInSettingsTree();
 		const focusedSetting = activeElement && this.settingRenderers.getSettingDOMElementForDOMElement(activeElement);
 		if (focusedSetting && !force) {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
@@ -1039,7 +1059,7 @@ export class SettingsEditor2 extends BaseEditor {
 				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key &&
 					// update `list`s live, as they have a separate "submit edit" step built in before this
-					(focusedSetting.parentElement && !DOM.hasClass(focusedSetting.parentElement, 'setting-item-list'))
+					(focusedSetting.parentElement && !focusedSetting.parentElement.classList.contains('setting-item-list'))
 				) {
 
 					this.updateModifiedLabelForKey(key);
@@ -1057,7 +1077,7 @@ export class SettingsEditor2 extends BaseEditor {
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
-				// TODO https://github.com/Microsoft/vscode/issues/57360
+				// TODO https://github.com/microsoft/vscode/issues/57360
 				this.refreshTree();
 			} else {
 				// Refresh requested for a key that we don't know about
@@ -1092,7 +1112,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
 		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
 		if (elements && elements[0]) {
-			DOM.toggleClass(elements[0], 'is-configured', !!isModified);
+			elements[0].classList.toggle('is-configured', !!isModified);
 		}
 	}
 
@@ -1282,9 +1302,11 @@ export class SettingsEditor2 extends BaseEditor {
 				this.tocTreeModel.update();
 			}
 
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
-			this.tocTree.expandAll();
+			if (type === SearchResultIdx.Local) {
+				this.tocTree.setFocus([]);
+				this.viewState.filterToCategory = undefined;
+				this.tocTree.expandAll();
+			}
 
 			this.refreshTOCTree();
 			this.renderTree(undefined, true);
@@ -1303,27 +1325,34 @@ export class SettingsEditor2 extends BaseEditor {
 
 		if (!this.searchResultModel) {
 			if (this.countElement.style.display !== 'none') {
+				this.searchResultLabel = null;
 				this.countElement.style.display = 'none';
 				this.layout(this.dimension);
 			}
 
-			DOM.removeClass(this.rootElement, 'no-results');
+			this.rootElement.classList.remove('no-results');
 			return;
 		}
 
 		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
 			const count = this.tocTreeModel.settingsTreeRoot.count;
+			let resultString: string;
 			switch (count) {
-				case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
-				case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
-				default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
+				case 0: resultString = localize('noResults', "No Settings Found"); break;
+				case 1: resultString = localize('oneResult', "1 Setting Found"); break;
+				default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
 			}
+
+			this.searchResultLabel = resultString;
+			this.updateInputAriaLabel();
+			this.countElement.innerText = resultString;
+			aria.status(resultString);
 
 			if (this.countElement.style.display !== 'block') {
 				this.countElement.style.display = 'block';
 				this.layout(this.dimension);
 			}
-			DOM.toggleClass(this.rootElement, 'no-results', count === 0);
+			this.rootElement.classList.toggle('no-results', count === 0);
 		}
 	}
 
@@ -1356,7 +1385,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = listHeight - 16;
+		const tocTreeHeight = listHeight - 17;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
 		this.tocTree.layout(tocTreeHeight);
 	}
@@ -1385,7 +1414,7 @@ class SyncControls extends Disposable {
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IThemeService themeService: IThemeService,
 	) {
 		super();
@@ -1418,7 +1447,7 @@ class SyncControls extends Disposable {
 			this.update();
 		}));
 
-		this._register(this.userDataAutoSyncService.onDidChangeEnablement(() => {
+		this._register(this.userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
 			this.update();
 		}));
 	}
@@ -1442,7 +1471,7 @@ class SyncControls extends Disposable {
 			return;
 		}
 
-		if (this.userDataAutoSyncService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
+		if (this.userDataAutoSyncEnablementService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
 			DOM.show(this.lastSyncedLabel);
 			DOM.hide(this.turnOnSyncButton.element);
 		} else {

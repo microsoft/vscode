@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
+import { isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
@@ -24,19 +24,17 @@ export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
 	private listDelegate: NotificationsListDelegate | undefined;
-	private viewModel: INotificationViewItem[];
+	private viewModel: INotificationViewItem[] = [];
 	private isVisible: boolean | undefined;
 
 	constructor(
-		private container: HTMLElement,
-		private options: IListOptions<INotificationViewItem>,
+		private readonly container: HTMLElement,
+		private readonly options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
-
-		this.viewModel = [];
 	}
 
 	show(focus?: boolean): void {
@@ -68,7 +66,7 @@ export class NotificationsList extends Themable {
 
 		// List Container
 		this.listContainer = document.createElement('div');
-		addClass(this.listContainer, 'notifications-list-container');
+		this.listContainer.classList.add('notifications-list-container');
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 

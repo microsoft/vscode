@@ -89,7 +89,7 @@ suite('ConfigurationService', () => {
 	test('trigger configuration change event when file does not exist', async () => {
 		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
 		await testObject.initialize();
-		return new Promise(async (c, e) => {
+		return new Promise<void>(async (c) => {
 			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(() => {
 				assert.equal(testObject.getValue('foo'), 'bar');
 				c();
@@ -104,7 +104,7 @@ suite('ConfigurationService', () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
 		await testObject.initialize();
 
-		return new Promise((c, e) => {
+		return new Promise<void>((c) => {
 			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(async (e) => {
 				assert.equal(testObject.getValue('foo'), 'barz');
 				c();

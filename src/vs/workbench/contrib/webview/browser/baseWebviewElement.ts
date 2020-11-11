@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -81,17 +79,15 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected content: WebviewContent;
 
 	constructor(
-		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
-		protected readonly id: string,
+		public readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		public extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -106,9 +102,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
 			this._logService.debug(`Webview(${this.id}): webview ready`);
 
-			if (this.element) {
-				addClass(this.element, 'ready');
-			}
+			this.element?.classList.add('ready');
 
 			if (this._state.type === WebviewState.Type.Initializing) {
 				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
@@ -174,8 +168,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		if (this.element) {
 			this.element.remove();
 		}
-
 		this._element = undefined;
+
+		this._onDidDispose.fire();
+
 		super.dispose();
 	}
 
@@ -206,6 +202,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur = this._onDidBlur.event;
 
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this._onDidDispose.event;
+
 	public postMessage(data: any): void {
 		this._send('message', data);
 	}
@@ -234,7 +233,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._hasAlertedAboutMissingCsp = true;
 
 		if (this.extension && this.extension.id) {
-			if (this._environmentService.isExtensionDevelopment) {
+			if (this.environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
 

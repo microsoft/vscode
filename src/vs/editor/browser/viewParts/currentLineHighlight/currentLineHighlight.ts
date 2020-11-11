@@ -183,14 +183,17 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext): string {
-		const className = 'current-line current-line-margin' + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
+		const className = 'current-line' + (this._shouldRenderMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
 		return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
 	}
-	protected _shouldRenderThis(): boolean {
+	protected _shouldRenderMargin(): boolean {
 		return (
 			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
 			&& (!this._renderLineHightlightOnlyWhenFocus || this._focused)
 		);
+	}
+	protected _shouldRenderThis(): boolean {
+		return true;
 	}
 	protected _shouldRenderOther(): boolean {
 		return (

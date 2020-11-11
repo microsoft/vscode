@@ -77,7 +77,7 @@ function adaptToJavaScript(grammar, replacementScope) {
 	}
 }
 
-var tsGrammarRepo = 'Microsoft/TypeScript-TmLanguage';
+var tsGrammarRepo = 'microsoft/TypeScript-TmLanguage';
 updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json', grammar => patchGrammar(grammar));
 updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json', grammar => patchGrammar(grammar));
 updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScript.tmLanguage.json', grammar => adaptToJavaScript(patchGrammar(grammar), '.js'));

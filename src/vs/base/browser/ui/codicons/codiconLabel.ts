@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escape } from 'vs/base/common/strings';
-import { renderCodicons } from 'vs/base/common/codicons';
+import { reset } from 'vs/base/browser/dom';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export class CodiconLabel {
 
@@ -13,7 +13,7 @@ export class CodiconLabel {
 	) { }
 
 	set text(text: string) {
-		this._container.innerHTML = renderCodicons(escape(text ?? ''));
+		reset(this._container, ...renderCodicons(text ?? ''));
 	}
 
 	set title(title: string) {

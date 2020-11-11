@@ -28,7 +28,7 @@
 	-moz-osx-font-smoothing: grayscale;
 	vertical-align: top;
 
-	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
+	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
 .monaco-icon-label > .monaco-icon-label-container {
@@ -60,12 +60,12 @@
 }
 
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
-.monaco-icon-label.italic > .monaco-icon-description-container > .label-description {
+.monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	font-style: italic;
 }
 
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
-.monaco-icon-label.strikethrough > .monaco-icon-description-container > .label-description {
+.monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	text-decoration: line-through;
 }
 

@@ -13,6 +13,12 @@ resources:
   - container: vscode-x64
     image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
     endpoint: VSCodeHub
+  - container: vscode-arm64
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-arm64
+    endpoint: VSCodeHub
+  - container: vscode-armhf
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
+    endpoint: VSCodeHub
   - container: snapcraft
     image: snapcore/snapcraft:stable
 
@@ -35,6 +41,7 @@ stages:
   jobs:
   - job: Windows
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -42,6 +49,7 @@ stages:
 
   - job: Windows32
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: ia32
     steps:
@@ -49,6 +57,7 @@ stages:
 
   - job: WindowsARM64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: arm64
     steps:
@@ -64,6 +73,9 @@ stages:
   - job: Linux
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
     container: vscode-x64
+    variables:
+      VSCODE_ARCH: x64
+      NPM_ARCH: x64
     steps:
     - template: linux/product-build-linux.yml
 
@@ -72,29 +84,33 @@ stages:
     - Linux
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
     container: snapcraft
+    variables:
+      VSCODE_ARCH: x64
     steps:
     - template: linux/snap-build-linux.yml
 
   - job: LinuxArmhf
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+    container: vscode-armhf
     variables:
       VSCODE_ARCH: armhf
+      NPM_ARCH: armv7l
     steps:
-    - template: linux/product-build-linux-multiarch.yml
+    - template: linux/product-build-linux.yml
 
   - job: LinuxArm64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+    container: vscode-arm64
     variables:
       VSCODE_ARCH: arm64
+      NPM_ARCH: arm64
     steps:
-    - template: linux/product-build-linux-multiarch.yml
+    - template: linux/product-build-linux.yml
 
   - job: LinuxAlpine
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
-    variables:
-      VSCODE_ARCH: alpine
     steps:
-    - template: linux/product-build-linux-multiarch.yml
+    - template: linux/product-build-alpine.yml
 
   - job: LinuxWeb
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
@@ -112,6 +128,9 @@ stages:
   jobs:
   - job: macOS
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
+    timeoutInMinutes: 90
+    variables:
+      VSCODE_ARCH: x64
     steps:
     - template: darwin/product-build-darwin.yml
 

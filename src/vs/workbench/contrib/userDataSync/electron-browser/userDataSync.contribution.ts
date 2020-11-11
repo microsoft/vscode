@@ -6,7 +6,7 @@
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IUserDataSyncUtilService, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { UserDataSycnUtilServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -14,10 +14,10 @@ import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CONTEXT_SYNC_STATE, SHOW_SYNC_LOG_COMMAND_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -84,13 +84,13 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const syncHome = accessor.get(IEnvironmentService).userDataSyncHome;
-		const electronService = accessor.get(IElectronService);
+		const nativeHostService = accessor.get(INativeHostService);
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
 		if (await fileService.exists(syncHome)) {
 			const folderStat = await fileService.resolve(syncHome);
 			const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
-			return electronService.showItemInFolder(item.fsPath);
+			return nativeHostService.showItemInFolder(item.fsPath);
 		} else {
 			notificationService.info(localize('no backups', "Local backups folder does not exist"));
 		}

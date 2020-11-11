@@ -156,6 +156,18 @@ export interface IContentWidget {
 	 * If null is returned, the content widget will be placed off screen.
 	 */
 	getPosition(): IContentWidgetPosition | null;
+	/**
+	 * Optional function that is invoked before rendering
+	 * the content widget. If a dimension is returned the editor will
+	 * attempt to use it.
+	 */
+	beforeRender?(): editorCommon.IDimension | null;
+	/**
+	 * Optional function that is invoked after rendering the content
+	 * widget. Is being invoked with the selected position preference
+	 * or `null` if not rendered.
+	 */
+	afterRender?(position: ContentWidgetPositionPreference | null): void;
 }
 
 /**
@@ -348,6 +360,14 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	overflowWidgetsDomNode?: HTMLElement;
 }
 
+export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
+}
+
 /**
  * A rich code editor.
  */
@@ -445,7 +465,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event
-	 * @internal
 	 */
 	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 	/**
@@ -475,6 +494,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedropcanceled".
+	 * @internal
+	 * @event
+	 */
+	onMouseDropCanceled(listener: () => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
@@ -579,6 +604,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Returns the editor's configuration (without any validation or defaults).
 	 */
 	getRawOptions(): IEditorOptions;
+
+	/**
+	 * @internal
+	 */
+	getOverflowWidgetsDomNode(): HTMLElement | undefined;
 
 	/**
 	 * @internal

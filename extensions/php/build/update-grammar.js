@@ -29,8 +29,8 @@ function includeDerivativeHtml(grammar) {
 	});
 }
 
-// Workaround for https://github.com/Microsoft/vscode/issues/40279
-// and https://github.com/Microsoft/vscode-textmate/issues/59
+// Workaround for https://github.com/microsoft/vscode/issues/40279
+// and https://github.com/microsoft/vscode-textmate/issues/59
 function fixBadRegex(grammar) {
 	function fail(msg) {
 		throw new Error(`fixBadRegex callback couldn't patch ${msg}. It may be obsolete`);

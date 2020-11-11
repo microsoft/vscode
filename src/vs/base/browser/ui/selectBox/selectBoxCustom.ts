@@ -29,7 +29,7 @@ const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 interface ISelectListTemplateData {
 	root: HTMLElement;
 	text: HTMLElement;
-	itemDescription: HTMLElement;
+	detail: HTMLElement;
 	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
 }
@@ -43,35 +43,31 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
+		data.detail = dom.append(container, $('.option-detail'));
 		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
-		data.itemDescription = dom.append(container, $('.option-text-description'));
-		dom.addClass(data.itemDescription, 'visually-hidden');
 
 		return data;
 	}
 
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data: ISelectListTemplateData = templateData;
+
 		const text = element.text;
+		const detail = element.detail;
 		const decoratorRight = element.decoratorRight;
+
 		const isDisabled = element.isDisabled;
 
 		data.text.textContent = text;
-		data.decoratorRight.innerText = (!!decoratorRight ? decoratorRight : '');
-
-		if (typeof element.description === 'string') {
-			const itemDescriptionId = (text.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
-			data.text.setAttribute('aria-describedby', itemDescriptionId);
-			data.itemDescription.id = itemDescriptionId;
-			data.itemDescription.innerText = element.description;
-		}
+		data.detail.textContent = !!detail ? detail : '';
+		data.decoratorRight.innerText = !!decoratorRight ? decoratorRight : '';
 
 		// pseudo-select disabled option
 		if (isDisabled) {
-			dom.addClass(data.root, 'option-disabled');
+			data.root.classList.add('option-disabled');
 		} else {
 			// Make sure we do class removal from prior template rendering
-			dom.removeClass(data.root, 'option-disabled');
+			data.root.classList.remove('option-disabled');
 		}
 	}
 
@@ -162,7 +158,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.contextViewProvider = contextViewProvider;
 		this.selectDropDownContainer = dom.$('.monaco-select-box-dropdown-container');
 		// Use custom CSS vars for padding calculation (shared with parent select)
-		dom.addClass(this.selectDropDownContainer, 'monaco-select-box-dropdown-padding');
+		this.selectDropDownContainer.classList.add('monaco-select-box-dropdown-padding');
 
 		// Setup container for select option details
 		this.selectionDetailsPane = dom.append(this.selectDropDownContainer, $('.select-box-details-pane'));
@@ -232,7 +228,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			if (showDropDown) {
 				this.showSelectDropDown();
-				dom.EventHelper.stop(e);
+				dom.EventHelper.stop(e, true);
 			}
 		}));
 	}
@@ -309,7 +305,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	public render(container: HTMLElement): void {
 		this.container = container;
-		dom.addClass(container, 'select-container');
+		container.classList.add('select-container');
 		container.appendChild(this.selectElement);
 		this.applyStyles();
 	}
@@ -367,7 +363,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
 		}
 
-		this.styleElement.innerHTML = content.join('\n');
+		this.styleElement.textContent = content.join('\n');
 
 		this.applyStyles();
 	}
@@ -440,8 +436,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				this.layoutSelectDropDown();
 			},
 			onHide: () => {
-				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
-				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
+				this.selectDropDownContainer.classList.remove('visible');
+				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -455,8 +451,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			render: (container: HTMLElement) => this.renderSelectDropDown(container),
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
-				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
-				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
+				this.selectDropDownContainer.classList.remove('visible');
+				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -503,42 +499,15 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	// Iterate over detailed descriptions, find max height
 	private measureMaxDetailsHeight(): number {
-
 		let maxDetailsPaneHeight = 0;
-		this.options.forEach((option, index) => {
-
-			this.selectionDetailsPane.innerText = '';
-
-			if (option.description) {
-				if (option.descriptionIsMarkdown) {
-					this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(option.description));
-				} else {
-					this.selectionDetailsPane.innerText = option.description;
-				}
-				this.selectionDetailsPane.style.display = 'block';
-			} else {
-				this.selectionDetailsPane.style.display = 'none';
-			}
+		this.options.forEach((_option, index) => {
+			this.updateDetail(index);
 
 			if (this.selectionDetailsPane.offsetHeight > maxDetailsPaneHeight) {
 				maxDetailsPaneHeight = this.selectionDetailsPane.offsetHeight;
 			}
 		});
 
-		// Reset description to selected
-
-		this.selectionDetailsPane.innerText = '';
-		const description = this.options[this.selected].description || null;
-		const descriptionIsMarkdown = this.options[this.selected].descriptionIsMarkdown || null;
-
-		if (description) {
-			if (descriptionIsMarkdown) {
-				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description));
-			} else {
-				this.selectionDetailsPane.innerText = description;
-			}
-			this.selectionDetailsPane.style.display = 'block';
-		}
 		return maxDetailsPaneHeight;
 	}
 
@@ -556,7 +525,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.selectList) {
 
 			// Make visible to enable measurements
-			dom.toggleClass(this.selectDropDownContainer, 'visible', true);
+			this.selectDropDownContainer.classList.add('visible');
 
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 			const styles = getComputedStyle(this.selectElement);
@@ -611,8 +580,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 
-					dom.removeClass(this.selectionDetailsPane, 'border-top');
-					dom.addClass(this.selectionDetailsPane, 'border-bottom');
+					this.selectionDetailsPane.classList.remove('border-top');
+					this.selectionDetailsPane.classList.add('border-bottom');
 
 				} else {
 					this._dropDownPosition = AnchorPosition.BELOW;
@@ -621,8 +590,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 
-					dom.removeClass(this.selectionDetailsPane, 'border-bottom');
-					dom.addClass(this.selectionDetailsPane, 'border-top');
+					this.selectionDetailsPane.classList.remove('border-bottom');
+					this.selectionDetailsPane.classList.add('border-top');
 				}
 				// Do full layout on showSelectDropDown only
 				return true;
@@ -676,12 +645,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
 			}
 
+			this.updateDetail(this.selected);
+
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
 
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
-			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
-			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
+			this.selectElement.classList.add('synthetic-focus');
+			this.selectDropDownContainer.classList.add('synthetic-focus');
 
 			return true;
 		} else {
@@ -697,7 +668,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			let longestLength = 0;
 
 			this.options.forEach((option, index) => {
-				const len = option.text.length + (!!option.decoratorRight ? option.decoratorRight.length : 0);
+				const detailLength = !!option.detail ? option.detail.length : 0;
+				const rightDecoratorLength = !!option.decoratorRight ? option.decoratorRight.length : 0;
+
+				const len = option.text.length + detailLength + rightDecoratorLength;
 				if (len > longestLength) {
 					longest = index;
 					longestLength = len;
@@ -705,7 +679,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			});
 
 
-			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
+			container.textContent = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
 			elementWidth = dom.getTotalWidth(container);
 		}
 
@@ -730,7 +704,22 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			keyboardSupport: false,
 			mouseSupport: false,
 			accessibilityProvider: {
-				getAriaLabel: (element) => element.text,
+				getAriaLabel: element => {
+					let label = element.text;
+					if (element.detail) {
+						label += `. ${element.detail}`;
+					}
+
+					if (element.decoratorRight) {
+						label += `. ${element.decoratorRight}`;
+					}
+
+					if (element.description) {
+						label += `. ${element.description}`;
+					}
+
+					return label;
+				},
 				getWidgetAriaLabel: () => localize({ key: 'selectBox', comment: ['Behave like native select dropdown element.'] }, "Select Box"),
 				getRole: () => 'option',
 				getWidgetRole: () => 'listbox'
@@ -870,8 +859,11 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			return;
 		}
 
+		this.updateDetail(e.indexes[0]);
+	}
+
+	private updateDetail(selectedIndex: number): void {
 		this.selectionDetailsPane.innerText = '';
-		const selectedIndex = e.indexes[0];
 		const description = this.options[selectedIndex].description;
 		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown;
 

@@ -1142,7 +1142,7 @@ export interface ITextModel {
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
-	undo(): void;
+	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
@@ -1155,7 +1155,7 @@ export interface ITextModel {
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
-	redo(): void;
+	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?
@@ -1312,6 +1312,7 @@ export interface IReadonlyTextBuffer {
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
 	getLineCharCode(lineNumber: number, index: number): number;
+	getCharCode(offset: number): number;
 	getLineLength(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;

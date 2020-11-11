@@ -62,8 +62,9 @@
     ],
     "notebookOutputRenderer": [
       {
-        "viewType": "notebookCoreTestRenderer",
+        "id": "notebookCoreTestRenderer",
         "displayName": "Notebook Core Test Renderer",
+        "entrypoint": "./src/customRenderer.js",
         "mimeTypes": [
           "text/custom"
         ]
@@ -77,6 +78,12 @@
           "group": "inline@1"
         }
       ]
-    }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "vscode://vscode-notebook-cell-metadata/*",
+        "url": "vscode://schemas/notebook/cellmetadata"
+      }
+    ]
   }
 }

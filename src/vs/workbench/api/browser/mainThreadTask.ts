@@ -418,10 +418,12 @@ export class MainThreadTask implements MainThreadTaskShape {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
-				let resolvedDefinition: TaskDefinitionDTO | undefined;
-				if (execution.task && execution.task.execution && CustomExecutionDTO.is(execution.task.execution)) {
-					resolvedDefinition = await this._configurationResolverService.resolveWithInteractionReplace(task.getWorkspaceFolder(),
-						execution.task.definition, 'tasks');
+				let resolvedDefinition: TaskDefinitionDTO = execution.task!.definition;
+				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
+					const dictionary: IStringDictionary<string> = {};
+					Array.from(event.resolvedVariables.entries()).forEach(entry => dictionary[entry[0]] = entry[1]);
+					resolvedDefinition = await this._configurationResolverService.resolveAny(task.getWorkspaceFolder(),
+						execution.task.definition, dictionary);
 				}
 				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
@@ -432,7 +434,6 @@ export class MainThreadTask implements MainThreadTaskShape {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
 		});
-		this._taskService.setJsonTasksSupported(Promise.resolve(this._proxy.$jsonTasksSupported()));
 	}
 
 	public dispose(): void {

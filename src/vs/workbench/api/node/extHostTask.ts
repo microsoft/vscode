@@ -50,6 +50,10 @@ export class ExtHostTask extends ExtHostTaskBase {
 	}
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
+		if (!task.execution) {
+			throw new Error('Tasks to execute must include an execution');
+		}
+
 		const tTask = (task as types.Task);
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
@@ -99,7 +103,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 						// is invoked, we have to be able to map it back to our data.
-						taskIdPromises.push(this.addCustomExecution(taskDTO, <vscode.Task2>task, true));
+						taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
 					}
 				}
 			}
