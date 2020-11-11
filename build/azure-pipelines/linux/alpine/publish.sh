@@ -3,7 +3,7 @@ set -e
 REPO="$(pwd)"
 ROOT="$REPO/.."
 
-PLATFORM_LINUX="linux-$VSCODE_ARCH"
+PLATFORM_LINUX="linux-alpine"
 
 # Publish Remote Extension Host
 LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX"
