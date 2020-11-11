@@ -8,7 +8,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -1073,17 +1073,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			for (const extension of extensions) {
 				let dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
-					return new Promise((resolve, reject) => {
+					return new Promise<void>((resolve, reject) => {
 						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessage(extension, allExtensions, dependents), [
 							{
-								label: nls.localize('disable extension and dependents', 'Disable all related dependencies'),
+								label: nls.localize('disable all', 'Disable All'),
 								run: async () => {
-									await this.checkAndSetEnablement(dependents, [extension], enablementState);
-									return resolve();
+									try {
+										await this.checkAndSetEnablement(dependents, [extension], enablementState);
+										resolve();
+									} catch (error) {
+										reject(error);
+									}
 								}
 							}
 						], {
-							onCancel: () => reject()
+							onCancel: () => reject(canceled())
 						});
 					});
 				}
@@ -1151,13 +1155,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private getErrorMessageForDisablingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
 		if (dependents.length === 1) {
-			return nls.localize('singleDependentError', "Cannot disable extension '{0}'. Extension '{1}' depends on this.", extension.displayName, dependents[0].displayName);
+			return nls.localize('singleDependentError', "Cannot disable extension '{0}' alone. Extension '{1}' depends on this. Do you want to disable all these extensions?", extension.displayName, dependents[0].displayName);
 		}
 		if (dependents.length === 2) {
-			return nls.localize('twoDependentsError', "Cannot disable extension '{0}'. Extensions '{1}' and '{2}' depend on this.",
+			return nls.localize('twoDependentsError', "Cannot disable extension '{0}' alone. Extensions '{1}' and '{2}' depend on this. Do you want to disable all these extensions?",
 				extension.displayName, dependents[0].displayName, dependents[1].displayName);
 		}
-		return nls.localize('multipleDependentsError', "Cannot disable extension '{0}'. Extensions '{1}', '{2}' and others depend on this.",
+		return nls.localize('multipleDependentsError', "Cannot disable extension '{0}' alone. Extensions '{1}', '{2}' and others depend on this. Do you want to disable all these extensions?",
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
