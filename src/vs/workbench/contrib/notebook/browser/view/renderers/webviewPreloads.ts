@@ -121,6 +121,7 @@ function webviewPreloads() {
 				new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
 				return { state: PreloadState.Ok };
 			} catch (e) {
+				console.error(e);
 				return { state: PreloadState.Error, error: e.message };
 			}
 		};
