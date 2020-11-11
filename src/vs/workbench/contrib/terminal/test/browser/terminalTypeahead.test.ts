@@ -102,6 +102,7 @@ suite('Workbench - Terminal Typeahead', () => {
 				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
 				upcastPartial<ITelemetryService>({ publicLog })
 			);
+			addon.unlockMakingPredictions();
 		});
 
 		teardown(() => {
@@ -245,22 +246,17 @@ suite('Workbench - Terminal Typeahead', () => {
 			t.expectWritten(`${CSI}2;6H${CSI}X`);
 		});
 
-		test('avoids predicting password input', () => {
+		test('waits for first valid prediction on a line', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.lockMakingPredictions();
 			addon.activate(t.terminal);
 
-			const tcases = ['Your password:', 'Password here:', 'PAT:', 'Access token:'];
-			for (const tcase of tcases) {
-				expectProcessed(tcase, tcase);
+			t.onData('o');
+			t.expectWritten('');
+			expectProcessed('o', 'o');
 
-				t.onData('mellon\r\n');
-				t.expectWritten('');
-				expectProcessed('\r\n', '\r\n');
-
-				t.onData('o'); // back to normal mode
-				t.expectWritten(`${CSI}3mo${CSI}23m`);
-				onBeforeProcessData.fire({ data: 'o' });
-			}
+			t.onData('o');
+			t.expectWritten(`${CSI}3mo${CSI}23m`);
 		});
 
 		test('disables on title change', async () => {
@@ -284,8 +280,16 @@ suite('Workbench - Terminal Typeahead', () => {
 });
 
 class TestTypeAheadAddon extends TypeAheadAddon {
+	public unlockMakingPredictions() {
+		this.lastRow = { y: 1, startingX: 100, madeValidPrediction: true };
+	}
+
+	public lockMakingPredictions() {
+		this.lastRow = undefined;
+	}
+
 	public unlockLeftNavigating() {
-		this.lastRow = { y: 1, startingX: 1 };
+		this.lastRow = { y: 1, startingX: 1, madeValidPrediction: true };
 	}
 
 	public reevaluateNow() {
