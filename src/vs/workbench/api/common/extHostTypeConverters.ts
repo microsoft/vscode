@@ -85,6 +85,10 @@ export namespace Range {
 		};
 	}
 
+	export function fromPositions(positions: PositionLike[]): editorRange.IRange {
+		return from({ start: positions[0], end: positions[1] });
+	}
+
 	export function to(range: undefined): types.Range;
 	export function to(range: editorRange.IRange): types.Range;
 	export function to(range: editorRange.IRange | undefined): types.Range | undefined;
@@ -1194,7 +1198,7 @@ export namespace TextEditorOpenOptions {
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
 				inactive: options.background,
 				preserveFocus: options.preserveFocus,
-				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+				selection: Array.isArray(options.selection) ? Range.fromPositions(options.selection) : typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
 				override: typeof options.override === 'boolean' ? false : undefined
 			};
 		}

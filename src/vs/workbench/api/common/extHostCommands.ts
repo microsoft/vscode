@@ -20,6 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { DiffAPICommand, OpenAPICommand } from 'vs/workbench/api/common/apiCommands';
 
 interface CommandHandler {
 	callback: Function;
@@ -247,20 +248,28 @@ export class CommandsConverter {
 
 		if (command.command && isNonEmptyArray(command.arguments)) {
 			// we have a contributed command with arguments. that
-			// means we don't want to send the arguments around
+			// means we don't want to send the arguments around unless
+			// we know exactly that the arguments are serializable
 
-			const id = ++this._cachIdPool;
-			this._cache.set(id, command);
-			disposables.add(toDisposable(() => {
-				this._cache.delete(id);
-				this._logService.trace('CommandsConverter#DISPOSE', id);
-			}));
-			result.$ident = id;
+			if (command.command === OpenAPICommand.ID || command.command === DiffAPICommand.ID) {
+				// this enables `vscode.open` and `vscode.diff` to benefit
+				// from the actual editor options to use based on the context
+				// (e.g. invocation from a custom tree view)
+				result.arguments = command.arguments;
+			} else {
+				const id = ++this._cachIdPool;
+				this._cache.set(id, command);
+				disposables.add(toDisposable(() => {
+					this._cache.delete(id);
+					this._logService.trace('CommandsConverter#DISPOSE', id);
+				}));
+				result.$ident = id;
 
-			result.id = this._delegatingCommandId;
-			result.arguments = [id];
+				result.id = this._delegatingCommandId;
+				result.arguments = [id];
 
-			this._logService.trace('CommandsConverter#CREATE', command.command, id);
+				this._logService.trace('CommandsConverter#CREATE', command.command, id);
+			}
 		}
 
 		return result;

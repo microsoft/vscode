@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -113,12 +113,12 @@ CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand
 
 export class OpenAPICommand {
 	public static readonly ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
+	public static execute(executor: ICommandsExecutor, resource: UriComponents, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
 		const internalTypes = OpenAPICommand._toInternalTypes(columnOrOptions);
 
 		return OpenAPICommand._doExecute(executor, resource, internalTypes.options, internalTypes.position, label);
 	}
-	public static executeWithContext(executor: ICommandsExecutor, context: { editorOptions: IEditorOptions; sideBySide: boolean }, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
+	public static executeWithContext(executor: ICommandsExecutor, context: { editorOptions: IEditorOptions; sideBySide: boolean }, resource: UriComponents, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
 		const internalTypes = OpenAPICommand._toInternalTypes(columnOrOptions);
 
 		const options = { ...(internalTypes.options ?? Object.create(null)), ...context.editorOptions };
@@ -141,9 +141,9 @@ export class OpenAPICommand {
 
 		return { position, options };
 	}
-	private static _doExecute(executor: ICommandsExecutor, resource: URI, options: ITextEditorOptions | undefined, position: number | undefined, label: string | undefined): Promise<any> {
+	private static _doExecute(executor: ICommandsExecutor, resource: UriComponents, options: ITextEditorOptions | undefined, position: number | undefined, label: string | undefined): Promise<any> {
 		return executor.executeCommand('_workbench.open', [
-			resource,
+			URI.revive(resource),
 			options,
 			position,
 			label
