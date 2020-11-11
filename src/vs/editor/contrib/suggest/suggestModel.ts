@@ -490,7 +490,7 @@ export class SuggestModel implements IDisposable {
 
 	private _reportDurationsTelemetry(durations: CompletionDurations): void {
 
-		if (this._telemetryGate++ % 500 !== 0) {
+		if (this._telemetryGate++ % 230 !== 0) {
 			return;
 		}
 
