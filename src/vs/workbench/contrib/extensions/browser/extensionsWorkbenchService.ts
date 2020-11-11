@@ -1155,13 +1155,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private getErrorMessageForDisablingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
 		if (dependents.length === 1) {
-			return nls.localize('singleDependentError', "Cannot disable extension '{0}' alone. Extension '{1}' depends on this. Do you want to disable all these extensions?", extension.displayName, dependents[0].displayName);
+			return nls.localize('singleDependentError', "Cannot disable '{0}' extension alone. '{1}' extension depends on this. Do you want to disable all these extensions?", extension.displayName, dependents[0].displayName);
 		}
 		if (dependents.length === 2) {
-			return nls.localize('twoDependentsError', "Cannot disable extension '{0}' alone. Extensions '{1}' and '{2}' depend on this. Do you want to disable all these extensions?",
+			return nls.localize('twoDependentsError', "Cannot disable '{0}' extension alone. '{1}' and '{2}' extensions depend on this. Do you want to disable all these extensions?",
 				extension.displayName, dependents[0].displayName, dependents[1].displayName);
 		}
-		return nls.localize('multipleDependentsError', "Cannot disable extension '{0}' alone. Extensions '{1}', '{2}' and others depend on this. Do you want to disable all these extensions?",
+		return nls.localize('multipleDependentsError', "Cannot disable '{0}' extension alone. '{1}', '{2}' and other extensions depend on this. Do you want to disable all these extensions?",
 			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
