@@ -45,7 +45,7 @@
  * parent width: 5000%
  *    bit width: 100%
  * translateX should be as follow:
- *  50%: 5000% * 50% = 2500%
- * 100%: 5000% * 100% - 100% (do not overflow): 4900%
+ *  50%: 5000% * 50% - 50% (set to center) = 2450%
+ * 100%: 5000% * 100% - 100% (do not overflow) = 4900%
  */
 @keyframes progress { from { transform: translateX(0%) scaleX(1) } 50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4900%) scaleX(1) } }
