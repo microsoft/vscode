@@ -484,7 +484,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
 	}
 
+	private _revealTimeouts: any[] = [];
+
 	private _reveal(): void {
+		this._revealTimeouts.forEach(e => {
+			clearTimeout(e);
+		});
+
+		this._revealTimeouts = [];
+
 		if (!this._isVisible) {
 			this._isVisible = true;
 
@@ -509,15 +517,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._tryUpdateWidgetWidth();
 			this._updateButtons();
 
-			setTimeout(() => {
+			this._revealTimeouts.push(setTimeout(() => {
 				this._domNode.classList.add('visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
-			}, 0);
+			}, 0));
 
 			// validate query again as it's being dismissed when we hide the find widget.
-			setTimeout(() => {
+			this._revealTimeouts.push(setTimeout(() => {
 				this._findInput.validate();
-			}, 200);
+			}, 200));
 
 			this._codeEditor.layoutOverlayWidget(this);
 
@@ -552,6 +560,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	}
 
 	private _hide(focusTheEditor: boolean): void {
+		this._revealTimeouts.forEach(e => {
+			clearTimeout(e);
+		});
+
+		this._revealTimeouts = [];
+
 		if (this._isVisible) {
 			this._isVisible = false;
 
