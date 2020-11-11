@@ -686,9 +686,8 @@ export class ExplorerView extends ViewPane {
 	private getActiveFile(): URI | undefined {
 		const input = this.editorService.activeEditor;
 
-		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
 		if (input instanceof DiffEditorInput) {
-			return undefined;
+			return input.modifiedInput.resource;
 		}
 
 		// check for files
