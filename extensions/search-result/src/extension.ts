@@ -8,7 +8,7 @@ import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
-const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
+const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
@@ -121,13 +121,20 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | undefined {
-	if (pathUtils.isAbsolute(path)) { return vscode.Uri.file(path); }
+	if (pathUtils.isAbsolute(path)) {
+		return vscode.Uri
+			.file(path)
+			.with({ scheme: process.env.HOME ? 'file' : 'vscode-userdata' });
+	}
+
 	if (path.indexOf('~/') === 0) {
-		return vscode.Uri.file(pathUtils.join(process.env.HOME!, path.slice(2)));
+		return vscode.Uri
+			.file(pathUtils.join(process.env.HOME ?? '', path.slice(2)))
+			.with({ scheme: process.env.HOME ? 'file' : 'vscode-userdata' });
 	}
 
 	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>
-		folder.uri.with({ path: pathUtils.join(folder.uri.fsPath, path) });
+		vscode.Uri.joinPath(folder.uri, path);
 
 	if (vscode.workspace.workspaceFolders) {
 		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);

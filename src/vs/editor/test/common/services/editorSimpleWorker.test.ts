@@ -162,13 +162,14 @@ suite('EditorSimpleWorker', () => {
 			'f f'	// 2
 		]);
 
-		return worker.textualSuggest(model.uri.toString(), { lineNumber: 2, column: 2 }, '[a-z]+', 'img').then((result) => {
+		return worker.textualSuggest([model.uri.toString()], 'f', '[a-z]+', 'img').then((result) => {
 			if (!result) {
 				assert.ok(false);
 				return;
 			}
-			assert.equal(result.length, 1);
-			assert.equal(result, 'foobar');
+			assert.equal(result.words.length, 1);
+			assert.equal(typeof result.duration, 'number');
+			assert.equal(result.words[0], 'foobar');
 		});
 	});
 

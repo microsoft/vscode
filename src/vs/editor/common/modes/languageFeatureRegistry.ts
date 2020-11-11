@@ -207,10 +207,11 @@ export class LanguageFeatureRequestDelays {
 
 	get(model: ITextModel): number {
 		const key = this._key(model);
-		return this._clamp(this._cache.get(key)?.value);
+		const avg = this._cache.get(key);
+		return this._clamp(avg?.value);
 	}
 
-	update(model: ITextModel, value: number) {
+	update(model: ITextModel, value: number): number {
 		const key = this._key(model);
 		let avg = this._cache.get(key);
 		if (!avg) {
@@ -218,5 +219,6 @@ export class LanguageFeatureRequestDelays {
 			this._cache.set(key, avg);
 		}
 		avg.update(value);
+		return this.get(model);
 	}
 }

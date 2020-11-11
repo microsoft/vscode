@@ -136,16 +136,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private async updateConflicts(conflicts: [SyncResource, IResourcePreview[]][]): Promise<void> {
 		// Revive URIs
 		this._conflicts = conflicts.map(([syncResource, conflicts]) =>
-			([
-				syncResource,
-				conflicts.map(r =>
-					({
-						...r,
-						localResource: URI.revive(r.localResource),
-						remoteResource: URI.revive(r.remoteResource),
-						previewResource: URI.revive(r.previewResource),
-					}))
-			]));
+		([
+			syncResource,
+			conflicts.map(r =>
+			({
+				...r,
+				localResource: URI.revive(r.localResource),
+				remoteResource: URI.revive(r.remoteResource),
+				previewResource: URI.revive(r.previewResource),
+			}))
+		]));
 		this._onDidChangeConflicts.fire(this._conflicts);
 	}
 
@@ -239,19 +239,19 @@ class ManualSyncTask implements IManualSyncTask {
 
 	private deserializePreviews(previews: [SyncResource, ISyncResourcePreview][]): [SyncResource, ISyncResourcePreview][] {
 		return previews.map(([syncResource, preview]) =>
-			([
-				syncResource,
-				{
-					isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
-					resourcePreviews: preview.resourcePreviews.map(r => ({
-						...r,
-						localResource: URI.revive(r.localResource),
-						remoteResource: URI.revive(r.remoteResource),
-						previewResource: URI.revive(r.previewResource),
-						acceptedResource: URI.revive(r.acceptedResource),
-					}))
-				}
-			]));
+		([
+			syncResource,
+			{
+				isLastSyncFromCurrentMachine: preview.isLastSyncFromCurrentMachine,
+				resourcePreviews: preview.resourcePreviews.map(r => ({
+					...r,
+					localResource: URI.revive(r.localResource),
+					remoteResource: URI.revive(r.remoteResource),
+					previewResource: URI.revive(r.previewResource),
+					acceptedResource: URI.revive(r.acceptedResource),
+				}))
+			}
+		]));
 	}
 }
 

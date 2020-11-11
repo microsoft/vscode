@@ -527,7 +527,7 @@ suite('Async', () => {
 
 		r1Queue.queue(syncPromiseFactory);
 
-		return new Promise(c => setTimeout(() => c(), 0)).then(() => {
+		return new Promise<void>(c => setTimeout(() => c(), 0)).then(() => {
 			const r1Queue2 = queue.queueFor(URI.file('/some/path'));
 			assert.notEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
 		});
@@ -705,5 +705,18 @@ suite('Async', () => {
 		// Still works after a queued promise is rejected
 		const r3 = await s.queue('key2', () => Promise.resolve('hello'));
 		assert.equal(r3, 'hello');
+	});
+
+	test('IntervalCounter', async () => {
+		const counter = new async.IntervalCounter(10);
+		assert.equal(counter.increment(), 1);
+		assert.equal(counter.increment(), 2);
+		assert.equal(counter.increment(), 3);
+
+		await async.timeout(20);
+
+		assert.equal(counter.increment(), 1);
+		assert.equal(counter.increment(), 2);
+		assert.equal(counter.increment(), 3);
 	});
 });

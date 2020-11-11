@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { setImmediate } from 'vs/base/common/platform';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -15,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -23,20 +24,27 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 declare const ResizeObserver: any;
 
-const webviewStateKey = 'webviewState';
+const storageKeys = {
+	webviewState: 'webviewState',
+} as const;
 
 export class WebviewViewPane extends ViewPane {
 
-	private _webview?: WebviewOverlay;
+	private readonly _webview = this._register(new MutableDisposable<WebviewOverlay>());
+	private readonly _webviewDisposables = this._register(new DisposableStore());
 	private _activated = false;
 
 	private _container?: HTMLElement;
 	private _resizeObserver?: any;
+
+	private readonly defaultTitle: string;
+	private setTitle: string | undefined;
 
 	private readonly memento: Memento;
 	private readonly viewState: MementoObject;
@@ -60,11 +68,20 @@ export class WebviewViewPane extends ViewPane {
 		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.defaultTitle = this.title;
 
 		this.memento = new Memento(`webviewView.${this.id}`, storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE);
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
+
+		this._register(this.webviewViewService.onNewResolverRegistered(e => {
+			if (e.viewType === this.id) {
+				// Potentially re-activate if we have a new resolver
+				this.updateTreeVisibility();
+			}
+		}));
+
 		this.updateTreeVisibility();
 	}
 
@@ -82,7 +99,7 @@ export class WebviewViewPane extends ViewPane {
 
 	focus(): void {
 		super.focus();
-		this._webview?.focus();
+		this._webview.value?.focus();
 	}
 
 	renderBody(container: HTMLElement): void {
@@ -94,7 +111,7 @@ export class WebviewViewPane extends ViewPane {
 			this._resizeObserver = new ResizeObserver(() => {
 				setImmediate(() => {
 					if (this._container) {
-						this._webview?.layoutWebviewOverElement(this._container);
+						this._webview.value?.layoutWebviewOverElement(this._container);
 					}
 				});
 			});
@@ -107,8 +124,8 @@ export class WebviewViewPane extends ViewPane {
 	}
 
 	public saveState() {
-		if (this._webview) {
-			this.viewState[webviewStateKey] = this._webview.state;
+		if (this._webview.value) {
+			this.viewState[storageKeys.webviewState] = this._webview.value.state;
 		}
 
 		this.memento.saveMemento();
@@ -118,21 +135,21 @@ export class WebviewViewPane extends ViewPane {
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
-		if (!this._webview) {
+		if (!this._webview.value) {
 			return;
 		}
 
 		if (this._container) {
-			this._webview.layoutWebviewOverElement(this._container, { width, height });
+			this._webview.value.layoutWebviewOverElement(this._container, new DOM.Dimension(width, height));
 		}
 	}
 
 	private updateTreeVisibility() {
 		if (this.isBodyVisible()) {
 			this.activate();
-			this._webview?.claim(this);
+			this._webview.value?.claim(this, undefined);
 		} else {
-			this._webview?.release(this);
+			this._webview.value?.release(this);
 		}
 	}
 
@@ -142,18 +159,24 @@ export class WebviewViewPane extends ViewPane {
 
 			const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
 			const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
-			webview.state = this.viewState['webviewState'];
-			this._webview = webview;
+			webview.state = this.viewState[storageKeys.webviewState];
+			this._webview.value = webview;
 
-			this._register(toDisposable(() => {
-				this._webview?.release(this);
+			if (this._container) {
+				this._webview.value?.layoutWebviewOverElement(this._container);
+			}
+
+			this._webviewDisposables.add(toDisposable(() => {
+				this._webview.value?.release(this);
 			}));
 
-			this._register(webview.onDidUpdateState(() => {
-				this.viewState[webviewStateKey] = webview.state;
+			this._webviewDisposables.add(webview.onDidUpdateState(() => {
+				this.viewState[storageKeys.webviewState] = webview.state;
 			}));
 
-			const source = this._register(new CancellationTokenSource());
+			this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+
+			const source = this._webviewDisposables.add(new CancellationTokenSource());
 
 			this.withProgress(async () => {
 				await this.extensionService.activateByEvent(`onView:${this.id}`);
@@ -164,11 +187,18 @@ export class WebviewViewPane extends ViewPane {
 					onDidChangeVisibility: this.onDidChangeBodyVisibility,
 					onDispose: this.onDispose,
 
-					get title() { return self.title; },
-					set title(value: string) { self.updateTitle(value); },
+					get title(): string | undefined { return self.setTitle; },
+					set title(value: string | undefined) { self.updateTitle(value); },
 
 					get description(): string | undefined { return self.titleDescription; },
 					set description(value: string | undefined) { self.updateTitleDescription(value); },
+
+					dispose: () => {
+						// Only reset and clear the webview itself. Don't dispose of the view container
+						this._activated = false;
+						this._webview.clear();
+						this._webviewDisposables.clear();
+					},
 
 					show: (preserveFocus) => {
 						this.viewService.openView(this.id, !preserveFocus);
@@ -178,6 +208,11 @@ export class WebviewViewPane extends ViewPane {
 				await this.webviewViewService.resolve(this.id, webviewView, source.token);
 			});
 		}
+	}
+
+	protected updateTitle(value: string | undefined) {
+		this.setTitle = value;
+		super.updateTitle(typeof value === 'string' ? value : this.defaultTitle);
 	}
 
 	private async withProgress(task: () => Promise<void>): Promise<void> {

@@ -17,13 +17,19 @@ import 'vs/workbench/workbench.common.main';
 //#endregion
 
 
+//#region --- workbench parts
+
+import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
+
+//#endregion
+
+
 //#region --- workbench services
 
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
-import 'vs/workbench/services/userDataSync/electron-sandbox/storageKeysSyncRegistryService';
+import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
-import 'vs/workbench/services/dialogs/electron-sandbox/dialogService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
@@ -39,6 +45,20 @@ import 'vs/workbench/services/configurationResolver/electron-sandbox/configurati
 import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
+import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
+import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
+import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
+
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
+import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+
+registerSingleton(ITimerService, TimerService);
+registerSingleton(IUserDataInitializationService, UserDataInitializationService);
+registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
 
 //#endregion
 
@@ -69,5 +89,17 @@ import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
 
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryOptOut.contribution';
+
+// Issues
+import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
+
+// Remote
+import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
+
+// Configuration Exporter
+import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper.contribution';
+
+// Themes Support
+import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
 
 //#endregion

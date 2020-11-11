@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-
 import { NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/nsfwWatcherService';
 import { IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
 

@@ -477,6 +477,13 @@ export namespace Codicon {
 	export const vmConnect = new Codicon('vm-connect', { character: '\\eba9' });
 	export const cloud = new Codicon('cloud', { character: '\\ebaa' });
 	export const merge = new Codicon('merge', { character: '\\ebab' });
+	export const exportIcon = new Codicon('export', { character: '\\ebac' });
+	export const graphLeft = new Codicon('graph-left', { character: '\\ebad' });
+	export const magnet = new Codicon('magnet', { character: '\\ebae' });
+	export const notebook = new Codicon('notebook', { character: '\\ebaf' });
+	export const redo = new Codicon('redo', { character: '\\ebb0' });
+	export const checkAll = new Codicon('check-all', { character: '\\ebb1' });
+	export const pinnedDirty = new Codicon('pinned-dirty', { character: '\\ebb2' });
 }
 
 
@@ -496,20 +503,6 @@ export function markdownEscapeEscapedCodicons(text: string): string {
 const markdownUnescapeCodiconsRegex = /(\\)?\$\\\(([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?)\\\)/gi;
 export function markdownUnescapeCodicons(text: string): string {
 	return text.replace(markdownUnescapeCodiconsRegex, (match, escaped, codicon) => escaped ? match : `$(${codicon})`);
-}
-
-export const renderCodiconsRegex = /(\\)?\$\((([a-z0-9\-]+?)(?:~([a-z0-9\-]*?))?)\)/gi;
-
-/**
- * @deprecated Use `renderCodiconsAsElement` instead
- */
-export function renderCodicons(text: string): string {
-	return text.replace(renderCodiconsRegex, (_, escaped, codicon, name, animation) => {
-		// If the class for codicons is changed, it should also be updated in src\vs\base\browser\markdownRenderer.ts
-		return escaped
-			? `$(${codicon})`
-			: `<span class="codicon codicon-${name}${animation ? ` codicon-animation-${animation}` : ''}"></span>`;
-	});
 }
 
 const stripCodiconsRegex = /(\s)?(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)(\s)?/gi;

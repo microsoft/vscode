@@ -16,9 +16,10 @@ const WEB_ROOT = '${workspaceFolder}';
 
 interface ServerReadyAction {
 	pattern: string;
-	action?: 'openExternally' | 'debugWithChrome';
+	action?: 'openExternally' | 'debugWithChrome' | 'startDebugging';
 	uriFormat?: string;
 	webRoot?: string;
+	name?: string;
 }
 
 class ServerReadyDetector extends vscode.Disposable {
@@ -153,6 +154,10 @@ class ServerReadyDetector extends vscode.Disposable {
 					url: uri,
 					webRoot: args.webRoot || WEB_ROOT
 				});
+				break;
+
+			case 'startDebugging':
+				vscode.debug.startDebugging(session.workspaceFolder, args.name || 'unspecified');
 				break;
 
 			default:

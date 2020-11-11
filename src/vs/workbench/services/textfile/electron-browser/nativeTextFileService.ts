@@ -8,20 +8,17 @@ import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileService, ByteSize } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { stat, chmod, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
-import { join, dirname } from 'vs/base/common/path';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { join } from 'vs/base/common/path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -29,9 +26,10 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -41,21 +39,21 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
-		@IWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IProductService private readonly productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@ILogService private readonly logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@ILogService logService: ILogService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService);
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
@@ -98,7 +96,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 			const maxMemory = this.environmentService.args['max-memory'];
 			ensuredLimits.memory = Math.max(
 				typeof maxMemory === 'string'
-					? parseInt(maxMemory) * 1024 * 1024 || 0
+					? parseInt(maxMemory) * ByteSize.MB || 0
 					: 0, MAX_HEAP_SIZE
 			);
 		}
@@ -151,15 +149,14 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	private async writeElevated(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-
-		// write into a tmp file first
 		const source = URI.file(join(this.environmentService.userDataPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`));
 		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
 		try {
+			// write into a tmp file first
 			await this.write(source, value, { encoding: encoding === UTF8 && addBOM ? UTF8_with_bom : encoding });
 
-			// sudo prompt copy
-			await this.sudoPromptCopy(source, resource, options);
+			// then sudo prompt copy
+			await this.nativeHostService.writeElevated(source, resource, options);
 		} finally {
 
 			// clean up
@@ -167,42 +164,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		return this.fileService.resolve(resource, { resolveMetadata: true });
-	}
-
-	private async sudoPromptCopy(source: URI, target: URI, options?: IWriteTextFileOptions): Promise<void> {
-
-		// load sudo-prompt module lazy
-		const sudoPrompt = await import('sudo-prompt');
-
-		return new Promise<void>((resolve, reject) => {
-			const promptOptions = {
-				name: this.productService.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${this.productService.nameShort}.icns`) : undefined
-			};
-
-			const sudoCommand: string[] = [`"${this.environmentService.cliPath}"`];
-			if (options?.overwriteReadonly) {
-				sudoCommand.push('--file-chmod');
-			}
-
-			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
-
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
-				if (stdout) {
-					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
-				}
-
-				if (stderr) {
-					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
-				}
-
-				if (error) {
-					reject(error);
-				} else {
-					resolve(undefined);
-				}
-			});
-		});
 	}
 }
 

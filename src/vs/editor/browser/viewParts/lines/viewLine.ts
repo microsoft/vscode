@@ -259,7 +259,7 @@ export class ViewLine implements IVisibleLine {
 				// rounding errors add up to an observable large number...
 				// ---
 				// Also see another example of rounding errors on Windows in
-				// https://github.com/Microsoft/vscode/issues/33178
+				// https://github.com/microsoft/vscode/issues/33178
 				renderedViewLine = new FastRenderedViewLine(
 					this._renderedViewLine ? this._renderedViewLine.domNode : null,
 					renderLineInput,

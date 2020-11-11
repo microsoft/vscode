@@ -12,6 +12,7 @@ import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/commo
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { isEqual } from 'vs/base/common/resources';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -65,10 +66,8 @@ export class RangeHighlightDecorations extends Disposable {
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
 		const activeEditor = this.editorService.activeEditor;
 		const resource = activeEditor && activeEditor.resource;
-		if (resource) {
-			if (resource.toString() === resourceRange.resource.toString()) {
-				return this.editorService.activeTextEditorControl as ICodeEditor;
-			}
+		if (resource && isEqual(resource, resourceRange.resource)) {
+			return this.editorService.activeTextEditorControl as ICodeEditor;
 		}
 
 		return undefined;

@@ -6,7 +6,7 @@
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Delayer, createCancelablePromise } from 'vs/base/common/async';
-import { deepClone, assign } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { IChannel, ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
@@ -71,7 +71,7 @@ export interface IIPCOptions {
 	debugBrk?: number;
 
 	/**
-	 * See https://github.com/Microsoft/vscode/issues/27665
+	 * See https://github.com/microsoft/vscode/issues/27665
 	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
 	 * e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
 	 * results in the forked process inheriting `--inspect-brk=xxx`.
@@ -180,10 +180,10 @@ export class Client implements IChannelClient, IDisposable {
 			const args = this.options && this.options.args ? this.options.args : [];
 			const forkOpts: ForkOptions = Object.create(null);
 
-			forkOpts.env = assign(deepClone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
+			forkOpts.env = { ...deepClone(process.env), 'VSCODE_PARENT_PID': String(process.pid) };
 
 			if (this.options && this.options.env) {
-				forkOpts.env = assign(forkOpts.env, this.options.env);
+				forkOpts.env = { ...forkOpts.env, ...this.options.env };
 			}
 
 			if (this.options && this.options.freshExecArgv) {

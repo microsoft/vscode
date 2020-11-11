@@ -16,7 +16,7 @@ import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platf
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, ViewVisibilityState } from 'vs/workbench/common/views';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -279,7 +279,7 @@ CommandsRegistry.registerCommand('_workbench.action.moveViews', async function (
 	for (const viewId of options.viewIds) {
 		const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
 		if (viewDescriptor?.canMoveView) {
-			viewDescriptorService.moveViewsToContainer([viewDescriptor], destination);
+			viewDescriptorService.moveViewsToContainer([viewDescriptor], destination, ViewVisibilityState.Default);
 		}
 	}
 

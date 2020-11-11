@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { extUri } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
@@ -55,6 +55,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	setName(name: string): void {
 		if (this.name !== name) {
 			this.name = name;
+
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -115,7 +116,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		}
 
 		if (otherInput instanceof ResourceEditorInput) {
-			return extUri.isEqual(otherInput.resource, this.resource);
+			return isEqual(otherInput.resource, this.resource);
 		}
 
 		return false;

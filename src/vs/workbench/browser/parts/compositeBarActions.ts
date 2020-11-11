@@ -299,8 +299,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 
 			if (clazz) {
-				dom.addClasses(this.badge, clazz);
-				this.badgeDisposable.value = toDisposable(() => dom.removeClasses(this.badge, clazz));
+				this.badge.classList.add(...clazz.split(' '));
+				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...clazz.split(' ')));
 			}
 		}
 
@@ -323,7 +323,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			dom.addClasses(this.label, this.activity.cssClass);
+			this.label.classList.add(...this.activity.cssClass.split(' '));
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {
@@ -647,12 +647,14 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	protected updateChecked(): void {
 		if (this.getAction().checked) {
 			this.container.classList.add('checked');
-			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
+			this.container.setAttribute('aria-label', this.container.title);
 			this.container.setAttribute('aria-expanded', 'true');
+			this.container.setAttribute('aria-selected', 'true');
 		} else {
 			this.container.classList.remove('checked');
 			this.container.setAttribute('aria-label', this.container.title);
 			this.container.setAttribute('aria-expanded', 'false');
+			this.container.setAttribute('aria-selected', 'false');
 		}
 		this.updateStyles();
 	}

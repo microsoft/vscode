@@ -1295,7 +1295,7 @@ class IndentRulesMode extends MockMode {
 
 suite('Editor Controller - Regression tests', () => {
 
-	test('issue Microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
+	test('issue microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
 		let model = createTextModel(
 			[
 				'Hello world!',
@@ -3572,7 +3572,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
-	test('issue Microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
+	test('issue microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
 		usingCursor({
 			text: [
 				'function baz() {',
@@ -3595,7 +3595,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
-	test('issue Microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
+	test('issue microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
 		usingCursor({
 			text: [
 				'function baz() {',
@@ -4036,6 +4036,33 @@ suite('Editor Controller - Indentation Rules', () => {
 
 		model.dispose();
 		mode.dispose();
+	});
+
+	test('issue #57197: indent rules regex should be stateless', () => {
+		usingCursor({
+			text: [
+				'Project:',
+			],
+			languageIdentifier: (new IndentRulesMode({
+				decreaseIndentPattern: /^\s*}$/gm,
+				increaseIndentPattern: /^(?![^\S\n]*(?!--|––|——)(?:[-❍❑■⬜□☐▪▫–—≡→›✘xX✔✓☑+]|\[[ xX+-]?\])\s[^\n]*)[^\S\n]*(.+:)[^\S\n]*(?:(?=@[^\s*~(]+(?::\/\/[^\s*~(:]+)?(?:\([^)]*\))?)|$)/gm,
+			})).getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false },
+			editorOpts: { autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 9, false);
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+
+			viewModel.type('\n', 'keyboard');
+			model.forceTokenization(model.getLineCount());
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+
+			moveTo(editor, viewModel, 1, 9, false);
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+			viewModel.type('\n', 'keyboard');
+			model.forceTokenization(model.getLineCount());
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+		});
 	});
 
 	test('', () => {

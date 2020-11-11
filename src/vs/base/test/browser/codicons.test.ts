@@ -3,43 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import * as assert from 'assert';
 
 suite('renderCodicons', () => {
 
 	test('no codicons', () => {
-		const result = renderCodiconsAsElement(' hello World .');
+		const result = renderCodicons(' hello World .');
 
 		assert.equal(elementsToString(result), ' hello World .');
 	});
 
 	test('codicon only', () => {
-		const result = renderCodiconsAsElement('$(alert)');
+		const result = renderCodicons('$(alert)');
 
 		assert.equal(elementsToString(result), '<span class="codicon codicon-alert"></span>');
 	});
 
 	test('codicon and non-codicon strings', () => {
-		const result = renderCodiconsAsElement(` $(alert) Unresponsive`);
+		const result = renderCodicons(` $(alert) Unresponsive`);
 
 		assert.equal(elementsToString(result), ' <span class="codicon codicon-alert"></span> Unresponsive');
 	});
 
 	test('multiple codicons', () => {
-		const result = renderCodiconsAsElement('$(check)$(error)');
+		const result = renderCodicons('$(check)$(error)');
 
 		assert.equal(elementsToString(result), '<span class="codicon codicon-check"></span><span class="codicon codicon-error"></span>');
 	});
 
 	test('escaped codicon', () => {
-		const result = renderCodiconsAsElement('\\$(escaped)');
+		const result = renderCodicons('\\$(escaped)');
 
 		assert.equal(elementsToString(result), '$(escaped)');
 	});
 
 	test('codicon with animation', () => {
-		const result = renderCodiconsAsElement('$(zip~anim)');
+		const result = renderCodicons('$(zip~anim)');
 
 		assert.equal(elementsToString(result), '<span class="codicon codicon-zip codicon-animation-anim"></span>');
 	});

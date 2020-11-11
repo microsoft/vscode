@@ -14,6 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { FileAccess } from 'vs/base/common/network';
 
 export class TextMateService extends AbstractTextMateService {
 
@@ -31,8 +32,7 @@ export class TextMateService extends AbstractTextMateService {
 	}
 
 	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
-		const wasmPath = require.toUrl('vscode-oniguruma/../onig.wasm');
-		const response = await fetch(wasmPath);
+		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.
 		// We therefore use the non-streaming compiler :(.

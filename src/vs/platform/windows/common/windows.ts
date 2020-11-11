@@ -11,7 +11,12 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platf
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+
+export const WindowMinimumSize = {
+	WIDTH: 400,
+	WIDTH_WITH_VERTICAL_PANEL: 600,
+	HEIGHT: 270
+};
 
 export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
@@ -111,6 +116,7 @@ export interface IWindowSettings {
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
 	clickThroughInactive: boolean;
+	enableExperimentalProxyLoginDialog: boolean;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
@@ -133,7 +139,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
+			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
 		const style = configuration.titleBarStyle;
@@ -207,12 +213,17 @@ export interface INativeRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
 }
 
+export interface IColorScheme {
+	dark: boolean;
+	highContrast: boolean;
+}
+
 export interface IWindowConfiguration {
 	sessionId: string;
 
 	remoteAuthority?: string;
 
-	colorScheme: ColorScheme;
+	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];

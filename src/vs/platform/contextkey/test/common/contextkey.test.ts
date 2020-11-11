@@ -146,7 +146,7 @@ suite('ContextKeyExpr', () => {
 		}
 		t('a', 'b', 'a && b');
 		t('a || b', 'c', 'a && c || b && c');
-		t('a || b', 'c || d', 'a && c || b && c || a && d || b && d');
+		t('a || b', 'c || d', 'a && c || a && d || b && c || b && d');
 		t('a || b', 'c && d', 'a && c && d || b && c && d');
 		t('a || b', 'c && d || e', 'a && e || b && e || a && c && d || b && c && d');
 	});
@@ -164,5 +164,26 @@ suite('ContextKeyExpr', () => {
 		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), true);
 		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), true);
 		assert.equal(ainb.evaluate(createContext({ 'a': 'prototype', 'b': {} })), false);
+	});
+
+	test('issue #106524: distributing AND should normalize', () => {
+		const actual = ContextKeyExpr.and(
+			ContextKeyExpr.or(
+				ContextKeyExpr.has('a'),
+				ContextKeyExpr.has('b')
+			),
+			ContextKeyExpr.has('c')
+		);
+		const expected = ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('a'),
+				ContextKeyExpr.has('c')
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('b'),
+				ContextKeyExpr.has('c')
+			)
+		);
+		assert.equal(actual!.equals(expected!), true);
 	});
 });

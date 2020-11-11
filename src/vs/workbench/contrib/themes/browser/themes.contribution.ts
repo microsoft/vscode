@@ -5,11 +5,10 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { IWorkbenchThemeService, IWorkbenchTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -73,7 +72,7 @@ export class SelectColorThemeAction extends Action {
 			return new Promise((s, _) => {
 				let isCompleted = false;
 
-				const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 				quickpick.items = picks;
 				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
@@ -147,10 +146,10 @@ abstract class AbstractIconThemeAction extends Action {
 			}, applyTheme ? 0 : 200);
 		};
 
-		return new Promise((s, _) => {
+		return new Promise<void>((s, _) => {
 			let isCompleted = false;
 
-			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 			quickpick.items = picks;
 			quickpick.placeholder = this.placeholderMessage;
@@ -327,7 +326,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, mode: 'jsonc' });
+		return this.editorService.openEditor({ contents, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 
@@ -343,10 +342,8 @@ const productIconThemeDescriptor = SyncActionDescriptor.from(SelectProductIconTh
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(productIconThemeDescriptor, 'Preferences: Product Icon Theme', category);
 
 
-const developerCategory = localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
-
 const generateColorThemeDescriptor = SyncActionDescriptor.from(GenerateColorThemeAction);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', developerCategory);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', CATEGORIES.Developer.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',

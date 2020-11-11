@@ -212,8 +212,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			dom.addClass(this._innerDomNode, 'visible');
-			dom.addClass(this._innerDomNode, 'visible-transition');
+			this._innerDomNode.classList.add('visible', 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 		}, 0);
@@ -227,21 +226,20 @@ export abstract class SimpleFindWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			dom.addClass(this._innerDomNode, 'visible');
-			dom.addClass(this._innerDomNode, 'visible-transition');
+			this._innerDomNode.classList.add('visible', 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			dom.removeClass(this._innerDomNode, 'visible-transition');
+			this._innerDomNode.classList.remove('visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				dom.removeClass(this._innerDomNode, 'visible');
+				this._innerDomNode.classList.remove('visible');
 			}, 200);
 		}
 	}
@@ -287,6 +285,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 });

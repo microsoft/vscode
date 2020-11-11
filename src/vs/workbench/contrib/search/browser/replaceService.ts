@@ -24,6 +24,8 @@ import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/b
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { mergeSort } from 'vs/base/common/arrays';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -72,7 +74,7 @@ class ReplacePreviewModel extends Disposable {
 		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
 		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
 		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
-		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
+		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/microsoft/vscode/issues/17073)
 		this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
 		this._register(sourceModel.onWillDispose(() => this.dispose()));
 		return replacePreviewModel;
@@ -93,7 +95,8 @@ export class ReplaceService implements IReplaceService {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IBulkEditService private readonly bulkEditorService: IBulkEditService
+		@IBulkEditService private readonly bulkEditorService: IBulkEditService,
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	replace(match: Match): Promise<any>;
@@ -113,6 +116,7 @@ export class ReplaceService implements IReplaceService {
 			leftResource: fileMatch.resource,
 			rightResource: toReplaceResource(fileMatch.resource),
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
+			description: this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true }),
 			options: {
 				preserveFocus,
 				pinned,

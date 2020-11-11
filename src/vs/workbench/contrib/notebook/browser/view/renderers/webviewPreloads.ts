@@ -12,7 +12,13 @@ import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookC
 // function. Imports are not allowed. This is stringifies and injected into
 // the webview.
 
-declare const acquireVsCodeApi: () => ({ getState(): { [key: string]: unknown; }, setState(data: { [key: string]: unknown; }): void, postMessage: (msg: unknown) => void; });
+declare module globalThis {
+	const acquireVsCodeApi: () => ({
+		getState(): { [key: string]: unknown; };
+		setState(data: { [key: string]: unknown; }): void;
+		postMessage: (msg: unknown) => void;
+	});
+}
 
 declare class ResizeObserver {
 	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
@@ -30,7 +36,9 @@ interface EmitterLike<T> {
 }
 
 function webviewPreloads() {
+	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
+	delete (globalThis as any).acquireVsCodeApi;
 
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
@@ -91,6 +99,32 @@ function webviewPreloads() {
 			// TODO@connor4312: should script with src not be removed?
 			container.appendChild(scriptTag).parentNode!.removeChild(scriptTag);
 		}
+	};
+
+	const runScript = async (url: string, originalUri: string, globals: { [name: string]: unknown } = {}): Promise<() => (PreloadResult)> => {
+		let text: string;
+		try {
+			const res = await fetch(url);
+			text = await res.text();
+			if (!res.ok) {
+				throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
+			}
+
+			globals.scriptUrl = url;
+		} catch (e) {
+			return () => ({ state: PreloadState.Error, error: e.message });
+		}
+
+		const args = Object.entries(globals);
+		return () => {
+			try {
+				new Function(...args.map(([k]) => k), text)(...args.map(([, v]) => v));
+				return { state: PreloadState.Ok };
+			} catch (e) {
+				console.error(e);
+				return { state: PreloadState.Error, error: e.message };
+			}
+		};
 	};
 
 	const outputObservers = new Map<string, ResizeObserver>();
@@ -304,11 +338,18 @@ function webviewPreloads() {
 		};
 	};
 
+	const enum PreloadState {
+		Ok,
+		Error
+	}
+
+	type PreloadResult = { state: PreloadState.Ok } | { state: PreloadState.Error, error: string };
+
 	/**
 	 * Map of preload resource URIs to promises that resolve one the resource
 	 * loads or errors.
 	 */
-	const preloadPromises = new Map<string, Promise<void>>();
+	const preloadPromises = new Map<string, Promise<PreloadResult>>();
 	const queuedOuputActions = new Map<string, Promise<void>>();
 
 	/**
@@ -341,7 +382,7 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'html':
 				enqueueOutputAction(event.data, async data => {
-					await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
+					const preloadResults = await Promise.all(data.requiredPreloads.map(p => preloadPromises.get(p.uri)));
 					if (!queuedOuputActions.has(data.outputId)) { // output was cleared while loading
 						return;
 					}
@@ -378,6 +419,18 @@ function webviewPreloads() {
 						outputNode.innerHTML = content.htmlContent;
 						cellOutputContainer.appendChild(outputNode);
 						domEval(outputNode);
+					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
+						outputNode.innerText = `Error loading preloads:`;
+						const errList = document.createElement('ul');
+						for (const result of preloadResults) {
+							if (result?.state === PreloadState.Error) {
+								const item = document.createElement('li');
+								item.innerText = result.error;
+								errList.appendChild(item);
+							}
+						}
+						outputNode.appendChild(errList);
+						cellOutputContainer.appendChild(outputNode);
 					} else {
 						onDidCreateOutput.fire([data.apiNamespace, {
 							element: outputNode,
@@ -410,9 +463,11 @@ function webviewPreloads() {
 
 					for (let i = 0; i < event.data.widgets.length; i++) {
 						const widget = document.getElementById(event.data.widgets[i].id)!;
-						widget.style.top = event.data.widgets[i].top + 'px';
-						if (event.data.forceDisplay) {
-							widget.parentElement!.style.display = 'block';
+						if (widget) {
+							widget.style.top = event.data.widgets[i].top + 'px';
+							if (event.data.forceDisplay) {
+								widget.parentElement!.style.display = 'block';
+							}
 						}
 					}
 					break;
@@ -463,16 +518,21 @@ function webviewPreloads() {
 				break;
 			case 'preload':
 				const resources = event.data.resources;
-				const preloadsContainer = document.getElementById('__vscode_preloads')!;
-				for (let i = 0; i < resources.length; i++) {
-					const { uri } = resources[i];
-					const scriptTag = document.createElement('script');
-					scriptTag.setAttribute('src', uri);
-					preloadsContainer.appendChild(scriptTag);
-					preloadPromises.set(uri, new Promise<void>(resolve => {
-						scriptTag.addEventListener('load', () => resolve());
-						scriptTag.addEventListener('error', () => resolve());
+				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};
+				let queue: Promise<PreloadResult> = Promise.resolve({ state: PreloadState.Ok });
+				for (const { uri, originalUri } of resources) {
+					// create the promise so that the scripts download in parallel, but
+					// only invoke them in series within the queue
+					const promise = runScript(uri, originalUri, globals);
+					queue = queue.then(() => promise.then(fn => {
+						const result = fn();
+						if (result.state === PreloadState.Error) {
+							console.error(result.error);
+						}
+
+						return result;
 					}));
+					preloadPromises.set(uri, queue);
 				}
 				break;
 			case 'focus-output':

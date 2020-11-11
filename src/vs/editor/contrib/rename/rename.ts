@@ -358,7 +358,7 @@ registerModelAndPositionCommand('_executeDocumentRenameProvider', function (mode
 });
 
 
-//todo@joh use editor options world
+//todo@jrieken use editor options world
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {

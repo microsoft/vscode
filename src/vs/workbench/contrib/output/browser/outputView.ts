@@ -36,6 +36,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class OutputViewPane extends ViewPane {
 
@@ -118,7 +119,7 @@ export class OutputViewPane extends ViewPane {
 
 	layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.editor.layout({ height, width });
+		this.editor.layout(new Dimension(width, height));
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -207,6 +208,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 		options.renderValidationDecorations = 'editable';
+		options.padding = undefined;
 
 		const outputConfig = this.configurationService.getValue<any>('[Log]');
 		if (outputConfig) {

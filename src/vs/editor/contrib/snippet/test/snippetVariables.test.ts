@@ -9,10 +9,11 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { mock } from 'vs/base/test/common/mock';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -181,7 +182,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
 		assertVariableResolve2('${Foo/(.*)/${1:+Bar}/img}', 'Bar');
 
-		//https://github.com/Microsoft/vscode/issues/33162
+		//https://github.com/microsoft/vscode/issues/33162
 		assertVariableResolve2('export default class ${TM_FILENAME/(\\w+)\\.js/$1/g}', 'export default class FooFile', 'FooFile.js');
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/g}', 'FARbarFARbar'); // global

@@ -23,6 +23,7 @@ import { IRevertOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export enum CellKind {
 	Markdown = 1,
@@ -348,24 +349,22 @@ export enum NotebookCellsChangeType {
 	ChangeCellMetadata = 7,
 	Output = 8,
 	ChangeCellContent = 9,
-	ChangeDocumentMetadata = 10
+	ChangeDocumentMetadata = 10,
+	Unknown = 11
 }
 
 export interface NotebookCellsInitializeEvent<T> {
 	readonly kind: NotebookCellsChangeType.Initialize;
 	readonly changes: NotebookCellTextModelSplice<T>[];
-	readonly versionId: number;
 }
 
 export interface NotebookCellContentChangeEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellContent;
-	readonly versionId: number;
 }
 
 export interface NotebookCellsModelChangedEvent<T> {
 	readonly kind: NotebookCellsChangeType.ModelChange;
 	readonly changes: NotebookCellTextModelSplice<T>[];
-	readonly versionId: number;
 }
 
 export interface NotebookCellsModelMoveEvent<T> {
@@ -374,44 +373,60 @@ export interface NotebookCellsModelMoveEvent<T> {
 	readonly length: number;
 	readonly newIdx: number;
 	readonly cells: T[];
-	readonly versionId: number;
 }
 
 export interface NotebookOutputChangedEvent {
 	readonly kind: NotebookCellsChangeType.Output;
 	readonly index: number;
-	readonly versionId: number;
 	readonly outputs: IProcessedOutput[];
-	readonly transient: boolean;
 }
 
 export interface NotebookCellsChangeLanguageEvent {
 	readonly kind: NotebookCellsChangeType.ChangeLanguage;
-	readonly versionId: number;
 	readonly index: number;
 	readonly language: string;
 }
 
 export interface NotebookCellsChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellMetadata;
-	readonly versionId: number;
 	readonly index: number;
 	readonly metadata: NotebookCellMetadata | undefined;
 }
 
 export interface NotebookDocumentChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeDocumentMetadata;
-	readonly versionId: number;
 	readonly metadata: NotebookDocumentMetadata | undefined;
 }
 
-export type NotebookCellsChangedEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
-export type NotebookTextModelChangedEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent) & { synchronous: boolean; endSelections?: number[] };
+export interface NotebookDocumentUnknownChangeEvent {
+	readonly kind: NotebookCellsChangeType.Unknown;
+}
+
+export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent;
+
+export type NotebookCellsChangedEventDto = {
+	readonly rawEvents: NotebookRawContentEventDto[];
+	readonly versionId: number;
+};
+
+export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+export type NotebookTextModelChangedEvent = {
+	readonly rawEvents: NotebookRawContentEvent[];
+	readonly versionId: number;
+	readonly synchronous: boolean;
+	readonly endSelections?: number[];
+};
 
 export const enum CellEditType {
 	Replace = 1,
 	Output = 2,
 	Metadata = 3,
+	CellLanguage = 4,
+	DocumentMetadata = 5,
+	OutputsSplice = 6,
+	Move = 7,
+	Unknown = 8,
+	CellContent = 9
 }
 
 export interface ICellDto2 {
@@ -441,12 +456,40 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit;
+
+export interface ICellLanguageEdit {
+	editType: CellEditType.CellLanguage;
+	index: number;
+	language: string;
+}
+
+export interface IDocumentMetadataEdit {
+	editType: CellEditType.DocumentMetadata;
+	metadata: NotebookDocumentMetadata;
+}
+
+export interface ICellOutputsSpliceEdit {
+	editType: CellEditType.OutputsSplice;
+	index: number;
+	splices: NotebookCellOutputsSplice[];
+}
+
+export interface ICellMoveEdit {
+	editType: CellEditType.Move;
+	index: number;
+	length: number;
+	newIdx: number;
+}
+
+export interface IDocumentUnknownEdit {
+	editType: CellEditType.Unknown;
+}
+
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | IDocumentUnknownEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
 	cellEdits: ICellEditOperation[];
-	newMetadata?: NotebookDocumentMetadata;
 }
 
 export interface NotebookDataDto {
@@ -638,6 +681,7 @@ export interface ICellEditorViewState {
 }
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
+export const NOTEBOOK_EDITOR_CURSOR_BEGIN_END = new RawContextKey<boolean>('notebookEditorCursorAtEditorBeginEnd', false);
 
 
 export interface INotebookEditorModel extends IEditorModel {
@@ -727,7 +771,7 @@ export interface INotebookDocumentFilter {
 
 //TODO@rebornix test
 
-function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
+export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
 	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
 
 	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
@@ -832,4 +876,10 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const enum CellStatusbarAlignment {
 	LEFT,
 	RIGHT
+}
+
+export interface INotebookDecorationRenderOptions {
+	backgroundColor?: string | ThemeColor;
+	borderColor?: string | ThemeColor;
+	top?: editorCommon.IContentDecorationRenderOptions;
 }

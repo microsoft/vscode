@@ -18,7 +18,7 @@ import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -28,7 +28,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, append, $, hide, show, addClasses } from 'vs/base/browser/dom';
+import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 
@@ -199,7 +199,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Store in preferences
 		const id = this.activeComposite.getId();
 		if (id !== this.defaultCompositeId) {
-			this.storageService.store(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE);
+			this.storageService.store2(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
 		}
@@ -213,7 +213,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Build Container off-DOM
 			compositeContainer = $('.composite');
-			addClasses(compositeContainer, this.compositeCSSClass);
+			compositeContainer.classList.add(...this.compositeCSSClass.split(' '));
 			compositeContainer.id = composite.getId();
 
 			composite.create(compositeContainer);
@@ -283,13 +283,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
+		// Title
+		const composite = this.instantiatedCompositeItems.get(compositeId);
+		if (composite) {
+			this.updateTitle(compositeId, composite.composite.getTitle());
+		}
 
 		// Active Composite
 		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
-
-			// Title
-			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle());
-
 			// Actions
 			const actionsBinding = this.collectCompositeActions(this.activeComposite);
 			this.mapActionsBindingToComposite.set(this.activeComposite.getId(), actionsBinding);
@@ -412,9 +413,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		const $this = this;
 		return {
-			updateTitle: (_id, title, keybinding) => {
-				titleLabel.innerText = title;
-				titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+			updateTitle: (id, title, keybinding) => {
+				// The title label is shared for all composites in the base CompositePart
+				if (!this.activeComposite || this.activeComposite.getId() === id) {
+					titleLabel.innerText = title;
+					titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+				}
 			},
 
 			updateStyles: () => {
@@ -483,7 +487,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super.layout(width, height);
 
 		// Layout contents
-		this.contentAreaSize = super.layoutContents(width, height).contentSize;
+		this.contentAreaSize = Dimension.lift(super.layoutContents(width, height).contentSize);
 
 		// Layout composite
 		if (this.activeComposite) {

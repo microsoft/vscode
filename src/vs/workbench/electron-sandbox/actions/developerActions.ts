@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -17,13 +17,13 @@ export class ToggleDevToolsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		return this.electronService.toggleDevTools();
+		return this.nativeHostService.toggleDevTools();
 	}
 }
 
@@ -42,6 +42,9 @@ export class ConfigureRuntimeArgumentsAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		await this.editorService.openEditor({ resource: this.environmentService.argvResource });
+		await this.editorService.openEditor({
+			resource: this.environmentService.argvResource,
+			options: { pinned: true }
+		});
 	}
 }

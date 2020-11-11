@@ -46,7 +46,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { ThemableCheckboxActionViewItem } from 'vs/platform/browser/checkbox';
+import { ThemableCheckboxActionViewItem } from 'vs/platform/theme/browser/checkbox';
 
 const $ = DOM.$;
 

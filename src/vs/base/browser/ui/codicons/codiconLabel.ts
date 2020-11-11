@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reset } from 'vs/base/browser/dom';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export class CodiconLabel {
 
@@ -13,7 +13,7 @@ export class CodiconLabel {
 	) { }
 
 	set text(text: string) {
-		reset(this._container, ...renderCodiconsAsElement(text ?? ''));
+		reset(this._container, ...renderCodicons(text ?? ''));
 	}
 
 	set title(title: string) {

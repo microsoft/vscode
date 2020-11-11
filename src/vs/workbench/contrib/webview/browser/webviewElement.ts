@@ -12,7 +12,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -68,7 +67,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('iframe');
 		element.className = `webview ${options.customClasses || ''}`;
-		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock');
+		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 		element.style.border = 'none';
 		element.style.width = '100%';
 		element.style.height = '100%';
@@ -140,17 +139,17 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+			const remoteAuthority = this.environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 			const extensionLocation = this.extension?.location;
 
 			// If we are loading a file resource from a remote extension, rewrite the uri to go remote
 			let rewriteUri: undefined | ((uri: URI) => URI);
-			if (extensionLocation?.scheme === REMOTE_HOST_SCHEME) {
+			if (extensionLocation?.scheme === Schemas.vscodeRemote) {
 				rewriteUri = (uri) => {
-					if (uri.scheme === Schemas.file && extensionLocation?.scheme === REMOTE_HOST_SCHEME) {
+					if (uri.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote) {
 						return URI.from({
-							scheme: REMOTE_HOST_SCHEME,
+							scheme: Schemas.vscodeRemote,
 							authority: extensionLocation.authority,
 							path: '/vscode-resource',
 							query: JSON.stringify({
@@ -191,7 +190,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private async localLocalhost(origin: string) {
-		const authority = this.environmentService.configuration.remoteAuthority;
+		const authority = this.environmentService.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
 		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 		return this._send('did-load-localhost', {

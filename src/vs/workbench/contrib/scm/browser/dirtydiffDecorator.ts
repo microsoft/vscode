@@ -41,7 +41,7 @@ import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/pl
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
-import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
+import { sortedDiff } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
@@ -563,20 +563,57 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
+	private gutterActionDisposables = new DisposableStore();
+	private stylesheet: HTMLStyleElement;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
+		this.stylesheet = createStyleSheet();
+		this._register(toDisposable(() => this.stylesheet.remove()));
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
-			this._register(editor.onMouseDown(e => this.onEditorMouseDown(e)));
-			this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 			this._register(editor.onDidChangeModel(() => this.close()));
+
+			const onDidChangeGutterAction = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterAction'));
+			this._register(onDidChangeGutterAction(this.onDidChangeGutterAction, this));
+			this.onDidChangeGutterAction();
+		}
+	}
+
+	private onDidChangeGutterAction(): void {
+		const gutterAction = this.configurationService.getValue<'diff' | 'none'>('scm.diffDecorationsGutterAction');
+
+		this.gutterActionDisposables.dispose();
+		this.gutterActionDisposables = new DisposableStore();
+
+		if (gutterAction === 'diff') {
+			this.gutterActionDisposables.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+			this.gutterActionDisposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+			this.stylesheet.textContent = `
+				.monaco-editor .dirty-diff-glyph {
+					cursor: pointer;
+				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
+					width: 9px;
+					left: -6px;
+				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after {
+					bottom: 0;
+					border-top-width: 0;
+					border-bottom-width: 0;
+				}
+			`;
+		} else {
+			this.stylesheet.textContent = ``;
 		}
 	}
 
@@ -769,7 +806,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const index = firstIndex(model.changes, change => lineIntersectsChange(lineNumber, change));
+		const index = model.changes.findIndex(change => lineIntersectsChange(lineNumber, change));
 
 		if (index < 0) {
 			return;
@@ -797,6 +834,11 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		}
 
 		return model.changes;
+	}
+
+	dispose(): void {
+		this.gutterActionDisposables.dispose();
+		super.dispose();
 	}
 }
 
@@ -1301,7 +1343,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 	private setViewState(state: IViewState): void {
 		this.viewState = state;
-		this.stylesheet.innerHTML = `
+		this.stylesheet.textContent = `
 			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
 			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};

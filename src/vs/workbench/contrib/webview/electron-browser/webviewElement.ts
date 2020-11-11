@@ -8,96 +8,35 @@ import { addDisposableListener } from 'vs/base/browser/dom';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isMacintosh } from 'vs/base/common/platform';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
+import { WebviewIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-browser/webviewIgnoreMenuShortcutsManager';
+import { rewriteVsCodeResourceUrls, WebviewResourceRequestManager } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { rewriteVsCodeResourceUrls, WebviewResourceRequestManager } from './resourceLoading';
-
-class WebviewKeyboardHandler {
-
-	private readonly _webviews = new Set<WebviewTag>();
-	private readonly _isUsingNativeTitleBars: boolean;
-
-	private readonly webviewMainService: IWebviewManagerService;
-
-	constructor(
-		configurationService: IConfigurationService,
-		mainProcessService: IMainProcessService,
-	) {
-		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
-
-		this.webviewMainService = createChannelSender<IWebviewManagerService>(mainProcessService.getChannel('webview'));
-	}
-
-	public add(webview: WebviewTag): IDisposable {
-		this._webviews.add(webview);
-
-		const disposables = new DisposableStore();
-
-		if (this.shouldToggleMenuShortcutsEnablement) {
-			this.setIgnoreMenuShortcutsForWebview(webview, true);
-		}
-
-		disposables.add(addDisposableListener(webview, 'ipc-message', (event) => {
-			switch (event.channel) {
-				case 'did-focus':
-					this.setIgnoreMenuShortcuts(true);
-					break;
-
-				case 'did-blur':
-					this.setIgnoreMenuShortcuts(false);
-					return;
-			}
-		}));
-
-		return toDisposable(() => {
-			disposables.dispose();
-			this._webviews.delete(webview);
-		});
-	}
-
-	private get shouldToggleMenuShortcutsEnablement() {
-		return isMacintosh || this._isUsingNativeTitleBars;
-	}
-
-	private setIgnoreMenuShortcuts(value: boolean) {
-		for (const webview of this._webviews) {
-			this.setIgnoreMenuShortcutsForWebview(webview, value);
-		}
-	}
-
-	private setIgnoreMenuShortcutsForWebview(webview: WebviewTag, value: boolean) {
-		if (this.shouldToggleMenuShortcutsEnablement) {
-			this.webviewMainService.setIgnoreMenuShortcuts(webview.getWebContentsId(), value);
-		}
-	}
-}
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
 
-	private static _webviewKeyboardHandler: WebviewKeyboardHandler | undefined;
+	private static _webviewKeyboardHandler: WebviewIgnoreMenuShortcutsManager | undefined;
 
 	private static getWebviewKeyboardHandler(
 		configService: IConfigurationService,
 		mainProcessService: IMainProcessService,
 	) {
 		if (!this._webviewKeyboardHandler) {
-			this._webviewKeyboardHandler = new WebviewKeyboardHandler(configService, mainProcessService);
+			this._webviewKeyboardHandler = new WebviewIgnoreMenuShortcutsManager(configService, mainProcessService);
 		}
 		return this._webviewKeyboardHandler;
 	}
@@ -124,6 +63,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService noficationService: INotificationService,
+		@INativeHostService nativeHostService: INativeHostService,
 	) {
 		super(id, options, contentOptions, extension, _webviewThemeDataProvider, noficationService, _myLogService, telemetryService, environmentService);
 
@@ -206,8 +146,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			this.styledFindWidget();
 		}
 
-		this.element!.preload = require.toUrl('./pre/electron-index.js');
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html`;
+		// We must ensure to put a `file:` URI as the preload attribute
+		// and not the `vscode-file` URI because preload scripts are loaded
+		// via node.js from the main side and only allow `file:` protocol
+		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html?platform=electron`;
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -288,6 +231,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			return;
 		}
 
+		// Clear the existing focus first.
+		// This is required because the next part where we set the focus is async.
+		if (document.activeElement && document.activeElement instanceof HTMLElement) {
+			document.activeElement.blur();
+		}
+
 		// Workaround for https://github.com/microsoft/vscode/issues/75209
 		// Electron's webview.focus is async so for a sequence of actions such as:
 		//
@@ -303,8 +252,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			if (!this.isFocused || !this.element) {
 				return;
 			}
-
-			if (document.activeElement?.tagName === 'INPUT') {
+			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 			try {

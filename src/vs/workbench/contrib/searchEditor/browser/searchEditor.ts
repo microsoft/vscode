@@ -43,14 +43,15 @@ import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -100,6 +101,7 @@ export class SearchEditor extends BaseTextEditor {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
 		this.container = DOM.$('.search-editor');
@@ -209,7 +211,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor = super.getControl() as CodeEditorWidget;
 		this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 2) {
-				const behaviour = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.doubleClickBehaviour;
+				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
 				const position = e.target.position;
 				if (position && behaviour !== 'selectWord') {
 					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
@@ -229,7 +231,7 @@ export class SearchEditor extends BaseTextEditor {
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
 
 		[this.queryEditorWidget.searchInputFocusTracker, this.queryEditorWidget.replaceInputFocusTracker, this.inputPatternExcludes.inputFocusTracker, this.inputPatternIncludes.inputFocusTracker]
-			.map(tracker => {
+			.forEach(tracker => {
 				this._register(tracker.onDidFocus(() => setTimeout(() => this.inputFocusContextKey.set(true), 0)));
 				this._register(tracker.onDidBlur(() => this.inputFocusContextKey.set(false)));
 			});
@@ -437,16 +439,16 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
-	private readConfigFromWidget() {
+	private readConfigFromWidget(): SearchConfiguration {
 		return {
-			caseSensitive: this.queryEditorWidget.searchInput.getCaseSensitive(),
+			isCaseSensitive: this.queryEditorWidget.searchInput.getCaseSensitive(),
 			contextLines: this.queryEditorWidget.getContextLines(),
-			excludes: this.inputPatternExcludes.getValue(),
-			includes: this.inputPatternIncludes.getValue(),
+			filesToExclude: this.inputPatternExcludes.getValue(),
+			filesToInclude: this.inputPatternIncludes.getValue(),
 			query: this.queryEditorWidget.searchInput.getValue(),
-			regexp: this.queryEditorWidget.searchInput.getRegex(),
-			wholeWord: this.queryEditorWidget.searchInput.getWholeWords(),
-			useIgnores: this.inputPatternExcludes.useExcludesAndIgnoreFiles(),
+			isRegexp: this.queryEditorWidget.searchInput.getRegex(),
+			matchWholeWord: this.queryEditorWidget.searchInput.getWholeWords(),
+			useExcludeSettingsAndIgnoreFiles: this.inputPatternExcludes.useExcludesAndIgnoreFiles(),
 			showIncludesExcludes: this.showingIncludesExcludes
 		};
 	}
@@ -462,32 +464,32 @@ export class SearchEditor extends BaseTextEditor {
 			this.inputPatternIncludes.onSearchSubmit();
 		});
 
-		const config: SearchConfiguration = this.readConfigFromWidget();
+		const config = this.readConfigFromWidget();
 
 		if (!config.query) { return; }
 
 		const content: IPatternInfo = {
 			pattern: config.query,
-			isRegExp: config.regexp,
-			isCaseSensitive: config.caseSensitive,
-			isWordMatch: config.wholeWord,
+			isRegExp: config.isRegexp,
+			isCaseSensitive: config.isCaseSensitive,
+			isWordMatch: config.matchWholeWord,
 		};
 
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			maxResults: 10000,
-			disregardIgnoreFiles: !config.useIgnores || undefined,
-			disregardExcludeSettings: !config.useIgnores || undefined,
-			excludePattern: config.excludes,
-			includePattern: config.includes,
+			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
+			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
+			excludePattern: config.filesToExclude,
+			includePattern: config.filesToInclude,
 			previewOptions: {
 				matchLines: 1,
 				charsPerLine: 1000
 			},
 			afterContext: config.contextLines,
 			beforeContext: config.contextLines,
-			isSmartCase: this.configurationService.getValue<ISearchConfigurationProperties>('search').smartCase,
+			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true
 		};
 
@@ -517,17 +519,26 @@ export class SearchEditor extends BaseTextEditor {
 			return;
 		}
 
-		const sortOrder = this.configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
+		const sortOrder = this.searchConfig.sortOrder;
+		if (sortOrder === SearchSortOrder.Modified) {
+			await this.retrieveFileStats(this.searchModel.searchResult);
+		}
+
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.filesToInclude, config.filesToExclude, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
 		const { body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
 		input.config = config;
 
 		input.setDirty(!input.isUntitled());
 		input.setMatchRanges(results.matchRanges);
+	}
+
+	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
+		const files = searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
+		await Promise.all(files);
 	}
 
 	layout(dimension: DOM.Dimension) {
@@ -571,13 +582,13 @@ export class SearchEditor extends BaseTextEditor {
 		this.toggleRunAgainMessage(body.getLineCount() === 1 && body.getValue() === '' && config.query !== '');
 
 		this.queryEditorWidget.setValue(config.query);
-		this.queryEditorWidget.searchInput.setCaseSensitive(config.caseSensitive);
-		this.queryEditorWidget.searchInput.setRegex(config.regexp);
-		this.queryEditorWidget.searchInput.setWholeWords(config.wholeWord);
+		this.queryEditorWidget.searchInput.setCaseSensitive(config.isCaseSensitive);
+		this.queryEditorWidget.searchInput.setRegex(config.isRegexp);
+		this.queryEditorWidget.searchInput.setWholeWords(config.matchWholeWord);
 		this.queryEditorWidget.setContextLines(config.contextLines);
-		this.inputPatternExcludes.setValue(config.excludes);
-		this.inputPatternIncludes.setValue(config.includes);
-		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useIgnores);
+		this.inputPatternExcludes.setValue(config.filesToExclude);
+		this.inputPatternIncludes.setValue(config.filesToInclude);
+		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useExcludeSettingsAndIgnoreFiles);
 		this.toggleIncludesExcludes(config.showIncludesExcludes);
 
 		this.restoreViewState();
@@ -591,17 +602,17 @@ export class SearchEditor extends BaseTextEditor {
 
 	private toggleIncludesExcludes(_shouldShow?: boolean): void {
 		const cls = 'expanded';
-		const shouldShow = _shouldShow ?? !DOM.hasClass(this.includesExcludesContainer, cls);
+		const shouldShow = _shouldShow ?? !this.includesExcludesContainer.classList.contains(cls);
 
 		if (shouldShow) {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
-			DOM.addClass(this.includesExcludesContainer, cls);
+			this.includesExcludesContainer.classList.add(cls);
 		} else {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
-			DOM.removeClass(this.includesExcludesContainer, cls);
+			this.includesExcludesContainer.classList.remove(cls);
 		}
 
-		this.showingIncludesExcludes = DOM.hasClass(this.includesExcludesContainer, cls);
+		this.showingIncludesExcludes = this.includesExcludesContainer.classList.contains(cls);
 
 		this.reLayout();
 	}

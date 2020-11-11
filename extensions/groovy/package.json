@@ -14,6 +14,7 @@
 			"id": "groovy",
 			"aliases": ["Groovy", "groovy"],
       "extensions": [".groovy", ".gvy", ".gradle", ".jenkinsfile", ".nf"],
+      "filenames": [ "Jenkinsfile" ],
       "filenamePatterns": ["Jenkinsfile.*"],
 			"firstLine": "^#!.*\\bgroovy\\b",
 			"configuration": "./language-configuration.json"

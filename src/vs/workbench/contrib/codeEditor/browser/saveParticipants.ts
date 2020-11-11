@@ -28,7 +28,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution, Extensions as WorkbenchContributionsExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
@@ -344,7 +344,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
 			try {
 				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.title) });
+					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 					await this.instantiationService.invokeFunction(applyCodeAction, action);
 				}
 			} catch {

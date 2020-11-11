@@ -13,8 +13,11 @@ import { v4 as uuid } from 'uuid';
 import { keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -40,6 +43,7 @@ interface ITokenClaims {
 	tid: string;
 	email?: string;
 	unique_name?: string;
+	preferred_username?: string;
 	oid?: string;
 	altsecid?: string;
 	ipd?: string;
@@ -64,6 +68,7 @@ export interface ITokenResponse {
 	refresh_token: string;
 	scope: string;
 	token_type: string;
+	id_token?: string;
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -88,14 +93,20 @@ export class AzureActiveDirectoryService {
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
 	private _uriHandler: UriEventHandler;
+	private _disposables: vscode.Disposable[] = [];
+
+	// Used to keep track of current requests when not using the local server approach.
+	private _pendingStates = new Map<string, string[]>();
+	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
+	private _codeVerfifiers = new Map<string, string>();
 
 	constructor() {
 		this._uriHandler = new UriEventHandler();
-		vscode.window.registerUriHandler(this._uriHandler);
+		this._disposables.push(vscode.window.registerUriHandler(this._uriHandler));
 	}
 
 	public async initialize(): Promise<void> {
-		const storedData = await keychain.getToken();
+		const storedData = await keychain.getToken() || await keychain.tryMigrate();
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
@@ -135,7 +146,7 @@ export class AzureActiveDirectoryService {
 			}
 		}
 
-		this.pollForChange();
+		this._disposables.push(vscode.authentication.onDidChangePassword(() => this.checkForUpdates));
 	}
 
 	private parseStoredData(data: string): IStoredSession[] {
@@ -155,67 +166,63 @@ export class AzureActiveDirectoryService {
 		await keychain.setToken(JSON.stringify(serializedData));
 	}
 
-	private pollForChange() {
-		setTimeout(async () => {
-			const addedIds: string[] = [];
-			let removedIds: string[] = [];
-			const storedData = await keychain.getToken();
-			if (storedData) {
-				try {
-					const sessions = this.parseStoredData(storedData);
-					let promises = sessions.map(async session => {
-						const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
-						if (!matchesExisting && session.refreshToken) {
-							try {
-								await this.refreshToken(session.refreshToken, session.scope, session.id);
-								addedIds.push(session.id);
-							} catch (e) {
-								if (e.message === REFRESH_NETWORK_FAILURE) {
-									// Ignore, will automatically retry on next poll.
-								} else {
-									await this.logout(session.id);
-								}
+	private async checkForUpdates(): Promise<void> {
+		const addedIds: string[] = [];
+		let removedIds: string[] = [];
+		const storedData = await keychain.getToken();
+		if (storedData) {
+			try {
+				const sessions = this.parseStoredData(storedData);
+				let promises = sessions.map(async session => {
+					const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
+					if (!matchesExisting && session.refreshToken) {
+						try {
+							await this.refreshToken(session.refreshToken, session.scope, session.id);
+							addedIds.push(session.id);
+						} catch (e) {
+							if (e.message === REFRESH_NETWORK_FAILURE) {
+								// Ignore, will automatically retry on next poll.
+							} else {
+								await this.logout(session.id);
 							}
 						}
-					});
+					}
+				});
 
-					promises = promises.concat(this._tokens.map(async token => {
-						const matchesExisting = sessions.some(session => token.scope === session.scope && token.sessionId === session.id);
-						if (!matchesExisting) {
-							await this.logout(token.sessionId);
-							removedIds.push(token.sessionId);
-						}
-					}));
+				promises = promises.concat(this._tokens.map(async token => {
+					const matchesExisting = sessions.some(session => token.scope === session.scope && token.sessionId === session.id);
+					if (!matchesExisting) {
+						await this.logout(token.sessionId);
+						removedIds.push(token.sessionId);
+					}
+				}));
 
-					await Promise.all(promises);
-				} catch (e) {
-					Logger.error(e.message);
-					// if data is improperly formatted, remove all of it and send change event
-					removedIds = this._tokens.map(token => token.sessionId);
-					this.clearSessions();
-				}
-			} else {
-				if (this._tokens.length) {
-					// Log out all, remove all local data
-					removedIds = this._tokens.map(token => token.sessionId);
-					Logger.info('No stored keychain data, clearing local data');
-
-					this._tokens = [];
-
-					this._refreshTimeouts.forEach(timeout => {
-						clearTimeout(timeout);
-					});
-
-					this._refreshTimeouts.clear();
-				}
+				await Promise.all(promises);
+			} catch (e) {
+				Logger.error(e.message);
+				// if data is improperly formatted, remove all of it and send change event
+				removedIds = this._tokens.map(token => token.sessionId);
+				this.clearSessions();
 			}
+		} else {
+			if (this._tokens.length) {
+				// Log out all, remove all local data
+				removedIds = this._tokens.map(token => token.sessionId);
+				Logger.info('No stored keychain data, clearing local data');
 
-			if (addedIds.length || removedIds.length) {
-				onDidChangeSessions.fire({ added: addedIds, removed: removedIds, changed: [] });
+				this._tokens = [];
+
+				this._refreshTimeouts.forEach(timeout => {
+					clearTimeout(timeout);
+				});
+
+				this._refreshTimeouts.clear();
 			}
+		}
 
-			this.pollForChange();
-		}, 1000 * 30);
+		if (addedIds.length || removedIds.length) {
+			onDidChangeSessions.fire({ added: addedIds, removed: removedIds, changed: [] });
+		}
 	}
 
 	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
@@ -339,6 +346,11 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
+	public dispose(): void {
+		this._disposables.forEach(disposable => disposable.dispose());
+		this._disposables = [];
+	}
+
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
 		if (callbackUri.authority.endsWith('.workspaces.github.com') || callbackUri.authority.endsWith('.github.dev')) {
 			return `${callbackUri.authority},`;
@@ -352,7 +364,7 @@ export class AzureActiveDirectoryService {
 			case 'online.dev.core.vsengsaas.visualstudio.com':
 				return 'vsodev,';
 			default:
-				return '';
+				return `${callbackUri.scheme},`;
 		}
 	}
 
@@ -378,10 +390,28 @@ export class AzureActiveDirectoryService {
 			}, 1000 * 60 * 5);
 		});
 
-		return Promise.race([this.handleCodeResponse(state, codeVerifier, scope), timeoutPromise]);
+		const existingStates = this._pendingStates.get(scope) || [];
+		this._pendingStates.set(scope, [...existingStates, state]);
+
+		// Register a single listener for the URI callback, in case the user starts the login process multiple times
+		// before completing it.
+		let existingPromise = this._codeExchangePromises.get(scope);
+		if (!existingPromise) {
+			existingPromise = this.handleCodeResponse(scope);
+			this._codeExchangePromises.set(scope, existingPromise);
+		}
+
+		this._codeVerfifiers.set(state, codeVerifier);
+
+		return Promise.race([existingPromise, timeoutPromise])
+			.finally(() => {
+				this._pendingStates.delete(scope);
+				this._codeExchangePromises.delete(scope);
+				this._codeVerfifiers.delete(state);
+			});
 	}
 
-	private async handleCodeResponse(state: string, codeVerifier: string, scope: string): Promise<vscode.AuthenticationSession> {
+	private async handleCodeResponse(scope: string): Promise<vscode.AuthenticationSession> {
 		let uriEventListener: vscode.Disposable;
 		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
@@ -389,12 +419,18 @@ export class AzureActiveDirectoryService {
 					const query = parseQuery(uri);
 					const code = query.code;
 
+					const acceptedStates = this._pendingStates.get(scope) || [];
 					// Workaround double encoding issues of state in web
-					if (query.state !== state && decodeURIComponent(query.state) !== state) {
+					if (!acceptedStates.includes(query.state) && !acceptedStates.includes(decodeURIComponent(query.state))) {
 						throw new Error('State does not match.');
 					}
 
-					const token = await this.exchangeCodeForToken(code, codeVerifier, scope);
+					const verifier = this._codeVerfifiers.get(query.state) ?? this._codeVerfifiers.get(decodeURIComponent(query.state));
+					if (!verifier) {
+						throw new Error('No available code verifier');
+					}
+
+					const token = await this.exchangeCodeForToken(code, verifier, scope);
 					this.setToken(token, scope);
 
 					const session = await this.convertToSession(token);
@@ -445,7 +481,19 @@ export class AzureActiveDirectoryService {
 	}
 
 	private getTokenFromResponse(json: ITokenResponse, scope: string, existingId?: string): IToken {
-		const claims = this.getTokenClaims(json.access_token);
+		let claims = undefined;
+
+		try {
+			claims = this.getTokenClaims(json.access_token);
+		} catch (e) {
+			if (json.id_token) {
+				Logger.info('Failed to fetch token claims from access_token. Attempting to parse id_token instead');
+				claims = this.getTokenClaims(json.id_token);
+			} else {
+				throw e;
+			}
+		}
+
 		return {
 			expiresIn: json.expires_in,
 			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
@@ -454,7 +502,7 @@ export class AzureActiveDirectoryService {
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
-				label: claims.email || claims.unique_name || 'user@example.com',
+				label: claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
 				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
 			}
 		};
@@ -499,16 +547,17 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
-		try {
-			Logger.info('Refreshing token...');
-			const postData = querystring.stringify({
-				refresh_token: refreshToken,
-				client_id: clientId,
-				grant_type: 'refresh_token',
-				scope: scope
-			});
+		Logger.info('Refreshing token...');
+		const postData = querystring.stringify({
+			refresh_token: refreshToken,
+			client_id: clientId,
+			grant_type: 'refresh_token',
+			scope: scope
+		});
 
-			const result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+		let result: Response;
+		try {
+			result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
@@ -516,7 +565,12 @@ export class AzureActiveDirectoryService {
 				},
 				body: postData
 			});
+		} catch (e) {
+			Logger.error('Refreshing token failed');
+			throw new Error(REFRESH_NETWORK_FAILURE);
+		}
 
+		try {
 			if (result.ok) {
 				const json = await result.json();
 				const token = this.getTokenFromResponse(json, scope, sessionId);
@@ -524,12 +578,12 @@ export class AzureActiveDirectoryService {
 				Logger.info('Token refresh success');
 				return token;
 			} else {
-				Logger.error('Refreshing token failed');
-				throw new Error('Refreshing token failed.');
+				throw new Error('Bad request.');
 			}
 		} catch (e) {
-			Logger.error('Refreshing token failed');
-			throw new Error(REFRESH_NETWORK_FAILURE);
+			vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+			Logger.error(`Refreshing token failed: ${result.statusText}`);
+			throw new Error('Refreshing token failed');
 		}
 	}
 

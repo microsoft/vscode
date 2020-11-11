@@ -12,7 +12,7 @@ import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvH
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
 import { mkdirp } from 'vs/base/node/pfs';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
+import { Server, serve, connect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,9 +22,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -40,12 +39,11 @@ import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -54,6 +52,7 @@ import { isNumber } from 'vs/base/common/types';
 import { rtrim, trim } from 'vs/base/common/strings';
 import { basename, resolve } from 'vs/base/common/path';
 import { coalesce, distinct } from 'vs/base/common/arrays';
+import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -102,7 +101,7 @@ class CodeMain {
 
 		// We need to buffer the spdlog logs until we are sure
 		// we are the only instance running, otherwise we'll have concurrent
-		// log file access on Windows (https://github.com/Microsoft/vscode/issues/41218)
+		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
 
 		const [instantiationService, instanceEnvironment, environmentService] = this.createServices(args, bufferLogService);
@@ -146,12 +145,13 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: NativeParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, INativeEnvironmentService] {
+	private createServices(args: NativeParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService] {
 		const services = new ServiceCollection();
 
-		const environmentService = new EnvironmentService(args);
+		const environmentService = new EnvironmentMainService(args);
 		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentService, environmentService);
+		services.set(IEnvironmentMainService, environmentService);
 
 		const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
 		process.once('exit', () => logService.dispose());
@@ -168,14 +168,13 @@ class CodeMain {
 		services.set(IRequestService, new SyncDescriptor(RequestMainService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
-		services.set(IStorageKeysSyncRegistryService, new SyncDescriptor(StorageKeysSyncRegistryService));
 		services.set(IProductService, { _serviceBrand: undefined, ...product });
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
 		return [new InstantiationService(services, true), instanceEnvironment, environmentService];
 	}
 
-	private initServices(environmentService: INativeEnvironmentService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
+	private initServices(environmentService: IEnvironmentMainService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
 
 		// Environment service (paths)
 		const environmentServiceInitialization = Promise.all<void | undefined>([
@@ -196,12 +195,12 @@ class CodeMain {
 		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
 	}
 
-	private patchEnvironment(environmentService: INativeEnvironmentService): IProcessEnvironment {
+	private patchEnvironment(environmentService: IEnvironmentMainService): IProcessEnvironment {
 		const instanceEnvironment: IProcessEnvironment = {
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
 		};
 
-		['VSCODE_NLS_CONFIG', 'VSCODE_LOGS', 'VSCODE_PORTABLE'].forEach(key => {
+		['VSCODE_NLS_CONFIG', 'VSCODE_PORTABLE'].forEach(key => {
 			const value = process.env[key];
 			if (typeof value === 'string') {
 				instanceEnvironment[key] = value;
@@ -213,7 +212,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentService: INativeEnvironmentService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -298,7 +297,7 @@ class CodeMain {
 					// Create a diagnostic service connected to the existing shared process
 					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
 					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
-					const diagnosticsService = new DiagnosticsService(diagnosticsChannel);
+					const diagnosticsService = createChannelSender<IDiagnosticsService>(diagnosticsChannel);
 					const mainProcessInfo = await launchService.getMainProcessInfo();
 					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
@@ -342,7 +341,7 @@ class CodeMain {
 		return server;
 	}
 
-	private handleStartupDataDirError(environmentService: INativeEnvironmentService, error: NodeJS.ErrnoException): void {
+	private handleStartupDataDirError(environmentService: IEnvironmentMainService, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
 			const directories = [environmentService.userDataPath];
 
@@ -350,8 +349,8 @@ class CodeMain {
 				directories.push(environmentService.extensionsPath);
 			}
 
-			if (xdgRuntimeDir) {
-				directories.push(xdgRuntimeDir);
+			if (XDG_RUNTIME_DIR) {
+				directories.push(XDG_RUNTIME_DIR);
 			}
 
 			this.showStartupWarningDialog(
@@ -474,7 +473,7 @@ class CodeMain {
 
 		// Trim trailing quotes
 		if (isWindows) {
-			path = rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+			path = rtrim(path, '"'); // https://github.com/microsoft/vscode/issues/1498
 		}
 
 		// Trim whitespaces

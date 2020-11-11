@@ -20,9 +20,11 @@ mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/pixmaps
 mkdir -p %{buildroot}/usr/share/bash-completion/completions
 mkdir -p %{buildroot}/usr/share/zsh/site-functions
+mkdir -p %{buildroot}/usr/share/mime/packages
 cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
 cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
+cp -r usr/share/mime/packages/@@NAME@@-workspace.xml %{buildroot}/usr/share/mime/packages/@@NAME@@-workspace.xml
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}/usr/share/pixmaps
 cp usr/share/bash-completion/completions/@@NAME@@ %{buildroot}/usr/share/bash-completion/completions/@@NAME@@
 cp usr/share/zsh/site-functions/_@@NAME@@ %{buildroot}/usr/share/zsh/site-functions/_@@NAME@@
@@ -46,10 +48,16 @@ ln -sf /usr/share/@@NAME@@/bin/@@NAME@@ %{_bindir}/@@NAME@@
 #	fi
 #fi
 
+# Update mimetype database to pickup workspace mimetype
+update-mime-database /usr/share/mime &> /dev/null || :
+
 %postun
 if [ $1 = 0 ]; then
   rm -f /usr/bin/@@NAME@@
 fi
+
+# Update mimetype database for removed workspace mimetype
+update-mime-database /usr/share/mime &> /dev/null || :
 
 %files
 %defattr(-,root,root)
@@ -57,6 +65,7 @@ fi
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop
 /usr/share/applications/@@NAME@@-url-handler.desktop
+/usr/share/mime/packages/@@NAME@@-workspace.xml
 /usr/share/pixmaps/@@ICON@@.png
 /usr/share/bash-completion/completions/@@NAME@@
 /usr/share/zsh/site-functions/_@@NAME@@

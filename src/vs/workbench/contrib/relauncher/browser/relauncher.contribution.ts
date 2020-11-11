@@ -16,7 +16,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -36,6 +36,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private updateMode: string | undefined;
 	private debugConsoleWordWrap: boolean | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
+	private enableExperimentalProxyLoginDialog: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -97,6 +98,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 					changed = true;
 				}
 			}
+
+			// Experimental proxy login dialog
+			if (typeof config.window?.enableExperimentalProxyLoginDialog === 'boolean' && config.window.enableExperimentalProxyLoginDialog !== this.enableExperimentalProxyLoginDialog) {
+				this.enableExperimentalProxyLoginDialog = config.window.enableExperimentalProxyLoginDialog;
+				changed = true;
+			}
 		}
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
@@ -143,10 +150,10 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 
 		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
 			if (!!environmentService.extensionTestsLocationURI) {
-				return; // no restart when in tests: see https://github.com/Microsoft/vscode/issues/66936
+				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
 			}
 
-			if (environmentService.configuration.remoteAuthority) {
+			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
 				extensionService.restartExtensionHost();

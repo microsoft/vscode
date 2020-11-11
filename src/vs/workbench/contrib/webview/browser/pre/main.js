@@ -13,6 +13,7 @@
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
  *   fakeLoad?: boolean,
  *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
+ *   onElectron?: boolean
  * }} WebviewHost
  */
 
@@ -57,6 +58,10 @@
 	};
 
 	const defaultCssRules = `
+	html {
+		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+	}
+
 	body {
 		background-color: transparent;
 		color: var(--vscode-editor-foreground);
@@ -142,7 +147,7 @@
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
-			const acquireVsCodeApi = (function() {
+			globalThis.acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
 				const targetOrigin = '*';
 				let acquired = false;
@@ -286,8 +291,14 @@
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
 			// if needed
-			if (isCopyPasteOrCut(e) || isUndoRedo(e)) {
+			if (isUndoRedo(e)) {
 				e.preventDefault();
+			} else if (isCopyPasteOrCut(e)) {
+				if (host.onElectron) {
+					e.preventDefault();
+				} else {
+					return; // let the browser handle this
+				}
 			}
 
 			host.postMessage('did-keydown', {
@@ -386,7 +397,7 @@
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-			defaultStyles.innerHTML = defaultCssRules;
+			defaultStyles.textContent = defaultCssRules;
 			newDocument.head.prepend(defaultStyles);
 
 			applyStyles(newDocument, newDocument.body);
@@ -432,10 +443,18 @@
 
 			// propagate focus
 			host.onMessage('focus', () => {
-				const target = getActiveFrame();
-				if (target) {
-					target.contentWindow.focus();
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					return;
 				}
+
+				if (document.activeElement === activeFrame) {
+					// We are already focused on the iframe (or one of its children) so no need
+					// to refocus.
+					return;
+				}
+
+				activeFrame.contentWindow.focus();
 			});
 
 			// update iframe-contents
@@ -485,7 +504,7 @@
 				const newFrame = document.createElement('iframe');
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
-				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock' : 'allow-same-origin allow-pointer-lock');
+				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
 				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.
@@ -547,7 +566,7 @@
 				 */
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
-						// Workaround for https://github.com/Microsoft/vscode/issues/12865
+						// Workaround for https://github.com/microsoft/vscode/issues/12865
 						// check new scrollY and reset if necessary
 						setInitialScrollPosition(contentDocument.body, contentWindow);
 					}
@@ -565,6 +584,8 @@
 						if (host.focusIframeOnCreate) {
 							newFrame.contentWindow.focus();
 						}
+
+
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);

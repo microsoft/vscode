@@ -54,6 +54,10 @@ export interface IEditorOptions {
 	 */
 	ariaLabel?: string;
 	/**
+	 * The `tabindex` property of the editor's textarea
+	 */
+	tabIndex?: number;
+	/**
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
 	 */
@@ -96,7 +100,7 @@ export interface IEditorOptions {
 	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * Defaults to 'prompt'.
 	 */
-	unusualLineTerminators?: 'off' | 'prompt' | 'auto';
+	unusualLineTerminators?: 'auto' | 'off' | 'prompt';
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -367,6 +371,10 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	/**
+	 * Smart select opptions;
+	 */
+	smartSelect?: ISmartSelectOptions;
+	/**
 	 *
 	 */
 	gotoLocation?: IGotoLocationOptions;
@@ -487,6 +495,14 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	codeLens?: boolean;
+	/**
+	 * Code lens font family. Defaults to editor font family.
+	 */
+	codeLensFontFamily?: string;
+	/**
+	 * Code lens font size. Default to 90% of the editor font size
+	 */
+	codeLensFontSize?: number;
 	/**
 	 * Control the behavior and rendering of the code action lightbulb.
 	 */
@@ -649,6 +665,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to false.
 	 */
 	modifiedCodeLens?: boolean;
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
 }
 
 //#endregion
@@ -1030,11 +1051,11 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
 					nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
-					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader. Word wrapping will be disabled."),
 					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 				],
 				default: 'auto',
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers. Setting to on will disable word wrapping.")
 			}
 		);
 	}
@@ -2190,7 +2211,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let wrappingColumn = -1;
 
 		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
-			// See https://github.com/Microsoft/vscode/issues/27766
+			// See https://github.com/microsoft/vscode/issues/27766
 			// Never enable wrapping when a screen reader is attached
 			// because arrow down etc. will not move the cursor in the way
 			// a screen reader expects.
@@ -2912,6 +2933,11 @@ export interface IEditorScrollbarOptions {
 	 * Defaults to `horizontalScrollbarSize`.
 	 */
 	horizontalSliderSize?: number;
+	/**
+	 * Scroll gutter clicks move by page vs jump to position.
+	 * Defaults to false.
+	 */
+	scrollByPage?: boolean;
 }
 
 export interface InternalEditorScrollbarOptions {
@@ -2927,6 +2953,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly horizontalSliderSize: number;
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
+	readonly scrollByPage: boolean;
 }
 
 function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
@@ -2957,7 +2984,8 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 				verticalScrollbarSize: 14,
 				verticalSliderSize: 14,
 				handleMouseWheel: true,
-				alwaysConsumeMouseWheel: true
+				alwaysConsumeMouseWheel: true,
+				scrollByPage: false
 			}
 		);
 	}
@@ -2982,6 +3010,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
+			scrollByPage: EditorBooleanOption.boolean(input.scrollByPage, this.defaultValue.scrollByPage),
 		};
 	}
 }
@@ -3019,9 +3048,13 @@ export interface ISuggestOptions {
 	 */
 	showIcons?: boolean;
 	/**
-	 * Max suggestions to show in suggestions. Defaults to 12.
+	 * Enable or disable the suggest status bar.
 	 */
-	maxVisibleSuggestions?: number;
+	showStatusBar?: boolean;
+	/**
+	 * Show details inline with the label. Defaults to true.
+	 */
+	showInlineDetails?: boolean;
 	/**
 	 * Show method-suggestions.
 	 */
@@ -3130,15 +3163,6 @@ export interface ISuggestOptions {
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
-	/**
-	 * Status bar related settings.
-	 */
-	statusBar?: {
-		/**
-		 * Controls the visibility of the status bar at the bottom of the suggest widget.
-		 */
-		visible?: boolean;
-	};
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -3153,7 +3177,8 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: false,
 			shareSuggestSelections: false,
 			showIcons: true,
-			maxVisibleSuggestions: 12,
+			showStatusBar: false,
+			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3181,9 +3206,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showSnippets: true,
 			showUsers: true,
 			showIssues: true,
-			statusBar: {
-				visible: false
-			}
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -3223,12 +3245,20 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showIcons,
 					description: nls.localize('suggest.showIcons', "Controls whether to show or hide icons in suggestions.")
 				},
+				'editor.suggest.showStatusBar': {
+					type: 'boolean',
+					default: defaults.showStatusBar,
+					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
+				},
+
+				'editor.suggest.showInlineDetails': {
+					type: 'boolean',
+					default: defaults.showInlineDetails,
+					description: nls.localize('suggest.showInlineDetails', "Controls whether sugget details show inline with the label or only in the details widget")
+				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
-					default: defaults.maxVisibleSuggestions,
-					minimum: 1,
-					maximum: 15,
-					description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
+					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -3373,11 +3403,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
-				},
-				'editor.suggest.statusBar.visible': {
-					type: 'boolean',
-					default: false,
-					markdownDescription: nls.localize('editor.suggest.statusBar.visible', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				}
 			}
 		);
@@ -3395,7 +3420,8 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
-			maxVisibleSuggestions: EditorIntOption.clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
+			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showInlineDetails: EditorBooleanOption.boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -3423,9 +3449,44 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
 			showUsers: EditorBooleanOption.boolean(input.showUsers, this.defaultValue.showUsers),
 			showIssues: EditorBooleanOption.boolean(input.showIssues, this.defaultValue.showIssues),
-			statusBar: {
-				visible: EditorBooleanOption.boolean(input.statusBar?.visible, !!this.defaultValue.statusBar.visible)
+		};
+	}
+}
+
+//#endregion
+
+//#region smart select
+
+export interface ISmartSelectOptions {
+	selectLeadingAndTrailingWhitespace?: boolean
+}
+
+export type SmartSelectOptions = Readonly<Required<ISmartSelectOptions>>;
+
+class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelectOptions> {
+
+	constructor() {
+		super(
+			EditorOption.smartSelect, 'smartSelect',
+			{
+				selectLeadingAndTrailingWhitespace: true
+			},
+			{
+				'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
+					description: nls.localize('selectLeadingAndTrailingWhitespace', "Whether leading and trailing whitespace should always be selected."),
+					default: true,
+					type: 'boolean'
+				}
 			}
+		);
+	}
+
+	public validate(input: any): Readonly<Required<ISmartSelectOptions>> {
+		if (!input || typeof input !== 'object') {
+			return this.defaultValue;
+		}
+		return {
+			selectLeadingAndTrailingWhitespace: EditorBooleanOption.boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
 		};
 	}
 }
@@ -3566,6 +3627,8 @@ export const enum EditorOption {
 	automaticLayout,
 	autoSurround,
 	codeLens,
+	codeLensFontFamily,
+	codeLensFontSize,
 	colorDecorators,
 	columnSelection,
 	comments,
@@ -3648,6 +3711,7 @@ export const enum EditorOption {
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
+	smartSelect,
 	smoothScrolling,
 	stopRenderingLineAfter,
 	suggest,
@@ -3656,6 +3720,7 @@ export const enum EditorOption {
 	suggestOnTriggerCharacters,
 	suggestSelection,
 	tabCompletion,
+	tabIndex,
 	unusualLineTerminators,
 	useTabStops,
 	wordSeparators,
@@ -3786,13 +3851,24 @@ export const EditorOptions = {
 				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
 				''
 			],
-			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
+			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,
 		{ description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.") }
 	)),
+	codeLensFontFamily: register(new EditorStringOption(
+		EditorOption.codeLensFontFamily, 'codeLensFontFamily', '',
+		{ description: nls.localize('codeLensFontFamily', "Controls the font family for CodeLens.") }
+	)),
+	codeLensFontSize: register(new EditorIntOption(EditorOption.codeLensFontSize, 'codeLensFontSize', 0, 0, 100, {
+		type: 'number',
+		default: 0,
+		minimum: 0,
+		maximum: 100,
+		description: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
@@ -3830,7 +3906,7 @@ export const EditorOptions = {
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.") }
+		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
 	)),
 	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
 		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
@@ -4166,6 +4242,7 @@ export const EditorOptions = {
 			description: nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		}
 	)),
+	smartSelect: register(new SmartSelect()),
 	smoothScrolling: register(new EditorBooleanOption(
 		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
@@ -4215,15 +4292,19 @@ export const EditorOptions = {
 			description: nls.localize('tabCompletion', "Enables tab completions.")
 		}
 	)),
+	tabIndex: register(new EditorIntOption(
+		EditorOption.tabIndex, 'tabIndex',
+		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
+	)),
 	unusualLineTerminators: register(new EditorStringEnumOption(
 		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
-		'prompt' as 'off' | 'prompt' | 'auto',
-		['off', 'prompt', 'auto'] as const,
+		'prompt' as 'auto' | 'off' | 'prompt',
+		['auto', 'off', 'prompt'] as const,
 		{
 			enumDescriptions: [
+				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
 				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),
 				nls.localize('unusualLineTerminators.prompt', "Unusual line terminators prompt to be removed."),
-				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
 			],
 			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}

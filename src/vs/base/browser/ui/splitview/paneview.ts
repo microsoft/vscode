@@ -9,8 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus, EventHelper, clearNode } from 'vs/base/browser/dom';
-import { firstIndex } from 'vs/base/common/arrays';
+import { $, append, trackFocus, EventHelper, clearNode } from 'vs/base/browser/dom';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
 import { isFirefox } from 'vs/base/browser/browser';
@@ -143,7 +142,7 @@ export abstract class Pane extends Disposable implements IView {
 		}
 
 		if (this.element) {
-			toggleClass(this.element, 'expanded', expanded);
+			this.element.classList.toggle('expanded', expanded);
 		}
 
 		this._expanded = !!expanded;
@@ -191,8 +190,8 @@ export abstract class Pane extends Disposable implements IView {
 		this._orientation = orientation;
 
 		if (this.element) {
-			toggleClass(this.element, 'horizontal', this.orientation === Orientation.HORIZONTAL);
-			toggleClass(this.element, 'vertical', this.orientation === Orientation.VERTICAL);
+			this.element.classList.toggle('horizontal', this.orientation === Orientation.HORIZONTAL);
+			this.element.classList.toggle('vertical', this.orientation === Orientation.VERTICAL);
 		}
 
 		if (this.header) {
@@ -201,9 +200,9 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	render(): void {
-		toggleClass(this.element, 'expanded', this.isExpanded());
-		toggleClass(this.element, 'horizontal', this.orientation === Orientation.HORIZONTAL);
-		toggleClass(this.element, 'vertical', this.orientation === Orientation.VERTICAL);
+		this.element.classList.toggle('expanded', this.isExpanded());
+		this.element.classList.toggle('horizontal', this.orientation === Orientation.HORIZONTAL);
+		this.element.classList.toggle('vertical', this.orientation === Orientation.VERTICAL);
 
 		this.header = $('.pane-header');
 		append(this.element, this.header);
@@ -215,8 +214,8 @@ export abstract class Pane extends Disposable implements IView {
 
 		const focusTracker = trackFocus(this.header);
 		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => addClass(this.header, 'focused'), null));
-		this._register(focusTracker.onDidBlur(() => removeClass(this.header, 'focused'), null));
+		this._register(focusTracker.onDidFocus(() => this.header.classList.add('focused'), null));
+		this._register(focusTracker.onDidBlur(() => this.header.classList.remove('focused'), null));
 
 		this.updateHeader();
 
@@ -255,7 +254,7 @@ export abstract class Pane extends Disposable implements IView {
 		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;
 
 		if (this.isExpanded()) {
-			toggleClass(this.body, 'wide', width >= 600);
+			this.body.classList.toggle('wide', width >= 600);
 			this.layoutBody(height, width);
 			this.expandedSize = size;
 		}
@@ -275,8 +274,8 @@ export abstract class Pane extends Disposable implements IView {
 		const expanded = !this.headerVisible || this.isExpanded();
 
 		this.header.style.lineHeight = `${this.headerSize}px`;
-		toggleClass(this.header, 'hidden', !this.headerVisible);
-		toggleClass(this.header, 'expanded', expanded);
+		this.header.classList.toggle('hidden', !this.headerVisible);
+		this.header.classList.toggle('expanded', expanded);
 		this.header.setAttribute('aria-expanded', String(expanded));
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : '';
@@ -299,7 +298,7 @@ class PaneDraggable extends Disposable {
 
 	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
 
-	private dragOverCounter = 0; // see https://github.com/Microsoft/vscode/issues/14470
+	private dragOverCounter = 0; // see https://github.com/microsoft/vscode/issues/14470
 
 	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
 	readonly onDidDrop = this._onDidDrop.event;
@@ -474,7 +473,7 @@ export class PaneView extends Disposable {
 	}
 
 	removePane(pane: Pane): void {
-		const index = firstIndex(this.paneItems, item => item.pane === pane);
+		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
 			return;
@@ -486,8 +485,8 @@ export class PaneView extends Disposable {
 	}
 
 	movePane(from: Pane, to: Pane): void {
-		const fromIndex = firstIndex(this.paneItems, item => item.pane === from);
-		const toIndex = firstIndex(this.paneItems, item => item.pane === to);
+		const fromIndex = this.paneItems.findIndex(item => item.pane === from);
+		const toIndex = this.paneItems.findIndex(item => item.pane === to);
 
 		if (fromIndex === -1 || toIndex === -1) {
 			return;
@@ -500,7 +499,7 @@ export class PaneView extends Disposable {
 	}
 
 	resizePane(pane: Pane, size: number): void {
-		const index = firstIndex(this.paneItems, item => item.pane === pane);
+		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
 			return;
@@ -510,7 +509,7 @@ export class PaneView extends Disposable {
 	}
 
 	getPaneSize(pane: Pane): number {
-		const index = firstIndex(this.paneItems, item => item.pane === pane);
+		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
 			return -1;
@@ -561,11 +560,11 @@ export class PaneView extends Disposable {
 			window.clearTimeout(this.animationTimer);
 		}
 
-		addClass(this.el, 'animated');
+		this.el.classList.add('animated');
 
 		this.animationTimer = window.setTimeout(() => {
 			this.animationTimer = undefined;
-			removeClass(this.el, 'animated');
+			this.el.classList.remove('animated');
 		}, 200);
 	}
 

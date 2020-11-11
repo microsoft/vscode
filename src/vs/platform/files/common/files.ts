@@ -11,11 +11,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtUri } from 'vs/base/common/resources';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isNumber, isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -58,6 +58,11 @@ export interface IFileService {
 	 * Checks if the provider for the provided resource has the provided file system capability.
 	 */
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
+
+	/**
+	 * List the schemes and capabilies for registered file system providers
+	 */
+	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }>
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -361,7 +366,7 @@ export function createFileSystemProviderError(error: Error | string, code: FileS
 
 export function ensureFileSystemProviderError(error?: Error): Error {
 	if (!error) {
-		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/Microsoft/vscode/issues/72798
+		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/microsoft/vscode/issues/72798
 	}
 
 	return error;
@@ -497,36 +502,111 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	constructor(public readonly changes: readonly IFileChange[], private readonly extUri: IExtUri) { }
+	/**
+	 * @deprecated use the `contains()` or `affects` method to efficiently find
+	 * out if the event relates to a given resource. these methods ensure:
+	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
+	 * - correctly handles `FileChangeType.DELETED` events
+	 */
+	readonly changes: readonly IFileChange[];
+
+	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+
+	constructor(changes: readonly IFileChange[], private readonly ignorePathCasing: boolean) {
+		this.changes = changes;
+
+		for (const change of changes) {
+			switch (change.type) {
+				case FileChangeType.ADDED:
+					if (!this.added) {
+						this.added = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
+					}
+					this.added.set(change.resource, change);
+					break;
+				case FileChangeType.UPDATED:
+					if (!this.updated) {
+						this.updated = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
+					}
+					this.updated.set(change.resource, change);
+					break;
+				case FileChangeType.DELETED:
+					if (!this.deleted) {
+						this.deleted = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
+					}
+					this.deleted.set(change.resource, change);
+					break;
+			}
+		}
+	}
 
 	/**
-	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
-	 * provided file path.
+	 * Find out if the file change events match the provided resource.
+	 *
+	 * Note: when passing `FileChangeType.DELETED`, we consider a match
+	 * also when the parent of the resource got deleted.
 	 */
-	contains(resource: URI, type?: FileChangeType): boolean {
+	contains(resource: URI, ...types: FileChangeType[]): boolean {
+		return this.doContains(resource, { includeChildren: false }, ...types);
+	}
+
+	/**
+	 * Find out if the file change events either match the provided
+	 * resource, or contain a child of this resource.
+	 */
+	affects(resource: URI, ...types: FileChangeType[]): boolean {
+		return this.doContains(resource, { includeChildren: true }, ...types);
+	}
+
+	private doContains(resource: URI, options: { includeChildren: boolean }, ...types: FileChangeType[]): boolean {
 		if (!resource) {
 			return false;
 		}
 
-		const checkForChangeType = !isUndefinedOrNull(type);
+		const hasTypesFilter = types.length > 0;
 
-		return this.changes.some(change => {
-			if (checkForChangeType && change.type !== type) {
-				return false;
+		// Added
+		if (!hasTypesFilter || types.includes(FileChangeType.ADDED)) {
+			if (this.added?.get(resource)) {
+				return true;
 			}
 
-			// For deleted also return true when deleted folder is parent of target path
-			if (change.type === FileChangeType.DELETED) {
-				return this.extUri.isEqualOrParent(resource, change.resource);
+			if (options.includeChildren && this.added?.findSuperstr(resource)) {
+				return true;
+			}
+		}
+
+		// Updated
+		if (!hasTypesFilter || types.includes(FileChangeType.UPDATED)) {
+			if (this.updated?.get(resource)) {
+				return true;
 			}
 
-			return this.extUri.isEqual(resource, change.resource);
-		});
+			if (options.includeChildren && this.updated?.findSuperstr(resource)) {
+				return true;
+			}
+		}
+
+		// Deleted
+		if (!hasTypesFilter || types.includes(FileChangeType.DELETED)) {
+			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
+				return true;
+			}
+
+			if (options.includeChildren && this.deleted?.findSuperstr(resource)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
-	 * Returns the changes that describe added files.
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
 	 */
 	getAdded(): IFileChange[] {
 		return this.getOfType(FileChangeType.ADDED);
@@ -536,11 +616,14 @@ export class FileChangesEvent {
 	 * Returns if this event contains added files.
 	 */
 	gotAdded(): boolean {
-		return this.hasType(FileChangeType.ADDED);
+		return !!this.added;
 	}
 
 	/**
-	 * Returns the changes that describe deleted files.
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
 	 */
 	getDeleted(): IFileChange[] {
 		return this.getOfType(FileChangeType.DELETED);
@@ -550,11 +633,14 @@ export class FileChangesEvent {
 	 * Returns if this event contains deleted files.
 	 */
 	gotDeleted(): boolean {
-		return this.hasType(FileChangeType.DELETED);
+		return !!this.deleted;
 	}
 
 	/**
-	 * Returns the changes that describe updated files.
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
 	 */
 	getUpdated(): IFileChange[] {
 		return this.getOfType(FileChangeType.UPDATED);
@@ -564,21 +650,30 @@ export class FileChangesEvent {
 	 * Returns if this event contains updated files.
 	 */
 	gotUpdated(): boolean {
-		return this.hasType(FileChangeType.UPDATED);
+		return !!this.updated;
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this.changes.filter(change => change.type === type);
+		const changes: IFileChange[] = [];
+
+		const eventsForType = type === FileChangeType.ADDED ? this.added : type === FileChangeType.UPDATED ? this.updated : this.deleted;
+		if (eventsForType) {
+			for (const [, change] of eventsForType) {
+				changes.push(change);
+			}
+		}
+
+		return changes;
 	}
 
-	private hasType(type: FileChangeType): boolean {
-		return this.changes.some(change => {
-			return change.type === type;
-		});
-	}
-
+	/**
+	 * @deprecated use the `contains()` method to efficiently find out if the event
+	 * relates to a given resource. this method ensures:
+	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * - correctly handles `FileChangeType.DELETED` events
+	 */
 	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
-		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.extUri);
+		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.ignorePathCasing);
 	}
 }
 
@@ -857,11 +952,11 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 		return Promise.resolve();
 	}
 
-	return new Promise((c, e) => {
+	return new Promise(resolve => {
 		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.scheme === file.scheme && e.added) {
 				disposable.dispose();
-				c();
+				resolve();
 			}
 		});
 	});
@@ -876,29 +971,33 @@ export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
 /**
  * Helper to format a raw byte size into a human readable label.
  */
-export class BinarySize {
+export class ByteSize {
 	static readonly KB = 1024;
-	static readonly MB = BinarySize.KB * BinarySize.KB;
-	static readonly GB = BinarySize.MB * BinarySize.KB;
-	static readonly TB = BinarySize.GB * BinarySize.KB;
+	static readonly MB = ByteSize.KB * ByteSize.KB;
+	static readonly GB = ByteSize.MB * ByteSize.KB;
+	static readonly TB = ByteSize.GB * ByteSize.KB;
 
 	static formatSize(size: number): string {
-		if (size < BinarySize.KB) {
-			return localize('sizeB', "{0}B", size);
+		if (!isNumber(size)) {
+			size = 0;
 		}
 
-		if (size < BinarySize.MB) {
-			return localize('sizeKB', "{0}KB", (size / BinarySize.KB).toFixed(2));
+		if (size < ByteSize.KB) {
+			return localize('sizeB', "{0}B", size.toFixed(0));
 		}
 
-		if (size < BinarySize.GB) {
-			return localize('sizeMB', "{0}MB", (size / BinarySize.MB).toFixed(2));
+		if (size < ByteSize.MB) {
+			return localize('sizeKB', "{0}KB", (size / ByteSize.KB).toFixed(2));
 		}
 
-		if (size < BinarySize.TB) {
-			return localize('sizeGB', "{0}GB", (size / BinarySize.GB).toFixed(2));
+		if (size < ByteSize.GB) {
+			return localize('sizeMB', "{0}MB", (size / ByteSize.MB).toFixed(2));
 		}
 
-		return localize('sizeTB', "{0}TB", (size / BinarySize.TB).toFixed(2));
+		if (size < ByteSize.TB) {
+			return localize('sizeGB', "{0}GB", (size / ByteSize.GB).toFixed(2));
+		}
+
+		return localize('sizeTB', "{0}TB", (size / ByteSize.TB).toFixed(2));
 	}
 }

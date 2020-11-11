@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -17,7 +16,9 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString, MarkdownStringTextNewlineStyle } from 'vs/base/common/htmlContent';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 
 const $ = dom.$;
 
@@ -30,7 +31,7 @@ export class HoverWidget extends Widget {
 	private readonly _linkHandler: (url: string) => any;
 
 	private _isDisposed: boolean = false;
-	private _anchor: AnchorPosition = AnchorPosition.ABOVE;
+	private _anchor: AnchorPosition;
 	private _x: number = 0;
 	private _y: number = 0;
 
@@ -52,6 +53,7 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -60,11 +62,12 @@ export class HoverWidget extends Widget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hover = this._register(new BaseHoverWidget());
-
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
+
+		this._anchor = options.anchorPosition ?? AnchorPosition.ABOVE;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -79,15 +82,17 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		const markdown = typeof options.text === 'string' ? new MarkdownString().appendText(options.text) : options.text;
-		const markdownElement = renderMarkdown(markdown, {
+		const markdown = typeof options.text === 'string' ? new MarkdownString().appendText(options.text, MarkdownStringTextNewlineStyle.Break) : options.text;
+
+		const mdRenderer = this._instantiationService.createInstance(
+			MarkdownRenderer,
+			{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
+		);
+
+		const { element } = mdRenderer.render(markdown, {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
-			},
-			codeBlockRenderer: async (_, value) => {
-				const fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-				return `<span style="font-family: ${fontFamily}; white-space: nowrap">${value.replace(/\n/g, '<br>')}</span>`;
 			},
 			codeBlockRenderCallback: () => {
 				contentsElement.classList.add('code-hover-contents');
@@ -95,7 +100,7 @@ export class HoverWidget extends Widget {
 				this._onRequestLayout.fire();
 			}
 		});
-		contentsElement.appendChild(markdownElement);
+		contentsElement.appendChild(element);
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
 
@@ -165,12 +170,25 @@ export class HoverWidget extends Widget {
 		}
 
 		// Get vertical alignment and position
-		const targetTop = Math.min(...targetBounds.map(e => e.top));
-		if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
-			this._anchor = AnchorPosition.BELOW;
-			this._y = Math.max(...targetBounds.map(e => e.bottom)) - 2;
+		if (this._anchor === AnchorPosition.ABOVE) {
+			const targetTop = Math.min(...targetBounds.map(e => e.top));
+			if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
+				const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
+				this._anchor = AnchorPosition.BELOW;
+				this._y = targetBottom - 2;
+			} else {
+				this._y = targetTop;
+			}
 		} else {
-			this._y = targetTop;
+			const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
+			if (targetBottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
+				console.log(targetBottom, this._hover.containerDomNode.clientHeight, window.innerHeight);
+				const targetTop = Math.min(...targetBounds.map(e => e.top));
+				this._anchor = AnchorPosition.ABOVE;
+				this._y = targetTop;
+			} else {
+				this._y = targetBottom - 2;
+			}
 		}
 
 		this._hover.onContentsChanged();
