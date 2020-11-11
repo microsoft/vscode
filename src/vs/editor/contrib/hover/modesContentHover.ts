@@ -36,7 +36,7 @@ import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/code
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -423,14 +423,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 								model.presentation.textEdit.range.endLineNumber,
 								model.presentation.textEdit.range.endColumn
 							);
-							newRange = newRange.setEndPosition(newRange.endLineNumber, newRange.startColumn + model.presentation.textEdit.text.length);
+							const trackedRange = this._editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+							this._editor.pushUndoStop();
+							this._editor.executeEdits('colorpicker', textEdits);
+							newRange = this._editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 						} else {
 							textEdits = [{ identifier: null, range, text: model.presentation.label, forceMoveMarkers: false }];
 							newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
+							this._editor.pushUndoStop();
+							this._editor.executeEdits('colorpicker', textEdits);
 						}
-
-						this._editor.pushUndoStop();
-						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
 							textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
