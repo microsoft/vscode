@@ -2789,6 +2789,7 @@ export class InstallVSIXAction extends Action {
 			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
 			canSelectFiles: true,
+			canSelectMany: true,
 			openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		});
 
