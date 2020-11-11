@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +17,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IViewDescriptorService, IViewsService, ViewVisibilityState } from 'vs/workbench/common/views';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -113,6 +114,19 @@ CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand
 export class OpenAPICommand {
 	public static readonly ID = 'vscode.open';
 	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
+		const internalTypes = OpenAPICommand._toInternalTypes(columnOrOptions);
+
+		return OpenAPICommand._doExecute(executor, resource, internalTypes.options, internalTypes.position, label);
+	}
+	public static executeWithContext(executor: ICommandsExecutor, context: { editorOptions: IEditorOptions; sideBySide: boolean }, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
+		const internalTypes = OpenAPICommand._toInternalTypes(columnOrOptions);
+
+		const options = { ...(internalTypes.options ?? Object.create(null)), ...context.editorOptions };
+		const position = context.sideBySide ? SIDE_GROUP : internalTypes.position;
+
+		return OpenAPICommand._doExecute(executor, resource, options, position, label);
+	}
+	private static _toInternalTypes(columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions): { position: number | undefined, options: ITextEditorOptions | undefined } {
 		let options: ITextEditorOptions | undefined;
 		let position: EditorViewColumn | undefined;
 
@@ -125,6 +139,9 @@ export class OpenAPICommand {
 			}
 		}
 
+		return { position, options };
+	}
+	private static _doExecute(executor: ICommandsExecutor, resource: URI, options: ITextEditorOptions | undefined, position: number | undefined, label: string | undefined): Promise<any> {
 		return executor.executeCommand('_workbench.open', [
 			resource,
 			options,
