@@ -302,7 +302,8 @@ CommandsRegistry.registerCommand('_workbench.open', async function (accessor: Se
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
 
-	const [resource, options, position, label] = args;
+	let [resource, options, position, label] = args;
+	resource = URI.revive(resource);
 
 	if (options || typeof position === 'number') {
 		// use editor options or editor view column as a hint to use the editor service for opening
@@ -347,7 +348,7 @@ CommandsRegistry.registerCommand('_workbench.diff', async function (accessor: Se
 		};
 	}
 
-	await editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position));
+	await editorService.openEditor({ leftResource: URI.revive(leftResource), rightResource: URI.revive(rightResource), label, description, options }, viewColumnToEditorGroup(editorGroupService, position));
 });
 
 CommandsRegistry.registerCommand('_workbench.revertAllDirty', async function (accessor: ServicesAccessor) {

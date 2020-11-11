@@ -20,6 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { DiffAPICommand, ICommandsExecutor, OpenAPICommand } from 'vs/workbench/api/common/apiCommands';
 
 interface CommandHandler {
 	callback: Function;
@@ -217,6 +218,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 export class CommandsConverter {
 
+	private readonly _commandConverter = new Map<string, (executor: ICommandsExecutor, ...more: any[]) => Promise<any>>();
+
 	private readonly _delegatingCommandId: string;
 	private readonly _cache = new Map<number, vscode.Command>();
 	private _cachIdPool = 0;
@@ -228,6 +231,9 @@ export class CommandsConverter {
 	) {
 		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
+
+		this._commandConverter.set(OpenAPICommand.ID, OpenAPICommand.execute);
+		this._commandConverter.set(DiffAPICommand.ID, DiffAPICommand.execute);
 	}
 
 	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
@@ -245,7 +251,19 @@ export class CommandsConverter {
 			tooltip: command.tooltip
 		};
 
-		if (command.command && isNonEmptyArray(command.arguments)) {
+		const apiCommand = this._commandConverter.get(command.command);
+		if (apiCommand) {
+			// we have some API command registered for which we know how to convert
+			// them, e.g what internal ID they use and how to convert the arguments
+			apiCommand({
+				async executeCommand(id, ...internalArgs: []) {
+					result.id = id;
+					result.arguments = internalArgs;
+					return undefined;
+				}
+			}, ...command.arguments ?? []);
+
+		} else if (command.command && isNonEmptyArray(command.arguments)) {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
