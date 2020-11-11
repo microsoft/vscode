@@ -69,7 +69,7 @@ function addAccountUsage(storageService: IStorageService, providerId: string, ac
 		});
 	}
 
-	storageService.store(accountKey, JSON.stringify(usages), StorageScope.GLOBAL);
+	storageService.store2(accountKey, JSON.stringify(usages), StorageScope.GLOBAL, StorageTarget.MACHINE);
 }
 
 export class MainThreadAuthenticationProvider extends Disposable {
@@ -388,7 +388,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 				}
 
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL);
+				this.storageService.store2(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 				quickPick.dispose();
 				resolve(session);
@@ -463,7 +463,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 
-		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
+		this.storageService.store2(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
 	}
 
