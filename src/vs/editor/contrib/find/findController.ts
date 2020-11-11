@@ -473,6 +473,14 @@ export class FindController extends CommonFindController implements IFindControl
 		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
 	}
+
+	saveViewState(): any {
+		return this._widget?.getViewState();
+	}
+
+	restoreViewState(state: any): void {
+		this._widget?.setViewState(state);
+	}
 }
 
 export class StartFindAction extends MultiEditorAction {
