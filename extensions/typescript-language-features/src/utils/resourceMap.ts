@@ -24,7 +24,7 @@ export class ResourceMap<T> {
 	private readonly _map = new Map<string, { readonly resource: vscode.Uri, value: T }>();
 
 	constructor(
-		private readonly _normalizePath: (resource: vscode.Uri) => string | undefined = ResourceMap.defaultPathNormalizer,
+		protected readonly _normalizePath: (resource: vscode.Uri) => string | undefined = ResourceMap.defaultPathNormalizer,
 		protected readonly config: {
 			readonly onCaseInsenitiveFileSystem: boolean,
 		},
