@@ -711,7 +711,7 @@ export class SearchResult extends Disposable {
 
 	private _folderMatches: FolderMatchWithResource[] = [];
 	private _otherFilesMatch: FolderMatch | null = null;
-	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris2<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
+	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 	private _showHighlights: boolean = false;
 	private _query: ITextQuery | null = null;
 
@@ -757,7 +757,7 @@ export class SearchResult extends Disposable {
 			.then(() => this._isDirty = false);
 
 		this._rangeHighlightDecorations.removeHighlightRange();
-		this._folderMatchesMap = TernarySearchTree.forUris2<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
+		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 
 		if (!query) {
 			return;
@@ -979,7 +979,7 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this.folderMatches().forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = TernarySearchTree.forUris2<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
+		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 

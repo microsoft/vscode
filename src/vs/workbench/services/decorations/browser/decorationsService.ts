@@ -169,7 +169,7 @@ class DecorationStyles {
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
-	private readonly _data = TernarySearchTree.forUris2<true>(_uri => true); // events ignore all path casings
+	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
 	affectsResource(uri: URI): boolean {
 		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
@@ -212,7 +212,7 @@ class DecorationProviderWrapper {
 		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
 
-		this.data = TernarySearchTree.forUris2(uri => uriIdentityService.extUri.ignorePathCasing(uri));
+		this.data = TernarySearchTree.forUris(uri => uriIdentityService.extUri.ignorePathCasing(uri));
 
 		this._dispoable = this.provider.onDidChange(uris => {
 			if (!uris) {
