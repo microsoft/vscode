@@ -223,17 +223,17 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 			let lastEnd = resultStart;
 			let offset = 0;
 			let locations: Required<vscode.LocationLink>[] = [];
-			ELISION_REGEX.lastIndex = resultStart - 1;
+			ELISION_REGEX.lastIndex = resultStart;
 			for (let match: RegExpExecArray | null; (match = ELISION_REGEX.exec(line));) {
 				locations.push({
 					targetRange,
 					targetSelectionRange: new vscode.Range(lineNumber, offset, lineNumber, offset),
 					targetUri: currentTarget,
-					originSelectionRange: new vscode.Range(i, lastEnd, i, ELISION_REGEX.lastIndex),
+					originSelectionRange: new vscode.Range(i, lastEnd, i, ELISION_REGEX.lastIndex - match[0].length),
 				});
 
-				offset += (ELISION_REGEX.lastIndex - lastEnd) + Number(match[1]);
-				lastEnd = ELISION_REGEX.lastIndex + match[0].length;
+				offset += (ELISION_REGEX.lastIndex - lastEnd - match[0].length) + Number(match[1]);
+				lastEnd = ELISION_REGEX.lastIndex;
 			}
 
 			if (lastEnd < line.length) {
