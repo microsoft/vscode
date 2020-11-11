@@ -26,8 +26,8 @@ export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 
 // Warning: this pattern is used in the search editor to detect offsets. If you
 // change this, also change the search-result built-in extension
-const SEARCH_ELIDED_PREFIX = '...(';
-const SEARCH_ELIDED_SUFFIX = ' characters skipped)...';
+const SEARCH_ELIDED_PREFIX = '...(\u200b';
+const SEARCH_ELIDED_SUFFIX = ' characters skipped\u200b)...';
 const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFIX.length + 5) * 2;
 
 export const ISearchService = createDecorator<ISearchService>('searchService');

@@ -8,7 +8,7 @@ import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
-const ELISION_REGEX = /\.{3}\(([0-9]+) characters skipped\)\.{3}/g;
+const ELISION_REGEX = /\.{3}\(\u200b([0-9]+) characters skipped\u200b\)\.{3}/g;
 const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
