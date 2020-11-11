@@ -7,8 +7,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { distinct, shuffle } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -52,7 +50,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -92,12 +89,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			this.fileBasedRecommendations.activate(),
 			this.experimentalRecommendations.activate(),
 			this.keymapRecommendations.activate(),
-			this.lifecycleService.when(LifecyclePhase.Eventually)
-				.then(async () => {
-					if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
-						await this.activateProactiveRecommendations();
-					}
-				})
 		]);
 
 		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
