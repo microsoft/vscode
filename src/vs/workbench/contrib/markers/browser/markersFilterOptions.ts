@@ -22,7 +22,7 @@ export class ResourceGlobMatcher {
 		uriIdentityService: IUriIdentityService
 	) {
 		this.globalExpression = parse(globalExpression);
-		this.expressionsByRoot = TernarySearchTree.forUris2<{ root: URI, expression: ParsedExpression }>(uriIdentityService.extUri.ignorePathCasing);
+		this.expressionsByRoot = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>(uri => uriIdentityService.extUri.ignorePathCasing(uri));
 		for (const expression of rootExpressions) {
 			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
 		}

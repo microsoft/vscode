@@ -566,7 +566,7 @@ export class ExtensionEditor extends EditorPane {
 				enableFindWidget: true,
 			}, {}, undefined));
 
-			webview.claim(this);
+			webview.claim(this, this.scopedContextKeyService);
 			webview.layoutWebviewOverElement(template.content);
 			webview.html = body;
 

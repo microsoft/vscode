@@ -6,8 +6,6 @@
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareSubstringIgnoreCase, compare, compareSubstring, compareIgnoreCase } from 'vs/base/common/strings';
-import { isLinux } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -228,14 +226,7 @@ class TernarySearchTreeNode<K, V> {
 
 export class TernarySearchTree<K, V> {
 
-	/**
-	 * @deprecated
-	 */
-	static forUris<E>(ignorePathCasing?: boolean): TernarySearchTree<URI, E> {
-		return new TernarySearchTree<URI, E>(new UriIterator(key => ignorePathCasing ?? (key.scheme === Schemas.file && isLinux)));
-	}
-
-	static forUris2<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
+	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 

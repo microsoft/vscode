@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class Match {
 
@@ -156,10 +157,6 @@ export class Match {
 
 	getMatchString(): string {
 		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
-	}
-
-	toJSON(): object {
-		return {}; // We send an IRenderableMatchContext to the extensions
 	}
 }
 
@@ -448,10 +445,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._onDispose.fire();
 		super.dispose();
 	}
-
-	toJSON(): object {
-		return {}; // We send an IRenderableMatchContext to the extensions
-	}
 }
 
 export interface IChangeEvent {
@@ -642,10 +635,6 @@ export class FolderMatch extends Disposable {
 		this._onDispose.fire();
 		super.dispose();
 	}
-
-	toJSON(): object {
-		return {}; // We send an IRenderableMatchContext to the extensions
-	}
 }
 
 /**
@@ -710,7 +699,7 @@ export class SearchResult extends Disposable {
 
 	private _folderMatches: FolderMatchWithResource[] = [];
 	private _otherFilesMatch: FolderMatch | null = null;
-	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWithResource>();
+	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 	private _showHighlights: boolean = false;
 	private _query: ITextQuery | null = null;
 
@@ -725,6 +714,7 @@ export class SearchResult extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
@@ -755,7 +745,7 @@ export class SearchResult extends Disposable {
 			.then(() => this._isDirty = false);
 
 		this._rangeHighlightDecorations.removeHighlightRange();
-		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>();
+		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 
 		if (!query) {
 			return;
@@ -977,7 +967,7 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this.folderMatches().forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>();
+		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 

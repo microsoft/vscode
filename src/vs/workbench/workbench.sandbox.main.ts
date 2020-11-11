@@ -16,10 +16,12 @@ import 'vs/workbench/workbench.common.main';
 
 //#endregion
 
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 
-registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
+//#region --- workbench parts
+
+import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
+
+//#endregion
 
 
 //#region --- workbench services
@@ -51,9 +53,12 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 
 registerSingleton(ITimerService, TimerService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
+registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
 
 //#endregion
 

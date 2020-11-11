@@ -67,10 +67,10 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
 			const type: UserDataSyncStoreType | undefined = canSwitch ? this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType : undefined;
-			const url = configuredStore?.url
-				|| type === 'insiders' ? syncStore.insidersUrl
-				: type === 'stable' ? syncStore.stableUrl
-					: syncStore.url;
+			const url = configuredStore?.url ||
+				(type === 'insiders' ? syncStore.insidersUrl
+					: type === 'stable' ? syncStore.stableUrl
+						: syncStore.url);
 			return {
 				url: URI.parse(url),
 				type,

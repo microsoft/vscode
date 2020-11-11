@@ -185,7 +185,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 				// render lenses
 				this._renderCodeLensSymbols(result);
-				this._resolveCodeLensesInViewportSoon();
+				this._resolveCodeLensesInViewport();
 			}, onUnexpectedError);
 
 		}, this._getCodeLensModelDelays.get(model));
@@ -219,8 +219,6 @@ export class CodeLensContribution implements IEditorContribution {
 				});
 			});
 
-			// Compute new `visible` code lenses
-			this._resolveCodeLensesInViewportSoon();
 			// Ask for all references again
 			scheduler.schedule();
 		}));

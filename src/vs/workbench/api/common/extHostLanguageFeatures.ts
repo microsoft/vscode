@@ -317,7 +317,7 @@ class OnTypeRenameAdapter {
 		private readonly _provider: vscode.OnTypeRenameProvider
 	) { }
 
-	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> {
+	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.OnTypeRenameRanges | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
@@ -1564,14 +1564,13 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- on type rename
 
-	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, wordPattern?: RegExp): vscode.Disposable {
+	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new OnTypeRenameAdapter(this._documents, provider), extension);
-		const serializedWordPattern = wordPattern ? ExtHostLanguageFeatures._serializeRegExp(wordPattern) : undefined;
-		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedWordPattern);
+		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: extHostProtocol.IRegExpDto; } | undefined> {
+	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.IOnTypeRenameRangesDto | undefined> {
 		return this._withAdapter(handle, OnTypeRenameAdapter, async adapter => {
 			const res = await adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token);
 			if (res) {

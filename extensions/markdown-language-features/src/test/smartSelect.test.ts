@@ -483,7 +483,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [0, 12, 0, 26], [0, 11, 0, 27], [0, 11, 0, 47], [0, 0, 0, 56]);
 	});
-	test('Smart select brackets under header in list', async () => {
+	test.skip('Smart select brackets under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# main header 1`,
@@ -497,7 +497,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [6, 14, 6, 28], [6, 13, 6, 29], [6, 13, 6, 49], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
-	test('Smart select link under header in list', async () => {
+	test.skip('Smart select link under header in list', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# main header 1`,
@@ -511,7 +511,7 @@ suite('markdown.SmartSelect', () => {
 			));
 		assertNestedRangesEqual(ranges![0], [6, 20, 6, 48], [6, 19, 6, 49], [6, 13, 6, 49], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
-	test('Smart select bold within list where multiple bold elements exists', async () => {
+	test.skip('Smart select bold within list where multiple bold elements exists', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
 				`# main header 1`,

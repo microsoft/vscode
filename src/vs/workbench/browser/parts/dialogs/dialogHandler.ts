@@ -19,7 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { fromNow } from 'vs/base/common/date';
 
-export class HTMLDialogHandler implements IDialogHandler {
+export class BrowserDialogHandler implements IDialogHandler {
 
 	private static readonly ALLOWABLE_COMMANDS = [
 		'copy',
@@ -88,7 +88,7 @@ export class HTMLDialogHandler implements IDialogHandler {
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 					if (resolved && resolved.commandId) {
-						if (HTMLDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
+						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
 							EventHelper.stop(event, true);
 						}
 					}

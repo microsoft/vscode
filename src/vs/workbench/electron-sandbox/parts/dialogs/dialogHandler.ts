@@ -31,11 +31,7 @@ interface IMassagedMessageBoxOptions {
 	buttonIndexMap: number[];
 }
 
-
-
 export class NativeDialogHandler implements IDialogHandler {
-
-	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
