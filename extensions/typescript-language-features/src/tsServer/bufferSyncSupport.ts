@@ -483,7 +483,7 @@ export default class BufferSyncSupport extends Disposable {
 		}
 	}
 
-	public interuptGetErr<R>(f: () => R): R {
+	public interruptGetErr<R>(f: () => R): R {
 		if (!this.pendingGetErr
 			|| this.client.configuration.enableProjectDiagnostics // `geterr` happens on seperate server so no need to cancel it.
 		) {

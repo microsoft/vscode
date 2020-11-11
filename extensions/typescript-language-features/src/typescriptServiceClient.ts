@@ -776,7 +776,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public interruptGetErr<R>(f: () => R): R {
-		return this.bufferSyncSupport.interuptGetErr(f);
+		return this.bufferSyncSupport.interruptGetErr(f);
 	}
 
 	private fatalError(command: string, error: unknown): void {
