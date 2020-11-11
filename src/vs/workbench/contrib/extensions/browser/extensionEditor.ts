@@ -43,7 +43,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
@@ -538,8 +538,13 @@ export class ExtensionEditor extends EditorPane {
 		template.content.innerText = '';
 		this.activeElement = null;
 		if (id) {
-			this.open(id, extension, template)
+			const cts = new CancellationTokenSource();
+			this.contentDisposables.add(toDisposable(() => cts.dispose(true)));
+			this.open(id, extension, template, cts.token)
 				.then(activeElement => {
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
 					this.activeElement = activeElement;
 					if (focus) {
 						this.focus();
@@ -548,19 +553,22 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate): Promise<IActiveElement | null> {
+	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
-			case NavbarSection.Readme: return this.openReadme(template);
-			case NavbarSection.Contributions: return this.openContributions(template);
-			case NavbarSection.Changelog: return this.openChangelog(template);
-			case NavbarSection.Dependencies: return this.openDependencies(extension, template);
+			case NavbarSection.Readme: return this.openReadme(template, token);
+			case NavbarSection.Contributions: return this.openContributions(template, token);
+			case NavbarSection.Changelog: return this.openChangelog(template, token);
+			case NavbarSection.Dependencies: return this.openDependencies(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
 			const body = await this.renderMarkdown(cacheResult, template);
+			if (token.isCancellationRequested) {
+				return Promise.resolve(null);
+			}
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
 				enableFindWidget: true,
@@ -808,15 +816,19 @@ export class ExtensionEditor extends EditorPane {
 		</html>`;
 	}
 
-	private async openReadme(template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private async openReadme(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const manifest = await this.extensionManifest!.get().promise;
 		if (manifest && manifest.extensionPack && manifest.extensionPack.length) {
-			return this.openExtensionPackReadme(manifest, template);
+			return this.openExtensionPackReadme(manifest, template, token);
 		}
-		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template);
+		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template, token);
 	}
 
-	private async openExtensionPackReadme(manifest: IExtensionManifest, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private async openExtensionPackReadme(manifest: IExtensionManifest, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve(null);
+		}
+
 		const extensionPackReadme = append(template.content, $('div', { class: 'extension-pack-readme' }));
 		extensionPackReadme.style.margin = '0 auto';
 		extensionPackReadme.style.maxWidth = '882px';
@@ -840,21 +852,25 @@ export class ExtensionEditor extends EditorPane {
 		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
 
 		await Promise.all([
-			this.renderExtensionPack(manifest, extensionPackContent),
-			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }),
+			this.renderExtensionPack(manifest, extensionPackContent, token),
+			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }, token),
 		]);
 
 		return { focus: () => extensionPackContent.focus() };
 	}
 
-	private openChangelog(template: IExtensionEditorTemplate): Promise<IActiveElement> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template);
+	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, token);
 	}
 
-	private openContributions(template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const content = $('div', { class: 'subcontent', tabindex: '0' });
 		return this.loadContents(() => this.extensionManifest!.get(), template)
 			.then(manifest => {
+				if (token.isCancellationRequested) {
+					return null;
+				}
+
 				if (!manifest) {
 					return content;
 				}
@@ -895,13 +911,21 @@ export class ExtensionEditor extends EditorPane {
 				}
 				return content;
 			}, () => {
+				if (token.isCancellationRequested) {
+					return null;
+				}
+
 				append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
 				append(template.content, content);
 				return content;
 			});
 	}
 
-	private openDependencies(extension: IExtension, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private openDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve(null);
+		}
+
 		if (arrays.isFalsyOrEmpty(extension.dependencies)) {
 			append(template.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
 			return Promise.resolve(template.content);
@@ -930,7 +954,11 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement): Promise<void> {
+	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
