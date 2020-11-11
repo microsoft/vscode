@@ -105,8 +105,8 @@ suite('TextSearchResult', () => {
 		const range2 = new SearchRange(5, 133, 5, 136);
 		const range3 = new SearchRange(5, 141, 5, 144);
 		const result = new TextSearchMatch('foo bar 123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890 foo bar baz bar', [range1, range2, range3], previewOptions);
-		assert.deepEqual(result.preview.matches, [new SearchRange(0, 4, 0, 7), new SearchRange(0, 48, 0, 51), new SearchRange(0, 56, 0, 59)]);
-		assert.equal(result.preview.text, 'foo bar 123456...(\u200b117 characters skipped\u200b)...o bar baz bar');
+		assert.deepEqual(result.preview.matches, [new SearchRange(0, 4, 0, 7), new SearchRange(0, 42, 0, 45), new SearchRange(0, 50, 0, 53)]);
+		assert.equal(result.preview.text, 'foo bar 123456⟪ 117 characters skipped ⟫o bar baz bar');
 	});
 
 	// test('all lines of multiline match', () => {
