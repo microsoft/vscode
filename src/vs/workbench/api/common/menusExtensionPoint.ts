@@ -461,7 +461,7 @@ namespace schema {
 				type: 'string'
 			},
 			enablement: {
-				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command'),
+				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command in the UI. Does not affect executing the command by other means'),
 				type: 'string'
 			},
 			icon: {
