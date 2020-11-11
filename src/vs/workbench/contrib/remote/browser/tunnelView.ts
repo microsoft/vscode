@@ -1110,6 +1110,15 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Add))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '0_manage',
+	order: 2,
+	command: {
+		id: RefreshTunnelViewAction.ID,
+		title: RefreshTunnelViewAction.LABEL,
+	},
+	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '1_manage',
 	order: 1,
 	command: {
