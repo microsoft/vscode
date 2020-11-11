@@ -92,7 +92,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
 		}
 
-		const { local, remote } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.getIgnoredSyncStorageKeys(), this.logService);
+		const { local, remote } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.getStorageKeys(), this.logService);
 		const previewResult: IGlobalStateResourceMergeResult = {
 			content: null,
 			local,
@@ -152,7 +152,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private async acceptRemote(resourcePreview: IGlobalStateResourcePreview): Promise<IGlobalStateResourceMergeResult> {
 		if (resourcePreview.remoteContent !== null) {
 			const remoteGlobalState: IGlobalState = JSON.parse(resourcePreview.remoteContent);
-			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, null, this.getIgnoredSyncStorageKeys(), this.logService);
+			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, null, this.getStorageKeys(), this.logService);
 			return {
 				content: resourcePreview.remoteContent,
 				local,
@@ -336,8 +336,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	private getIgnoredSyncStorageKeys(): string[] {
-		return this.storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
+	private getStorageKeys(): { machine: string[], user: string[] } {
+		return {
+			machine: this.storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE),
+			user: this.storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)
+		};
 	}
 }
 
