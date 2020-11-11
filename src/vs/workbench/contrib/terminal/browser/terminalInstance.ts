@@ -735,6 +735,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
+	public refreshFocusState() {
+		this.notifyFindWidgetFocusChanged(false);
+	}
+
 	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
