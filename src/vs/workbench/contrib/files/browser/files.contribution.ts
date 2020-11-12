@@ -393,6 +393,16 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
 			'default': 9
 		},
+		'explorer.openEditors.sortOrder': {
+			'type': 'string',
+			'enum': ['editorOrder', 'alphabetical'],
+			'description': nls.localize({ key: 'openEditorsSortOrder', comment: ['Open is an adjective'] }, "Controls the sorting order of editors in the Open Editors pane."),
+			'enumDescriptions': [
+				nls.localize('sortOrder.editorOrder', 'Editors are ordered in the same order editor tabs are shown.'),
+				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetical order inside each editor group.')
+			],
+			'default': 'editorOrder'
+		},
 		'explorer.autoReveal': {
 			'type': ['boolean', 'string'],
 			'enum': [true, false, 'focusNoScroll'],
