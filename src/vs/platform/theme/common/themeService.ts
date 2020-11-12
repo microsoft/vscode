@@ -33,14 +33,22 @@ export namespace ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
 	}
 
-	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+	const _regexFromString = /^\$\(([a-z.]+\/)?(([a-z0-9\-]+?)(?:~([a-z0-9\-]*?))?)\)$/i;
 
-	export function fromString(str: string): ThemeIcon | undefined {
+	export function isInvalidReference(str: string): boolean {
+		const match = _regexFromString.exec(str);
+		if (!match) {
+			return false;
+		}
+		return match[4] !== undefined;
+	}
+
+	export function fromString(str: string): ThemeIcon | null | undefined {
 		const match = _regexFromString.exec(str);
 		if (!match) {
 			return undefined;
 		}
-		let [, owner, name] = match;
+		let [, owner, , name] = match;
 		if (!owner) {
 			owner = `codicon/`;
 		}

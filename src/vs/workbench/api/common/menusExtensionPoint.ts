@@ -421,6 +421,10 @@ namespace schema {
 			return true;
 		}
 		if (typeof icon === 'string') {
+			if (ThemeIcon.isInvalidReference(icon)) {
+				collector.error(localize('invalidThemeIconReference', "property `icon` is not a valid theme icon reference - animations aren't supported"));
+				return false;
+			}
 			return true;
 		} else if (typeof icon.dark === 'string' && typeof icon.light === 'string') {
 			return true;
