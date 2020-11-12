@@ -998,23 +998,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
-	/**
-	 * Label describing the [Tree item](#TreeItem)
-	 */
-	export interface TreeItemLabel {
-
-		/**
-		 * A human-readable string describing the [Tree item](#TreeItem).
-		 */
-		label: string;
-
-		/**
-		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
-		 * first is the inclusive start index and the second the exclusive end index
-		 */
-		highlights?: [number, number][];
-
-	}
 
 	// https://github.com/microsoft/vscode/issues/100741
 	export interface TreeDataProvider<T> {
@@ -1022,11 +1005,6 @@ declare module 'vscode' {
 	}
 
 	export class TreeItem2 extends TreeItem {
-		/**
-		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
-		 */
-		label?: string | TreeItemLabel | /* for compilation */ any;
-
 		/**
 		 * Content to be shown when you hover over the tree item.
 		 */

@@ -33,7 +33,6 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 	if (label
 		&& typeof label === 'object'
 		&& typeof label.label === 'string') {
-		checkProposedApiEnabled(extension);
 		let highlights: [number, number][] | undefined = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
