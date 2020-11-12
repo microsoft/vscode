@@ -147,7 +147,7 @@
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
-			globalThis.acquireVsCodeApi = (function() {
+			const acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
 				const targetOrigin = '*';
 				let acquired = false;
