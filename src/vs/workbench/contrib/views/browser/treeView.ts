@@ -463,8 +463,8 @@ export class TreeView extends Disposable implements ITreeView {
 				return;
 			}
 			const selection = this.tree!.getSelection();
-			const command = selection[0].command;
-			if ((selection.length === 1) && command) {
+			const command = selection.length === 1 ? selection[0].command : undefined;
+			if (command) {
 				let args = command.arguments || [];
 				if (command.id === API_OPEN_EDITOR_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
 					// Some commands owned by us should receive the

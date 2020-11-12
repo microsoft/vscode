@@ -1574,7 +1574,7 @@ export function computeEditorAriaLabel(input: IEditorInput, index: number | unde
 }
 
 
-//#region Editor View Column
+//#region Editor Group Column
 
 /**
  * A way to address editor groups through a column based system

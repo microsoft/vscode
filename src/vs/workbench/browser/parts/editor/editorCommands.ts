@@ -12,7 +12,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -407,32 +407,33 @@ function registerOpenEditorAPICommands(): void {
 		];
 	}
 
-	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [URI, ITextEditorOptions | undefined, EditorGroupColumn | undefined, string | undefined], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [UriComponents, ITextEditorOptions | undefined, EditorGroupColumn | undefined, string | undefined], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
 
-		let [resource, optionsArg, columnArg, label] = payload;
-		resource = URI.revive(resource);
+		const [resourceArg, optionsArg, columnArg, label] = payload;
+		const resource = URI.revive(resourceArg);
 
 		// use editor options or editor view column as a hint to use the editor service for opening
 		if (optionsArg || typeof columnArg === 'number') {
 			const [options, column] = mixinContext(context, optionsArg, columnArg);
 
 			await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, column));
-			return;
 		}
 
 		// do not allow to execute commands from here
-		if (resource.scheme === 'command') {
+		else if (resource.scheme === 'command') {
 			return;
 		}
 
 		// finally, delegate to opener service
-		await openerService.open(resource, { openToSide: context?.sideBySide, editorOptions: context?.editorOptions });
+		else {
+			await openerService.open(resource, { openToSide: context?.sideBySide, editorOptions: context?.editorOptions });
+		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [URI, URI, string, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [UriComponents, UriComponents, string, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -455,7 +456,7 @@ function registerOpenEditorAPICommands(): void {
 		}, viewColumnToEditorGroup(editorGroupService, column));
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, payload: [URI, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined]) => {
+	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, payload: [UriComponents, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined]) => {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -466,7 +467,7 @@ function registerOpenEditorAPICommands(): void {
 		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
 
-		const input = editorService.createEditorInput({ resource });
+		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
 		return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
 	});
 }
