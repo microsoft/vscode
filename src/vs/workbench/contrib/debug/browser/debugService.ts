@@ -305,7 +305,7 @@ export class DebugService implements IDebugService {
 
 				const sessions = this.model.getSessions();
 				const alreadyRunningMessage = nls.localize('configurationAlreadyRunning', "There is already a debug configuration \"{0}\" running.", configOrName);
-				if (sessions.some(s => s.configuration.name === configOrName && (!launch || !launch.workspace || !s.root || this.uriIdentityService.extUri.isEqual(s.root.uri, launch.workspace.uri)))) {
+				if (sessions.some(s => (s.configuration.name === configOrName && s.root === launch.workspace) && (!launch || !launch.workspace || !s.root || this.uriIdentityService.extUri.isEqual(s.root.uri, launch.workspace.uri)))) {
 					throw new Error(alreadyRunningMessage);
 				}
 				if (compound && compound.configurations && sessions.some(p => compound!.configurations.indexOf(p.configuration.name) !== -1)) {
