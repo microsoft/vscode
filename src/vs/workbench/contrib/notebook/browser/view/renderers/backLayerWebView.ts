@@ -555,9 +555,8 @@ var requirejs = (function() {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const rootPathStr = path.dirname(FileAccess.asFileUri('', require).fsPath);
+		const rootPath = isWeb ? FileAccess.asBrowserUri('', require) : FileAccess.asFileUri('', require);
 
-		const rootPath = isWeb ? FileAccess.asBrowserUri(rootPathStr, require) : FileAccess.asFileUri(rootPathStr, require);
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
