@@ -399,7 +399,7 @@
 	word-break: keep-all;
 }
 
-.extension-editor > .body > .content table code:not(:empty) {
+.extension-editor > .body > .content code:not(:empty) {
 	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
