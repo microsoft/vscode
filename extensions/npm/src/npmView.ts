@@ -43,7 +43,7 @@ class PackageJSON extends TreeItem {
 	folder: Folder;
 	scripts: NpmScript[] = [];
 
-	static getLabel(_folderName: string, relativePath: string): string {
+	static getLabel(relativePath: string): string {
 		if (relativePath.length > 0) {
 			return path.join(relativePath, packageName);
 		}
@@ -51,7 +51,7 @@ class PackageJSON extends TreeItem {
 	}
 
 	constructor(folder: Folder, relativePath: string) {
-		super(PackageJSON.getLabel(folder.label!, relativePath), TreeItemCollapsibleState.Expanded);
+		super(PackageJSON.getLabel(relativePath), TreeItemCollapsibleState.Expanded);
 		this.folder = folder;
 		this.path = relativePath;
 		this.contextValue = 'packageJSON';
