@@ -148,7 +148,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 	}
 
 	async provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList | undefined> {
-		const { wordBasedSuggestions } = this._configurationService.getValue<{ wordBasedSuggestions?: boolean }>(model.uri, position, 'editor');
+		const { wordBasedSuggestions, wordBasedSuggestionsOnlySameLanguage } = this._configurationService.getValue<{ wordBasedSuggestions?: boolean, wordBasedSuggestionsOnlySameLanguage?: boolean }>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}
@@ -160,6 +160,8 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 			}
 			if (candidate === model) {
 				models.unshift(candidate.uri);
+			} else if (!wordBasedSuggestionsOnlySameLanguage) {
+				models.push(candidate.uri);
 			} else if (candidate.getLanguageIdentifier().id === model.getLanguageIdentifier().id) {
 				models.push(candidate.uri);
 			}
