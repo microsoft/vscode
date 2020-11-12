@@ -117,6 +117,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 	explorer: {
 		openEditors: {
 			visible: number;
+			sortOrder: 'editorOrder' | 'alphabetical';
 		};
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
@@ -231,16 +232,15 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 export class OpenEditor implements IEditorIdentifier {
 
+	private id: number;
+	private static COUNTER = 0;
+
 	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
-		// noop
+		this.id = OpenEditor.COUNTER++;
 	}
 
 	get editor() {
 		return this._editor;
-	}
-
-	get editorIndex() {
-		return this._group.getIndexOfEditor(this.editor);
 	}
 
 	get group() {
@@ -252,7 +252,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	getId(): string {
-		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.groupId}:${this.id}`;
 	}
 
 	isPreview(): boolean {
