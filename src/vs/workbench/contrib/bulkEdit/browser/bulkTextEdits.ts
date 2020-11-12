@@ -39,6 +39,18 @@ class ModelEditTask implements IDisposable {
 		this._modelReference.dispose();
 	}
 
+	isNoOp() {
+		if (this._edits.length > 0) {
+			// contains textual edits
+			return false;
+		}
+		if (this._newEol !== undefined && this._newEol !== this.model.getEndOfLineSequence()) {
+			// contains an eol change that is a real change
+			return false;
+		}
+		return true;
+	}
+
 	addEdit(resourceEdit: ResourceTextEdit): void {
 		this._expectedModelVersionId = resourceEdit.versionId;
 		const { textEdit } = resourceEdit;
@@ -219,10 +231,12 @@ export class BulkTextEdits {
 			if (tasks.length === 1) {
 				// This edit touches a single model => keep things simple
 				const task = tasks[0];
-				const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
-				this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup);
-				task.apply();
-				singleModelEditStackElement.close();
+				if (!task.isNoOp()) {
+					const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
+					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup);
+					task.apply();
+					singleModelEditStackElement.close();
+				}
 				this._progress.report(undefined);
 			} else {
 				// prepare multi model undo element
