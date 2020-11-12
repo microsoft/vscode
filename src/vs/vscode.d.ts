@@ -8727,7 +8727,7 @@ declare module 'vscode' {
 		/**
 		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
-		label?: string;
+		label?: string | TreeItemLabel;
 
 		/**
 		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
@@ -8828,6 +8828,23 @@ declare module 'vscode' {
 		 * Determines an item is expanded
 		 */
 		Expanded = 2
+	}
+
+	/**
+	 * Label describing the [Tree item](#TreeItem)
+	 */
+	export interface TreeItemLabel {
+
+		/**
+		 * A human-readable string describing the [Tree item](#TreeItem).
+		 */
+		label: string;
+
+		/**
+		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index
+		 */
+		highlights?: [number, number][];
 	}
 
 	/**
