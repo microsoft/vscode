@@ -8,13 +8,13 @@ import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from '
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, viewColumnToEditorGroup, EditorGroupColumn } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -396,54 +396,75 @@ function registerDiffEditorCommands(): void {
 
 function registerOpenEditorAPICommands(): void {
 
-	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, args: [URI, ITextEditorOptions | undefined, EditorGroupColumn | undefined, string | undefined]) {
+	function mixinContext(context: IOpenEvent<unknown> | undefined, options: ITextEditorOptions | undefined, column: EditorGroupColumn | undefined): [ITextEditorOptions | undefined, EditorGroupColumn | undefined] {
+		if (!context) {
+			return [options, column];
+		}
+
+		return [
+			{ ...(options ?? Object.create(null)), ...context.editorOptions },
+			context.sideBySide ? SIDE_GROUP : column
+		];
+	}
+
+	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [URI, ITextEditorOptions | undefined, EditorGroupColumn | undefined, string | undefined], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
 
-		let [resource, options, position, label] = args;
+		let [resource, optionsArg, columnArg, label] = payload;
 		resource = URI.revive(resource);
 
-		if (options || typeof position === 'number') {
-			// use editor options or editor view column as a hint to use the editor service for opening
-			await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position));
+		// use editor options or editor view column as a hint to use the editor service for opening
+		if (optionsArg || typeof columnArg === 'number') {
+			const [options, column] = mixinContext(context, optionsArg, columnArg);
+
+			await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, column));
 			return;
 		}
 
-		if (resource && resource.scheme === 'command') {
-			// do not allow to execute commands from here
+		// do not allow to execute commands from here
+		if (resource.scheme === 'command') {
 			return;
-
 		}
+
 		// finally, delegate to opener service
-		await openerService.open(resource);
+		await openerService.open(resource, { openToSide: context?.sideBySide, editorOptions: context?.editorOptions });
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, args: [URI, URI, string, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined]) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [URI, URI, string, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		let [leftResource, rightResource, label, description, options, position] = args;
+		let [leftResource, rightResource, label, description, optionsArg, columnArg] = payload;
 
-		if (!options || typeof options !== 'object') {
-			options = {
+		if (!optionsArg || typeof optionsArg !== 'object') {
+			optionsArg = {
 				preserveFocus: false
 			};
 		}
 
-		await editorService.openEditor({ leftResource: URI.revive(leftResource), rightResource: URI.revive(rightResource), label, description, options }, viewColumnToEditorGroup(editorGroupService, position));
+		const [options, column] = mixinContext(context, optionsArg, columnArg);
+
+		await editorService.openEditor({
+			leftResource: URI.revive(leftResource),
+			rightResource: URI.revive(rightResource),
+			label,
+			description,
+			options
+		}, viewColumnToEditorGroup(editorGroupService, column));
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, args: [URI, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined]) => {
+	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, payload: [URI, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined]) => {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const [resource, id, options, position] = args;
+		const [resource, id, optionsArg, columnArg] = payload;
 
-		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, position)) ?? editorGroupsService.activeGroup;
-		const textOptions: ITextEditorOptions = options ? { ...options, override: false } : { override: false };
+		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
 
 		const input = editorService.createEditorInput({ resource });
 		return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
