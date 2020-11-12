@@ -59,7 +59,7 @@ interface INewWindowState extends ISingleWindowState {
 	hasDefaultState?: boolean;
 }
 
-type RestoreWindowsSetting = 'all' | 'folders' | 'one' | 'none';
+type RestoreWindowsSetting = 'preserve' | 'all' | 'folders' | 'one' | 'none';
 
 interface IOpenBrowserWindowOptions {
 	userEnv?: IProcessEnvironment;
@@ -307,7 +307,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
 		}
 
-		// 3.) All windows (except extension host) for N >= 2 to support restoreWindows: all or for auto update
+		// 3.) All windows (except extension host) for N >= 2 to support `restoreWindows: all` or for auto update
 		//
 		// Careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
@@ -812,6 +812,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
 		let windowsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
+		let restoredWindows = false;
 
 		// Extract paths: from API
 		if (openConfig.urisToOpen && openConfig.urisToOpen.length > 0) {
@@ -833,6 +834,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Extract windows: from previous session
 		else {
 			windowsToOpen = this.doGetWindowsFromLastSession();
+			restoredWindows = true;
 		}
 
 		// Convert multiple folders into workspace (if opened via API or CLI)
@@ -851,6 +853,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					windowsToOpen = windowsToOpen.filter(path => !path.folderUri);
 				}
 			}
+		}
+
+		// Check for `window.startup` setting to include all windows
+		// from the previous session if this is the initial startup and we have
+		// not restored windows already otherwise.
+		// Use `unshift` to ensure any new window to open comes last
+		// for proper focus treatment.
+		if (openConfig.initialStartup && !restoredWindows && this.configurationService.getValue<IWindowSettings>('window').restoreWindows === 'preserve') {
+			windowsToOpen.unshift(...this.doGetWindowsFromLastSession().filter(window => window.workspace || window.folderUri || window.backupPath));
 		}
 
 		return windowsToOpen;
@@ -959,6 +970,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// folders: restore last opened folders only
 			case 'one':
 			case 'all':
+			case 'preserve':
 			case 'folders':
 
 				// Collect previously opened windows
@@ -1014,7 +1026,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
 
-			if (!['all', 'folders', 'one', 'none'].includes(restoreWindows)) {
+			if (!['preserve', 'all', 'folders', 'one', 'none'].includes(restoreWindows)) {
 				restoreWindows = 'all'; // by default restore all windows
 			}
 		}
