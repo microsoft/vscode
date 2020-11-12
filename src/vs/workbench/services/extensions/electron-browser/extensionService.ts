@@ -123,7 +123,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return {
 			getInitData: async () => {
 				if (isInitialStart) {
-					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
+					const localExtensions = await this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
 					const runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, []);
 					const localProcessExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
 					return {
@@ -283,7 +283,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 
-		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
+		const localExtensions = await this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
 		let remoteEnv: IRemoteAgentEnvironment | null = null;
 		let remoteExtensions: IExtensionDescription[] = [];
 
@@ -328,7 +328,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._remoteAgentService.getEnvironment(),
 				this._remoteAgentService.scanExtensions()
 			]);
-			remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
+			remoteExtensions = await this._checkEnabledAndProposedAPI(remoteExtensions);
 
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });

@@ -248,7 +248,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(toAdd);
+		await this._checkEnableProposedApi(toAdd);
 
 		// Update extension points
 		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
@@ -579,15 +579,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	// --- impl
 
-	protected _checkEnableProposedApi(extensions: IExtensionDescription[]): void {
-		for (let extension of extensions) {
-			this._proposedApiController.updateEnableProposedApi(extension);
-		}
+	protected async _checkEnableProposedApi(extensions: IExtensionDescription[]): Promise<void> {
+		await Promise.all(extensions.map(extension =>
+			this._proposedApiController.updateEnableProposedApi(extension)));
 	}
 
-	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[]): IExtensionDescription[] {
+
+	protected async _checkEnabledAndProposedAPI(extensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
 		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(extensions);
+		await this._checkEnableProposedApi(extensions);
 
 		// keep only enabled extensions
 		return extensions.filter(extension => this._isEnabled(extension));
@@ -804,7 +804,7 @@ export class ExtensionRunningLocationClassifier {
 
 class ProposedApiController {
 
-	private readonly enableProposedApiFor: string[];
+	private readonly enableProposedApiFor: Promise<string[]>;
 	private readonly enableProposedApiForAll: boolean;
 	private readonly productAllowProposedApi: Set<string>;
 
@@ -814,23 +814,28 @@ class ProposedApiController {
 		@IFileService fileService: IFileService
 	) {
 
+		// Make enabled proposed API be lowercase for case insensitive comparison
+		const cliProposedApi = (_environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
+
+		let enableProposedAPIResolver: (ids: string[]) => void;
+		this.enableProposedApiFor = new Promise(c => enableProposedAPIResolver = c);
+
 		runWhenIdle(async () => {
 			const argvContent = await fileService.readFile(_environmentService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
-			const argvProposed = argvJSON['enable-proposed-api'];
-			if (argvProposed && Array.isArray(argvProposed) && argvProposed.every(arg => typeof arg === 'string')) {
-				this.enableProposedApiFor.push(...argvProposed);
+			const argvProposedApi = argvJSON['enable-proposed-api'];
+			if (argvProposedApi && Array.isArray(argvProposedApi) && argvProposedApi.every(arg => typeof arg === 'string')) {
+				enableProposedAPIResolver(cliProposedApi.concat(argvProposedApi.map(id => id.toLowerCase())));
+			} else {
+				enableProposedAPIResolver(cliProposedApi);
 			}
 		});
-
-		// Make enabled proposed API be lowercase for case insensitive comparison
-		this.enableProposedApiFor = (_environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
 
 		this.enableProposedApiForAll =
 			!_environmentService.isBuilt || // always allow proposed API when running out of sources
 			(!!_environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
-			(this.enableProposedApiFor.length === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
+			(cliProposedApi.length === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
@@ -838,7 +843,7 @@ class ProposedApiController {
 		}
 	}
 
-	public updateEnableProposedApi(extension: IExtensionDescription): void {
+	public async updateEnableProposedApi(extension: IExtensionDescription): Promise<void> {
 		if (this._allowProposedApiFromProduct(extension.identifier)) {
 			// fast lane -> proposed api is available to all extensions
 			// that are listed in product.json-files
@@ -847,7 +852,7 @@ class ProposedApiController {
 		} else if (extension.enableProposedApi && !extension.isBuiltin) {
 			if (
 				!this.enableProposedApiForAll &&
-				this.enableProposedApiFor.indexOf(extension.identifier.value.toLowerCase()) < 0
+				(await this.enableProposedApiFor).indexOf(extension.identifier.value.toLowerCase()) < 0
 			) {
 				extension.enableProposedApi = false;
 				console.error(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);

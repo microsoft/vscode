@@ -177,8 +177,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._remoteAgentService.getEnvironment(),
 			this._remoteAgentService.scanExtensions()
 		]);
-		localExtensions = this._checkEnabledAndProposedAPI(localExtensions);
-		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
+		[localExtensions, remoteExtensions] = await Promise.all([this._checkEnabledAndProposedAPI(localExtensions), this._checkEnabledAndProposedAPI(remoteExtensions)]);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
