@@ -1576,9 +1576,14 @@ export function computeEditorAriaLabel(input: IEditorInput, index: number | unde
 
 //#region Editor View Column
 
-export type EditorViewColumn = number;
+/**
+ * A way to address editor groups through a column based system
+ * where `0` is the first column. Will fallback to `SIDE_GROUP`
+ * in case the column does not exist yet.
+ */
+export type EditorGroupColumn = number;
 
-export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService, viewColumn?: EditorViewColumn): GroupIdentifier {
+export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService, viewColumn?: EditorGroupColumn): GroupIdentifier {
 	if (typeof viewColumn !== 'number' || viewColumn === ACTIVE_GROUP) {
 		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such
 	}
@@ -1598,7 +1603,7 @@ export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService
 	return SIDE_GROUP; // open to the side if group not found or we are instructed to
 }
 
-export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorViewColumn {
+export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
 	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
 	if (!group) {
 		throw new Error('Invalid group provided');

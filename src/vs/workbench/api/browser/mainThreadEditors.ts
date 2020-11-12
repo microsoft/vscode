@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContext, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { editorGroupToViewColumn, EditorGroupColumn, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -157,7 +157,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return this._documentsAndEditors.findTextEditorIdFor(editor);
 	}
 
-	async $tryShowEditor(id: string, position?: EditorViewColumn): Promise<void> {
+	async $tryShowEditor(id: string, position?: EditorGroupColumn): Promise<void> {
 		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			const model = mainThreadEditor.getModel();
