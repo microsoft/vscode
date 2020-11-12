@@ -6419,9 +6419,9 @@ declare module 'vscode' {
 		readonly execution: TaskExecution;
 
 		/**
-		 * The process's exit code.
+		 * The process's exit code. Will be `undefined` when the task is terminated.
 		 */
-		readonly exitCode: number;
+		readonly exitCode: number | undefined;
 	}
 
 	export interface TaskFilter {
