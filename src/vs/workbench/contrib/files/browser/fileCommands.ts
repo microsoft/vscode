@@ -157,7 +157,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 10,
-	when: ContextKeyExpr.and(ExplorerFocusCondition, ExplorerFolderContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext.toNegated()),
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
