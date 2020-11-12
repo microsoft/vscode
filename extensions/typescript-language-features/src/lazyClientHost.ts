@@ -10,7 +10,6 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
-import { flatten } from './utils/arrays';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
@@ -50,10 +49,10 @@ export function lazilyActivateClient(
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
-	const supportedLanguage = flatten([
+	const supportedLanguage = [
 		...standardLanguageDescriptions.map(x => x.modeIds),
 		...pluginManager.plugins.map(x => x.languages)
-	]);
+	].flat();
 
 	let hasActivated = false;
 	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {

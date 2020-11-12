@@ -150,7 +150,7 @@ export class SearchService extends Disposable implements ISearchService {
 			return <ISearchComplete>{
 				limitHit: completes[0] && completes[0].limitHit,
 				stats: completes[0].stats,
-				results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
+				results: completes.map((c: ISearchComplete) => c.results).flat()
 			};
 		})();
 

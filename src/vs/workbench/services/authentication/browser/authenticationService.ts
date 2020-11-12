@@ -20,7 +20,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { isString } from 'vs/base/common/types';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { flatten } from 'vs/base/common/arrays';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -189,7 +188,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				}
 			});
 
-			const removedExtPoints = flatten(removed.map(r => r.value));
+			const removedExtPoints = removed.map(r => r.value).flat();
 			removedExtPoints.forEach(point => {
 				const index = this.declaredProviders.findIndex(provider => provider.id === point.id);
 				if (index > -1) {

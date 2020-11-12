@@ -10,7 +10,7 @@ import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CON
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { flatten, equals } from 'vs/base/common/arrays';
+import { equals } from 'vs/base/common/arrays';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -75,7 +75,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
 
 	private _all: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-	get all(): UserDataSyncAccount[] { return flatten([...this._all.values()]); }
+	get all(): UserDataSyncAccount[] { return [...this._all.values()].flat(); }
 
 	get current(): UserDataSyncAccount | undefined { return this.all.filter(account => this.isCurrentAccount(account))[0]; }
 
@@ -762,11 +762,9 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 	}
 
 	private toUserDataSyncResourceGroups(syncResourcePreviews: [SyncResource, IResourcePreview[]][]): IUserDataSyncResource[] {
-		return flatten(
-			syncResourcePreviews.map(([syncResource, resourcePreviews]) =>
-				resourcePreviews.map<IUserDataSyncResource>(({ localResource, remoteResource, previewResource, acceptedResource, localChange, remoteChange, mergeState }) =>
-					({ syncResource, local: localResource, remote: remoteResource, merged: previewResource, accepted: acceptedResource, localChange, remoteChange, mergeState })))
-		);
+		return syncResourcePreviews.map(([syncResource, resourcePreviews]) =>
+			resourcePreviews.map<IUserDataSyncResource>(({ localResource, remoteResource, previewResource, acceptedResource, localChange, remoteChange, mergeState }) =>
+				({ syncResource, local: localResource, remote: remoteResource, merged: previewResource, accepted: acceptedResource, localChange, remoteChange, mergeState }))).flat();
 	}
 
 }

@@ -19,7 +19,6 @@ import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -268,8 +267,7 @@ export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISet
 
 export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
 	const settingsGroupToEntry = (group: ISettingsGroup) => {
-		const flatSettings = arrays.flatten(
-			group.sections.map(section => section.settings));
+		const flatSettings = group.sections.map(section => section.settings).flat();
 
 		return {
 			id: group.id,
@@ -299,7 +297,7 @@ function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>, lo
 
 	let settings: ISetting[] | undefined;
 	if (tocData.settings) {
-		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern, logService)));
+		settings = tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern, logService)).flat();
 	}
 
 	if (!children && !settings) {

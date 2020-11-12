@@ -45,7 +45,6 @@ import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispa
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
-import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -321,7 +320,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private updateSchema() {
-		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
+		updateSchema(this._contributions.map(x => x.getSchemaAdditions()).flat());
 	}
 
 	public _dumpDebugInfo(): string {

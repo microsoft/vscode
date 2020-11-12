@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
 import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
@@ -265,7 +264,7 @@ export class QueryBuilder {
 			result.searchPaths = searchPaths;
 		}
 
-		const exprSegments = arrays.flatten(expandedExprSegments);
+		const exprSegments = expandedExprSegments.flat();
 		const includePattern = patternListToIExpression(...exprSegments);
 		if (includePattern) {
 			result.pattern = includePattern;
@@ -289,22 +288,20 @@ export class QueryBuilder {
 			return [];
 		}
 
-		const expandedSearchPaths = arrays.flatten(
-			searchPaths.map(searchPath => {
-				// 1 open folder => just resolve the search paths to absolute paths
-				let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+		const expandedSearchPaths = searchPaths.map(searchPath => {
+			// 1 open folder => just resolve the search paths to absolute paths
+			let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
 
-				if (globPortion) {
-					globPortion = normalizeGlobPattern(globPortion);
-				}
+			if (globPortion) {
+				globPortion = normalizeGlobPattern(globPortion);
+			}
 
-				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
-				const oneExpanded = this.expandOneSearchPath(pathPortion);
+			// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
+			const oneExpanded = this.expandOneSearchPath(pathPortion);
 
-				// Expanded search paths to multiple resolved patterns (with ** and without)
-				return arrays.flatten(
-					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion)));
-			}));
+			// Expanded search paths to multiple resolved patterns (with ** and without)
+			return oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion)).flat();
+		}).flat();
 
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
 		expandedSearchPaths.forEach(oneSearchPathPattern => {

@@ -6,7 +6,6 @@
 'use strict';
 
 import * as es from 'event-stream';
-import * as _ from 'underscore';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as fs from 'fs';
@@ -42,7 +41,7 @@ try {
 }
 
 function log(): void {
-	const errors = _.flatten(allErrors);
+	const errors = allErrors.flat();
 	const seen = new Set<string>();
 
 	errors.map(err => {

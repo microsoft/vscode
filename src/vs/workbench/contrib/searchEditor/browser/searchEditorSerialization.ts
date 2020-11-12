@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, flatten } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -62,7 +62,7 @@ type SearchResultSerialization = { text: string[], matchRanges: Range[] };
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
 	const sortedMatches = fileMatch.matches().sort(searchMatchComparer);
 	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
-	const serializedMatches = flatten(sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)));
+	const serializedMatches = sortedMatches.map(match => matchToSearchResultFormat(match, longestLineNumber)).flat();
 
 	const uriString = labelFormatter(fileMatch.resource);
 	const text: string[] = [`${uriString}:`];
@@ -228,10 +228,10 @@ export const serializeSearchResultForEditor =
 
 		const allResults =
 			flattenSearchResultSerializations(
-				flatten(
-					searchResult.folderMatches().sort(matchComparer)
-						.map(folderMatch => folderMatch.matches().sort(matchComparer)
-							.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
+				searchResult.folderMatches().sort(matchComparer)
+					.map(folderMatch => folderMatch.matches().sort(matchComparer)
+						.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))
+					.flat());
 
 		return {
 			matchRanges: allResults.matchRanges.map(translateRangeLines(info.length)),

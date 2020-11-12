@@ -35,7 +35,6 @@ import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TreeView } from 'vs/workbench/contrib/views/browser/treeView';
-import { flatten } from 'vs/base/common/arrays';
 import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
 import { basename } from 'vs/base/common/resources';
 
@@ -379,7 +378,7 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 			this.syncResourceHandlesPromise = Promise.all(ALL_SYNC_RESOURCES.map(async syncResource => {
 				const resourceHandles = await this.getResourceHandles(syncResource);
 				return resourceHandles.map(resourceHandle => ({ ...resourceHandle, syncResource }));
-			})).then(result => flatten(result).sort((a, b) => b.created - a.created));
+			})).then(result => result.flat().sort((a, b) => b.created - a.created));
 		}
 		return this.syncResourceHandlesPromise;
 	}

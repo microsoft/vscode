@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, coalesce } from 'vs/base/common/arrays';
+import { tail, coalesce } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
@@ -826,19 +826,19 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		builder.pushLine(',');
 
 		// builder has rewritten settings ranges, fix match ranges
-		const fixedMatches = flatten(
-			filterMatches
-				.map(m => m.matches || [])
-				.map((settingMatches, i) => {
-					const setting = settingsGroup.sections[0].settings[i];
-					return settingMatches.map(range => {
-						return new Range(
-							range.startLineNumber + setting.range.startLineNumber,
-							range.startColumn,
-							range.endLineNumber + setting.range.startLineNumber,
-							range.endColumn);
-					});
-				}));
+		const fixedMatches = filterMatches
+			.map(m => m.matches || [])
+			.map((settingMatches, i) => {
+				const setting = settingsGroup.sections[0].settings[i];
+				return settingMatches.map(range => {
+					return new Range(
+						range.startLineNumber + setting.range.startLineNumber,
+						range.startColumn,
+						range.endLineNumber + setting.range.startLineNumber,
+						range.endColumn);
+				});
+			})
+			.flat();
 
 		return fixedMatches;
 	}

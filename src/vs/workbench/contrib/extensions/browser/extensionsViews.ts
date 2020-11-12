@@ -31,7 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
@@ -751,12 +751,12 @@ export class ExtensionsListView extends ViewPane {
 			.map(extensionId => extensionId.toLowerCase());
 
 		const otherRecommendations = distinct(
-			flatten(await Promise.all([
+			(await Promise.all([
 				// Order is important
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
+			])).flat().filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
 			), extensionId => extensionId.toLowerCase());
 
 		const installableRecommendations = (await this.getInstallableRecommendations(otherRecommendations, { ...options, source: 'recommendations-other', sortBy: undefined }, token))
@@ -771,13 +771,13 @@ export class ExtensionsListView extends ViewPane {
 		const local = (await this.extensionsWorkbenchService.queryLocal(this.server)).map(e => e.identifier.id.toLowerCase());
 
 		const allRecommendations = distinct(
-			flatten(await Promise.all([
+			(await Promise.all([
 				// Order is important
 				this.getWorkspaceRecommendations(),
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !local.includes(extensionId.toLowerCase())
+			])).flat().filter(extensionId => !local.includes(extensionId.toLowerCase())
 			), extensionId => extensionId.toLowerCase());
 
 		const installableRecommendations = await this.getInstallableRecommendations(allRecommendations, { ...options, source: 'recommendations-all', sortBy: undefined }, token);

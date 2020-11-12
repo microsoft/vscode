@@ -20,7 +20,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationToken } from 'vscode';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { isWindows } from 'vs/base/common/platform';
-import { flatten } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FileAccess } from 'vs/base/common/network';
 
@@ -72,7 +71,7 @@ export class ExtensionsScanner extends Disposable {
 
 		try {
 			const result = await Promise.all(promises);
-			return flatten(result);
+			return result.flat();
 		} catch (error) {
 			throw this.joinErrors(error);
 		}
@@ -316,7 +315,7 @@ export class ExtensionsScanner extends Disposable {
 
 		// Outdated extensions
 		const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
-		toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
+		toRemove.push(...byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1)).flat());
 
 		await Promise.all(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
 	}

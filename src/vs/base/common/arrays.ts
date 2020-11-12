@@ -449,10 +449,6 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	return result;
 }
 
-export function flatten<T>(arr: T[][]): T[] {
-	return (<T[]>[]).concat(...arr);
-}
-
 export function range(to: number): number[];
 export function range(from: number, to: number): number[];
 export function range(arg: number, to?: number): number[] {

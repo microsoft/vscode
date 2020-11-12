@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EXTENSION_IDENTIFIER_PATTERN, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { distinct, flatten } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -85,7 +85,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		const extensionsToQuery: string[] = [];
 		let message = '';
 
-		const allRecommendations = distinct(flatten(contents.map(({ recommendations }) => recommendations || [])));
+		const allRecommendations = distinct(contents.map(({ recommendations }) => recommendations || []).flat());
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		for (const extensionId of allRecommendations) {
 			if (regEx.test(extensionId)) {

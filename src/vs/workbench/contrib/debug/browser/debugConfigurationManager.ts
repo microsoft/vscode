@@ -32,7 +32,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { flatten, distinct } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -234,7 +234,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					});
 
 					const nestedPicks = await Promise.all(picks);
-					const items = flatten(nestedPicks);
+					const items = nestedPicks.flat();
 
 					input.items = items;
 					input.busy = false;

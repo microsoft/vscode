@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals, flatten, isNonEmptyArray, mergeSort, coalesce } from 'vs/base/common/arrays';
+import { equals, isNonEmptyArray, mergeSort, coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -152,7 +152,7 @@ export function getCodeActions(
 	});
 
 	return Promise.all(promises).then(actions => {
-		const allActions = flatten(actions.map(x => x.actions));
+		const allActions = actions.map(x => x.actions).flat();
 		const allDocumentation = coalesce(actions.map(x => x.documentation));
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
 	})

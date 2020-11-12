@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -662,7 +661,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		await Promise.all(promises);
 
-		return flatten(result);
+		return result.flat();
 	}
 
 	getRendererInfo(id: string): INotebookRendererInfo | undefined {

@@ -1134,9 +1134,8 @@ export class ExtensionEditor extends EditorPane {
 			return false;
 		}
 
-		const flatActions = arrays.flatten(
-			codeActions.map(contribution =>
-				contribution.actions.map(action => ({ ...action, languages: contribution.languages }))));
+		const flatActions = codeActions.map(contribution =>
+			contribution.actions.map(action => ({ ...action, languages: contribution.languages }))).flat();
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('codeActions', "Code Actions ({0})", flatActions.length)),

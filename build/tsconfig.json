@@ -2,6 +2,9 @@
 	"compilerOptions": {
 		"target": "es2017",
 		"module": "commonjs",
+		"lib": [
+			"es2019.array"
+		],
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,

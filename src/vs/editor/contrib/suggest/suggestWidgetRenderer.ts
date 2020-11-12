@@ -19,7 +19,6 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
-import { flatten } from 'vs/base/common/arrays';
 import { canExpandCompletionItem } from './suggestWidgetDetails';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -183,10 +182,10 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			labelOptions.extraClasses = flatten([
+			labelOptions.extraClasses = [
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: textLabel }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
-			]);
+			].flat();
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';

@@ -19,7 +19,6 @@ import { prefersExecuteOnUI, canExecuteOnWorkspace, prefersExecuteOnWorkspace, c
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { flatten } from 'vs/base/common/arrays';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { canceled } from 'vs/base/common/errors';
@@ -65,7 +64,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
 		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)));
-		return flatten(result);
+		return result.flat();
 	}
 
 	async uninstall(extension: ILocalExtension): Promise<void> {

@@ -28,7 +28,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
-import { flatten } from 'vs/base/common/arrays';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -113,10 +112,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
-		return flatten(await Promise.all([
+		return (await Promise.all([
 			this._extensionScanner.scannedExtensions,
 			this._webExtensionsScannerService.scanAndTranslateExtensions().then(extensions => extensions.map(parseScannedExtension))
-		]));
+		])).flat();
 	}
 
 	private _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation) {

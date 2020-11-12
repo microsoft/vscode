@@ -5,7 +5,6 @@
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITerminalTypeContribution, ITerminalContributions, terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
-import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // terminal extension point
@@ -30,7 +29,7 @@ export class TerminalContributionService implements ITerminalContributionService
 
 	constructor() {
 		terminalsExtPoint.setHandler(contributions => {
-			this._terminalTypes = flatten(contributions.filter(c => c.description.enableProposedApi).map(c => c.value?.types ?? []));
+			this._terminalTypes = contributions.filter(c => c.description.enableProposedApi).map(c => c.value?.types ?? []).flat();
 		});
 	}
 }
