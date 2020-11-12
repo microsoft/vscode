@@ -491,7 +491,7 @@ function webviewPreloads() {
 					scriptTag.setAttribute('src', uri);
 					preloadsContainer.appendChild(scriptTag);
 					preloadPromises.set(uri, new Promise<PreloadResult>(resolve => {
-						scriptTag.addEventListener('load', () => resolve(undefined));
+						scriptTag.addEventListener('load', () => resolve({ state: PreloadState.Ok }));
 						scriptTag.addEventListener('error', () =>
 							resolve({ state: PreloadState.Error, error: `Network error loading ${originalUri}, does the path exist?` })
 						);
