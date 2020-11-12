@@ -28,6 +28,7 @@ export interface IVariableResolveContext {
 
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
+	static readonly VARIABLE_LHS = '${';
 	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
 
 	declare readonly _serviceBrand: undefined;
@@ -130,6 +131,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 		// loop through all variables occurrences in 'value'
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
+			// disallow attempted nesting, see #77289
+			if (variable.includes(AbstractVariableResolverService.VARIABLE_LHS)) {
+				return match;
+			}
 
 			let resolvedValue = this.evaluateSingleVariable(match, variable, folderUri, commandValueMapping);
 
