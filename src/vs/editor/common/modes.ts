@@ -19,7 +19,7 @@ import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationReg
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { iconRegistry, Codicon } from 'vs/base/common/codicons';
-
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 /**
  * Open ended enum at runtime
  * @internal
@@ -824,12 +824,27 @@ export interface DocumentHighlightProvider {
  */
 export interface OnTypeRenameProvider {
 
-	wordPattern?: RegExp;
-
 	/**
 	 * Provide a list of ranges that can be live-renamed together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<{ ranges: IRange[]; wordPattern?: RegExp; }>;
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
+}
+
+/**
+ * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
+ */
+export interface OnTypeRenameRanges {
+	/**
+	 * A list of ranges that can be renamed together. The ranges must have
+	 * identical length and contain identical text content. The ranges cannot overlap
+	 */
+	ranges: IRange[];
+
+	/**
+	 * An optional word pattern that describes valid contents for the given ranges.
+	 * If no pattern is provided, the language configuration's word pattern will be used.
+	 */
+	wordPattern?: RegExp;
 }
 
 /**
@@ -1359,7 +1374,10 @@ export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | URI | { light: URI, dark: URI };
+	/**
+	 * @internal
+	 */
+	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {

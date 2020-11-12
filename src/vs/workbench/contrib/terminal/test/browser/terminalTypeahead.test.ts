@@ -8,9 +8,10 @@ import { Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
 import { IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
-import { IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { timeout } from 'vs/base/common/async';
 
 const CSI = `\x1b[`;
 
@@ -73,7 +74,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		const onConfigChanged = new Emitter<void>();
 		let publicLog: SinonStub;
 		let config: ITerminalConfiguration;
-		let addon: TypeAheadAddon;
+		let addon: TestTypeAheadAddon;
 
 		const predictedHelloo = [
 			`${CSI}?25l`, // hide cursor
@@ -92,14 +93,16 @@ suite('Workbench - Terminal Typeahead', () => {
 		setup(() => {
 			config = upcastPartial<ITerminalConfiguration>({
 				localEchoStyle: 'italic',
-				localEchoLatencyThreshold: 0
+				localEchoLatencyThreshold: 0,
+				localEchoExcludePrograms: DEFAULT_LOCAL_ECHO_EXCLUDE,
 			});
 			publicLog = stub();
-			addon = new TypeAheadAddon(
+			addon = new TestTypeAheadAddon(
 				upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event }),
 				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
 				upcastPartial<ITelemetryService>({ publicLog })
 			);
+			addon.unlockMakingPredictions();
 		});
 
 		teardown(() => {
@@ -149,8 +152,7 @@ suite('Workbench - Terminal Typeahead', () => {
 				`${CSI}?25l`, // hide cursor
 				`${CSI}2;7H`, // move cursor cursor
 				`${CSI}X`, // delete character
-				`${CSI}1m`, // reset style
-				`${CSI}38;5;1m`, // reset style
+				`${CSI}1;38;5;1m`, // reset style
 				'q', // new character
 				`${CSI}?25h`, // show cursor
 			].join(''));
@@ -213,6 +215,16 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.strictEqual(addon.stats?.accuracy, 1);
 		});
 
+		test('restores old character after invalid backspace', () => {
+			const t = createMockTerminal({ lines: ['hel|lo'] });
+			addon.activate(t.terminal);
+			addon.unlockLeftNavigating();
+			t.onData('\x7F');
+			t.expectWritten(`${CSI}2;4H${CSI}X`);
+			expectProcessed('x', `${CSI}?25l${CSI}0ml${CSI}2;5H${CSI}0mx${CSI}?25h`);
+			assert.strictEqual(addon.stats?.accuracy, 0);
+		});
+
 		test('waits for validation before deleting to left of cursor', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
@@ -234,25 +246,60 @@ suite('Workbench - Terminal Typeahead', () => {
 			t.expectWritten(`${CSI}2;6H${CSI}X`);
 		});
 
-		test('avoids predicting password input', () => {
+		test('waits for first valid prediction on a line', () => {
+			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.lockMakingPredictions();
+			addon.activate(t.terminal);
+
+			t.onData('o');
+			t.expectWritten('');
+			expectProcessed('o', 'o');
+
+			t.onData('o');
+			t.expectWritten(`${CSI}3mo${CSI}23m`);
+		});
+
+		test('disables on title change', async () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
 
-			const tcases = ['Your password:', 'Password here:', 'PAT:', 'Access token:'];
-			for (const tcase of tcases) {
-				expectProcessed(tcase, tcase);
+			await timeout(1000);
 
-				t.onData('mellon\r\n');
-				t.expectWritten('');
-				expectProcessed('\r\n', '\r\n');
+			addon.reevaluateNow();
+			assert.strictEqual(addon.isShowing, true, 'expected to show initially');
 
-				t.onData('o'); // back to normal mode
-				t.expectWritten(`${CSI}3mo${CSI}23m`);
-				onBeforeProcessData.fire({ data: 'o' });
-			}
+			t.onTitleChange.fire('foo - VIM.exe');
+			addon.reevaluateNow();
+			assert.strictEqual(addon.isShowing, false, 'expected to hide when vim is open');
+
+			t.onTitleChange.fire('foo - git.exe');
+			addon.reevaluateNow();
+			assert.strictEqual(addon.isShowing, true, 'expected to show again after vim closed');
 		});
 	});
 });
+
+class TestTypeAheadAddon extends TypeAheadAddon {
+	public unlockMakingPredictions() {
+		this.lastRow = { y: 1, startingX: 100, madeValidPrediction: true };
+	}
+
+	public lockMakingPredictions() {
+		this.lastRow = undefined;
+	}
+
+	public unlockLeftNavigating() {
+		this.lastRow = { y: 1, startingX: 1, madeValidPrediction: true };
+	}
+
+	public reevaluateNow() {
+		this.reevaluatePredictorStateNow(this.stats!, this.timeline!);
+	}
+
+	public get isShowing() {
+		return !!this.timeline?.isShowingPredictions;
+	}
+}
 
 function upcastPartial<T>(v: Partial<T>): T {
 	return v as T;
@@ -277,6 +324,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 }) {
 	const written: string[] = [];
 	const cursor = { y: 1, x: 1 };
+	const onTitleChange = new Emitter<string>();
 	const onData = new Emitter<string>();
 	const csiEmitter = new Emitter<number[]>();
 
@@ -300,11 +348,13 @@ function createMockTerminal({ lines, cursorAttrs }: {
 		clearWritten: () => written.splice(0, written.length),
 		onData: (s: string) => onData.fire(s),
 		csiEmitter,
+		onTitleChange,
 		terminal: {
 			cols: 80,
 			rows: 5,
 			onResize: new Emitter<void>().event,
 			onData: onData.event,
+			onTitleChange: onTitleChange.event,
 			parser: {
 				registerCsiHandler(_: unknown, callback: () => void) {
 					csiEmitter.event(callback);
@@ -332,6 +382,10 @@ function createMockTerminal({ lines, cursorAttrs }: {
 						return {
 							length: s.length,
 							getCell: (x: number) => mockCell(s[x - 1] || ''),
+							translateToString: (trim: boolean, start = 0, end = s.length) => {
+								const out = s.slice(start, end);
+								return trim ? out.trimRight() : out;
+							},
 						};
 					},
 				}

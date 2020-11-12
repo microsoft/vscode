@@ -22,6 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -59,7 +60,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -219,7 +220,7 @@ export class SearchView extends ViewPane {
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
-		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE);
+		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
 		this._register(this.textFileService.untitled.onDidDispose(model => this.onUntitledDidDispose(model.resource)));
@@ -888,28 +889,63 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
-		let updatedText = false;
-		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
-		if (seedSearchStringFromSelection) {
-			let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
-			if (selectedText) {
-				if (this.searchWidget.searchInput.getRegex()) {
-					selectedText = strings.escapeRegExpCharacters(selectedText);
-				}
-
-				if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
-					this.searchWidget.setValue(selectedText);
-				} else {
-					this.pauseSearching = true;
-					this.searchWidget.setValue(selectedText);
-					this.pauseSearching = false;
-				}
-				updatedText = true;
+	updateTextFromFindWidgetOrSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
+		const activeEditor = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(activeEditor)) {
+			const controller = CommonFindController.get(activeEditor as ICodeEditor);
+			if (controller.isFindInputFocused()) {
+				return this.updateTextFromFindWidget(controller, { allowSearchOnType });
 			}
 		}
 
-		return updatedText;
+		return this.updateTextFromSelection({ allowUnselectedWord, allowSearchOnType });
+	}
+
+	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
+		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
+			return false;
+		}
+
+		const searchString = controller.getState().searchString;
+		if (searchString === '') {
+			return false;
+		}
+
+		this.searchWidget.searchInput.setCaseSensitive(controller.getState().matchCase);
+		this.searchWidget.searchInput.setWholeWords(controller.getState().wholeWord);
+		this.searchWidget.searchInput.setRegex(controller.getState().isRegex);
+		this.updateText(searchString, allowSearchOnType);
+
+		return true;
+	}
+
+	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
+		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
+		if (!seedSearchStringFromSelection) {
+			return false;
+		}
+
+		let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
+		if (selectedText === null) {
+			return false;
+		}
+
+		if (this.searchWidget.searchInput.getRegex()) {
+			selectedText = strings.escapeRegExpCharacters(selectedText);
+		}
+
+		this.updateText(selectedText, allowSearchOnType);
+		return true;
+	}
+
+	private updateText(text: string, allowSearchOnType: boolean = true) {
+		if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
+			this.searchWidget.setValue(text);
+		} else {
+			this.pauseSearching = true;
+			this.searchWidget.setValue(text);
+			this.pauseSearching = false;
+		}
 	}
 
 	focusNextInputBox(): void {

@@ -135,12 +135,12 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	}
 }
 
-class HelpDataSource implements IAsyncDataSource<any, any> {
-	hasChildren(element: any) {
+class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
+	hasChildren(element: HelpModel) {
 		return element instanceof HelpModel;
 	}
 
-	getChildren(element: any) {
+	getChildren(element: HelpModel) {
 		if (element instanceof HelpModel && element.items) {
 			return element.items;
 		}
@@ -388,7 +388,7 @@ class IssueReporterItem extends HelpItemBase {
 class HelpPanel extends ViewPane {
 	static readonly ID = '~remote.helpPanel';
 	static readonly TITLE = nls.localize('remote.help', "Help and feedback");
-	private tree!: WorkbenchAsyncDataTree<any, any, any>;
+	private tree!: WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>;
 
 	constructor(
 		protected viewModel: IViewModel,
@@ -418,7 +418,7 @@ class HelpPanel extends ViewPane {
 		treeContainer.classList.add('remote-help-content');
 		container.appendChild(treeContainer);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+		this.tree = <WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>>this.instantiationService.createInstance(WorkbenchAsyncDataTree,
 			'RemoteHelp',
 			treeContainer,
 			new HelpTreeVirtualDelegate(),
@@ -439,7 +439,7 @@ class HelpPanel extends ViewPane {
 		this.tree.setInput(model);
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
-			e.element.handleClick();
+			e.element?.handleClick();
 		}));
 	}
 

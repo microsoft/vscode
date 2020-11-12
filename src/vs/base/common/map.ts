@@ -138,7 +138,7 @@ export class UriIterator implements IKeyIterator<URI> {
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
 
-	constructor(private readonly _ignorePathCasing: boolean) { }
+	constructor(private readonly _ignorePathCasing: (uri: URI) => boolean) { }
 
 	reset(key: URI): this {
 		this._value = key;
@@ -150,7 +150,7 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			this._pathIterator = new PathIterator(false, !this._ignorePathCasing);
+			this._pathIterator = new PathIterator(false, !this._ignorePathCasing(key));
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
@@ -226,7 +226,7 @@ class TernarySearchTreeNode<K, V> {
 
 export class TernarySearchTree<K, V> {
 
-	static forUris<E>(ignorePathCasing: boolean = false): TernarySearchTree<URI, E> {
+	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 

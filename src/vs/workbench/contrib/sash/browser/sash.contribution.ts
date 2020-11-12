@@ -11,6 +11,8 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { SashSizeController, minSize, maxSize } from 'vs/workbench/contrib/sash/browser/sash';
 import { isIPad } from 'vs/base/browser/browser';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { sashHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 // Sash size contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
@@ -30,3 +32,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 		}
 	});
+
+registerThemingParticipant((theme, collector) => {
+	const sashHoverBorderColor = theme.getColor(sashHoverBorder);
+	collector.addRule(`
+		.monaco-sash:hover,
+		.monaco-sash.active {
+			background: ${sashHoverBorderColor}
+		}
+	`);
+});

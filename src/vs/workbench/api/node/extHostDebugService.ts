@@ -14,7 +14,6 @@ import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensi
 import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -39,10 +38,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostCommands commandService: IExtHostCommands
+		@IExtHostTerminalService private _terminalService: IExtHostTerminalService
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, commandService);
+		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
 	}
 
 	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -91,6 +89,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			const configProvider = await this._configurationService.getConfigProvider();
 			const shell = this._terminalService.getDefaultShell(true, configProvider);
 			let cwdForPrepareCommand: string | undefined;
+			let giveShellTimeToInitialize = false;
 
 			if (needNewTerminal || !this._integratedTerminalInstance) {
 
@@ -100,7 +99,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
 				};
+				giveShellTimeToInitialize = true;
 				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options, true);
+
 			} else {
 				cwdForPrepareCommand = args.cwd;
 			}
@@ -110,6 +111,12 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			terminal.show();
 
 			const shellProcessId = await this._integratedTerminalInstance.processId;
+
+			if (giveShellTimeToInitialize) {
+				// give a new terminal some time to initialize the shell
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
+
 			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
 			terminal.sendText(command, true);
 
@@ -126,3 +133,4 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment);
 	}
 }
+

@@ -486,7 +486,13 @@ export class SuggestModel implements IDisposable {
 		}).catch(onUnexpectedError);
 	}
 
+	private _telemetryGate: number = 0;
+
 	private _reportDurationsTelemetry(durations: CompletionDurations): void {
+
+		if (this._telemetryGate++ % 230 !== 0) {
+			return;
+		}
 
 		setTimeout(() => {
 			type Durations = { data: string; };

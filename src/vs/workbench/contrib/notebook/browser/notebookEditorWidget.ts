@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { SequencerByKey } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, SequencerByKey } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -153,6 +153,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onDidChangeAvailableKernels = this._register(new Emitter<void>());
 	readonly onDidChangeAvailableKernels: Event<void> = this._onDidChangeAvailableKernels.event;
 
+	private _contributedKernelsComputePromise: CancelablePromise<INotebookKernelInfo2[]> | null = null;
+
 	get activeKernel() {
 		return this._activeKernel;
 	}
@@ -169,7 +171,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._activeKernel = kernel;
 		this._activeKernelResolvePromise = undefined;
 
-		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
 		memento[this.viewModel!.viewType] = this._activeKernel?.id;
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
@@ -305,7 +307,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	protected getMemento(scope: StorageScope): MementoObject {
-		return this._memento.getMemento(scope);
+		return this._memento.legacygetMemento(scope);
 	}
 
 	public get isNotebookEditor() {
@@ -726,9 +728,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.clear();
 	}
 
+	async beginComputeContributedKernels() {
+		if (this._contributedKernelsComputePromise) {
+			return this._contributedKernelsComputePromise;
+		}
+
+		this._contributedKernelsComputePromise = createCancelablePromise(token => {
+			return this.notebookService.getContributedNotebookKernels(this.viewModel!.viewType, this.viewModel!.uri, token);
+		});
+
+		const result = await this._contributedKernelsComputePromise;
+		this._contributedKernelsComputePromise = null;
+
+		return result;
+	}
+
 	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
 		const provider = this.notebookService.getContributedNotebookProvider(textModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(textModel.viewType, textModel.uri, tokenSource.token);
+		const availableKernels = await this.beginComputeContributedKernels();
 
 		if (tokenSource.token.isCancellationRequested) {
 			return;
@@ -738,7 +755,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		if ((availableKernels2.length) > 1) {
+		if ((availableKernels.length) > 1) {
 			this._notebookHasMultipleKernels!.set(true);
 			this.multipleKernelsAvailable = true;
 		} else {
@@ -746,22 +763,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.multipleKernelsAvailable = false;
 		}
 
-		const activeKernelStillExist = [...availableKernels2].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
+		const activeKernelStillExist = [...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
 
 		if (activeKernelStillExist) {
 			// the kernel still exist, we don't want to modify the selection otherwise user's temporary preference is lost
 			return;
 		}
 
-		if (availableKernels2.length) {
-			return this._setKernelsFromProviders(provider, availableKernels2, tokenSource);
+		if (availableKernels.length) {
+			return this._setKernelsFromProviders(provider, availableKernels, tokenSource);
 		}
-
-		// the provider doesn't have a builtin kernel, choose a kernel
-		// this.activeKernel = availableKernels[0];
-		// if (this.activeKernel) {
-		// 	await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
-		// }
 
 		tokenSource.dispose();
 	}
@@ -769,7 +780,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private async _setKernelsFromProviders(provider: NotebookProviderInfo, kernels: INotebookKernelInfo2[], tokenSource: CancellationTokenSource) {
 		const rawAssociations = this.configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId) || [];
 		const userSetKernelProvider = rawAssociations.filter(e => e.viewType === this.viewModel?.viewType)[0]?.kernelProvider;
-		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
 
 		if (userSetKernelProvider) {
 			const filteredKernels = kernels.filter(kernel => kernel.extension.value === userSetKernelProvider);
@@ -1519,9 +1530,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		// pick active kernel
 
+		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
+		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
+		picker.matchOnDetail = true;
+		picker.busy = true;
+		picker.show();
+
 		const tokenSource = new CancellationTokenSource();
-		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(this.viewModel!.viewType, this.viewModel!.uri, tokenSource.token);
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = availableKernels2.map((a) => {
+		const availableKernels = await this.beginComputeContributedKernels();
+		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = availableKernels.map((a) => {
 			return {
 				id: a.id,
 				label: a.label,
@@ -1543,10 +1560,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			};
 		});
 
-		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
 		picker.items = picks;
-		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
-		picker.matchOnDetail = true;
+		picker.busy = false;
 
 		const pickedItem = await new Promise<(IQuickPickItem & { run(): void; kernelProviderId?: string; }) | undefined>(resolve => {
 			picker.onDidAccept(() => {
@@ -1581,7 +1596,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			});
 
-			picker.show();
 		});
 
 		tokenSource.dispose();
@@ -1868,7 +1882,7 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparat
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
-}, nls.localize('notebook.cellToolbarSeparator', "The color of the seperator in the cell bottom toolbar"));
+}, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: transparent(PANEL_BORDER, .4),

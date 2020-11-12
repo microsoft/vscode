@@ -139,6 +139,15 @@
 	color: currentColor;
 }
 
+.extension-list-item > .details > .header-container > .header .sync-ignored {
+	display: flex;
+	margin-left: 6px;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
+	font-size: 100%;
+}
+
 .extension-list-item > .details > .description {
 	padding-right: 11px;
 }

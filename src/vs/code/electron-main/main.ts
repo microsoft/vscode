@@ -200,7 +200,7 @@ class CodeMain {
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
 		};
 
-		['VSCODE_NLS_CONFIG', 'VSCODE_LOGS', 'VSCODE_PORTABLE'].forEach(key => {
+		['VSCODE_NLS_CONFIG', 'VSCODE_PORTABLE'].forEach(key => {
 			const value = process.env[key];
 			if (typeof value === 'string') {
 				instanceEnvironment[key] = value;

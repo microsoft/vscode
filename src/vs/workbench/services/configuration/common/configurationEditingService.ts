@@ -305,7 +305,7 @@ export class ConfigurationEditingService {
 	}
 
 	private openFile(resource: URI): void {
-		this.editorService.openEditor({ resource });
+		this.editorService.openEditor({ resource, options: { pinned: true } });
 	}
 
 	private reject<T = never>(code: ConfigurationEditingErrorCode, target: EditableConfigurationTarget, operation: IConfigurationEditOperation): Promise<T> {

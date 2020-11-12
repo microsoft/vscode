@@ -119,9 +119,7 @@ export class CodeApplication extends Disposable {
 
 		// Accessibility change event
 		app.on('accessibility-support-changed', (event, accessibilitySupportEnabled) => {
-			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
-			}
+			this.windowsMainService?.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
 		});
 
 		// macOS dock activate
@@ -129,8 +127,8 @@ export class CodeApplication extends Disposable {
 			this.logService.trace('app#activate');
 
 			// Mac only event: open new window when we get activated
-			if (!hasVisibleWindows && this.windowsMainService) {
-				this.windowsMainService.openEmptyWindow({ context: OpenContext.DOCK });
+			if (!hasVisibleWindows) {
+				this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
 			}
 		});
 
@@ -215,9 +213,7 @@ export class CodeApplication extends Disposable {
 			contents.on('new-window', (event, url) => {
 				event.preventDefault(); // prevent code that wants to open links
 
-				if (this.nativeHostMainService) {
-					this.nativeHostMainService.openExternal(undefined, url);
-				}
+				this.nativeHostMainService?.openExternal(undefined, url);
 			});
 
 			session.defaultSession.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
@@ -248,25 +244,21 @@ export class CodeApplication extends Disposable {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				if (this.windowsMainService) {
-					this.windowsMainService.open({
-						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
-						cli: this.environmentService.args,
-						urisToOpen: macOpenFileURIs,
-						gotoLineMode: false,
-						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
-					});
+				this.windowsMainService?.open({
+					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
+					cli: this.environmentService.args,
+					urisToOpen: macOpenFileURIs,
+					gotoLineMode: false,
+					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+				});
 
-					macOpenFileURIs = [];
-					runningTimeout = null;
-				}
+				macOpenFileURIs = [];
+				runningTimeout = null;
 			}, 100);
 		});
 
 		app.on('new-window-for-tab', () => {
-			if (this.windowsMainService) {
-				this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
-			}
+			this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
 		});
 
 		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
@@ -299,9 +291,7 @@ export class CodeApplication extends Disposable {
 			// Keyboard layout changes (after window opened)
 			const nativeKeymap = await import('native-keymap');
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				if (this.windowsMainService) {
-					this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged');
-				}
+				this.windowsMainService?.sendToAll('vscode:keyboardLayoutChanged');
 			});
 		})();
 	}
@@ -316,9 +306,7 @@ export class CodeApplication extends Disposable {
 			};
 
 			// handle on client side
-			if (this.windowsMainService) {
-				this.windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
-			}
+			this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
 		}
 
 		this.logService.error(`[uncaught exception in main]: ${err}`);
@@ -395,7 +383,7 @@ export class CodeApplication extends Disposable {
 			this._register(server);
 		}
 
-		// Setup Auth Handler
+		// Setup Auth Handler (TODO@ben remove old auth handler eventually)
 		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') !== true) {
 			this._register(new ProxyAuthHandler());
 		} else {
@@ -506,14 +494,12 @@ export class CodeApplication extends Disposable {
 			const path = await contentTracing.stopRecording(joinPath(this.environmentService.userHome, `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
 
 			if (!timeout) {
-				if (this.dialogMainService) {
-					this.dialogMainService.showMessageBox({
-						type: 'info',
-						message: localize('trace.message', "Successfully created trace."),
-						detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-						buttons: [localize('trace.ok', "OK")]
-					}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-				}
+				this.dialogMainService?.showMessageBox({
+					type: 'info',
+					message: localize('trace.message', "Successfully created trace."),
+					detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+					buttons: [localize('trace.ok', "OK")]
+				}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 			} else {
 				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
 			}
@@ -611,12 +597,13 @@ export class CodeApplication extends Disposable {
 				return undefined;
 			}
 		})).filter(pendingUriToHandle => {
-			// if URI should be blocked, filter it out
+
+			// If URI should be blocked, filter it out
 			if (this.shouldBlockURI(pendingUriToHandle)) {
 				return false;
 			}
 
-			// filter out any protocol link that wants to open as window so that
+			// Filter out any protocol link that wants to open as window so that
 			// we open the right set of windows on startup and not restore the
 			// previous workspace too.
 			const windowOpenable = this.getWindowOpenableFromProtocolLink(pendingUriToHandle);
@@ -634,7 +621,8 @@ export class CodeApplication extends Disposable {
 		const environmentService = this.environmentService;
 		urlService.registerHandler({
 			async handleURL(uri: URI): Promise<boolean> {
-				// if URI should be blocked, behave as if it's handled
+
+				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
 					return true;
 				}

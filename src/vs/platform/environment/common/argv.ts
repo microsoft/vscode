@@ -79,6 +79,7 @@ export interface NativeParsedArgs {
 	'sync'?: 'on' | 'off';
 	'__sandbox'?: boolean;
 	'__v8-cache-options'?: string;
+	'logsPath'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

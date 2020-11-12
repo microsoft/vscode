@@ -59,7 +59,6 @@ export interface ITerminalTab {
 	onDisposed: Event<ITerminalTab>;
 	onInstancesChanged: Event<void>;
 
-	setWillFocus(focus: boolean): void;
 	focusPreviousPane(): void;
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
@@ -71,6 +70,11 @@ export interface ITerminalTab {
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
+export const enum TerminalConnectionState {
+	Connecting,
+	Connected
+}
+
 export interface ITerminalService {
 	readonly _serviceBrand: undefined;
 
@@ -79,6 +83,7 @@ export interface ITerminalService {
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 	isProcessSupportRegistered: boolean;
+	readonly connectionState: TerminalConnectionState;
 
 	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
@@ -95,6 +100,7 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 	onDidRegisterProcessSupport: Event<void>;
+	onDidChangeConnectionState: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -415,6 +421,11 @@ export interface ITerminalInstance {
 	 * Notifies the terminal that the find widget's focus state has been changed.
 	 */
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
+
+	/**
+	 * Notifies the terminal to refresh its focus state based on the active document elemnet in DOM
+	 */
+	refreshFocusState(): void;
 
 	/**
 	 * Focuses the terminal instance if it's able to (xterm.js instance exists).

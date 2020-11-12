@@ -57,11 +57,6 @@
 	color: currentColor;
 }
 
-.monaco-workbench.vs .runtime-extensions-editor .extension > .icon-container > .icon,
-.monaco-workbench.vs-dark .runtime-extensions-editor .extension > .icon-container > .icon {
-	opacity: 0.5;
-}
-
 .runtime-extensions-editor .extension > .desc > .header-container {
 	display: flex;
 	overflow: hidden;

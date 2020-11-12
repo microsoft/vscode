@@ -242,7 +242,7 @@ export class SubmenuAction extends Action {
 	}
 
 	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
-		super(id, label, cssClass, true);
+		super(id, label, cssClass, !!_actions?.length);
 	}
 }
 

@@ -361,6 +361,8 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
 
+		let didScroll = false;
+
 		if (e.deltaY || e.deltaX) {
 			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
 			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
@@ -419,11 +421,12 @@ export abstract class AbstractScrollableElement extends Widget {
 				} else {
 					this._scrollable.setScrollPositionNow(desiredScrollPosition);
 				}
-				this._shouldRender = true;
+
+				didScroll = true;
 			}
 		}
 
-		if (this._options.alwaysConsumeMouseWheel || this._shouldRender) {
+		if (this._options.alwaysConsumeMouseWheel || didScroll) {
 			e.preventDefault();
 			e.stopPropagation();
 		}
@@ -614,7 +617,9 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		vertical: (typeof opts.vertical !== 'undefined' ? opts.vertical : ScrollbarVisibility.Auto),
 		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
-		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0)
+		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
+
+		scrollByPage: (typeof opts.scrollByPage !== 'undefined' ? opts.scrollByPage : false)
 	};
 
 	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);

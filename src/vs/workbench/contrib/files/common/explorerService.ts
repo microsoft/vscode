@@ -9,24 +9,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService, IFilesConfiguration, SortOrder, IExplorerView } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
-import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
 import { dirname } from 'vs/base/common/resources';
-import { memoize } from 'vs/base/common/decorators';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-
-function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
-	const scope = root ? { resource: root } : undefined;
-	const configuration = scope ? configurationService.getValue<IFilesConfiguration>(scope) : configurationService.getValue<IFilesConfiguration>();
-
-	return configuration?.files?.exclude || Object.create(null);
-}
 
 export class ExplorerService implements IExplorerService {
 	declare readonly _serviceBrand: undefined;
@@ -42,7 +31,6 @@ export class ExplorerService implements IExplorerService {
 
 	constructor(
 		@IFileService private fileService: IFileService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IClipboardService private clipboardService: IClipboardService,
@@ -94,18 +82,6 @@ export class ExplorerService implements IExplorerService {
 			return [];
 		}
 		return this.view.getContext(respectMultiSelection);
-	}
-
-	// Memoized locals
-	@memoize private get fileEventsFilter(): ResourceGlobMatcher {
-		const fileEventsFilter = this.instantiationService.createInstance(
-			ResourceGlobMatcher,
-			(root?: URI) => getFileEventsExcludes(this.configurationService, root),
-			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
-		);
-		this.disposables.add(fileEventsFilter);
-
-		return fileEventsFilter;
 	}
 
 	// IExplorerService methods
@@ -294,92 +270,24 @@ export class ExplorerService implements IExplorerService {
 		// be fired first over the other or not at all.
 		setTimeout(async () => {
 			// Filter to the ones we care
-			const shouldRefresh = () => {
-				e = this.filterToViewRelevantEvents(e);
-				// Handle added files/folders
-				const added = e.getAdded();
-				if (added.length) {
+			const types = [FileChangeType.ADDED, FileChangeType.DELETED];
+			if (this._sortOrder === SortOrder.Modified) {
+				types.push(FileChangeType.UPDATED);
+			}
 
-					// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-					const ignoredPaths: Set<string> = new Set();
-					for (let i = 0; i < added.length; i++) {
-						const change = added[i];
-
-						// Find parent
-						const parent = dirname(change.resource);
-
-						// Continue if parent was already determined as to be ignored
-						if (ignoredPaths.has(parent.toString())) {
-							continue;
-						}
-
-						// Compute if parent is visible and added file not yet part of it
-						const parentStat = this.model.findClosest(parent);
-						if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
-							return true;
-						}
-
-						// Keep track of path that can be ignored for faster lookup
-						if (!parentStat || !parentStat.isDirectoryResolved) {
-							ignoredPaths.add(parent.toString());
-						}
-					}
+			const allResolvedDirectories: ExplorerItem[] = [];
+			this.roots.forEach(r => {
+				allResolvedDirectories.push(r);
+				if (this.view) {
+					getAllNonFilteredDescendants(r, allResolvedDirectories, this.view);
 				}
+			});
 
-				// Handle deleted files/folders
-				const deleted = e.getDeleted();
-				if (deleted.length) {
-
-					// Check deleted: Refresh if deleted file/folder part of resolved root
-					for (let j = 0; j < deleted.length; j++) {
-						const del = deleted[j];
-						const item = this.model.findClosest(del.resource);
-						if (item && item.parent) {
-							return true;
-						}
-					}
-				}
-
-				// Handle updated files/folders if we sort by modified
-				if (this._sortOrder === SortOrder.Modified) {
-					const updated = e.getUpdated();
-
-					// Check updated: Refresh if updated file/folder part of resolved root
-					for (let j = 0; j < updated.length; j++) {
-						const upd = updated[j];
-						const item = this.model.findClosest(upd.resource);
-
-						if (item && item.parent) {
-							return true;
-						}
-					}
-				}
-
-				return false;
-			};
-
-			if (shouldRefresh()) {
+			const shouldRefresh = allResolvedDirectories.some(r => e.affects(r.resource, ...types));
+			if (shouldRefresh) {
 				await this.refresh(false);
 			}
 		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
-	}
-
-	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
-		return e.filter(change => {
-			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrder.Modified) {
-				return false; // we only are about updated if we sort by modified time
-			}
-
-			if (!this.contextService.isInsideWorkspace(change.resource)) {
-				return false; // exclude changes for resources outside of workspace
-			}
-
-			if (this.fileEventsFilter.matches(change.resource)) {
-				return false; // excluded via files.exclude setting
-			}
-
-			return true;
-		});
 	}
 
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
@@ -395,5 +303,16 @@ export class ExplorerService implements IExplorerService {
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+}
+
+function getAllNonFilteredDescendants(item: ExplorerItem, result: ExplorerItem[], view: IExplorerView): void {
+	for (let [_name, child] of item.children) {
+		if (view.isItemVisible(child)) {
+			if (child.isDirectory && child.isDirectoryResolved) {
+				result.push(child);
+				getAllNonFilteredDescendants(child, result, view);
+			}
+		}
 	}
 }
