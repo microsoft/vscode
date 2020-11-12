@@ -6419,9 +6419,9 @@ declare module 'vscode' {
 		readonly execution: TaskExecution;
 
 		/**
-		 * The process's exit code.
+		 * The process's exit code. Will be `undefined` when the task is terminated.
 		 */
-		readonly exitCode: number;
+		readonly exitCode: number | undefined;
 	}
 
 	export interface TaskFilter {
@@ -8764,6 +8764,10 @@ declare module 'vscode' {
 
 		/**
 		 * The [command](#Command) that should be executed when the tree item is selected.
+		 *
+		 * Please use `vscode.open` or `vscode.diff` as command IDs when the tree item is opening
+		 * something in the editor. Using these commands ensures that the resulting editor will
+		 * appear consistent with how other built-in trees open editors.
 		 */
 		command?: Command;
 

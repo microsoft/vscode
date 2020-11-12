@@ -23,8 +23,7 @@ import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/comm
 import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { editorGroupToViewColumn, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
