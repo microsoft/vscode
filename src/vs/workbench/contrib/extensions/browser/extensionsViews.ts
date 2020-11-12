@@ -180,9 +180,9 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	async show(query: string): Promise<IPagedModel<IExtension>> {
+	async show(query: string, refresh?: boolean): Promise<IPagedModel<IExtension>> {
 		if (this.queryRequest) {
-			if (this.queryRequest.query === query) {
+			if (!refresh && this.queryRequest.query === query) {
 				return this.queryRequest.request;
 			}
 			this.queryRequest.request.cancel();

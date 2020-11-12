@@ -100,7 +100,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, scopedContextKeyService);
 		const globalCommandsMenuActions = globalCommandsMenu.getActions()
 			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
-			.filter(action => action instanceof MenuItemAction) as MenuItemAction[];
+			.filter(action => action instanceof MenuItemAction && action.enabled) as MenuItemAction[];
 
 		for (const action of globalCommandsMenuActions) {
 
