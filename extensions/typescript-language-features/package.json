@@ -197,6 +197,12 @@
           "description": "%typescript.implementationsCodeLens.enabled%",
           "scope": "window"
         },
+        "typescript.tsserver.enableTracing": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.tsserver.enableTracing%",
+          "scope": "window"
+        },
         "typescript.tsserver.log": {
           "type": "string",
           "enum": [
