@@ -44,6 +44,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 // Commands
 
@@ -444,7 +445,9 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 	try {
 		await editorService.save(editors, options);
 	} catch (error) {
-		notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+		if (!isPromiseCanceledError(error)) {
+			notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+		}
 	}
 }
 
