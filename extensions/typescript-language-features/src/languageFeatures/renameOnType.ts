@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { flatten } from '../utils/arrays';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
@@ -42,16 +41,16 @@ class TypeScriptOnTypeRenameProvider implements vscode.OnTypeRenameProvider {
 			return undefined;
 		}
 
-		const highlightsResponse = await this.client.interruptGetErr(() => this.client.execute('documentHighlights', { ...args, filesToSearch: [file] }, token));
-		if (highlightsResponse.type !== 'response' || !highlightsResponse.body) {
+		const renameResponse = await this.client.execute('rename', args, token);
+		if (!renameResponse || renameResponse.type !== 'response' || !renameResponse.body) {
 			return undefined;
 		}
 
-		const ranges = flatten(
-			highlightsResponse.body
-				.filter(highlight => highlight.file === file)
-				.map(highlight => highlight.highlightSpans.map(typeConverters.Range.fromTextSpan)));
+		if (renameResponse.body.locs.length !== 1 || renameResponse.body.locs[0].file !== file) {
+			return undefined; // not a local?
+		}
 
+		const ranges = renameResponse.body.locs[0].locs.map(typeConverters.Range.fromTextSpan);
 		return new vscode.OnTypeRenameRanges(ranges);
 	}
 
