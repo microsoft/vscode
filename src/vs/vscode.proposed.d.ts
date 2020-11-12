@@ -1009,12 +1009,6 @@ declare module 'vscode' {
 		 * Content to be shown when you hover over the tree item.
 		 */
 		tooltip?: string | MarkdownString | /* for compilation */ any;
-
-		/**
-		 * @param label Label describing this item
-		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
-		 */
-		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
 
 	export interface TreeView<T> extends Disposable {
