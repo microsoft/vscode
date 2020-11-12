@@ -576,7 +576,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!values) {
 				return undefined;
 			}
-			return values.find(task => task.matches(key, compareId));
+			values = values.filter(task => task.matches(key, compareId)).sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+			return values.length > 0 ? values[0] : undefined;
 		});
 	}
 
