@@ -860,7 +860,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// not restored windows already otherwise.
 		// Use `unshift` to ensure any new window to open comes last
 		// for proper focus treatment.
-		if (openConfig.initialStartup && !restoredWindows && this.configurationService.getValue<IWindowSettings>('window').restoreWindows === 'preserve') {
+		if (openConfig.initialStartup && !restoredWindows && this.configurationService.getValue<IWindowSettings | undefined>('window')?.restoreWindows === 'preserve') {
 			windowsToOpen.unshift(...this.doGetWindowsFromLastSession().filter(window => window.workspace || window.folderUri || window.backupPath));
 		}
 
@@ -1023,7 +1023,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (this.lifecycleMainService.wasRestarted) {
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
 
 			if (!['preserve', 'all', 'folders', 'one', 'none'].includes(restoreWindows)) {
@@ -1218,7 +1218,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		const openFolderInNewWindowConfig = windowConfig?.openFoldersInNewWindow || 'default' /* default */;
 		const openFilesInNewWindowConfig = windowConfig?.openFilesInNewWindow || 'off' /* default */;
 
@@ -1406,18 +1406,18 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// New window
 		if (!window) {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 			const state = this.getNewWindowState(configuration);
 
 			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
 			let allowFullscreen: boolean;
 			if (state.hasDefaultState) {
-				allowFullscreen = (windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
+				allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
 			}
 
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
 			else {
-				allowFullscreen = this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen;
+				allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
 
 				if (allowFullscreen && isMacintosh && WindowsMainService.WINDOWS.some(win => win.isFullScreen)) {
 					// macOS: Electron does not allow to restore multiple windows in
@@ -1602,7 +1602,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
 
 		// Check for newWindowDimensions setting and adjust accordingly
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		let ensureNoOverlap = true;
 		if (windowConfig?.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {
