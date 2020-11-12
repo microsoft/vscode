@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
+import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
@@ -114,7 +114,7 @@ export class OpenAPICommand {
 	public static readonly ID = 'vscode.open';
 	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
 		let options: ITextEditorOptions | undefined;
-		let position: EditorViewColumn | undefined;
+		let position: EditorGroupColumn | undefined;
 
 		if (columnOrOptions) {
 			if (typeof columnOrOptions === 'number') {
@@ -139,7 +139,7 @@ export class OpenWithAPICommand {
 	public static readonly ID = 'vscode.openWith';
 	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions): Promise<any> {
 		let options: ITextEditorOptions | undefined;
-		let position: EditorViewColumn | undefined;
+		let position: EditorGroupColumn | undefined;
 
 		if (typeof columnOrOptions === 'number') {
 			position = typeConverters.ViewColumn.from(columnOrOptions);
