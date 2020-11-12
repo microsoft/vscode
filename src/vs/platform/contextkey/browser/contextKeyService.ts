@@ -117,7 +117,7 @@ class ConfigAwareContextValuesContainer extends Context {
 
 					const cachedItems = this._values.findSuperstr(contextKey);
 					if (cachedItems !== undefined) {
-						changedKeys.push(...[...Iterable.map(cachedItems, ([key]) => key)]);
+						changedKeys.push(...Iterable.map(cachedItems, ([key]) => key));
 						this._values.deleteSuperstr(contextKey);
 					}
 
