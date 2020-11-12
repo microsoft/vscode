@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
@@ -32,6 +32,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
+import { stripComments } from 'vs/base/common/json';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -122,7 +123,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
-		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService);
+		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService, this._fileService);
 
 		this._extensionHostManagers = [];
 		this._extensionHostActiveExtensions = new Map<string, ExtensionIdentifier>();
@@ -809,8 +810,20 @@ class ProposedApiController {
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IFileService fileService: IFileService
 	) {
+
+		runWhenIdle(async () => {
+			const argvContent = await fileService.readFile(_environmentService.argvResource);
+			const argvString = argvContent.value.toString();
+			const argvJSON = JSON.parse(stripComments(argvString));
+			const argvProposed = argvJSON['enable-proposed-api'];
+			if (argvProposed && Array.isArray(argvProposed) && argvProposed.every(arg => typeof arg === 'string')) {
+				this.enableProposedApiFor.push(...argvProposed);
+			}
+		});
+
 		// Make enabled proposed API be lowercase for case insensitive comparison
 		this.enableProposedApiFor = (_environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
 
