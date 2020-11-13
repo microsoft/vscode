@@ -148,20 +148,33 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 	}
 
 	async provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList | undefined> {
-		const { wordBasedSuggestions } = this._configurationService.getValue<{ wordBasedSuggestions?: boolean }>(model.uri, position, 'editor');
-		if (!wordBasedSuggestions) {
+		type WordBasedSuggestionsConfig = {
+			wordBasedSuggestions?: boolean,
+			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments'
+		};
+		const config = this._configurationService.getValue<WordBasedSuggestionsConfig>(model.uri, position, 'editor');
+		if (!config.wordBasedSuggestions) {
 			return undefined;
 		}
 
 		const models: URI[] = [];
-		for (let candidate of this._modelService.getModels()) {
-			if (!canSyncModel(this._modelService, candidate.uri)) {
-				continue;
+		if (config.wordBasedSuggestionsMode === 'currentDocument') {
+			// only current file and only if not too large
+			if (canSyncModel(this._modelService, model.uri)) {
+				models.push(model.uri);
 			}
-			if (candidate === model) {
-				models.unshift(candidate.uri);
-			} else if (candidate.getLanguageIdentifier().id === model.getLanguageIdentifier().id) {
-				models.push(candidate.uri);
+		} else {
+			// either all files or files of same language
+			for (const candidate of this._modelService.getModels()) {
+				if (!canSyncModel(this._modelService, candidate.uri)) {
+					continue;
+				}
+				if (candidate === model) {
+					models.unshift(candidate.uri);
+
+				} else if (config.wordBasedSuggestionsMode === 'allDocuments' || candidate.getLanguageIdentifier().id === model.getLanguageIdentifier().id) {
+					models.push(candidate.uri);
+				}
 			}
 		}
 

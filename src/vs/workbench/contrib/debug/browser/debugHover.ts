@@ -103,6 +103,8 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
+		const tip = dom.append(this.complexValueContainer, $('.tip'));
+		tip.textContent = nls.localize('quickTip', 'Hold Alt key to switch to editor language hover');
 		const dataSource = new DebugHoverDataSource();
 
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],

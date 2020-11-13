@@ -1116,6 +1116,10 @@ declare namespace monaco.editor {
 		 */
 		wordBasedSuggestions?: boolean;
 		/**
+		 * Controls whether word based completions should be included from opened documents of the same language or any language.
+		 */
+		wordBasedSuggestionsOnlySameLanguage?: boolean;
+		/**
 		 * Controls whether the semanticHighlighting is shown for the languages that support it.
 		 * true: semanticHighlighting is enabled for all themes
 		 * false: semanticHighlighting is disabled for all themes

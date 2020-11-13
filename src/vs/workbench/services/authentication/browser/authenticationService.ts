@@ -375,11 +375,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					const allowList = readAllowedExtensions(storageService, providerId, session.account.label);
 					if (!allowList.find(allowed => allowed.id === extensionId)) {
 						allowList.push({ id: extensionId, name: extensionName });
-						storageService.store2(`${providerId}-${session.account.label}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
+						storageService.store(`${providerId}-${session.account.label}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 					}
 
 					// And also set it as the preferred account for the extension
-					storageService.store2(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
 				}
 			});
 

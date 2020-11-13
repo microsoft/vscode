@@ -33,6 +33,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { CustomTreeView } from 'vs/workbench/contrib/views/browser/treeView';
 import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -356,7 +357,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[], location: ViewContainerLocation): number {
 		containers.forEach(descriptor => {
-			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
+			const themeIcon = ThemeIcon.fromString(descriptor.icon);
+			const className = themeIcon ? ThemeIcon.asClassName(themeIcon) : undefined;
+			const icon = className || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, extension.identifier, location);
 
@@ -470,7 +473,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
-					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
+					let icon: string | URI | undefined;
+					if (typeof item.icon === 'string') {
+						const themeIcon = ThemeIcon.fromString(item.icon);
+						icon = themeIcon ? ThemeIcon.asClassName(themeIcon) : resources.joinPath(extension.description.extensionLocation, item.icon);
+					}
+
 					const initialVisibility = this.convertInitialVisibility(item.visibility);
 
 					const type = this.getViewType(item.type);

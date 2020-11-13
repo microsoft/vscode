@@ -44,7 +44,7 @@ import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTa
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { AsbtractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
+import { AbstractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
@@ -89,6 +89,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	sessionId = this.configuration.sessionId;
 	machineId = this.configuration.machineId;
 	remoteAuthority = this.configuration.remoteAuthority;
+	os = { release: 'unknown' };
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -754,7 +755,7 @@ registerSingleton(IWorkspaceTagsService, SimpleWorkspaceTagsService);
 
 //#region Output Channel
 
-class SimpleOutputChannelModelService extends AsbtractOutputChannelModelService {
+class SimpleOutputChannelModelService extends AbstractOutputChannelModelService {
 	declare readonly _serviceBrand: undefined;
 }
 

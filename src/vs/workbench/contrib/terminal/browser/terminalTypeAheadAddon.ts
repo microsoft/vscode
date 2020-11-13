@@ -323,12 +323,10 @@ class HardBoundary implements IPrediction {
  * through its `matches` request.
  */
 class TentativeBoundary implements IPrediction {
-	private expected?: Cursor;
 	constructor(public readonly inner: IPrediction) { }
 
 	public apply(buffer: IBuffer, cursor: Cursor) {
-		this.expected = cursor.clone();
-		this.inner.apply(buffer, this.expected);
+		this.inner.apply(buffer, cursor);
 		return '';
 	}
 
@@ -337,10 +335,6 @@ class TentativeBoundary implements IPrediction {
 	}
 
 	public rollForwards(cursor: Cursor, withInput: string) {
-		if (this.expected) {
-			cursor.moveTo(this.expected);
-		}
-
 		return withInput;
 	}
 
@@ -801,7 +795,7 @@ export class PredictionTimeline {
 		ReadLoop: while (this.expected.length && reader.remaining > 0) {
 			emitPredictionOmitted();
 
-			const prediction = this.expected[0].p;
+			const { p: prediction, gen } = this.expected[0];
 			const cursor = this.getCursor(buffer);
 			let beforeTestReaderIndex = reader.index;
 			switch (prediction.matches(reader)) {
@@ -809,7 +803,13 @@ export class PredictionTimeline {
 					// if the input character matches what the next prediction expected, undo
 					// the prediction and write the real character out.
 					const eaten = input.slice(beforeTestReaderIndex, reader.index);
-					output += prediction.rollForwards?.(cursor, eaten);
+					if (gen === startingGen) {
+						output += prediction.rollForwards?.(cursor, eaten);
+					} else {
+						prediction.apply(buffer, this.getCursor(buffer)); // move cursor for additional apply
+						output += eaten;
+					}
+
 					this.succeededEmitter.fire(prediction);
 					this.expected.shift();
 					break;
@@ -1186,11 +1186,20 @@ class TypeAheadStyle implements IDisposable {
 const compileExcludeRegexp = (programs = DEFAULT_LOCAL_ECHO_EXCLUDE) =>
 	new RegExp(`\\b(${programs.map(escapeRegExpCharacters).join('|')})\\b`, 'i');
 
+export const enum CharPredictState {
+	/** No characters typed on this line yet */
+	Unknown,
+	/** Has a pending character prediction */
+	HasPendingChar,
+	/** Character validated on this line */
+	Validated,
+}
+
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private typeaheadStyle?: TypeAheadStyle;
 	private typeaheadThreshold = this.config.config.localEchoLatencyThreshold;
 	private excludeProgramRe = compileExcludeRegexp(this.config.config.localEchoExcludePrograms);
-	protected lastRow?: { y: number; startingX: number; madeValidPrediction: boolean };
+	protected lastRow?: { y: number; startingX: number; charState: CharPredictState };
 	protected timeline?: PredictionTimeline;
 	private terminalTitle = '';
 	public stats?: PredictionStats;
@@ -1232,9 +1241,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this.reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this.timeline.onPredictionSucceeded(p => {
-			if (this.lastRow?.madeValidPrediction === false && isTenativeCharacterPrediction(p) && p.inner.appliedAt) {
+			if (this.lastRow?.charState === CharPredictState.HasPendingChar && isTenativeCharacterPrediction(p) && p.inner.appliedAt) {
 				if (p.inner.appliedAt.pos.y + p.inner.appliedAt.pos.baseY === this.lastRow.y) {
-					this.lastRow.madeValidPrediction = true;
+					this.lastRow.charState = CharPredictState.Validated;
 				}
 			}
 		}));
@@ -1269,7 +1278,12 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}
 
 		this.clearPredictionDebounce = disposableTimeout(
-			() => this.timeline?.undoAllPredictions(),
+			() => {
+				this.timeline?.undoAllPredictions();
+				if (this.lastRow?.charState === CharPredictState.HasPendingChar) {
+					this.lastRow.charState = CharPredictState.Unknown;
+				}
+			},
 			Math.max(500, this.stats.maxLatency * 3 / 2),
 		);
 	}
@@ -1342,7 +1356,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		// the user gave input, and mark all additions before that as tentative.
 		const actualY = buffer.baseY + buffer.cursorY;
 		if (actualY !== this.lastRow?.y) {
-			this.lastRow = { y: actualY, startingX: buffer.cursorX, madeValidPrediction: false };
+			this.lastRow = { y: actualY, startingX: buffer.cursorX, charState: CharPredictState.Unknown };
 		} else {
 			this.lastRow.startingX = Math.min(this.lastRow.startingX, buffer.cursorX);
 		}
@@ -1374,9 +1388,13 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			if (reader.eatCharCode(32, 126)) { // alphanum
 				const char = data[reader.index - 1];
 				const prediction = new CharacterPrediction(this.typeaheadStyle!, char);
-				const applied = !this.lastRow.madeValidPrediction && !isTenativeCharacterPrediction(this.timeline.peekEnd())
-					? this.timeline.addBoundary(buffer, new TentativeBoundary(prediction))
-					: this.timeline.addPrediction(buffer, prediction);
+				let applied: boolean;
+				if (this.lastRow.charState === CharPredictState.Unknown) {
+					applied = this.timeline.addBoundary(buffer, new TentativeBoundary(prediction));
+					this.lastRow.charState = CharPredictState.HasPendingChar;
+				} else {
+					applied = this.timeline.addPrediction(buffer, prediction);
+				}
 
 				if (applied && this.timeline.getCursor(buffer).x >= terminal.cols) {
 					this.timeline.addBoundary(buffer, new TentativeBoundary(new LinewrapPrediction()));
