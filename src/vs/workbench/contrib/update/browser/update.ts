@@ -163,7 +163,7 @@ export class ProductContribution implements IWorkbenchContribution {
 				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
 			}
 
-			storageService.store2(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		});
 	}
 }
@@ -393,8 +393,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		// if version != stored version, save version and date
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store2('update/lastKnownVersion', currentVersion!, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store2('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 
 		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);

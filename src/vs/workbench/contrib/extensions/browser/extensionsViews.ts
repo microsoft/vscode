@@ -322,22 +322,26 @@ export class ExtensionsListView extends ViewPane {
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
 		const local = await this.extensionsWorkbenchService.queryLocal();
-		let { extensions, canIncludeInstalledExtensions } = await this.filterLocal(local, query, options);
+		const runningExtensions = await this.extensionService.getExtensions();
+		let { extensions, canIncludeInstalledExtensions } = this.filterLocal(local, runningExtensions, query, options);
 		const disposables = new DisposableStore();
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IExtension>>());
 
 		if (canIncludeInstalledExtensions) {
 			let isDisposed: boolean = false;
 			disposables.add(toDisposable(() => isDisposed = true));
-			disposables.add(this.extensionsWorkbenchService.onChange(async e => {
-				if (e?.state === ExtensionState.Installed) {
-					const { extensions: newExtensions } = await this.filterLocal(this.extensionsWorkbenchService.local, query, options);
-					if (!isDisposed) {
-						const mergedExtensions = this.mergeAddedExtensions(extensions, newExtensions);
-						if (mergedExtensions) {
-							extensions = mergedExtensions;
-							onDidChangeModel.fire(new PagedModel(extensions));
-						}
+			disposables.add(Event.debounce(Event.any(
+				Event.filter(this.extensionsWorkbenchService.onChange, e => e?.state === ExtensionState.Installed),
+				this.extensionService.onDidChangeExtensions
+			), () => undefined)(async () => {
+				const local = this.extensionsWorkbenchService.local;
+				const runningExtensions = await this.extensionService.getExtensions();
+				const { extensions: newExtensions } = this.filterLocal(local, runningExtensions, query, options);
+				if (!isDisposed) {
+					const mergedExtensions = this.mergeAddedExtensions(extensions, newExtensions);
+					if (mergedExtensions) {
+						extensions = mergedExtensions;
+						onDidChangeModel.fire(new PagedModel(extensions));
 					}
 				}
 			}));
@@ -350,7 +354,7 @@ export class ExtensionsListView extends ViewPane {
 		};
 	}
 
-	private async filterLocal(local: IExtension[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[], canIncludeInstalledExtensions: boolean }> {
+	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[], canIncludeInstalledExtensions: boolean } {
 		let value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
@@ -361,7 +365,7 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		else if (/@installed/i.test(value)) {
-			extensions = await this.filterInstalledExtensions(local, query, options);
+			extensions = this.filterInstalledExtensions(local, runningExtensions, query, options);
 		}
 
 		else if (/@outdated/i.test(value)) {
@@ -369,11 +373,11 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		else if (/@disabled/i.test(value)) {
-			extensions = await this.filterDisabledExtensions(local, query, options);
+			extensions = this.filterDisabledExtensions(local, runningExtensions, query, options);
 		}
 
 		else if (/@enabled/i.test(value)) {
-			extensions = await this.filterEnabledExtensions(local, query, options);
+			extensions = this.filterEnabledExtensions(local, runningExtensions, query, options);
 		}
 
 		return { extensions, canIncludeInstalledExtensions };
@@ -441,7 +445,7 @@ export class ExtensionsListView extends ViewPane {
 		return { value, categories };
 	}
 
-	private async filterInstalledExtensions(local: IExtension[], query: Query, options: IQueryOptions): Promise<IExtension[]> {
+	private filterInstalledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -454,7 +458,6 @@ export class ExtensionsListView extends ViewPane {
 		if (options.sortBy !== undefined) {
 			result = this.sortExtensions(result, options);
 		} else {
-			const runningExtensions = await this.extensionService.getExtensions();
 			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
 			result = result.sort((e1, e2) => {
 				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
@@ -498,12 +501,11 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private async filterDisabledExtensions(local: IExtension[], query: Query, options: IQueryOptions): Promise<IExtension[]> {
+	private filterDisabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		const runningExtensions = await this.extensionService.getExtensions();
 		const result = local
 			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 			.filter(e => runningExtensions.every(r => !areSameExtensions({ id: r.identifier.value, uuid: r.uuid }, e.identifier))
@@ -513,13 +515,12 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private async filterEnabledExtensions(local: IExtension[], query: Query, options: IQueryOptions): Promise<IExtension[]> {
+	private filterEnabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
 		local = local.filter(e => !e.isBuiltin);
-		const runningExtensions = await this.extensionService.getExtensions();
 		const result = local
 			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 			.filter(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value, uuid: r.uuid }, e.identifier))

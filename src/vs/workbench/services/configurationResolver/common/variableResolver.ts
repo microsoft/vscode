@@ -326,6 +326,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						return match;
 
+					case 'pathSeparator':
+						return paths.sep;
+
 					default:
 						try {
 							return this.resolveFromMap(match, variable, commandValueMapping, undefined);

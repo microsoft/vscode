@@ -235,7 +235,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		}
 
 		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
-			this.storageService.store2(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
 			return Promise.resolve();
 		}));
 

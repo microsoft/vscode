@@ -89,6 +89,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	sessionId = this.configuration.sessionId;
 	machineId = this.configuration.machineId;
 	remoteAuthority = this.configuration.remoteAuthority;
+	os = { release: 'unknown' };
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;

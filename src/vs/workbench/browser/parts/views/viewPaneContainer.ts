@@ -1319,7 +1319,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	saveState(): void {
 		this.panes.forEach((view) => view.saveState());
-		this.storageService.store2(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {

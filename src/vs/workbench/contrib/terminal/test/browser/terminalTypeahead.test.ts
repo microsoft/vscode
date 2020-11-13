@@ -7,11 +7,10 @@ import * as assert from 'assert';
 import { Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
-import { IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
+import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { timeout } from 'vs/base/common/async';
 
 const CSI = `\x1b[`;
 
@@ -259,11 +258,9 @@ suite('Workbench - Terminal Typeahead', () => {
 			t.expectWritten(`${CSI}3mo${CSI}23m`);
 		});
 
-		test('disables on title change', async () => {
+		test('disables on title change', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
-
-			await timeout(1000);
 
 			addon.reevaluateNow();
 			assert.strictEqual(addon.isShowing, true, 'expected to show initially');
@@ -281,7 +278,7 @@ suite('Workbench - Terminal Typeahead', () => {
 
 class TestTypeAheadAddon extends TypeAheadAddon {
 	public unlockMakingPredictions() {
-		this.lastRow = { y: 1, startingX: 100, madeValidPrediction: true };
+		this.lastRow = { y: 1, startingX: 100, charState: CharPredictState.Validated };
 	}
 
 	public lockMakingPredictions() {
@@ -289,7 +286,7 @@ class TestTypeAheadAddon extends TypeAheadAddon {
 	}
 
 	public unlockLeftNavigating() {
-		this.lastRow = { y: 1, startingX: 1, madeValidPrediction: true };
+		this.lastRow = { y: 1, startingX: 1, charState: CharPredictState.Validated };
 	}
 
 	public reevaluateNow() {
