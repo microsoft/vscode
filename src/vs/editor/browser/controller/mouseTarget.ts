@@ -329,6 +329,14 @@ export class HitTestContext {
 		return this._context.viewLayout.isAfterLines(mouseVerticalOffset);
 	}
 
+	public isInTopPadding(mouseVerticalOffset: number): boolean {
+		return this._context.viewLayout.isInTopPadding(mouseVerticalOffset);
+	}
+
+	public isInBottomPadding(mouseVerticalOffset: number): boolean {
+		return this._context.viewLayout.isInBottomPadding(mouseVerticalOffset);
+	}
+
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
 		return this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber);
 	}
@@ -656,8 +664,12 @@ export class MouseTargetFactory {
 			return null;
 		}
 
+		if (ctx.isInTopPadding(request.mouseVerticalOffset)) {
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(1, 1), undefined, EMPTY_CONTENT_AFTER_LINES);
+		}
+
 		// Check if it is below any lines and any view zones
-		if (ctx.isAfterLines(request.mouseVerticalOffset)) {
+		if (ctx.isAfterLines(request.mouseVerticalOffset) || ctx.isInBottomPadding(request.mouseVerticalOffset)) {
 			// This most likely indicates it happened after the last view-line
 			const lineCount = ctx.model.getLineCount();
 			const maxLineColumn = ctx.model.getLineMaxColumn(lineCount);
