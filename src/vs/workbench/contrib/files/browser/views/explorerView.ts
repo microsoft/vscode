@@ -463,7 +463,7 @@ export class ExplorerView extends ViewPane {
 
 		// save view state
 		this._register(this.storageService.onWillSaveState(() => {
-			this.storageService.store2(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}));
 	}
 

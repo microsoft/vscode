@@ -68,7 +68,7 @@ export class WelcomeView extends ViewPane {
 				if (language && this.debugService.getAdapterManager().isDebuggerInterestedInLanguage(language)) {
 					this.debugStartLanguageContext.set(language);
 					this.debuggerInterestedContext.set(true);
-					storageSevice.store2(debugStartLanguageKey, language, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+					storageSevice.store(debugStartLanguageKey, language, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 					return;
 				}
 			}

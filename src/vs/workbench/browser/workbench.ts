@@ -297,7 +297,7 @@ export class Workbench extends Layout {
 			// local storage and not global storage because it would not make
 			// much sense to synchronize to other machines.
 			if (isNative) {
-				storageService.store2('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			} else {
 				window.localStorage.setItem('vscode.editorFontInfo', serializedFontInfoRaw);
 			}
