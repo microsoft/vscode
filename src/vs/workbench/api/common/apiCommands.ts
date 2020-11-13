@@ -96,45 +96,6 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export class DiffAPICommand {
-	public static readonly ID = 'vscode.diff';
-	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
-		return executor.executeCommand('_workbench.diff', [
-			left, right,
-			label,
-			undefined,
-			typeConverters.TextEditorOpenOptions.from(options),
-			options ? typeConverters.ViewColumn.from(options.viewColumn) : undefined
-		]);
-	}
-}
-CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));
-
-export class OpenAPICommand {
-	public static readonly ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
-		let options: ITextEditorOptions | undefined;
-		let position: EditorGroupColumn | undefined;
-
-		if (columnOrOptions) {
-			if (typeof columnOrOptions === 'number') {
-				position = typeConverters.ViewColumn.from(columnOrOptions);
-			} else {
-				options = typeConverters.TextEditorOpenOptions.from(columnOrOptions);
-				position = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
-			}
-		}
-
-		return executor.executeCommand('_workbench.open', [
-			resource,
-			options,
-			position,
-			label
-		]);
-	}
-}
-CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
-
 export class OpenWithAPICommand {
 	public static readonly ID = 'vscode.openWith';
 	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions): Promise<any> {
@@ -304,3 +265,31 @@ CommandsRegistry.registerCommand({
 		args: []
 	}
 });
+
+
+// -----------------------------------------------------------------
+// The following commands are registered on the renderer but as API
+// command. DO NOT USE this unless you have understood what this
+// means
+// -----------------------------------------------------------------
+
+
+class OpenAPICommand {
+	public static readonly ID = 'vscode.open';
+	public static execute(executor: ICommandsExecutor, resource: URI): Promise<any> {
+
+		return executor.executeCommand('_workbench.open', resource);
+	}
+}
+CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
+
+class DiffAPICommand {
+	public static readonly ID = 'vscode.diff';
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
+		return executor.executeCommand('_workbench.diff', [
+			left, right,
+			label,
+		]);
+	}
+}
+CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));

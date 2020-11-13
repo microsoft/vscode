@@ -56,7 +56,7 @@ export interface IKeybindingsEditorPane extends IEditorPane {
 	recordSearchKeys(): void;
 	toggleSortByPrecedence(): void;
 	selectKeybinding(keybindingEntry: IKeybindingItemEntry): void;
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry, add: boolean): Promise<void>;
 	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void;
 	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any>;
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
@@ -83,6 +83,7 @@ export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.edit
 export const KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS = 'keybindings.editor.recordSearchKeys';
 export const KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE = 'keybindings.editor.toggleSortByPrecedence';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
+export const KEYBINDINGS_EDITOR_COMMAND_ADD = 'keybindings.editor.addKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN = 'keybindings.editor.defineWhenExpression';
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
