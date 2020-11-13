@@ -1299,11 +1299,15 @@ export class Repository {
 		await this.run(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
-	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
+	async checkout(treeish: string, paths: string[], opts: { track?: boolean, detached?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['checkout', '-q'];
 
 		if (opts.track) {
 			args.push('--track');
+		}
+
+		if (opts.detached) {
+			args.push('--detach');
 		}
 
 		if (treeish) {
@@ -1321,21 +1325,28 @@ export class Repository {
 		} catch (err) {
 			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
+				err.gitTreeish = treeish;
 			}
 
 			throw err;
 		}
 	}
 
-	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
+	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const args = ['commit', '--quiet', '--allow-empty-message'];
 
 		if (opts.all) {
 			args.push('--all');
 		}
 
-		if (opts.amend) {
+		if (opts.amend && message) {
 			args.push('--amend');
+		}
+
+		if (opts.amend && !message) {
+			args.push('--amend', '--no-edit');
+		} else {
+			args.push('--file', '-');
 		}
 
 		if (opts.signoff) {
@@ -1355,7 +1366,7 @@ export class Repository {
 		}
 
 		try {
-			await this.run(args, { input: message || '' });
+			await this.run(args, !opts.amend || message ? { input: message || '' } : {});
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}
@@ -1415,6 +1426,11 @@ export class Repository {
 
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
+		await this.run(args);
+	}
+
+	async move(from: string, to: string): Promise<void> {
+		const args = ['mv', from, to];
 		await this.run(args);
 	}
 
@@ -1540,9 +1556,11 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean, readonly cancellationToken?: CancellationToken } = {}): Promise<void> {
 		const args = ['fetch'];
-		const spawnOptions: SpawnOptions = {};
+		const spawnOptions: SpawnOptions = {
+			cancellationToken: options.cancellationToken,
+		};
 
 		if (options.remote) {
 			args.push(options.remote);
@@ -1639,7 +1657,7 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		const args = ['push'];
 
 		if (forcePushMode === ForcePushMode.ForceWithLease) {
@@ -1652,8 +1670,12 @@ export class Repository {
 			args.push('-u');
 		}
 
-		if (tags) {
+		if (followTags) {
 			args.push('--follow-tags');
+		}
+
+		if (tags) {
+			args.push('--tags');
 		}
 
 		if (remote) {
@@ -1679,6 +1701,11 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async cherryPick(commitHash: string): Promise<void> {
+		const args = ['cherry-pick', commitHash];
+		await this.run(args);
 	}
 
 	async blame(path: string): Promise<string> {

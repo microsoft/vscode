@@ -15,7 +15,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { OnTypeRenameProviderRegistry } from 'vs/editor/common/modes';
+import { OnTypeRenameProviderRegistry, OnTypeRenameRanges } from 'vs/editor/common/modes';
 import { first, createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -419,33 +419,19 @@ registerEditorCommand(new OnTypeRenameCommand({
 }));
 
 
-export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<{
-	ranges: IRange[],
-	wordPattern?: RegExp
-} | undefined | null> {
+function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<OnTypeRenameRanges | undefined | null> {
 	const orderedByScore = OnTypeRenameProviderRegistry.ordered(model);
 
-	// in order of score ask the occurrences provider
+	// in order of score ask the on type rename provider
 	// until someone response with a good result
-	// (good = none empty array)
-	return first<{
-		ranges: IRange[],
-		wordPattern?: RegExp
-	} | undefined>(orderedByScore.map(provider => () => {
-		return Promise.resolve(provider.provideOnTypeRenameRanges(model, position, token)).then((res) => {
-			if (!res) {
-				return undefined;
-			}
-
-			return {
-				ranges: res.ranges,
-				wordPattern: res.wordPattern || provider.wordPattern
-			};
-		}, (err) => {
-			onUnexpectedExternalError(err);
+	// (good = not null)
+	return first<OnTypeRenameRanges | undefined | null>(orderedByScore.map(provider => async () => {
+		try {
+			return await provider.provideOnTypeRenameRanges(model, position, token);
+		} catch (e) {
+			onUnexpectedExternalError(e);
 			return undefined;
-		});
-
+		}
 	}), result => !!result && arrays.isNonEmptyArray(result?.ranges));
 }
 

@@ -23,7 +23,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXPAND_CELL_CONTENT_COMMAND_ID, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellRange, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -866,7 +866,9 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						InputFocusedContext,
 						EditorContextKeys.hoverVisible.toNegated(),
-						EditorContextKeys.hasNonEmptySelection.toNegated()),
+						EditorContextKeys.hasNonEmptySelection.toNegated(),
+						EditorContextKeys.hasMultipleSelections.toNegated()
+					),
 					primary: KeyCode.Escape,
 					weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
 				},
@@ -1609,7 +1611,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.splitCell', "Split Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
 					order: CellToolbarOrder.SplitCell,
 					group: CELL_TITLE_CELL_GROUP_ID,
 					// alt: {
@@ -1619,7 +1621,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				icon: { id: 'codicon/split-vertical' },
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
 					weight: KeybindingWeight.WorkbenchContrib
 				},

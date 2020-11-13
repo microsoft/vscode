@@ -60,7 +60,7 @@ class ConfirmedExtensionIdStorage {
 	}
 
 	set(ids: string[]): void {
-		this.storageService.store2(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -293,7 +293,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store2(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		await this.hostService.reload();
 	}
 

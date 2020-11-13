@@ -91,6 +91,7 @@ export class SuggestDetailsWidget {
 		const lineHeightPx = `${lineHeight}px`;
 
 		this.domNode.style.fontSize = fontSizePx;
+		this.domNode.style.lineHeight = lineHeightPx;
 		this.domNode.style.fontWeight = fontWeight;
 		this.domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		this._type.style.fontFamily = fontFamily;
@@ -130,6 +131,7 @@ export class SuggestDetailsWidget {
 			md += `score: ${item.score[0]}${item.word ? `, compared '${item.completion.filterText && (item.completion.filterText + ' (filterText)') || item.completion.label}' with '${item.word}'` : ' (no prefix)'}\n`;
 			md += `distance: ${item.distance}, see localityBonus-setting\n`;
 			md += `index: ${item.idx}, based on ${item.completion.sortText && `sortText: "${item.completion.sortText}"` || 'label'}\n`;
+			md += `commit characters: ${item.completion.commitCharacters}\n`;
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 			detail = `Provider: ${item.provider._debugDisplayName}`;
 		}

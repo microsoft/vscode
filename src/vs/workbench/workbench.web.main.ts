@@ -18,6 +18,13 @@ import 'vs/workbench/workbench.common.main';
 //#endregion
 
 
+//#region --- workbench parts
+
+import 'vs/workbench/browser/parts/dialogs/dialog.web.contribution';
+
+//#endregion
+
+
 //#region --- workbench (web main)
 
 import 'vs/workbench/browser/web.main';
@@ -30,7 +37,6 @@ import 'vs/workbench/browser/web.main';
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
 import 'vs/workbench/services/search/common/searchService';
-import 'vs/workbench/services/output/common/outputChannelModelService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keymapService';
 import 'vs/workbench/services/extensions/browser/extensionService';
@@ -42,7 +48,6 @@ import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
 import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
-import 'vs/workbench/services/dialogs/browser/dialogService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
@@ -101,6 +106,9 @@ registerSingleton(ITimerService, TimerService);
 
 
 //#region --- workbench contributions
+
+// Output
+import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';

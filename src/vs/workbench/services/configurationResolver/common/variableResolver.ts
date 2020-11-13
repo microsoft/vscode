@@ -28,6 +28,7 @@ export interface IVariableResolveContext {
 
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
+	static readonly VARIABLE_LHS = '${';
 	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
 
 	declare readonly _serviceBrand: undefined;
@@ -130,6 +131,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 		// loop through all variables occurrences in 'value'
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
+			// disallow attempted nesting, see #77289
+			if (variable.includes(AbstractVariableResolverService.VARIABLE_LHS)) {
+				return match;
+			}
 
 			let resolvedValue = this.evaluateSingleVariable(match, variable, folderUri, commandValueMapping);
 
@@ -308,12 +313,21 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						const basename = paths.basename(getFilePath());
 						return (basename.slice(0, basename.length - paths.extname(basename).length));
 
+					case 'fileDirnameBasename':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
+						return paths.basename(paths.dirname(getFilePath()));
+
 					case 'execPath':
 						const ep = this._context.getExecPath();
 						if (ep) {
 							return ep;
 						}
 						return match;
+
+					case 'pathSeparator':
+						return paths.sep;
 
 					default:
 						try {

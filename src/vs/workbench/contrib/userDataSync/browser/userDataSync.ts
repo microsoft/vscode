@@ -447,7 +447,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				await this.selectSettingsSyncService(this.userDataSyncStoreManagementService.userDataSyncStore);
 			}
 			await this.userDataSyncWorkbenchService.turnOn();
-			this.storageService.store2('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
 			if (isPromiseCanceledError(e)) {
 				return;
@@ -661,6 +661,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				leftResource: conflict.remoteResource,
 				rightResource: conflict.previewResource,
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: false,
 					pinned: true,

@@ -99,7 +99,7 @@ class ScopedMemento {
 
 	save(): void {
 		if (!isEmptyObject(this.mementoObj)) {
-			this.storageService.store2(this.id, JSON.stringify(this.mementoObj), this.scope, this.target);
+			this.storageService.store(this.id, JSON.stringify(this.mementoObj), this.scope, this.target);
 		} else {
 			this.storageService.remove(this.id, this.scope);
 		}

@@ -62,6 +62,13 @@ class MyCompletionItem extends vscode.CompletionItem {
 			// De-prioritze auto-imports
 			// https://github.com/microsoft/vscode/issues/40311
 			this.sortText = '\uffff' + tsEntry.sortText;
+
+			// Render "fancy" when source is a workspace path
+			const qualifierCandidate = vscode.workspace.asRelativePath(tsEntry.source);
+			if (qualifierCandidate !== tsEntry.source) {
+				this.label2 = { name: tsEntry.name, qualifier: qualifierCandidate };
+			}
+
 		} else {
 			this.sortText = tsEntry.sortText;
 		}

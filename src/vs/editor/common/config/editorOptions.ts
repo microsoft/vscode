@@ -496,6 +496,14 @@ export interface IEditorOptions {
 	 */
 	codeLens?: boolean;
 	/**
+	 * Code lens font family. Defaults to editor font family.
+	 */
+	codeLensFontFamily?: string;
+	/**
+	 * Code lens font size. Default to 90% of the editor font size
+	 */
+	codeLensFontSize?: number;
+	/**
 	 * Control the behavior and rendering of the code action lightbulb.
 	 */
 	lightbulb?: IEditorLightbulbOptions;
@@ -657,6 +665,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to false.
 	 */
 	modifiedCodeLens?: boolean;
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
 }
 
 //#endregion
@@ -2920,6 +2933,11 @@ export interface IEditorScrollbarOptions {
 	 * Defaults to `horizontalScrollbarSize`.
 	 */
 	horizontalSliderSize?: number;
+	/**
+	 * Scroll gutter clicks move by page vs jump to position.
+	 * Defaults to false.
+	 */
+	scrollByPage?: boolean;
 }
 
 export interface InternalEditorScrollbarOptions {
@@ -2935,6 +2953,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly horizontalSliderSize: number;
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
+	readonly scrollByPage: boolean;
 }
 
 function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
@@ -2965,7 +2984,8 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 				verticalScrollbarSize: 14,
 				verticalSliderSize: 14,
 				handleMouseWheel: true,
-				alwaysConsumeMouseWheel: true
+				alwaysConsumeMouseWheel: true,
+				scrollByPage: false
 			}
 		);
 	}
@@ -2990,6 +3010,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
+			scrollByPage: EditorBooleanOption.boolean(input.scrollByPage, this.defaultValue.scrollByPage),
 		};
 	}
 }
@@ -3033,7 +3054,7 @@ export interface ISuggestOptions {
 	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
-	showStatusDetailsInline?: boolean;
+	showInlineDetails?: boolean;
 	/**
 	 * Show method-suggestions.
 	 */
@@ -3157,7 +3178,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
-			showStatusDetailsInline: true,
+			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -3230,10 +3251,10 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
 
-				'editor.suggest.showStatusDetailsInline': {
+				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
-					default: defaults.showStatusDetailsInline,
-					description: nls.localize('suggest.showStatusDetailsInline', "Controls whether sugget details show inline with the label or only in the details widget")
+					default: defaults.showInlineDetails,
+					description: nls.localize('suggest.showInlineDetails', "Controls whether sugget details show inline with the label or only in the details widget")
 				},
 				'editor.suggest.maxVisibleSuggestions': {
 					type: 'number',
@@ -3400,7 +3421,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
-			showStatusDetailsInline: EditorBooleanOption.boolean(input.showStatusDetailsInline, this.defaultValue.showStatusDetailsInline),
+			showInlineDetails: EditorBooleanOption.boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -3606,6 +3627,8 @@ export const enum EditorOption {
 	automaticLayout,
 	autoSurround,
 	codeLens,
+	codeLensFontFamily,
+	codeLensFontSize,
 	colorDecorators,
 	columnSelection,
 	comments,
@@ -3835,6 +3858,17 @@ export const EditorOptions = {
 		EditorOption.codeLens, 'codeLens', true,
 		{ description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.") }
 	)),
+	codeLensFontFamily: register(new EditorStringOption(
+		EditorOption.codeLensFontFamily, 'codeLensFontFamily', '',
+		{ description: nls.localize('codeLensFontFamily', "Controls the font family for CodeLens.") }
+	)),
+	codeLensFontSize: register(new EditorIntOption(EditorOption.codeLensFontSize, 'codeLensFontSize', 0, 0, 100, {
+		type: 'number',
+		default: 0,
+		minimum: 0,
+		maximum: 100,
+		description: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }

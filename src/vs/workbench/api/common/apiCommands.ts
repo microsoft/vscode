@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
+import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
@@ -96,50 +96,11 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export class DiffAPICommand {
-	public static readonly ID = 'vscode.diff';
-	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
-		return executor.executeCommand('_workbench.diff', [
-			left, right,
-			label,
-			undefined,
-			typeConverters.TextEditorOpenOptions.from(options),
-			options ? typeConverters.ViewColumn.from(options.viewColumn) : undefined
-		]);
-	}
-}
-CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));
-
-export class OpenAPICommand {
-	public static readonly ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
-		let options: ITextEditorOptions | undefined;
-		let position: EditorViewColumn | undefined;
-
-		if (columnOrOptions) {
-			if (typeof columnOrOptions === 'number') {
-				position = typeConverters.ViewColumn.from(columnOrOptions);
-			} else {
-				options = typeConverters.TextEditorOpenOptions.from(columnOrOptions);
-				position = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
-			}
-		}
-
-		return executor.executeCommand('_workbench.open', [
-			resource,
-			options,
-			position,
-			label
-		]);
-	}
-}
-CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
-
 export class OpenWithAPICommand {
 	public static readonly ID = 'vscode.openWith';
 	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions): Promise<any> {
 		let options: ITextEditorOptions | undefined;
-		let position: EditorViewColumn | undefined;
+		let position: EditorGroupColumn | undefined;
 
 		if (typeof columnOrOptions === 'number') {
 			position = typeConverters.ViewColumn.from(columnOrOptions);
@@ -304,3 +265,31 @@ CommandsRegistry.registerCommand({
 		args: []
 	}
 });
+
+
+// -----------------------------------------------------------------
+// The following commands are registered on the renderer but as API
+// command. DO NOT USE this unless you have understood what this
+// means
+// -----------------------------------------------------------------
+
+
+class OpenAPICommand {
+	public static readonly ID = 'vscode.open';
+	public static execute(executor: ICommandsExecutor, resource: URI): Promise<any> {
+
+		return executor.executeCommand('_workbench.open', resource);
+	}
+}
+CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
+
+class DiffAPICommand {
+	public static readonly ID = 'vscode.diff';
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
+		return executor.executeCommand('_workbench.diff', [
+			left, right,
+			label,
+		]);
+	}
+}
+CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));

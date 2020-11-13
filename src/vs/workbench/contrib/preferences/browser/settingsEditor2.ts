@@ -733,7 +733,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private notifyNoSaveNeeded() {
 		if (!this.storageService.getBoolean(SETTINGS_AUTOSAVE_NOTIFIED_KEY, StorageScope.GLOBAL, false)) {
-			this.storageService.store2(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
 	}
@@ -964,7 +964,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
 		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
-		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core);
+		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core, this.logService);
 		const resolvedSettingsRoot = settingsResult.tree;
 
 		// Warn for settings not included in layout
@@ -978,7 +978,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.hasWarnedMissingSettings = true;
 		}
 
-		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core);
+		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
 		resolvedSettingsRoot.children!.push(resolveExtensionsSettings(dividedGroups.extension || []));
