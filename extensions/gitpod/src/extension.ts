@@ -2,31 +2,26 @@
 
 // TODO get rid of loading inversify and reflect-metadata
 require('reflect-metadata');
-import psTree = require('ps-tree');
 import WebSocket = require('ws');
-import ReconnectingWebSocket from 'reconnecting-websocket';
 import { GitpodClient, GitpodServer, GitpodServiceImpl } from '@gitpod/gitpod-protocol/lib/gitpod-service';
 import { JsonRpcProxyFactory } from '@gitpod/gitpod-protocol/lib/messaging/proxy-factory';
+import * as workspaceInstance from '@gitpod/gitpod-protocol/lib/workspace-instance';
+import { ControlServiceClient } from '@gitpod/supervisor-api-grpc/lib/control_grpc_pb';
+import { ExposePortRequest, ExposePortResponse } from '@gitpod/supervisor-api-grpc/lib/control_pb';
 import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
 import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
 import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
-import { ControlServiceClient } from '@gitpod/supervisor-api-grpc/lib/control_grpc_pb';
-import { PortsStatus, PortsStatusRequest, PortsStatusResponse, TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus, PortVisibility, OnPortExposedAction } from '@gitpod/supervisor-api-grpc/lib/status_pb';
+import { OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility, TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
-import { CloseTerminalRequest, CloseTerminalResponse } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
+import { CloseTerminalRequest, ListenTerminalRequest, ListenTerminalResponse, SetTerminalSizeRequest, WriteTerminalRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
 import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_pb';
 import { GetTokenRequest, GetTokenResponse } from '@gitpod/supervisor-api-grpc/lib/token_pb';
-import { ExposePortRequest, ExposePortResponse } from '@gitpod/supervisor-api-grpc/lib/control_pb';
-import * as workspaceInstance from '@gitpod/gitpod-protocol/lib/workspace-instance';
 import * as grpc from '@grpc/grpc-js';
-import * as fs from 'fs';
-import * as path from 'path';
+import ReconnectingWebSocket from 'reconnecting-websocket';
 import { URL } from 'url';
 import * as util from 'util';
 import * as vscode from 'vscode';
 import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
-
-const devMode = !!process.env['VSCODE_DEV'];
 
 export async function activate(context: vscode.ExtensionContext) {
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
@@ -206,7 +201,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			for (const ports of [portsStatus.getRemovedList(), toClean]) {
 				if (ports === undefined) {
-					return;
+					continue;
 				}
 				for (const portNumber of ports) {
 					this.ports.ports.delete(portNumber);
@@ -230,13 +225,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		let stopUpdates: Function | undefined;
 		(async () => {
 			while (run) {
-				let initial = true;
 				try {
 					const req = new PortsStatusRequest();
 					req.setObserve(true);
 					const evts = statusServiceClient.portsStatus(req);
 					stopUpdates = evts.cancel;
 
+					let initial = true;
 					await new Promise((resolve, reject) => {
 						evts.on('close', resolve);
 						evts.on('error', reject);
@@ -382,105 +377,187 @@ export async function activate(context: vscode.ExtensionContext) {
 	//#endregion
 
 	//#region terminal tasks
-	const tasks = new Map<string, TaskStatus>();
+	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
+
 	const onDidChangeTasks = new vscode.EventEmitter<TaskStatus[]>();
 	context.subscriptions.push(onDidChangeTasks);
-	const initialTasks = new Promise<TaskStatus[]>(resolve => {
-		const listener = onDidChangeTasks.event(tasks => {
-			listener.dispose();
-			resolve(tasks);
-		});
-	});
 
-	function getTaskId(terminal: vscode.Terminal): string | undefined {
-		return 'env' in terminal.creationOptions && !!terminal.creationOptions.env && terminal.creationOptions.env['GITPOD_TASK_ID'] || undefined;
-	}
-	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	context.subscriptions.push(vscode.window.onDidCloseTerminal(async terminal => {
-		const taskId = getTaskId(terminal);
-		const task = taskId && tasks.get(taskId);
-		if (task && task.getState() === TaskState.RUNNING) {
-			const request = new CloseTerminalRequest();
-			request.setAlias(task.getTerminal());
-			try {
-				await util.promisify<CloseTerminalRequest, CloseTerminalResponse>(terminalServiceClient.close.bind(terminalServiceClient))(request);
-			} catch (e) {
-				console.error(`Failed to close the remote terminal "${task.getTerminal()}" for "${taskId}" task:`, e);
+	class GitpodPty implements vscode.Pseudoterminal {
+		private readonly onDidWriteEmitter = new vscode.EventEmitter<string>();
+		readonly onDidWrite = this.onDidWriteEmitter.event;
+
+		private resolveOpen: undefined | ((initialDimensions: vscode.TerminalDimensions | undefined) => void);
+		private rejectOpen: undefined | ((reason: Error) => void);
+		private readonly pendingOpen = new Promise<vscode.TerminalDimensions | undefined>((resolve, reject) => {
+			this.resolveOpen = resolve;
+			this.rejectOpen = reject;
+		});
+
+		private closed = false;
+
+		/** means dispose */
+		close(): void {
+			if (this.closed) {
+				return;
 			}
+			this.closed = true;
+			this.rejectOpen!(new Error('closed'));
+			this.onDidWriteEmitter.dispose();
+			if (this.stopListen) {
+				this.stopListen();
+			}
+		}
+
+		private alias?: string;
+		private stopListen?: Function;
+		async listen(alias: string): Promise<void> {
+			if (this.alias || this.closed) {
+				return;
+			}
+			this.alias = alias;
+			try {
+				const initialDimensions = await this.pendingOpen;
+				if (initialDimensions) {
+					this.setDimensions(initialDimensions);
+				}
+			} catch {
+				/* no-op closed */
+			}
+			let run = true;
+			while (run) {
+				await new Promise(resolve => {
+					try {
+						const request = new ListenTerminalRequest();
+						request.setAlias(alias);
+						const stream = terminalServiceClient.listen(request);
+						this.stopListen = stream.cancel;
+
+						stream.on('close', resolve);
+						stream.on('end', () => {
+							run = false;
+							resolve(undefined);
+						});
+						stream.on('error', () => {
+							run = false;
+							resolve(undefined);
+						});
+						stream.on('data', (response: ListenTerminalResponse) => {
+							let data = '';
+							for (const buffer of [response.getStdout(), response.getStderr()]) {
+								if (typeof buffer === 'string') {
+									data += buffer;
+								} else {
+									data += Buffer.from(buffer).toString();
+								}
+							}
+							if (data !== '') {
+								this.onDidWriteEmitter.fire(data);
+							}
+						});
+					} catch (e) {
+						resolve(undefined);
+					}
+				});
+				if (this.closed) {
+					run = false;
+				} else {
+					await new Promise(resolve => setTimeout(resolve, 2000));
+				}
+			}
+		}
+
+		open(initialDimensions: vscode.TerminalDimensions | undefined): void {
+			this.resolveOpen!(initialDimensions);
+		}
+
+		/* it it called after close to kill the underlying terminal */
+		kill(): void {
+			if (!this.alias) {
+				return;
+			}
+			const request = new CloseTerminalRequest();
+			request.setAlias(this.alias);
+			terminalServiceClient.close(request, e => {
+				if (e) {
+					console.error(`[${this.alias}] failed to kill the gitpod task terminal:`, e);
+				}
+			});
+		}
+
+		setDimensions(dimensions: vscode.TerminalDimensions): void {
+			if (!this.alias) {
+				return;
+			}
+			const request = new SetTerminalSizeRequest();
+			request.setAlias(this.alias);
+			request.setCols(dimensions.columns);
+			request.setRows(dimensions.rows);
+			request.setForce(true);
+			terminalServiceClient.setSize(request, e => {
+				if (e) {
+					console.error(`[${this.alias}] failed to resize the gitpod task terminal:`, e);
+				}
+			});
+		}
+
+		handleInput(data: string): void {
+			if (!this.alias) {
+				return;
+			}
+			const request = new WriteTerminalRequest();
+			request.setAlias(this.alias);
+			request.setStdin(Buffer.from(data));
+			terminalServiceClient.write(request, e => {
+				if (e) {
+					console.error(`[${this.alias}] failed to write to the gitpod task terminal:`, e);
+				}
+			});
+		}
+
+	}
+	interface GitpodTerminalOptions extends vscode.ExtensionTerminalOptions {
+		pty: GitpodPty
+	}
+	interface GitpodTerminal extends vscode.Terminal {
+		readonly creationOptions: Readonly<GitpodTerminalOptions>;
+	}
+	const terminals = new Map<string, GitpodTerminal>();
+	context.subscriptions.push(vscode.window.onDidCloseTerminal(terminal => {
+		if ('pty' in terminal.creationOptions && terminal.creationOptions.pty instanceof GitpodPty) {
+			terminal.creationOptions.pty.kill();
 		}
 	}));
-	const pendingSupervisorBin = (async () => {
-		let supervisor = '/.supervisor/supervisor';
-		if (devMode) {
-			try {
-				await util.promisify(fs.stat)(supervisor);
-			} catch (e) {
-				supervisor = '/theia/supervisor';
-				try {
-					await util.promisify(fs.stat)(supervisor);
-				} catch {
-					throw e;
-				}
-			}
-		}
-		return supervisor;
-	})();
-	async function updateTerminals(tasks: TaskStatus[]): Promise<void> {
+	function updateTerminals(tasks: TaskStatus[]): void {
 		for (const task of tasks) {
 			try {
-				const terminal = vscode.window.terminals.find(terminal => getTaskId(terminal) === task.getId());
-				if (!terminal) {
-					continue;
-				}
+				let terminal = terminals.get(task.getId());
 				if (task.getState() === TaskState.CLOSED) {
-					terminal.dispose();
+					if (terminal) {
+						terminal.dispose();
+					}
 					continue;
 				}
-				if (task.getState() !== TaskState.RUNNING) {
+
+				if (!terminal) {
+					terminal = vscode.window.createTerminal(<GitpodTerminalOptions>{
+						name: task.getPresentation()?.getName(),
+						pty: new GitpodPty()
+					}) as GitpodTerminal;
+					terminals.set(task.getId(), terminal);
+
+					// TODO layout
+					terminal.show(false);
+				}
+
+				if (task.getState() !== TaskState.RUNNING || !task.getTerminal()) {
 					continue;
 				}
-				const processId = await terminal.processId;
-				if (!processId) {
-					continue;
-				}
-				const [supervisorBin, children] = await Promise.all([
-					pendingSupervisorBin,
-					util.promisify(psTree)(processId)
-				]);
-				const supervisorCommand = path.basename(supervisorBin);
-				if (children.some(child => child.COMMAND === supervisorCommand)) {
-					continue;
-				}
-				terminal.sendText(`${supervisorBin} terminal attach -ir ${task.getTerminal()}`, true);
+				terminal.creationOptions.pty.listen(task.getTerminal());
 			} catch (e) {
 				console.error('Failed to update Gitpod task terminal:', e);
 			}
 		}
 	}
-	initialTasks.then(tasks => {
-		for (const task of tasks) {
-			try {
-				if (task.getState() === TaskState.CLOSED) {
-					continue;
-				}
-				let terminal = vscode.window.terminals.find(terminal => getTaskId(terminal) === task.getId());
-				if (!terminal) {
-					terminal = vscode.window.createTerminal({
-						name: task.getPresentation()?.getName(),
-						env: {
-							'GITPOD_TASK_ID': task.getId()
-						}
-					});
-					// TODO layout
-					terminal.show(false);
-				}
-			} catch (e) {
-				console.error('Failed to initialize the Gitpod task terminal:', e);
-			}
-		}
-		updateTerminals(tasks);
-		onDidChangeTasks.event(tasks => updateTerminals(tasks));
-	});
 
 	function observeTaskStatus(): vscode.Disposable {
 		let run = true;
@@ -497,9 +574,6 @@ export async function activate(context: vscode.ExtensionContext) {
 						evts.on('close', resolve);
 						evts.on('error', reject);
 						evts.on('data', (response: TasksStatusResponse) => {
-							for (const task of response.getTasksList()) {
-								tasks.set(task.getId(), task);
-							}
 							onDidChangeTasks.fire(response.getTasksList());
 						});
 					});
@@ -516,10 +590,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		});
 	}
+
+	context.subscriptions.push(onDidChangeTasks.event(tasks => updateTerminals(tasks)));
 	context.subscriptions.push(observeTaskStatus());
 	//#endregion
-
-
 }
 
 export function deactivate() { }
