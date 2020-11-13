@@ -31,6 +31,7 @@ import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfiguration
 import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -569,14 +570,9 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	private createDecoration(range: IRange): IModelDeltaDecoration {
 		return {
 			range,
-			options: FilteredMatchesRenderer._FIND_MATCH
+			options: FindDecorations._FIND_MATCH_DECORATION
 		};
 	}
-
-	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch'
-	});
 
 	private computeHiddenRanges(filteredGroups: ISettingsGroup[] | undefined, allSettingsGroups: ISettingsGroup[]): IRange[] {
 		// Hide the contents of hidden groups
@@ -614,15 +610,10 @@ export class HighlightMatchesRenderer extends Disposable {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match)));
 	}
 
-	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch'
-	});
-
 	private createDecoration(range: IRange): IModelDeltaDecoration {
 		return {
 			range,
-			options: HighlightMatchesRenderer._FIND_MATCH
+			options: FindDecorations._FIND_MATCH_DECORATION
 		};
 	}
 
