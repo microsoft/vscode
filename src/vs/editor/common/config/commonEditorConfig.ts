@@ -502,6 +502,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.wordBasedSuggestionsOnlySameLanguage': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('wordBasedSuggestionsOnlySameLanguage', "Controls whether word based completions should be included from opened documents of the same language or any language.")
+		},
 		'editor.semanticHighlighting.enabled': {
 			enum: [true, false, 'configuredByTheme'],
 			enumDescriptions: [
