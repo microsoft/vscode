@@ -35,7 +35,7 @@ export class FileUserDataProvider extends Disposable implements
 			- Compute UserData URIs from original URIs and vice-versa
 		*/
 		private readonly fileSystemUserDataHome: URI,
-		private readonly fileSystemBackupsHome: URI | undefined,
+		public fileSystemBackupsHome: URI | undefined,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,
 		environmentService: IWorkbenchEnvironmentService,
 		private readonly logService: ILogService,
