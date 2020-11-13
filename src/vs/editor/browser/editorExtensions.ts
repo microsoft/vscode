@@ -407,10 +407,6 @@ export abstract class EditorAction2 extends Action2 {
 
 // --- Registration of commands and actions
 
-export function registerLanguageCommand<Args extends { [n: string]: any; }>(id: string, handler: (accessor: ServicesAccessor, args: Args) => any) {
-	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
-}
-
 
 export function registerModelAndPositionCommand(id: string, handler: (model: ITextModel, position: Position, ...args: any[]) => any) {
 	CommandsRegistry.registerCommand(id, function (accessor, ...args) {

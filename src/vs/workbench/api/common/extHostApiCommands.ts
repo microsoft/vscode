@@ -309,6 +309,30 @@ const newCommands: ApiCommand[] = [
 			})(value);
 		})
 	),
+	// --- colors
+	new ApiCommand(
+		'vscode.executeDocumentColorProvider', '_executeDocumentColorProvider', 'Execute document color provider.',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<IRawColorInfo[], vscode.ColorInformation[]>('A promise that resolves to an array of ColorInformation objects.', result => {
+			if (result) {
+				return result.map(ci => new types.ColorInformation(typeConverters.Range.to(ci.range), typeConverters.Color.to(ci.color)));
+			}
+			return [];
+		})
+	),
+	new ApiCommand(
+		'vscode.executeColorPresentationProvider', '_executeColorPresentationProvider', 'Execute color presentation provider.',
+		[
+			new ApiCommandArgument<types.Color, [number, number, number, number]>('color', 'The color to show and insert', v => v instanceof types.Color, typeConverters.Color.from),
+			new ApiCommandArgument<{ uri: URI, range: types.Range; }, { uri: URI, range: IRange; }>('context', 'Context object with uri and range', _v => true, v => ({ uri: v.uri, range: typeConverters.Range.from(v.range) })),
+		],
+		new ApiCommandResult<modes.IColorPresentation[], types.ColorPresentation[]>('A promise that resolves to an array of ColorPresentation objects.', result => {
+			if (result) {
+				return result.map(typeConverters.ColorPresentation.to);
+			}
+			return [];
+		})
+	)
 ];
 
 //#endregion
@@ -332,21 +356,7 @@ export class ExtHostApiCommands {
 
 	registerCommands() {
 
-		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
-			description: 'Execute document color provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-			],
-			returns: 'A promise that resolves to an array of ColorInformation objects.'
-		});
-		this._register('vscode.executeColorPresentationProvider', this._executeColorPresentationProvider, {
-			description: 'Execute color presentation provider.',
-			args: [
-				{ name: 'color', description: 'The color to show and insert', constraint: types.Color },
-				{ name: 'context', description: 'Context object with uri and range' }
-			],
-			returns: 'A promise that resolves to an array of ColorPresentation objects.'
-		});
+
 
 		this._register('vscode.resolveNotebookContentProviders', this._resolveNotebookContentProviders, {
 			description: 'Resolve Notebook Content Providers',
@@ -424,32 +434,6 @@ export class ExtHostApiCommands {
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.add(disposable);
-	}
-
-	private _executeDocumentColorProvider(resource: URI): Promise<types.ColorInformation[]> {
-		const args = {
-			resource
-		};
-		return this._commands.executeCommand<IRawColorInfo[]>('_executeDocumentColorProvider', args).then(result => {
-			if (result) {
-				return result.map(ci => ({ range: typeConverters.Range.to(ci.range), color: typeConverters.Color.to(ci.color) }));
-			}
-			return [];
-		});
-	}
-
-	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range; }): Promise<types.ColorPresentation[]> {
-		const args = {
-			resource: context.uri,
-			color: typeConverters.Color.from(color),
-			range: typeConverters.Range.from(context.range),
-		};
-		return this._commands.executeCommand<modes.IColorPresentation[]>('_executeColorPresentationProvider', args).then(result => {
-			if (result) {
-				return result.map(typeConverters.ColorPresentation.to);
-			}
-			return [];
-		});
 	}
 
 
