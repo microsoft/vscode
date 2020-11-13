@@ -88,7 +88,7 @@ export class ExtensionsStorageSyncService extends Disposable implements IExtensi
 	}
 
 	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void {
-		this.storageService.store2(ExtensionsStorageSyncService.toKey(extensionIdWithVersion), JSON.stringify(keys), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(ExtensionsStorageSyncService.toKey(extensionIdWithVersion), JSON.stringify(keys), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	getStorageForSync(extensionIdWithVersion: IExtensionIdWithVersion): IStringDictionary<any> | undefined {

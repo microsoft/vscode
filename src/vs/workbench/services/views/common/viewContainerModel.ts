@@ -121,7 +121,7 @@ class ViewDescriptorsState extends Disposable {
 		}
 
 		if (Object.keys(storedViewsStates).length > 0) {
-			this.storageService.store2(this.workspaceViewsStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(this.workspaceViewsStateStorageId, JSON.stringify(storedViewsStates), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE);
 		}
@@ -267,7 +267,7 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private setStoredGlobalViewsStatesValue(value: string): void {
-		this.storageService.store2(this.globalViewsStateStorageId, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(this.globalViewsStateStorageId, value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 }

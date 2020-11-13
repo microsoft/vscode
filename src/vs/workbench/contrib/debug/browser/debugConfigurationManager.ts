@@ -362,7 +362,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.selectedLaunch = launch;
 
 		if (this.selectedLaunch) {
-			this.storageService.store2(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		}
@@ -395,7 +395,7 @@ export class ConfigurationManager implements IConfigurationManager {
 				// We need to store the recently used dynamic configurations to be able to show them in UI #110009
 				recentDynamicProviders.unshift({ name, type: dynamicConfig.type });
 				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
-				this.storageService.store2(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
+				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
 			}
 		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
 			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration
@@ -405,7 +405,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.selectedConfig = config;
 		this.selectedType = dynamicConfig?.type || this.selectedConfig?.type;
-		this.storageService.store2(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
 		if (configForType) {
 			this.debugConfigurationTypeContext.set(configForType.type);
@@ -433,7 +433,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.selectedName = selectedName;
 
 		if (this.selectedName) {
-			this.storageService.store2(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
 		}

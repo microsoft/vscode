@@ -69,7 +69,7 @@ function addAccountUsage(storageService: IStorageService, providerId: string, ac
 		});
 	}
 
-	storageService.store2(accountKey, JSON.stringify(usages), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	storageService.store(accountKey, JSON.stringify(usages), StorageScope.GLOBAL, StorageTarget.MACHINE);
 }
 
 export class MainThreadAuthenticationProvider extends Disposable {
@@ -126,7 +126,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 		quickPick.onDidAccept(() => {
 			const updatedAllowedList = quickPick.selectedItems.map(item => item.extension);
-			this.storageService.store2(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL, StorageTarget.USER);
 
 			quickPick.dispose();
 		});
@@ -385,10 +385,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 				if (!allowList.find(allowed => allowed.id === extensionId)) {
 					allowList.push({ id: extensionId, name: extensionName });
-					this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
+					this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 				}
 
-				this.storageService.store2(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 				quickPick.dispose();
 				resolve(session);
@@ -437,7 +437,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (allow) {
 			addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
 			allowList.push({ id: extensionId, name: extensionName });
-			this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 
 		return allow;
@@ -460,10 +460,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		if (!allowList.find(allowed => allowed.id === extensionId)) {
 			allowList.push({ id: extensionId, name: extensionName });
-			this.storageService.store2(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 
-		this.storageService.store2(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
 	}
 
