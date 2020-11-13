@@ -10,7 +10,6 @@ import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassific
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
@@ -51,6 +50,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -341,7 +341,8 @@ export class ExplorerView extends ViewPane {
 
 	private selectActiveFile(reveal = this.autoReveal): void {
 		if (this.autoReveal) {
-			const activeFile = this.getActiveFile();
+			const activeFile = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+
 			if (activeFile) {
 				const focus = this.tree.getFocus();
 				const selection = this.tree.getSelection();
@@ -681,18 +682,6 @@ export class ExplorerView extends ViewPane {
 			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
 			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
 		}
-	}
-
-	private getActiveFile(): URI | undefined {
-		const input = this.editorService.activeEditor;
-
-		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
-		if (input instanceof DiffEditorInput) {
-			return undefined;
-		}
-
-		// check for files
-		return input?.resource;
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {

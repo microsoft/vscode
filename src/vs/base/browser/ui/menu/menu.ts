@@ -777,6 +777,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 	}
 
+	updateEnabled(): void {
+		// override on submenu entry
+		// native menus do not observe enablement on sumbenus
+		// we mimic that behavior
+	}
+
 	open(selectFirst?: boolean): void {
 		this.cleanupExistingSubmenu(false);
 		this.createSubmenu(selectFirst);
@@ -1189,6 +1195,7 @@ ${formatRule(menuSubmenuIcon)}
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
+	-webkit-app-region: no-drag;
 }
 
 .context-view.monaco-menu-container :focus,

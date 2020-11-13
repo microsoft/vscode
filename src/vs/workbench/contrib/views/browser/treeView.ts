@@ -45,6 +45,7 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -435,6 +436,7 @@ export class TreeView extends Disposable implements ITreeView {
 				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 			}
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
 		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
 		renderer.actionRunner = actionRunner;
@@ -461,8 +463,16 @@ export class TreeView extends Disposable implements ITreeView {
 				return;
 			}
 			const selection = this.tree!.getSelection();
-			if ((selection.length === 1) && selection[0].command) {
-				this.commandService.executeCommand(selection[0].command.id, ...(selection[0].command.arguments || []));
+			const command = selection.length === 1 ? selection[0].command : undefined;
+			if (command) {
+				let args = command.arguments || [];
+				if (command.id === API_OPEN_EDITOR_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
+					// Some commands owned by us should receive the
+					// `IOpenEvent` as context to open properly
+					args = [...args, e];
+				}
+
+				this.commandService.executeCommand(command.id, ...args);
 			}
 		}));
 
@@ -832,6 +842,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		// reset
 		templateData.actionBar.clear();
+		templateData.icon.style.color = '';
+
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
@@ -995,10 +1007,10 @@ class MultipleSelectionActionRunner extends ActionRunner {
 }
 
 class TreeMenus extends Disposable implements IDisposable {
+	private contextKeyService: IContextKeyService | undefined;
 
 	constructor(
 		private id: string,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
 		super();
@@ -1012,7 +1024,14 @@ class TreeMenus extends Disposable implements IDisposable {
 		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).secondary;
 	}
 
+	public setContextKeyService(service: IContextKeyService) {
+		this.contextKeyService = service;
+	}
+
 	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
+		if (!this.contextKeyService) {
+			return { primary: [], secondary: [] };
+		}
 		const contextKeyService = this.contextKeyService.createScoped();
 		contextKeyService.createKey('view', this.id);
 		contextKeyService.createKey(context.key, context.value);

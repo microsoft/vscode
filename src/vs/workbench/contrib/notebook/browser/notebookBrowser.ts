@@ -256,10 +256,16 @@ export interface INotebookEditor extends IEditor {
 	 * Layout info for the notebook editor
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
+
 	/**
 	 * Fetch the output renderers for notebook outputs.
 	 */
 	getOutputRenderer(): OutputRenderer;
+
+	/**
+	 * Fetch the contributed kernels for this notebook
+	 */
+	beginComputeContributedKernels(): Promise<INotebookKernelInfo2[]>;
 
 	/**
 	 * Insert a new cell around `cell`

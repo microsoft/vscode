@@ -521,7 +521,7 @@ export function registerCommands(): void {
 		const control = editorService.activeTextEditorControl;
 		if (isCodeEditor(control)) {
 			const position = control.getPosition();
-			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+			if (position && control.hasModel() && debugService.canSetBreakpointsIn(control.getModel())) {
 				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));

@@ -271,7 +271,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		instantiationService.stub(INotificationService, new TestNotificationService2());
 
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false });
 		instantiationService.stub(IModelService, <IModelService>{
 			getModels(): any { return []; },
 			onModelAdded: onModelAddedEvent.event
@@ -304,14 +304,14 @@ suite('ExtensionRecommendationsService Test', () => {
 		}, null, '\t'));
 
 		const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
+		const fileService = new FileService(new NullLogService());
+		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
+		instantiationService.stub(IFileService, fileService);
 		workspaceService = new TestContextService(myWorkspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IWorkpsaceExtensionsConfigService, instantiationService.createInstance(WorkspaceExtensionsConfigService));
 		instantiationService.stub(IExtensionIgnoredRecommendationsService, instantiationService.createInstance(ExtensionIgnoredRecommendationsService));
 		instantiationService.stub(IExtensionRecommendationNotificationService, instantiationService.createInstance(ExtensionRecommendationNotificationService));
-		const fileService = new FileService(new NullLogService());
-		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
-		instantiationService.stub(IFileService, fileService);
 	}
 
 	function testNoPromptForValidRecommendations(recommendations: string[]) {
@@ -379,6 +379,16 @@ suite('ExtensionRecommendationsService Test', () => {
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	});
+
+	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
+			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+			return testObject.activationPromise.then(() => {
+				assert.ok(!prompted);
+			});
+		});
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => {

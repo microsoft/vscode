@@ -523,7 +523,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
 	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function.member'], ['support.function']]);
-	registerTokenType('macro', nls.localize('macro', "Style for macros."), [['entity.name.other.preprocessor.macro']]);
+	registerTokenType('macro', nls.localize('macro', "Style for macros."), [['entity.name.function.preprocessor']]);
 
 	registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable.other.readwrite'], ['entity.name.variable']]);
 	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), [['variable.parameter']]);

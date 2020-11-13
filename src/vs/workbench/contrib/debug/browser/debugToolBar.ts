@@ -180,7 +180,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground) || '';
 
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.$el.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : '';
+			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const contrastBorderColor = this.getColor(contrastBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
@@ -366,7 +366,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
 	if (debugIconDisconnectColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-disconnect { color: ${debugIconDisconnectColor} !important; }`);
+		collector.addRule(`.monaco-workbench .debug-view-content .codicon-debug-disconnect, .monaco-workbench .debug-toolbar .codicon-debug-disconnect { color: ${debugIconDisconnectColor} !important; }`);
 	}
 
 	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);

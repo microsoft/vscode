@@ -83,6 +83,10 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	private readonly _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 
+	get editor() {
+		return this._editor;
+	}
+
 	public static get(editor: ICodeEditor): CommonFindController {
 		return editor.getContribution<CommonFindController>(CommonFindController.ID);
 	}
@@ -469,6 +473,14 @@ export class FindController extends CommonFindController implements IFindControl
 		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
 	}
+
+	saveViewState(): any {
+		return this._widget?.getViewState();
+	}
+
+	restoreViewState(state: any): void {
+		this._widget?.setViewState(state);
+	}
 }
 
 export class StartFindAction extends MultiEditorAction {
@@ -583,7 +595,13 @@ export class NextMatchFindAction extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToNextMatch();
+		const result = controller.moveToNextMatch();
+		if (result) {
+			controller.editor.pushUndoStop();
+			return true;
+		}
+
+		return false;
 	}
 }
 
@@ -604,7 +622,13 @@ export class NextMatchFindAction2 extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToNextMatch();
+		const result = controller.moveToNextMatch();
+		if (result) {
+			controller.editor.pushUndoStop();
+			return true;
+		}
+
+		return false;
 	}
 }
 

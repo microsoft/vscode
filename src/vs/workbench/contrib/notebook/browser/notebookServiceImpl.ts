@@ -630,7 +630,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		});
 	}
 
-	async getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> {
+	async getContributedNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> {
 		const filteredProvider = this.notebookKernelProviderInfoStore.get(viewType, resource);
 		const result = new Array<INotebookKernelInfo2[]>(filteredProvider.length);
 

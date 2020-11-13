@@ -1227,10 +1227,8 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 			else {
 				progress.report({ message: explorerItem.name });
 
-				let defaultUri = explorerItem.isDirectory ? fileDialogService.defaultFolderPath(Schemas.file) : fileDialogService.defaultFilePath(Schemas.file);
-				if (defaultUri) {
-					defaultUri = resources.joinPath(defaultUri, explorerItem.name);
-				}
+				let defaultUri = explorerItem.isDirectory ? await fileDialogService.defaultFolderPath(Schemas.file) : await fileDialogService.defaultFilePath(Schemas.file);
+				defaultUri = resources.joinPath(defaultUri, explorerItem.name);
 
 				const destination = await fileDialogService.showSaveDialog({
 					availableFileSystems: [Schemas.file],

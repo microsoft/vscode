@@ -13,7 +13,7 @@ export interface IMergeResult {
 	remote: IStringDictionary<IStorageValue> | null;
 }
 
-export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, machineScopedStorageKeys: ReadonlyArray<string>, logService: ILogService): IMergeResult {
+export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: { machine: ReadonlyArray<string>, unregistered: ReadonlyArray<string> }, logService: ILogService): IMergeResult {
 	if (!remoteStorage) {
 		return { remote: Object.keys(localStorage).length > 0 ? localStorage : null, local: { added: {}, removed: [], updated: {} } };
 	}
@@ -33,7 +33,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	// Added in remote
 	for (const key of baseToRemote.added.values()) {
 		const remoteValue = remoteStorage[key];
-		if (machineScopedStorageKeys.includes(key)) {
+		if (storageKeys.machine.includes(key)) {
 			logService.info(`GlobalState: Skipped adding ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
@@ -51,7 +51,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	// Updated in Remote
 	for (const key of baseToRemote.updated.values()) {
 		const remoteValue = remoteStorage[key];
-		if (machineScopedStorageKeys.includes(key)) {
+		if (storageKeys.machine.includes(key)) {
 			logService.info(`GlobalState: Skipped updating ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
@@ -68,7 +68,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 
 	// Removed in remote
 	for (const key of baseToRemote.removed.values()) {
-		if (machineScopedStorageKeys.includes(key)) {
+		if (storageKeys.machine.includes(key)) {
 			logService.trace(`GlobalState: Skipped removing ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
@@ -93,6 +93,10 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 
 	// Removed in local
 	for (const key of baseToLocal.removed.values()) {
+		// Do not remove from remote if key not registered.
+		if (storageKeys.unregistered.includes(key)) {
+			continue;
+		}
 		// do not remove from remote if it is updated in remote
 		if (baseToRemote.updated.has(key)) {
 			continue;

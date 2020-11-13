@@ -65,7 +65,7 @@ export class TextFileEditor extends BaseTextEditor {
 	private onDidFilesChange(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted?.length) {
-			this.clearTextEditorViewState(deleted.map(d => d.resource));
+			this.clearTextEditorViewState(deleted.map(({ resource }) => resource));
 		}
 	}
 

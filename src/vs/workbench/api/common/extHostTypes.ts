@@ -2891,3 +2891,9 @@ export enum StandardTokenType {
 	String = 2,
 	RegEx = 4
 }
+
+
+export class OnTypeRenameRanges {
+	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
+	}
+}
