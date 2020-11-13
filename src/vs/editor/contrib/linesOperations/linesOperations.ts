@@ -18,7 +18,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
+import { CopyLinesCommand, NullCopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -63,10 +63,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 		const commands: ICommand[] = [];
 		for (const selection of selections) {
-			if (selection.ignore) {
-				continue;
-			}
-			commands.push(new CopyLinesCommand(selection.selection, this.down));
+			commands.push(new CopyLinesCommand(selection.selection, this.down, selection.ignore));
 		}
 
 		editor.pushUndoStop();
