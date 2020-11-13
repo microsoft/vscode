@@ -502,10 +502,15 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
-		'editor.wordBasedSuggestionsOnlySameLanguage': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('wordBasedSuggestionsOnlySameLanguage', "Controls whether word based completions should be included from opened documents of the same language or any language.")
+		'editor.wordBasedSuggestionsMode': {
+			enum: ['currentDocument', 'matchingDocuments', 'allDocuments'],
+			default: 'matchingDocuments',
+			enumDescriptions: [
+				nls.localize('wordBasedSuggestionsMode.currentDocument', 'Only suggest words from the active document.'),
+				nls.localize('wordBasedSuggestionsMode.matchingDocuments', 'Suggest words from all open documents of the same language.'),
+				nls.localize('wordBasedSuggestionsMode.allDocuments', 'Suggest words from all open documents.')
+			],
+			description: nls.localize('wordBasedSuggestionsMode', "Controls form what documents word based completions are computed.")
 		},
 		'editor.semanticHighlighting.enabled': {
 			enum: [true, false, 'configuredByTheme'],
