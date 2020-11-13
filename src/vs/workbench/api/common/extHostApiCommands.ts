@@ -393,6 +393,9 @@ export class ExtHostApiCommands {
 
 	// --- command impl
 
+	/**
+	 * @deprecated use the ApiCommand instead
+	 */
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.add(disposable);
