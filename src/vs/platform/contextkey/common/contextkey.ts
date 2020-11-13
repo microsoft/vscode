@@ -391,7 +391,7 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 	}
 
 	public serialize(): string {
-		return this.key + ' == \'' + this.value + '\'';
+		return `${this.key} == '${this.value}'`;
 	}
 
 	public keys(): string[] {
