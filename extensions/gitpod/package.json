@@ -122,7 +122,6 @@
     "@gitpod/supervisor-api-grpc": "cw-supervisor-ports",
     "@grpc/grpc-js": "^1.1.7",
     "bufferutil": "^4.0.1",
-    "ps-tree": "^1.2.0",
     "reconnecting-websocket": "^4.4.0",
     "utf-8-validate": "^5.0.2",
     "vscode-nls": "^5.0.0",
