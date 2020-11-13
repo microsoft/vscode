@@ -264,6 +264,16 @@ const newCommands: ApiCommand[] = [
 			return undefined;
 		})
 	),
+	// --- code lens
+	new ApiCommand(
+		'vscode.executeCodeLensProvider', '_executeCodeLensProvider', 'Execute code lens provider.',
+		[ApiCommandArgument.Uri, new ApiCommandArgument('itemResolveCount', '(optional) Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)', v => typeof v === 'number' || typeof v === 'undefined', v => v)],
+		new ApiCommandResult<modes.CodeLens[], vscode.CodeLens[] | undefined>('A promise that resolves to an array of CodeLens-instances.', (value, _args, converter) => {
+			return tryMapWith<modes.CodeLens, vscode.CodeLens>(item => {
+				return new types.CodeLens(typeConverters.Range.to(item.range), item.command && converter.fromInternal(item.command));
+			})(value);
+		})
+	),
 ];
 
 //#endregion
@@ -297,14 +307,6 @@ export class ExtHostApiCommands {
 
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
-		});
-		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
-			description: 'Execute CodeLens provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)', constraint: (value: any) => value === undefined || typeof value === 'number' }
-			],
-			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
 
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
@@ -458,16 +460,6 @@ export class ExtHostApiCommands {
 					ret.isPreferred = codeAction.isPreferred;
 					return ret;
 				}
-			}));
-	}
-
-	private _executeCodeLensProvider(resource: URI, itemResolveCount: number): Promise<vscode.CodeLens[] | undefined> {
-		const args = { resource, itemResolveCount };
-		return this._commands.executeCommand<modes.CodeLens[]>('_executeCodeLensProvider', args)
-			.then(tryMapWith(item => {
-				return new types.CodeLens(
-					typeConverters.Range.to(item.range),
-					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
 			}));
 	}
 
