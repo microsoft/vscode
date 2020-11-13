@@ -22,7 +22,7 @@ import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_EN
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { DefineKeybindingWidget, KeybindingsSearchWidget, KeybindingsSearchOptions } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
-import { IKeybindingsEditorPane, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
@@ -47,6 +47,7 @@ import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/pr
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IKeybindingsEditorPane } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -301,6 +302,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	search(filter: string): void {
 		this.focusSearch();
 		this.searchWidget.setValue(filter);
+		this.selectEntry(0);
 	}
 
 	clearSearchResults(): void {
@@ -343,7 +345,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
 		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Recording Keys. Press Escape to exit");
 
-		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), 'codicon-clear-all', false, () => { this.search(''); return Promise.resolve(null); });
+		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), 'codicon-clear-all', false, () => { this.clearSearchResults(); return Promise.resolve(null); });
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, <KeybindingsSearchOptions>{
