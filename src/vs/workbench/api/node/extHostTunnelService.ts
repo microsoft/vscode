@@ -38,7 +38,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private readonly _proxy: MainThreadTunnelServiceShape;
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
-	private _extensionTunnels: Map<string, Map<number, vscode.Tunnel>> = new Map();
+	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable }>> = new Map();
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 
@@ -98,11 +98,14 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		});
 	}
 
-	async $closeTunnel(remote: { host: string, port: number }): Promise<void> {
+	async $closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void> {
 		if (this._extensionTunnels.has(remote.host)) {
 			const hostMap = this._extensionTunnels.get(remote.host)!;
 			if (hostMap.has(remote.port)) {
-				hostMap.get(remote.port)!.dispose();
+				if (silent) {
+					hostMap.get(remote.port)!.disposeListener.dispose();
+				}
+				hostMap.get(remote.port)!.tunnel.dispose();
 				hostMap.delete(remote.port);
 			}
 		}
@@ -120,8 +123,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {
 						this._extensionTunnels.set(tunnelOptions.remoteAddress.host, new Map());
 					}
-					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, tunnel);
-					this._register(tunnel.onDidDispose(() => this._proxy.$closeTunnel(tunnel.remoteAddress)));
+					const disposeListener = this._register(tunnel.onDidDispose(() => this._proxy.$closeTunnel(tunnel.remoteAddress)));
+					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
 					return Promise.resolve(TunnelDto.fromApiTunnel(tunnel));
 				});
 			}
