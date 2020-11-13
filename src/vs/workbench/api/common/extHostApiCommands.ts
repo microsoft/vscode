@@ -129,7 +129,7 @@ const newCommands: ApiCommand[] = [
 	// -- symbol search
 	new ApiCommand(
 		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
-		[new ApiCommandArgument('query', 'Search string', v => typeof v === 'string', v => v)],
+		[ApiCommandArgument.String('query', 'Search string')],
 		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
@@ -159,7 +159,7 @@ const newCommands: ApiCommand[] = [
 	// --- rename
 	new ApiCommand(
 		'vscode.executeDocumentRenameProvider', '_executeDocumentRenameProvider', 'Execute rename provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('newName', 'The new symbol name', v => typeof v === 'string', v => v)],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String('newName', 'The new symbol name')],
 		new ApiCommandResult<IWorkspaceEditDto, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
 			if (!value) {
 				return undefined;
@@ -173,7 +173,7 @@ const newCommands: ApiCommand[] = [
 	// --- links
 	new ApiCommand(
 		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument('linkResolveCount', '(optional) Number of links that should be resolved, only when links are unresolved.', v => typeof v === 'number' || typeof v === 'undefined', v => v)],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Number('linkResolveCount', 'Number of links that should be resolved, only when links are unresolved.').optional()],
 		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
 	),
 	// --- completions
@@ -182,8 +182,8 @@ const newCommands: ApiCommand[] = [
 		[
 			ApiCommandArgument.Uri,
 			ApiCommandArgument.Position,
-			new ApiCommandArgument('triggerCharacter', '(optional) Trigger completion when the user types the character, like `,` or `(`', v => typeof v === 'string' || typeof v === 'undefined', v => v),
-			new ApiCommandArgument('itemResolveCount', '(optional) Number of completions to resolve (too large numbers slow down completions)', v => typeof v === 'number' || typeof v === 'undefined', v => v)
+			ApiCommandArgument.String('triggerCharacter', 'Trigger completion when the user types the character, like `,` or `(`').optional(),
+			ApiCommandArgument.Number('itemResolveCount', 'Number of completions to resolve (too large numbers slow down completions)').optional()
 		],
 		new ApiCommandResult<modes.CompletionList, vscode.CompletionList>('A promise that resolves to a CompletionList-instance.', (value, _args, converter) => {
 			if (!value) {
@@ -196,7 +196,7 @@ const newCommands: ApiCommand[] = [
 	// --- signature help
 	new ApiCommand(
 		'vscode.executeSignatureHelpProvider', '_executeSignatureHelpProvider', 'Execute signature help provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('triggerCharacter', '(optional) Trigger signature help when the user types the character, like `,` or `(`', v => typeof v === 'string' || typeof v === 'undefined', v => v)],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String('triggerCharacter', 'Trigger signature help when the user types the character, like `,` or `(`').optional()],
 		new ApiCommandResult<modes.SignatureHelp, vscode.SignatureHelp | undefined>('A promise that resolves to SignatureHelp.', value => {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
@@ -207,7 +207,7 @@ const newCommands: ApiCommand[] = [
 	// --- code lens
 	new ApiCommand(
 		'vscode.executeCodeLensProvider', '_executeCodeLensProvider', 'Execute code lens provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument('itemResolveCount', '(optional) Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)', v => typeof v === 'number' || typeof v === 'undefined', v => v)],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Number('itemResolveCount', 'Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)').optional()],
 		new ApiCommandResult<modes.CodeLens[], vscode.CodeLens[] | undefined>('A promise that resolves to an array of CodeLens-instances.', (value, _args, converter) => {
 			return tryMapWith<modes.CodeLens, vscode.CodeLens>(item => {
 				return new types.CodeLens(typeConverters.Range.to(item.range), item.command && converter.fromInternal(item.command));
@@ -220,8 +220,8 @@ const newCommands: ApiCommand[] = [
 		[
 			ApiCommandArgument.Uri,
 			new ApiCommandArgument('rangeOrSelection', 'Range in a text document. Some refactoring provider requires Selection object.', v => types.Range.isRange(v), v => types.Selection.isSelection(v) ? typeConverters.Selection.from(v) : typeConverters.Range.from(v)),
-			new ApiCommandArgument('kind', '(optional) Code action kind to return code actions for', v => typeof v === 'string' || typeof v === 'undefined', v => v),
-			new ApiCommandArgument('itemResolveCount', '(optional) Number of code actions to resolve (too large numbers slow down code actions)', v => typeof v === 'number' || typeof v === 'undefined', v => v)
+			ApiCommandArgument.String('kind', 'Code action kind to return code actions for').optional(),
+			ApiCommandArgument.Number('itemResolveCount', 'Number of code actions to resolve (too large numbers slow down code actions)').optional()
 		],
 		new ApiCommandResult<CustomCodeAction[], (vscode.CodeAction | vscode.Command | undefined)[] | undefined>('A promise that resolves to an array of Command-instances.', (value, _args, converter) => {
 			return tryMapWith<CustomCodeAction, vscode.CodeAction | vscode.Command | undefined>((codeAction) => {

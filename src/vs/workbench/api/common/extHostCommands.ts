@@ -339,6 +339,9 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Range = new ApiCommandArgument<extHostTypes.Range, IRange>('range', 'A range in a text document', v => extHostTypes.Range.isRange(v), extHostTypeConverter.Range.from);
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
 
+	static Number(name: string, description: string) { return new ApiCommandArgument<number>(name, description, v => typeof v === 'number', v => v); }
+	static String(name: string, description: string) { return new ApiCommandArgument<string>(name, description, v => typeof v === 'string', v => v); }
+
 	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.to);
 
 	constructor(
@@ -347,6 +350,14 @@ export class ApiCommandArgument<V, O = V> {
 		readonly validate: (v: V) => boolean,
 		readonly convert: (v: V) => O
 	) { }
+
+	optional(): ApiCommandArgument<V | undefined | null, O | undefined | null> {
+		return new ApiCommandArgument(
+			this.name, `(optional) ${this.description}`,
+			value => value === undefined || value === null || this.validate(value),
+			value => value === undefined ? undefined : value === null ? null : this.convert(value)
+		);
+	}
 }
 
 export class ApiCommandResult<V, O = V> {
