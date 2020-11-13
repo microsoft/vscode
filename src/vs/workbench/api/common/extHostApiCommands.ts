@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
@@ -12,7 +12,7 @@ import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallD
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -20,72 +20,8 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ISelection } from 'vs/editor/common/core/selection';
 
 //#region --- NEW world
-
-export class ApiCommandArgument<V, O = V> {
-
-	static readonly Uri = new ApiCommandArgument<URI>('uri', 'Uri of a text document', v => URI.isUri(v), v => v);
-	static readonly Position = new ApiCommandArgument<types.Position, IPosition>('position', 'A position in a text document', v => types.Position.isPosition(v), typeConverters.Position.from);
-	static readonly Range = new ApiCommandArgument<types.Range, IRange>('range', 'A range in a text document', v => types.Range.isRange(v), typeConverters.Range.from);
-	static readonly Selection = new ApiCommandArgument<types.Selection, ISelection>('selection', 'A selection in a text document', v => types.Selection.isSelection(v), typeConverters.Selection.from);
-
-	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof types.CallHierarchyItem, typeConverters.CallHierarchyItem.to);
-
-	constructor(
-		readonly name: string,
-		readonly description: string,
-		readonly validate: (v: V) => boolean,
-		readonly convert: (v: V) => O
-	) { }
-}
-
-export class ApiCommandResult<V, O = V> {
-
-	constructor(
-		readonly description: string,
-		readonly convert: (v: V, apiArgs: any[], cmdConverter: CommandsConverter) => O
-	) { }
-}
-
-export class ApiCommand {
-
-	constructor(
-		readonly id: string,
-		readonly internalId: string,
-		readonly description: string,
-		readonly args: ApiCommandArgument<any, any>[],
-		readonly result: ApiCommandResult<any, any>
-	) { }
-
-	register(commands: ExtHostCommands): IDisposable {
-
-		return commands.registerCommand(false, this.id, async (...apiArgs) => {
-
-			const internalArgs = this.args.map((arg, i) => {
-				if (!arg.validate(apiArgs[i])) {
-					throw new Error(`Invalid argument '${arg.name}' when running '${this.id}', receieved: ${apiArgs[i]}`);
-				}
-				return arg.convert(apiArgs[i]);
-			});
-
-			const internalResult = await commands.executeCommand(this.internalId, ...internalArgs);
-			return this.result.convert(internalResult, apiArgs, commands.converter);
-		}, undefined, this._getCommandHandlerDesc());
-	}
-
-	private _getCommandHandlerDesc(): ICommandHandlerDescription {
-		return {
-			description: this.description,
-			args: this.args,
-			returns: this.result.description
-		};
-	}
-}
-
-
-
 
 const newCommands: ApiCommand[] = [
 	// -- document highlights
@@ -372,7 +308,7 @@ const newCommands: ApiCommand[] = [
 export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
-		newCommands.forEach(command => command.register(commands));
+		newCommands.forEach(commands.registerApiCommand, commands);
 		return new ExtHostApiCommands(commands).registerCommands();
 	}
 

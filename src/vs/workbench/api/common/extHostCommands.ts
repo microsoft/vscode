@@ -14,13 +14,14 @@ import * as modes from 'vs/editor/common/modes';
 import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { DiffAPICommand, ICommandsExecutor, OpenAPICommand } from 'vs/workbench/api/common/apiCommands';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 interface CommandHandler {
 	callback: Function;
@@ -81,6 +82,26 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	registerArgumentProcessor(processor: ArgumentProcessor): void {
 		this._argumentProcessors.push(processor);
+	}
+
+	registerApiCommand(apiCommand: ApiCommand): extHostTypes.Disposable {
+
+		return this.registerCommand(false, apiCommand.id, async (...apiArgs) => {
+
+			const internalArgs = apiCommand.args.map((arg, i) => {
+				if (!arg.validate(apiArgs[i])) {
+					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', receieved: ${apiArgs[i]}`);
+				}
+				return arg.convert(apiArgs[i]);
+			});
+
+			const internalResult = await this.executeCommand(apiCommand.internalId, ...internalArgs);
+			return apiCommand.result.convert(internalResult, apiArgs, this.converter);
+		}, undefined, {
+			description: apiCommand.description,
+			args: apiCommand.args,
+			returns: apiCommand.result.description
+		});
 	}
 
 	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
@@ -212,6 +233,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 }
 
+export interface IExtHostCommands extends ExtHostCommands { }
+export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');
 
 export class CommandsConverter {
 
@@ -308,5 +331,39 @@ export class CommandsConverter {
 
 }
 
-export interface IExtHostCommands extends ExtHostCommands { }
-export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');
+
+export class ApiCommandArgument<V, O = V> {
+
+	static readonly Uri = new ApiCommandArgument<URI>('uri', 'Uri of a text document', v => URI.isUri(v), v => v);
+	static readonly Position = new ApiCommandArgument<extHostTypes.Position, IPosition>('position', 'A position in a text document', v => extHostTypes.Position.isPosition(v), extHostTypeConverter.Position.from);
+	static readonly Range = new ApiCommandArgument<extHostTypes.Range, IRange>('range', 'A range in a text document', v => extHostTypes.Range.isRange(v), extHostTypeConverter.Range.from);
+	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
+
+	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.to);
+
+	constructor(
+		readonly name: string,
+		readonly description: string,
+		readonly validate: (v: V) => boolean,
+		readonly convert: (v: V) => O
+	) { }
+}
+
+export class ApiCommandResult<V, O = V> {
+
+	constructor(
+		readonly description: string,
+		readonly convert: (v: V, apiArgs: any[], cmdConverter: CommandsConverter) => O
+	) { }
+}
+
+export class ApiCommand {
+
+	constructor(
+		readonly id: string,
+		readonly internalId: string,
+		readonly description: string,
+		readonly args: ApiCommandArgument<any, any>[],
+		readonly result: ApiCommandResult<any, any>
+	) { }
+}
