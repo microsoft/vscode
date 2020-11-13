@@ -37,7 +37,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { attachStylerCallback, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback, attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -46,7 +46,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { ThemableCheckboxActionViewItem } from 'vs/platform/theme/browser/checkbox';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const $ = DOM.$;
 
@@ -57,6 +57,20 @@ interface ColumnItem {
 }
 
 const oddRowBackgroundColor = new Color(new RGBA(130, 130, 130, 0.04));
+
+class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
+
+	constructor(context: any, action: IAction, options: IBaseActionViewItemOptions | undefined, private readonly themeService: IThemeService) {
+		super(context, action, options);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		if (this.checkbox) {
+			this.disposables.add(attachCheckboxStyler(this.checkbox, this.themeService));
+		}
+	}
+}
 
 export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorPane {
 
