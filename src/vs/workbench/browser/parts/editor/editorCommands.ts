@@ -402,7 +402,7 @@ function registerOpenEditorAPICommands(): void {
 		}
 
 		return [
-			{ ...(options ?? Object.create(null)), ...context.editorOptions },
+			{ ...context.editorOptions, ...(options ?? Object.create(null)) },
 			context.sideBySide ? SIDE_GROUP : column
 		];
 	}
