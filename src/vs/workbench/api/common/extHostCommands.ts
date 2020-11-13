@@ -17,7 +17,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -274,7 +274,8 @@ export class CommandsConverter {
 
 	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
 	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined;
-	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
+	toInternal(command: vscode.Command): { command: ICommandDto, disposable: IDisposable };
+	toInternal(command: vscode.Command | undefined, disposables?: DisposableStore): ICommandDto | { command: ICommandDto, disposable: IDisposable } | undefined {
 
 		if (!command || !command.command) {
 			return undefined;
@@ -287,6 +288,7 @@ export class CommandsConverter {
 			tooltip: command.tooltip
 		};
 
+		let disposable: IDisposable = Disposable.None;
 
 		const apiCommand = this._lookupApiCommand(command.command);
 		if (apiCommand) {
@@ -301,10 +303,11 @@ export class CommandsConverter {
 
 			const id = ++this._cachIdPool;
 			this._cache.set(id, command);
-			disposables.add(toDisposable(() => {
+			disposable = toDisposable(() => {
 				this._cache.delete(id);
 				this._logService.trace('CommandsConverter#DISPOSE', id);
-			}));
+			});
+			disposables?.add(disposable);
 			result.$ident = id;
 
 			result.id = this._delegatingCommandId;
@@ -313,7 +316,11 @@ export class CommandsConverter {
 			this._logService.trace('CommandsConverter#CREATE', command.command, id);
 		}
 
-		return result;
+		if (disposables) {
+			return result;
+		} else {
+			return { command: result, disposable };
+		}
 	}
 
 	fromInternal(command: modes.Command): vscode.Command | undefined {

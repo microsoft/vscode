@@ -223,8 +223,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	private _resourceHandlePool: number = 0;
 	private _resourceStates: vscode.SourceControlResourceState[] = [];
 
-	private _resourceStatesMap: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
-	private _resourceStatesCommandsMap: Map<ResourceStateHandle, vscode.Command> = new Map<ResourceStateHandle, vscode.Command>();
+	private _resourceStatesMap = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
+	private _resourceStatesCommandsMap = new Map<ResourceStateHandle, vscode.Command>();
+	private _resourceStatesDisposablesMap = new Map<ResourceStateHandle, IDisposable>();
 
 	private readonly _onDidUpdateResourceStates = new Emitter<void>();
 	readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
@@ -302,9 +303,16 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const lightIconUri = r.decorations && getIconResource(r.decorations.light) || iconUri;
 				const darkIconUri = r.decorations && getIconResource(r.decorations.dark) || iconUri;
 				const icons: UriComponents[] = [];
+				let command: ICommandDto | undefined;
 
 				if (r.command) {
-					this._resourceStatesCommandsMap.set(handle, r.command);
+					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff') {
+						const internalCommand = this._commands.converter.toInternal(r.command);
+						command = internalCommand.command;
+						this._resourceStatesDisposablesMap.set(handle, internalCommand.disposable);
+					} else {
+						this._resourceStatesCommandsMap.set(handle, r.command);
+					}
 				}
 
 				if (lightIconUri) {
@@ -320,7 +328,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const faded = r.decorations && !!r.decorations.faded;
 				const contextValue = r.contextValue || '';
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue] as SCMRawResource;
+				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
@@ -340,6 +348,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			for (const handle of handlesToDelete) {
 				this._resourceStatesMap.delete(handle);
 				this._resourceStatesCommandsMap.delete(handle);
+				this._resourceStatesDisposablesMap.get(handle)?.dispose();
+				this._resourceStatesDisposablesMap.delete(handle);
 			}
 		}
 
