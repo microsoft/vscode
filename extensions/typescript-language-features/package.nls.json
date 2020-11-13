@@ -76,7 +76,7 @@
 	"typescript.preferences.importModuleSpecifier.shortest": "Prefers a non-relative import only if one is available that has fewer path segments than a relative import.",
 	"typescript.preferences.importModuleSpecifier.relative": "Prefers a relative path to the imported file location.",
 	"typescript.preferences.importModuleSpecifier.nonRelative": "Prefers a non-relative import based on the `baseUrl` or `paths` configured in your `jsconfig.json` / `tsconfig.json`.",
-	"typescript.preferences.importModuleSpecifier.projectRelative": "Prefers a non-relative import only if the relative import path would leave the package or project directory.",
+	"typescript.preferences.importModuleSpecifier.projectRelative": "Prefers a non-relative import only if the relative import path would leave the package or project directory. Requires using TypeScript 4.2+ in the workspace.",
 	"typescript.preferences.importModuleSpecifierEnding": "Preferred path ending for auto imports.",
 	"typescript.preferences.importModuleSpecifierEnding.auto": "Use project settings to select a default.",
 	"typescript.preferences.importModuleSpecifierEnding.minimal": "Shorten `./component/index.js` to `./component`.",
