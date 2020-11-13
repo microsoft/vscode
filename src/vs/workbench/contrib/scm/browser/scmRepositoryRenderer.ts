@@ -19,9 +19,7 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/resources';
 
 interface RepositoryTemplate {
@@ -46,7 +44,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@ICommandService private commandService: ICommandService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
-		@ILabelService private labelService: ILabelService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) { }
 
