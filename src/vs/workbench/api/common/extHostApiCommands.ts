@@ -85,6 +85,8 @@ export class ApiCommand {
 }
 
 
+
+
 const newCommands: ApiCommand[] = [
 	// -- document highlights
 	new ApiCommand(
@@ -332,6 +334,33 @@ const newCommands: ApiCommand[] = [
 			}
 			return [];
 		})
+	),
+	// --- notebooks
+	new ApiCommand(
+		'vscode.resolveNotebookContentProviders', '_resolveNotebookContentProvider', 'Resolve Notebook Content Providers',
+		[
+			new ApiCommandArgument<string, string>('viewType', '', v => typeof v === 'string', v => v),
+			new ApiCommandArgument<string, string>('displayName', '', v => typeof v === 'string', v => v),
+			new ApiCommandArgument<object, object>('options', '', v => typeof v === 'object', v => v),
+		],
+		new ApiCommandResult<{
+			viewType: string;
+			displayName: string;
+			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
+			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
+		}[], {
+			viewType: string;
+			displayName: string;
+			filenamePattern: vscode.NotebookFilenamePattern[];
+			options: vscode.NotebookDocumentContentOptions;
+		}[] | undefined>('A promise that resolves to an array of NotebookContentProvider static info objects.', tryMapWith(item => {
+			return {
+				viewType: item.viewType,
+				displayName: item.displayName,
+				options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
+				filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
+			};
+		}))
 	)
 ];
 
@@ -358,11 +387,7 @@ export class ExtHostApiCommands {
 
 
 
-		this._register('vscode.resolveNotebookContentProviders', this._resolveNotebookContentProviders, {
-			description: 'Resolve Notebook Content Providers',
-			args: [],
-			returns: 'A promise that resolves to an array of NotebookContentProvider static info objects.'
-		});
+
 
 		// -----------------------------------------------------------------
 		// The following commands are registered on both sides separately.
@@ -437,27 +462,7 @@ export class ExtHostApiCommands {
 	}
 
 
-	private _resolveNotebookContentProviders(): Promise<{
-		viewType: string;
-		displayName: string;
-		filenamePattern: vscode.NotebookFilenamePattern[];
-		options: vscode.NotebookDocumentContentOptions;
-	}[] | undefined> {
-		return this._commands.executeCommand<{
-			viewType: string;
-			displayName: string;
-			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
-			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
-		}[]>('_resolveNotebookContentProvider')
-			.then(tryMapWith(item => {
-				return {
-					viewType: item.viewType,
-					displayName: item.displayName,
-					options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
-					filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
-				};
-			}));
-	}
+
 }
 
 function tryMapWith<T, R>(f: (x: T) => R) {
