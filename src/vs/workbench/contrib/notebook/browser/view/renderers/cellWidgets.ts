@@ -185,7 +185,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
 			this.run();
 		}));
-		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.KEY_UP, e => {
+		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 				this.run();
