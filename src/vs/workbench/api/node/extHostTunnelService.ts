@@ -192,15 +192,19 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return ports;
 	}
 
-	private getSockets(stdout: string) {
+	private getSockets(stdout: string): { pid: number, socket: number }[] {
 		const lines = stdout.trim().split('\n');
-		return lines.map(line => {
+		const mapped: { pid: number, socket: number }[] = [];
+		lines.forEach(line => {
 			const match = /\/proc\/(\d+)\/fd\/\d+ -> socket:\[(\d+)\]/.exec(line)!;
-			return {
-				pid: parseInt(match[1], 10),
-				socket: parseInt(match[2], 10)
-			};
+			if (match && match.length >= 3) {
+				mapped.push({
+					pid: parseInt(match[1], 10),
+					socket: parseInt(match[2], 10)
+				});
+			}
 		});
+		return mapped;
 	}
 
 	private loadListeningPorts(...stdouts: string[]): { socket: number, ip: string, port: number }[] {
