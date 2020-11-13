@@ -230,6 +230,10 @@ export interface IWindowConfiguration {
 	filesToDiff?: IPath[];
 }
 
+export interface IOSConfiguration {
+	release: string;
+}
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
 	mainPid: number;
 
@@ -256,6 +260,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	userEnv: IProcessEnvironment;
 	filesToWait?: IPathsToWaitFor;
+
+	os: IOSConfiguration;
 }
 
 /**
