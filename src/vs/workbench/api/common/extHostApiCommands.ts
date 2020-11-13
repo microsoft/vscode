@@ -12,7 +12,7 @@ import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallD
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -43,7 +43,7 @@ export class ApiCommandResult<V, O = V> {
 
 	constructor(
 		readonly description: string,
-		readonly convert: (v: V, apiArgs: any[]) => O
+		readonly convert: (v: V, apiArgs: any[], cmdConverter: CommandsConverter) => O
 	) { }
 }
 
@@ -69,7 +69,7 @@ export class ApiCommand {
 			});
 
 			const internalResult = await commands.executeCommand(this.internalId, ...internalArgs);
-			return this.result.convert(internalResult, apiArgs);
+			return this.result.convert(internalResult, apiArgs, commands.converter);
 		}, undefined, this._getCommandHandlerDesc());
 	}
 
@@ -235,6 +235,23 @@ const newCommands: ApiCommand[] = [
 		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
 		[ApiCommandArgument.Uri, new ApiCommandArgument('linkResolveCount', '(optional) Number of links that should be resolved, only when links are unresolved.', v => typeof v === 'number' || typeof v === 'undefined', v => v)],
 		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
+	),
+	// --- completions
+	new ApiCommand(
+		'vscode.executeCompletionItemProvider', '_executeCompletionItemProvider', 'Execute completion item provider.',
+		[
+			ApiCommandArgument.Uri,
+			ApiCommandArgument.Position,
+			new ApiCommandArgument('triggerCharacter', '(optional) Trigger completion when the user types the character, like `,` or `(`', v => typeof v === 'string' || typeof v === 'undefined', v => v),
+			new ApiCommandArgument('itemResolveCount', '(optional) Number of completions to resolve (too large numbers slow down completions)', v => typeof v === 'number' || typeof v === 'undefined', v => v)
+		],
+		new ApiCommandResult<modes.CompletionList, vscode.CompletionList>('A promise that resolves to a CompletionList-instance.', (value, _args, converter) => {
+			if (!value) {
+				return new types.CompletionList([]);
+			}
+			const items = value.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion, converter));
+			return new types.CompletionList(items, value.incomplete);
+		})
 	)
 ];
 
@@ -267,16 +284,7 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to SignatureHelp.'
 		});
-		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider, {
-			description: 'Execute completion item provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: (value: any) => value === undefined || typeof value === 'string' },
-				{ name: 'itemResolveCount', description: '(optional) Number of completions to resolve (too large numbers slow down completions)', constraint: (value: any) => value === undefined || typeof value === 'number' }
-			],
-			returns: 'A promise that resolves to a CompletionList-instance.'
-		});
+
 		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider, {
 			description: 'Execute code action provider.',
 			args: [
@@ -397,22 +405,6 @@ export class ExtHostApiCommands {
 		return this._commands.executeCommand<modes.SignatureHelp>('_executeSignatureHelpProvider', args).then(value => {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
-			}
-			return undefined;
-		});
-	}
-
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Promise<types.CompletionList | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position),
-			triggerCharacter,
-			maxItemsToResolve
-		};
-		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
-			if (result) {
-				const items = result.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion, this._commands.converter));
-				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;
 		});
