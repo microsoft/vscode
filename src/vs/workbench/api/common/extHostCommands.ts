@@ -38,9 +38,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _proxy: MainThreadCommandsShape;
-	private readonly _converter: CommandsConverter;
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
+
+	readonly converter: CommandsConverter;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -48,7 +49,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
-		this._converter = new CommandsConverter(this, logService);
+		this.converter = new CommandsConverter(this, logService);
 		this._argumentProcessors = [
 			{
 				processArgument(a) {
@@ -76,10 +77,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			}
 		];
-	}
-
-	get converter(): CommandsConverter {
-		return this._converter;
 	}
 
 	registerArgumentProcessor(processor: ArgumentProcessor): void {
