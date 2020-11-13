@@ -538,22 +538,26 @@ export class TypeOperations {
 	}
 
 	private static _findSubAutoClosingPairClose(config: CursorConfiguration, autoClosingPair: StandardAutoClosingPairConditional): string {
-		if (autoClosingPair && autoClosingPair.open.length > 1) {
-			let lastChar = autoClosingPair.close.slice(-1);
-			// get candidates with the same last character as close
-			let subPairCandidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(lastChar) || [];
-			let isActuallySubPair = ((x: StandardAutoClosingPairConditional) =>
-				x.open !== autoClosingPair.open && autoClosingPair.open.includes(x.open) && autoClosingPair.close.endsWith(x.close));
-			return subPairCandidates
-				.slice()
-				.sort((a, b) => b.open.length - a.open.length) //descending to find largest by open
-				.find(isActuallySubPair)
-				?.close || '';
+		if (autoClosingPair.open.length <= 1) {
+			return '';
+		}
+		const lastChar = autoClosingPair.close.charAt(autoClosingPair.close.length - 1);
+		// get candidates with the same last character as close
+		const subPairCandidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(lastChar) || [];
+		let subPairMatch: StandardAutoClosingPairConditional | null = null;
+		for (const x of subPairCandidates) {
+			if (x.open !== autoClosingPair.open && autoClosingPair.open.includes(x.open) && autoClosingPair.close.endsWith(x.close)) {
+				if (!subPairMatch || x.open.length > subPairMatch.open.length) {
+					subPairMatch = x;
+				}
+			}
+		}
+		if (subPairMatch) {
+			return subPairMatch.close;
 		} else {
 			return '';
 		}
 	}
-
 
 	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean): string | null {
 		const chIsQuote = isQuote(ch);
@@ -586,17 +590,15 @@ export class TypeOperations {
 				isSubAutoClosingPairPresent = false;
 			}
 
+			// Only consider auto closing the pair if an allowed character follows or if another autoclosed pair closing brace follows
 			if (lineText.length > position.column - 1) {
 				const characterAfter = lineText.charAt(position.column - 1);
+				const isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, lineAfter);
 
-				// Only consider auto closing the pair if an allowed character follows or if another autoclosed pair closing brace follows
-				if (!shouldAutoCloseBefore(characterAfter)
-					&& !TypeOperations._isBeforeClosingBrace(config, lineAfter)) {
+				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
 					return null;
 				}
-
 			}
-
 
 			if (!model.isCheapToTokenize(position.lineNumber)) {
 				// Do not force tokenization
@@ -631,11 +633,9 @@ export class TypeOperations {
 
 		if (isSubAutoClosingPairPresent) {
 			return autoClosingPair.close.substring(0, autoClosingPair.close.length - subAutoClosingPairClose.length);
-		}
-		else {
+		} else {
 			return autoClosingPair.close;
 		}
-
 	}
 
 	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean, autoClosingPairClose: string): EditOperationResult {
@@ -818,7 +818,7 @@ export class TypeOperations {
 		}
 
 		const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
-		if (autoClosingPairClose) {
+		if (autoClosingPairClose !== null) {
 			return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, false, autoClosingPairClose);
 		}
 
