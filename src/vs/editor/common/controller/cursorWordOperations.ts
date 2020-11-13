@@ -384,7 +384,7 @@ export class WordOperations {
 			return selection;
 		}
 
-		if (DeleteOperations.isAutoClosingPairDelete(ctx.autoClosingBrackets, ctx.autoClosingQuotes, ctx.autoClosingPairs.autoClosingPairsOpen, ctx.model, [ctx.selection])) {
+		if (DeleteOperations.isAutoClosingPairDelete(ctx.autoClosingBrackets, ctx.autoClosingQuotes, ctx.autoClosingPairs.autoClosingPairsOpenByEnd, ctx.model, [ctx.selection])) {
 			const position = ctx.selection.getPosition();
 			return new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column + 1);
 		}
