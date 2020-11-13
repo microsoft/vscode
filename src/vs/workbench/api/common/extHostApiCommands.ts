@@ -252,7 +252,18 @@ const newCommands: ApiCommand[] = [
 			const items = value.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion, converter));
 			return new types.CompletionList(items, value.incomplete);
 		})
-	)
+	),
+	// --- signature help
+	new ApiCommand(
+		'vscode.executeSignatureHelpProvider', '_executeSignatureHelpProvider', 'Execute signature help provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('triggerCharacter', '(optional) Trigger signature help when the user types the character, like `,` or `(`', v => typeof v === 'string' || typeof v === 'undefined', v => v)],
+		new ApiCommandResult<modes.SignatureHelp, vscode.SignatureHelp | undefined>('A promise that resolves to SignatureHelp.', value => {
+			if (value) {
+				return typeConverters.SignatureHelp.to(value);
+			}
+			return undefined;
+		})
+	),
 ];
 
 //#endregion
@@ -275,15 +286,6 @@ export class ExtHostApiCommands {
 	}
 
 	registerCommands() {
-		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider, {
-			description: 'Execute signature help provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`', constraint: (value: any) => value === undefined || typeof value === 'string' }
-			],
-			returns: 'A promise that resolves to SignatureHelp.'
-		});
 
 		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider, {
 			description: 'Execute code action provider.',
@@ -394,20 +396,6 @@ export class ExtHostApiCommands {
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.add(disposable);
-	}
-
-	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Promise<types.SignatureHelp | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position),
-			triggerCharacter
-		};
-		return this._commands.executeCommand<modes.SignatureHelp>('_executeSignatureHelpProvider', args).then(value => {
-			if (value) {
-				return typeConverters.SignatureHelp.to(value);
-			}
-			return undefined;
-		});
 	}
 
 	private _executeDocumentColorProvider(resource: URI): Promise<types.ColorInformation[]> {
