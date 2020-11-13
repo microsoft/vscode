@@ -20,6 +20,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 //#region --- NEW world
 
@@ -28,6 +29,7 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Uri = new ApiCommandArgument<URI>('uri', 'Uri of a text document', v => URI.isUri(v), v => v);
 	static readonly Position = new ApiCommandArgument<types.Position, IPosition>('position', 'A position in a text document', v => types.Position.isPosition(v), typeConverters.Position.from);
 	static readonly Range = new ApiCommandArgument<types.Range, IRange>('range', 'A range in a text document', v => types.Range.isRange(v), typeConverters.Range.from);
+	static readonly Selection = new ApiCommandArgument<types.Selection, ISelection>('selection', 'A selection in a text document', v => types.Selection.isSelection(v), typeConverters.Selection.from);
 
 	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof types.CallHierarchyItem, typeConverters.CallHierarchyItem.to);
 
@@ -274,6 +276,39 @@ const newCommands: ApiCommand[] = [
 			})(value);
 		})
 	),
+	// --- code actions
+	new ApiCommand(
+		'vscode.executeCodeActionProvider', '_executeCodeActionProvider', 'Execute code action provider.',
+		[
+			ApiCommandArgument.Uri,
+			new ApiCommandArgument('rangeOrSelection', 'Range in a text document. Some refactoring provider requires Selection object.', v => types.Range.isRange(v), v => types.Selection.isSelection(v) ? typeConverters.Selection.from(v) : typeConverters.Range.from(v)),
+			new ApiCommandArgument('kind', '(optional) Code action kind to return code actions for', v => typeof v === 'string' || typeof v === 'undefined', v => v),
+			new ApiCommandArgument('itemResolveCount', '(optional) Number of code actions to resolve (too large numbers slow down code actions)', v => typeof v === 'number' || typeof v === 'undefined', v => v)
+		],
+		new ApiCommandResult<CustomCodeAction[], (vscode.CodeAction | vscode.Command | undefined)[] | undefined>('A promise that resolves to an array of Command-instances.', (value, _args, converter) => {
+			return tryMapWith<CustomCodeAction, vscode.CodeAction | vscode.Command | undefined>((codeAction) => {
+				if (codeAction._isSynthetic) {
+					if (!codeAction.command) {
+						throw new Error('Synthetic code actions must have a command');
+					}
+					return converter.fromInternal(codeAction.command);
+				} else {
+					const ret = new types.CodeAction(
+						codeAction.title,
+						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
+					);
+					if (codeAction.edit) {
+						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
+					}
+					if (codeAction.command) {
+						ret.command = converter.fromInternal(codeAction.command);
+					}
+					ret.isPreferred = codeAction.isPreferred;
+					return ret;
+				}
+			})(value);
+		})
+	),
 ];
 
 //#endregion
@@ -296,18 +331,6 @@ export class ExtHostApiCommands {
 	}
 
 	registerCommands() {
-
-		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider, {
-			description: 'Execute code action provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'rangeOrSelection', description: 'Range in a text document. Some refactoring provider requires Selection object.', constraint: types.Range },
-				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
-				{ name: 'itemResolveCount', description: '(optional) Number of code actions to resolve (too large numbers slow down code actions)', constraint: (value: any) => value === undefined || typeof value === 'number' }
-
-			],
-			returns: 'A promise that resolves to an array of Command-instances.'
-		});
 
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
 			description: 'Execute document color provider.',
@@ -429,39 +452,6 @@ export class ExtHostApiCommands {
 		});
 	}
 
-
-	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string, itemResolveCount?: number): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
-		const args = {
-			resource,
-			rangeOrSelection: types.Selection.isSelection(rangeOrSelection)
-				? typeConverters.Selection.from(rangeOrSelection)
-				: typeConverters.Range.from(rangeOrSelection),
-			kind,
-			itemResolveCount,
-		};
-		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
-			.then(tryMapWith(codeAction => {
-				if (codeAction._isSynthetic) {
-					if (!codeAction.command) {
-						throw new Error('Synthetic code actions must have a command');
-					}
-					return this._commands.converter.fromInternal(codeAction.command);
-				} else {
-					const ret = new types.CodeAction(
-						codeAction.title,
-						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
-					);
-					if (codeAction.edit) {
-						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
-					}
-					if (codeAction.command) {
-						ret.command = this._commands.converter.fromInternal(codeAction.command);
-					}
-					ret.isPreferred = codeAction.isPreferred;
-					return ret;
-				}
-			}));
-	}
 
 	private _resolveNotebookContentProviders(): Promise<{
 		viewType: string;
