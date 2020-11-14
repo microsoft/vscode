@@ -33,7 +33,7 @@ import { getExtensionKind } from 'vs/workbench/services/extensions/common/extens
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -957,6 +957,7 @@ registerAction2(class extends Action2 {
 
 		if (!grant) { return; }
 		enabledProposedApiStorage.extensions = grant.map(grant => grant.label);
+		notificationService.info(nls.localize('restartRequired', "Changes require restart to take effect."));
 	}
 });
 
