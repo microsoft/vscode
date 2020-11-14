@@ -226,12 +226,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
 	}
 
-	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
-
-		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
-		'enable-proposed-api'
-	];
-
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
 
@@ -254,17 +248,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					app.disableHardwareAcceleration(); // needs to be called explicitly
 				} else {
 					app.commandLine.appendSwitch(argvKey);
-				}
-			}
-		}
-
-		// Append main process flags to process.argv
-		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
-			if (argvKey === 'enable-proposed-api') {
-				if (Array.isArray(argvValue)) {
-					argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
-				} else {
-					console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
 				}
 			}
 		}

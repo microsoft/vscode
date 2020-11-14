@@ -380,13 +380,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			'crash-reporter-id': {
 				type: 'string',
 				markdownDescription: nls.localize('argv.crashReporterId', 'Unique id used for correlating crash reports sent from this app instance.')
-			},
-			'enable-proposed-api': {
-				type: 'array',
-				description: nls.localize('argv.enebleProposedApi', "Enable proposed APIs for a list of extension ids (such as \`vscode.git\`). Proposed APIs are unstable and subject to breaking without warning at any time. This should only be set for extension development and testing purposes."),
-				items: {
-					type: 'string'
-				}
 			}
 		}
 	};

@@ -13,7 +13,7 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
@@ -32,6 +32,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -110,6 +116,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IStorageService protected readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -122,7 +129,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
-		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService);
+		this._proposedApiController = new ProposedApiController(this._environmentService, this._productService, this._storageService, this._configurationService);
 
 		this._extensionHostManagers = [];
 		this._extensionHostActiveExtensions = new Map<string, ExtensionIdentifier>();
@@ -801,6 +808,31 @@ export class ExtensionRunningLocationClassifier {
 	}
 }
 
+export const ENABLE_PROPOSED_API_OVERRIDE_CONFIG_KEY = 'extensions.enableProposedAPIOverride';
+class GlobalyEnabledProposedAPIStorage {
+
+	private static STORAGE_KEY = 'extensions.globallyEnabledProposedApi';
+
+	constructor(
+		private storageService: IStorageService,
+		private configurationService: IConfigurationService,
+	) { }
+
+	get extensions(): string[] {
+		if (this.configurationService.getValue(ENABLE_PROPOSED_API_OVERRIDE_CONFIG_KEY) !== true) {
+			return [];
+		}
+		try {
+			return JSON.parse(this.storageService.get(GlobalyEnabledProposedAPIStorage.STORAGE_KEY, StorageScope.GLOBAL, '[]'));
+		} catch { return []; }
+	}
+
+	set extensions(ids: string[]) {
+		this.storageService.store(GlobalyEnabledProposedAPIStorage.STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	}
+}
+
+const extensionsAttemptingProposedApi = new Set<string>();
 class ProposedApiController {
 
 	private readonly enableProposedApiFor: string[];
@@ -809,15 +841,20 @@ class ProposedApiController {
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		const argvEnabledProposedApi = _environmentService.extensionEnabledProposedApi;
+		const globalEnabledProposedApi = new GlobalyEnabledProposedAPIStorage(storageService, configurationService).extensions;
+
 		// Make enabled proposed API be lowercase for case insensitive comparison
-		this.enableProposedApiFor = (_environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
+		this.enableProposedApiFor = (_environmentService.extensionEnabledProposedApi || []).concat(globalEnabledProposedApi).map(id => id.toLowerCase());
 
 		this.enableProposedApiForAll =
 			!_environmentService.isBuilt || // always allow proposed API when running out of sources
 			(!!_environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
-			(this.enableProposedApiFor.length === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
+			(Array.isArray(argvEnabledProposedApi) && argvEnabledProposedApi.length === 0); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
@@ -837,6 +874,7 @@ class ProposedApiController {
 				this.enableProposedApiFor.indexOf(extension.identifier.value.toLowerCase()) < 0
 			) {
 				extension.enableProposedApi = false;
+				extensionsAttemptingProposedApi.add(ExtensionIdentifier.toKey(extension.identifier));
 				console.error(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
 
 			} else if (this._environmentService.isBuilt) {
@@ -851,6 +889,71 @@ class ProposedApiController {
 		return this.productAllowProposedApi.has(ExtensionIdentifier.toKey(id));
 	}
 }
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.manageProposedAPI',
+			title: { value: nls.localize('manageProposedAPI', "Manage Proposed API for Extensions"), original: 'Manage Proposed API for Extensions' },
+			category: CATEGORIES.Developer,
+			precondition: ContextKeyExpr.has('config.' + ENABLE_PROPOSED_API_OVERRIDE_CONFIG_KEY),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const productService = accessor.get(IProductService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const dialogService = accessor.get(IDialogService);
+		const notificationService = accessor.get(INotificationService);
+
+		const enabledProposedApiStorage = new GlobalyEnabledProposedAPIStorage(accessor.get(IStorageService), accessor.get(IConfigurationService));
+		const extensions = await accessor.get(IExtensionService).getExtensions();
+
+		const confirmation = await dialogService.confirm({
+			message: nls.localize('manageProposedApiWarning', "Proposed API is for development only"),
+			detail: nls.localize('manageProposedApiWarningDetail', "Extensions using Proposed API are subject to break at any point, without warning.\n\nYou should only enable Proposed API for testing extensions you are actively developing.\n\nAre you sure you want to continue?"),
+		});
+
+		if (!confirmation.confirmed) { return; }
+
+		const productAllowProposedApi = new Set<string>();
+		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
+			productService.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+		}
+
+		const extensionNeedsProposedApiGrant = (ext: IExtensionDescription) => {
+			const key = ExtensionIdentifier.toKey(ext.identifier);
+
+			if (extensionsAttemptingProposedApi.has(key)) {
+				return true;
+			}
+
+			if (ext.isBuiltin || !ext.enableProposedApi || productAllowProposedApi.has(key)) {
+				return false;
+			}
+
+			return true;
+		};
+
+		const extensionsNeedingProposedAPIGrant = extensions
+			.filter(extensionNeedsProposedApiGrant)
+			.map(ext => ExtensionIdentifier.toKey(ext.identifier));
+
+		if (extensionsNeedingProposedAPIGrant.length === 0) {
+			notificationService.info(nls.localize('noExtensionsNeedProposed', "No extensions have requested Proposed API"));
+		}
+
+		const alreadyGranted = enabledProposedApiStorage.extensions;
+		const grant = await quickInputService.pick(
+			extensionsNeedingProposedAPIGrant.map(id => ({ label: id, picked: alreadyGranted.includes(id) })),
+			{ canPickMany: true });
+
+		if (!grant) { return; }
+		enabledProposedApiStorage.extensions = grant.map(grant => grant.label);
+	}
+});
 
 function filterByRunningLocation<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): T[] {
 	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(extId(ext))) === desiredRunningLocation);
