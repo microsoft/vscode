@@ -908,6 +908,11 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const notificationService = accessor.get(INotificationService);
 
+		if (productService.quality === 'stable') {
+			notificationService.error(nls.localize('notAvailableInStable', "Managing Proposed API is not available outside of VS Code Insiders"));
+			return;
+		}
+
 		const enabledProposedApiStorage = new GlobalyEnabledProposedAPIStorage(accessor.get(IStorageService), accessor.get(IConfigurationService));
 		const extensions = await accessor.get(IExtensionService).getExtensions();
 
