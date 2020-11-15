@@ -824,7 +824,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the search view is narrow, and immediately after the content when the search view is wide."),
 				nls.localize('search.actionsPositionRight', "Always position the actionbar to the right."),
 			],
-			default: 'auto',
+			default: 'right',
 			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
 		},
 		'search.searchOnType': {
