@@ -72,7 +72,6 @@
     "vscode-ripgrep": "^1.11.0",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
-    "vsda": "ssh://git@github.com:Microsoft/vsda.git#45edd3db96a5e308a5cfc817d1ee42f6d96e1659",
     "xterm": "4.10.0-beta.4",
     "xterm-addon-search": "0.8.0-beta.3",
     "xterm-addon-unicode11": "0.3.0-beta.3",
