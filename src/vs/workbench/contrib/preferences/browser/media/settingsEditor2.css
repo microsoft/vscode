@@ -344,13 +344,11 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides {
-	opacity: 0.9;
 	font-style: italic;
 	margin-right: 4px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored {
-	opacity: 0.9;
 	font-style: italic;
 }
 
