@@ -38,6 +38,7 @@
 
 .monaco-editor .debug-hover-widget .complex-value .tip {
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
+	opacity: 0.5;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
