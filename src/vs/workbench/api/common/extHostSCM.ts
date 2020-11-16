@@ -307,9 +307,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 				if (r.command) {
 					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff') {
-						const internalCommand = this._commands.converter.toInternal(r.command);
-						command = internalCommand.command;
-						this._resourceStatesDisposablesMap.set(handle, internalCommand.disposable);
+						const disposables = new DisposableStore();
+						command = this._commands.converter.toInternal(r.command, disposables);
+						this._resourceStatesDisposablesMap.set(handle, disposables);
 					} else {
 						this._resourceStatesCommandsMap.set(handle, r.command);
 					}
