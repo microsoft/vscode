@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Kind } from '../protocol.const';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
@@ -13,7 +14,7 @@ import * as typeConverters from '../utils/typeConverters';
 class TypeScriptOnTypeRenameProvider implements vscode.OnTypeRenameProvider {
 
 	private static enabledKinds = new Set<string>([
-		'let', 'const', 'local var', 'parameter'
+		Kind.let, Kind.const, Kind.localVariable, Kind.parameter
 	]);
 
 	public constructor(
