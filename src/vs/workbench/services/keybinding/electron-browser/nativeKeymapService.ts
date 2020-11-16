@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nativeKeymap from 'native-keymap';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeymapService, IKeyboardLayoutInfo, IKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,20 +14,21 @@ import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals, IMacLinuxKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, ILinuxKeyboardLayoutInfo, IMacKeyboardLayoutInfo, IWindowsKeyboardLayoutInfo, IWindowsKeyboardMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
 
-export class KeyboardMapperFactory {
-	public static readonly INSTANCE = new KeyboardMapperFactory();
+class KeyboardMapperFactory {
 
-	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo | null;
-	private _rawMapping: nativeKeymap.IKeyboardMapping | null;
+	private _layoutInfo: IKeyboardLayoutInfo | null;
+	private _rawMapping: IKeyboardMapping | null;
 	private _keyboardMapper: IKeyboardMapper | null;
 	private _initialized: boolean;
 
 	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
-	private constructor() {
+	constructor(
+		private readonly _keyboardLayoutService: IKeyboardLayoutService
+	) {
 		this._layoutInfo = null;
 		this._rawMapping = null;
 		this._keyboardMapper = null;
@@ -37,13 +37,13 @@ export class KeyboardMapperFactory {
 
 	public _onKeyboardLayoutChanged(): void {
 		if (this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._keyboardLayoutService.getKeyboardLayoutInfo(), this._keyboardLayoutService.getKeyboardMapping());
 		}
 	}
 
 	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._keyboardLayoutService.getKeyboardLayoutInfo(), this._keyboardLayoutService.getKeyboardMapping());
 		}
 		if (dispatchConfig === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
@@ -52,40 +52,40 @@ export class KeyboardMapperFactory {
 		return this._keyboardMapper!;
 	}
 
-	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo | null {
+	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._keyboardLayoutService.getKeyboardLayoutInfo(), this._keyboardLayoutService.getKeyboardMapping());
 		}
 		return this._layoutInfo;
 	}
 
-	private static _isUSStandard(_kbInfo: nativeKeymap.IKeyboardLayoutInfo): boolean {
+	private static _isUSStandard(_kbInfo: IKeyboardLayoutInfo | null): boolean {
 		if (OS === OperatingSystem.Linux) {
-			const kbInfo = <nativeKeymap.ILinuxKeyboardLayoutInfo>_kbInfo;
+			const kbInfo = <ILinuxKeyboardLayoutInfo>_kbInfo;
 			return (kbInfo && (kbInfo.layout === 'us' || /^us,/.test(kbInfo.layout)));
 		}
 
 		if (OS === OperatingSystem.Macintosh) {
-			const kbInfo = <nativeKeymap.IMacKeyboardLayoutInfo>_kbInfo;
+			const kbInfo = <IMacKeyboardLayoutInfo>_kbInfo;
 			return (kbInfo && kbInfo.id === 'com.apple.keylayout.US');
 		}
 
 		if (OS === OperatingSystem.Windows) {
-			const kbInfo = <nativeKeymap.IWindowsKeyboardLayoutInfo>_kbInfo;
+			const kbInfo = <IWindowsKeyboardLayoutInfo>_kbInfo;
 			return (kbInfo && kbInfo.name === '00000409');
 		}
 
 		return false;
 	}
 
-	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping | null {
+	public getRawKeyboardMapping(): IKeyboardMapping | null {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._keyboardLayoutService.getKeyboardLayoutInfo(), this._keyboardLayoutService.getKeyboardMapping());
 		}
 		return this._rawMapping;
 	}
 
-	private _setKeyboardData(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
+	private _setKeyboardData(layoutInfo: IKeyboardLayoutInfo | null, rawMapping: IKeyboardMapping | null): void {
 		this._layoutInfo = layoutInfo;
 
 		if (this._initialized && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
@@ -101,19 +101,19 @@ export class KeyboardMapperFactory {
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(layoutInfo: IKeyboardLayoutInfo | null, rawMapping: IKeyboardMapping | null): IKeyboardMapper {
 		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
 		if (OS === OperatingSystem.Windows) {
-			return new WindowsKeyboardMapper(isUSStandard, <nativeKeymap.IWindowsKeyboardMapping>rawMapping);
+			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
 		}
 
-		if (Object.keys(rawMapping).length === 0) {
+		if (!rawMapping || Object.keys(rawMapping).length === 0) {
 			// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
 
 		if (OS === OperatingSystem.Macintosh) {
-			const kbInfo = <nativeKeymap.IMacKeyboardLayoutInfo>layoutInfo;
+			const kbInfo = <IMacKeyboardLayoutInfo>layoutInfo;
 			if (kbInfo.id === 'com.apple.keylayout.DVORAK-QWERTYCMD') {
 				// Use keyCode based dispatching for DVORAK - QWERTY ⌘
 				return new MacLinuxFallbackKeyboardMapper(OS);
@@ -123,9 +123,9 @@ export class KeyboardMapperFactory {
 		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
-	private static _equals(a: nativeKeymap.IKeyboardMapping | null, b: nativeKeymap.IKeyboardMapping | null): boolean {
+	private static _equals(a: IKeyboardMapping | null, b: IKeyboardMapping | null): boolean {
 		if (OS === OperatingSystem.Windows) {
-			return windowsKeyboardMappingEquals(<nativeKeymap.IWindowsKeyboardMapping>a, <nativeKeymap.IWindowsKeyboardMapping>b);
+			return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping>a, <IWindowsKeyboardMapping>b);
 		}
 
 		return macLinuxKeyboardMappingEquals(<IMacLinuxKeyboardMapping>a, <IMacLinuxKeyboardMapping>b);
@@ -138,24 +138,30 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 	private readonly _onDidChangeKeyboardMapper = this._register(new Emitter<void>());
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
-	constructor() {
+	private readonly _factory: KeyboardMapperFactory;
+
+	constructor(
+		@IKeyboardLayoutService keyboardLayoutService: IKeyboardLayoutService
+	) {
 		super();
 
-		this._register(KeyboardMapperFactory.INSTANCE.onDidChangeKeyboardMapper(() => {
+		this._factory = new KeyboardMapperFactory(keyboardLayoutService);
+
+		this._register(this._factory.onDidChangeKeyboardMapper(() => {
 			this._onDidChangeKeyboardMapper.fire();
 		}));
 
-		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
-		});
+		this._register(keyboardLayoutService.onDidChangeKeyboardLayout(() => {
+			this._factory._onKeyboardLayoutChanged();
+		}));
 	}
 
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
-		return KeyboardMapperFactory.INSTANCE.getKeyboardMapper(dispatchConfig);
+		return this._factory.getKeyboardMapper(dispatchConfig);
 	}
 
 	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
-		return KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
+		return this._factory.getCurrentKeyboardLayout();
 	}
 
 	getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
@@ -163,7 +169,7 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 	}
 
 	public getRawKeyboardMapping(): IKeyboardMapping | null {
-		return KeyboardMapperFactory.INSTANCE.getRawKeyboardMapping();
+		return this._factory.getRawKeyboardMapping();
 	}
 
 	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
