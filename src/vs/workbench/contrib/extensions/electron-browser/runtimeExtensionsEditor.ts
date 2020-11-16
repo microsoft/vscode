@@ -538,9 +538,7 @@ export class ReportExtensionIssueAction extends Action {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
-		this.enabled = extension.marketplaceInfo
-			&& extension.marketplaceInfo.type === ExtensionType.User
-			&& !!extension.description.repository && !!extension.description.repository.url;
+		this.enabled = !!extension.description.repository && !!extension.description.repository.url;
 	}
 
 	async run(): Promise<void> {

@@ -263,6 +263,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 						channel.append(sanitize(data));
 					}
 				});
+			} else {
+				this.serverProcess.stderr!.resume();
 			}
 
 			// finally connect to the DA

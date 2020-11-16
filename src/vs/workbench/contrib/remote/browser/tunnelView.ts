@@ -414,13 +414,23 @@ class TunnelItem implements ITunnelItem {
 		if (address.length < 16) {
 			return address;
 		}
-		let url: URL | undefined;
+		let displayAddress: string = address;
 		try {
-			url = new URL(address);
+			if (!address.startsWith('http')) {
+				address = `http://${address}`;
+			}
+			const url = new URL(address);
+			if (url && url.host) {
+				const lastDotIndex = url.host.lastIndexOf('.');
+				const secondLastDotIndex = lastDotIndex !== -1 ? url.host.substring(0, lastDotIndex).lastIndexOf('.') : -1;
+				if (secondLastDotIndex !== -1) {
+					displayAddress = `${url.protocol}//...${url.host.substring(secondLastDotIndex + 1)}`;
+				}
+			}
 		} catch (e) {
 			// Address isn't a valid url and can't be compacted.
 		}
-		return url && url.host.length > 0 ? url.host : address;
+		return displayAddress;
 	}
 
 	set description(description: string | undefined) {
@@ -430,8 +440,8 @@ class TunnelItem implements ITunnelItem {
 	get description(): string | undefined {
 		if (this._description) {
 			return this._description;
-		} else if (this.name) {
-			return nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, this.localAddress);
+		} else if (this.name && this.localAddress) {
+			return nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress));
 		}
 		return undefined;
 	}
@@ -877,7 +887,10 @@ export namespace OpenPortInBrowserAction {
 		const tunnel = model.forwarded.get(key) || model.detected.get(key);
 		let address: string | undefined;
 		if (tunnel && tunnel.localAddress && (address = model.address(tunnel.remoteHost, tunnel.remotePort))) {
-			return openerService.open(URI.parse('http://' + address));
+			if (!address.startsWith('http')) {
+				address = `http://${address}`;
+			}
+			return openerService.open(URI.parse(address));
 		}
 		return Promise.resolve();
 	}
@@ -1095,6 +1108,15 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		title: ForwardPortAction.TREEITEM_LABEL,
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Add))
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '0_manage',
+	order: 2,
+	command: {
+		id: RefreshTunnelViewAction.ID,
+		title: RefreshTunnelViewAction.LABEL,
+	},
+	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '1_manage',

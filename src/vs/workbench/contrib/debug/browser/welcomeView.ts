@@ -65,10 +65,10 @@ export class WelcomeView extends ViewPane {
 			if (isCodeEditor(editorControl)) {
 				const model = editorControl.getModel();
 				const language = model ? model.getLanguageIdentifier().language : undefined;
-				if (language && this.debugService.getConfigurationManager().isDebuggerInterestedInLanguage(language)) {
+				if (language && this.debugService.getAdapterManager().isDebuggerInterestedInLanguage(language)) {
 					this.debugStartLanguageContext.set(language);
 					this.debuggerInterestedContext.set(true);
-					storageSevice.store2(debugStartLanguageKey, language, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+					storageSevice.store(debugStartLanguageKey, language, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 					return;
 				}
 			}
@@ -88,7 +88,7 @@ export class WelcomeView extends ViewPane {
 
 			setContextKey();
 		}));
-		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
+		this._register(this.debugService.getAdapterManager().onDidRegisterDebugger(setContextKey));
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				setContextKey();

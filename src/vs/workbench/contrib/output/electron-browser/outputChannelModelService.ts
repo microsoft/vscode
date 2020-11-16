@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IOutputChannelModel, AbstractFileOutputChannelModel, IOutputChannelModelService, AsbtractOutputChannelModelService, BufferredOutputChannel } from 'vs/workbench/services/output/common/outputChannelModel';
+import { IOutputChannelModel, AbstractFileOutputChannelModel, IOutputChannelModelService, AbstractOutputChannelModelService, BufferredOutputChannel } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -197,7 +197,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 
 }
 
-export class OutputChannelModelService extends AsbtractOutputChannelModelService implements IOutputChannelModelService {
+export class OutputChannelModelService extends AbstractOutputChannelModelService implements IOutputChannelModelService {
 
 	declare readonly _serviceBrand: undefined;
 

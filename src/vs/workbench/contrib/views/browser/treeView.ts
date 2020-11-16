@@ -45,6 +45,7 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -462,8 +463,16 @@ export class TreeView extends Disposable implements ITreeView {
 				return;
 			}
 			const selection = this.tree!.getSelection();
-			if ((selection.length === 1) && selection[0].command) {
-				this.commandService.executeCommand(selection[0].command.id, ...(selection[0].command.arguments || []));
+			const command = selection.length === 1 ? selection[0].command : undefined;
+			if (command) {
+				let args = command.arguments || [];
+				if (command.id === API_OPEN_EDITOR_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
+					// Some commands owned by us should receive the
+					// `IOpenEvent` as context to open properly
+					args = [...args, e];
+				}
+
+				this.commandService.executeCommand(command.id, ...args);
 			}
 		}));
 
@@ -833,6 +842,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		// reset
 		templateData.actionBar.clear();
+		templateData.icon.style.color = '';
+
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
@@ -858,18 +869,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		if (iconUrl) {
 			templateData.icon.className = 'custom-view-tree-node-item-icon';
 			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
-			templateData.icon.style.color = '';
 		} else {
 			let iconClass: string | undefined;
 			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
-				} else {
-					templateData.icon.style.color = '';
 				}
-			} else {
-				templateData.icon.style.color = '';
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
 			templateData.icon.style.backgroundImage = '';

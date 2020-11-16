@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IOSConfiguration } from 'vs/platform/windows/common/windows';
 
 export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
@@ -80,6 +81,10 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 		}
 
 		return undefined;
+	}
+
+	get os(): IOSConfiguration {
+		return this.configuration.os;
 	}
 
 	constructor(
