@@ -5091,9 +5091,9 @@ declare namespace monaco.languages {
 	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
 
 	/**
-	 * Register an on type rename provider.
+	 * Register an on type rename range provider.
 	 */
-	export function registerOnTypeRenameProvider(languageId: string, provider: OnTypeRenameProvider): IDisposable;
+	export function registerOnTypeRenameRangeProvider(languageId: string, provider: OnTypeRenameRangeProvider): IDisposable;
 
 	/**
 	 * Register a definition provider (used by e.g. go to definition).
@@ -5837,10 +5837,10 @@ declare namespace monaco.languages {
 	}
 
 	/**
-	 * The rename provider interface defines the contract between extensions and
+	 * The rename range provider interface defines the contract between extensions and
 	 * the live-rename feature.
 	 */
-	export interface OnTypeRenameProvider {
+	export interface OnTypeRenameRangeProvider {
 		/**
 		 * Provide a list of ranges that can be live-renamed together.
 		 */

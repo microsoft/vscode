@@ -262,8 +262,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- on type rename
 
-	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.OnTypeRenameProviderRegistry.register(selector, <modes.OnTypeRenameProvider>{
+	$registerOnTypeRenameRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.OnTypeRenameRangeProviderRegistry.register(selector, <modes.OnTypeRenameRangeProvider>{
 			provideOnTypeRenameRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.OnTypeRenameRanges | undefined> => {
 				const res = await this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
 				if (res) {
