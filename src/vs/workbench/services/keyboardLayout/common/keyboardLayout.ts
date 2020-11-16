@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
 
 export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');
 
@@ -41,6 +42,8 @@ export interface IMacKeyboardMapping {
 	[code: string]: IMacKeyMapping;
 }
 
+export type IMacLinuxKeyMapping = IMacKeyMapping | ILinuxKeyMapping;
+export type IMacLinuxKeyboardMapping = IMacKeyboardMapping | ILinuxKeyboardMapping;
 export type IKeyboardMapping = IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping;
 
 /* __GDPR__FRAGMENT__
@@ -181,4 +184,71 @@ export function getKeyboardLayoutId(layout: IKeyboardLayoutInfo): string {
 	}
 
 	return (<ILinuxKeyboardLayoutInfo>layout).layout;
+}
+
+function windowsKeyMappingEquals(a: IWindowsKeyMapping, b: IWindowsKeyMapping): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.vkey === b.vkey
+		&& a.value === b.value
+		&& a.withShift === b.withShift
+		&& a.withAltGr === b.withAltGr
+		&& a.withShiftAltGr === b.withShiftAltGr
+	);
+}
+
+export function windowsKeyboardMappingEquals(a: IWindowsKeyboardMapping | null, b: IWindowsKeyboardMapping | null): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	for (let scanCode = 0; scanCode < ScanCode.MAX_VALUE; scanCode++) {
+		const strScanCode = ScanCodeUtils.toString(scanCode);
+		const aEntry = a[strScanCode];
+		const bEntry = b[strScanCode];
+		if (!windowsKeyMappingEquals(aEntry, bEntry)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function macLinuxKeyMappingEquals(a: IMacLinuxKeyMapping, b: IMacLinuxKeyMapping): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.value === b.value
+		&& a.withShift === b.withShift
+		&& a.withAltGr === b.withAltGr
+		&& a.withShiftAltGr === b.withShiftAltGr
+	);
+}
+
+export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping | null, b: IMacLinuxKeyboardMapping | null): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	for (let scanCode = 0; scanCode < ScanCode.MAX_VALUE; scanCode++) {
+		const strScanCode = ScanCodeUtils.toString(scanCode);
+		const aEntry = a[strScanCode];
+		const bEntry = b[strScanCode];
+		if (!macLinuxKeyMappingEquals(aEntry, bEntry)) {
+			return false;
+		}
+	}
+	return true;
 }

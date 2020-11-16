@@ -14,7 +14,7 @@ import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/plat
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -29,7 +29,7 @@ import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getKeyboardLayoutId, IKeyboardMapping, IWindowsKeyboardMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
+import { getKeyboardLayoutId, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
 
 export class BrowserKeyboardMapperFactoryBase {
 	// keyboard mapper

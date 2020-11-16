@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
+import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping, macLinuxKeyboardMappingEquals, windowsKeyboardMappingEquals } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
 import { Emitter } from 'vs/base/common/event';
 import * as nativeKeymap from 'native-keymap';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
 
 export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 
@@ -28,7 +29,13 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		this._cacheIsValid = false;
 
 		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
+			const previousKeyboardMapping = this._cachedKeyboardMapping;
 			this._cacheIsValid = false;
+			this._ensureCache();
+			if (keyboardMappingEquals(previousKeyboardMapping, this._cachedKeyboardMapping)) {
+				// the mappings are equal
+				return;
+			}
 			this._onDidChangeKeyboardLayout.fire();
 		});
 	}
@@ -51,6 +58,14 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		this._ensureCache();
 		return this._cachedKeyboardLayoutInfo;
 	}
+}
+
+function keyboardMappingEquals(a: IKeyboardMapping | null, b: IKeyboardMapping | null): boolean {
+	if (OS === OperatingSystem.Windows) {
+		return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping | null>a, <IWindowsKeyboardMapping | null>b);
+	}
+
+	return macLinuxKeyboardMappingEquals(<IMacLinuxKeyboardMapping | null>a, <IMacLinuxKeyboardMapping | null>b);
 }
 
 registerSingleton(IKeyboardLayoutService, KeyboardLayoutService, false);

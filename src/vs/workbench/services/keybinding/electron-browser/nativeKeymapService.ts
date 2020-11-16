@@ -11,10 +11,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals, IMacLinuxKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, ILinuxKeyboardLayoutInfo, IMacKeyboardLayoutInfo, IWindowsKeyboardLayoutInfo, IWindowsKeyboardMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
+import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, ILinuxKeyboardLayoutInfo, IMacKeyboardLayoutInfo, IMacLinuxKeyboardMapping, IWindowsKeyboardLayoutInfo, IWindowsKeyboardMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
 
 class KeyboardMapperFactory {
 
@@ -87,12 +87,6 @@ class KeyboardMapperFactory {
 
 	private _setKeyboardData(layoutInfo: IKeyboardLayoutInfo | null, rawMapping: IKeyboardMapping | null): void {
 		this._layoutInfo = layoutInfo;
-
-		if (this._initialized && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
-			// nothing to do...
-			return;
-		}
-
 		this._initialized = true;
 		this._rawMapping = rawMapping;
 		this._keyboardMapper = new CachedKeyboardMapper(
@@ -121,14 +115,6 @@ class KeyboardMapperFactory {
 		}
 
 		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
-	}
-
-	private static _equals(a: IKeyboardMapping | null, b: IKeyboardMapping | null): boolean {
-		if (OS === OperatingSystem.Windows) {
-			return windowsKeyboardMappingEquals(<IWindowsKeyboardMapping>a, <IWindowsKeyboardMapping>b);
-		}
-
-		return macLinuxKeyboardMappingEquals(<IMacLinuxKeyboardMapping>a, <IMacLinuxKeyboardMapping>b);
 	}
 }
 
