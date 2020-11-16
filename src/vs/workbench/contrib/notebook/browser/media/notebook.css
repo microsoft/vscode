@@ -855,3 +855,7 @@
 	display: block;
 	opacity: 0.7;
 }
+
+.output-show-more {
+	padding: 8px 0;
+}
