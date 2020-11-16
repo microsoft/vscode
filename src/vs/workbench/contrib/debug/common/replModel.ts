@@ -225,7 +225,7 @@ export class ReplModel {
 					// No need to fire an event, just the count updates and badge will adjust automatically
 					return;
 				}
-				if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n')) {
+				if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
 					previousElement.value += data;
 					this._onDidChangeElements.fire();
 					return;

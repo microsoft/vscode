@@ -64,6 +64,41 @@ suite('Debug - REPL', () => {
 		assert.equal(elements[0], '1\n');
 		assert.equal(elements[1], '23\n45\n');
 		assert.equal(elements[2], '6');
+
+		repl.removeReplExpressions();
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'third line', severity.Info);
+		elements = <SimpleReplElement[]>repl.getReplElements();
+		assert.equal(elements.length, 3);
+		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].count, 3);
+		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].count, 2);
+		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].count, 1);
+	});
+
+	test('repl output count', () => {
+		const session = createMockSession(model);
+		const repl = new ReplModel();
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'third line', severity.Info);
+		const elements = <SimpleReplElement[]>repl.getReplElements();
+		assert.equal(elements.length, 3);
+		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].count, 3);
+		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].count, 2);
+		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].count, 1);
 	});
 
 	test('repl merging', () => {
