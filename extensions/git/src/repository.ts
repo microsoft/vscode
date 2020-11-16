@@ -75,9 +75,21 @@ export class Resource implements SourceControlResourceState {
 		return this._resourceUri;
 	}
 
-	@memoize
+	get leftUri(): Uri | undefined {
+		return this.resources[0];
+	}
+
+	get rightUri(): Uri {
+		return this.resources[1];
+	}
+
 	get command(): Command {
-		return this._commandResolver.resolveResourceCommand(this);
+		return this._commandResolver.resolveDefaultCommand(this);
+	}
+
+	@memoize
+	private get resources(): [Uri | undefined, Uri] {
+		return this._commandResolver.getResources(this);
 	}
 
 	get resourceGroupType(): ResourceGroupType { return this._resourceGroupType; }
@@ -265,6 +277,21 @@ export class Resource implements SourceControlResourceState {
 		private _useIcons: boolean,
 		private _renameResourceUri?: Uri,
 	) { }
+
+	async open(): Promise<void> {
+		const command = this.command;
+		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	}
+
+	async openFile(): Promise<void> {
+		const command = this._commandResolver.resolveFileCommand(this);
+		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	}
+
+	async openChange(): Promise<void> {
+		const command = this._commandResolver.resolveChangeCommand(this);
+		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	}
 }
 
 export const enum Operation {
@@ -554,23 +581,46 @@ class ResourceCommandResolver {
 
 	constructor(private repository: Repository) { }
 
-	resolveResourceCommand(resource: Resource): Command {
-		const left = this.getLeftResource(resource);
-		const right = this.getRightResource(resource);
+	resolveDefaultCommand(resource: Resource): Command {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const openDiffOnClick = config.get<boolean>('openDiffOnClick', true);
+		return openDiffOnClick ? this.resolveChangeCommand(resource) : this.resolveFileCommand(resource);
+	}
 
-		if (!left) {
+	resolveFileCommand(resource: Resource): Command {
+		return {
+			command: 'vscode.open',
+			title: localize('open', "Open"),
+			arguments: [resource.resourceUri]
+		};
+	}
+
+	resolveChangeCommand(resource: Resource): Command {
+		const title = this.getTitle(resource);
+
+		if (!resource.leftUri) {
 			return {
 				command: 'vscode.open',
 				title: localize('open', "Open"),
-				arguments: [right]
+				arguments: [resource.rightUri, { override: resource.type === Status.BOTH_MODIFIED ? false : undefined }, title]
 			};
 		} else {
 			return {
 				command: 'vscode.diff',
 				title: localize('open', "Open"),
-				arguments: [left, right]
+				arguments: [resource.leftUri, resource.rightUri, title]
 			};
 		}
+	}
+
+	getResources(resource: Resource): [Uri | undefined, Uri] {
+		for (const submodule of this.repository.submodules) {
+			if (path.join(this.repository.root, submodule.path) === resource.resourceUri.fsPath) {
+				return [undefined, toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root })];
+			}
+		}
+
+		return [this.getLeftResource(resource), this.getRightResource(resource)];
 	}
 
 	private getLeftResource(resource: Resource): Uri | undefined {
@@ -628,6 +678,38 @@ class ResourceCommandResolver {
 		}
 
 		throw new Error('Should never happen');
+	}
+
+	private getTitle(resource: Resource): string {
+		const basename = path.basename(resource.resourceUri.fsPath);
+
+		switch (resource.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.INDEX_RENAMED:
+			case Status.INDEX_ADDED:
+				return localize('git.title.index', '{0} (Index)', basename);
+
+			case Status.MODIFIED:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return localize('git.title.workingTree', '{0} (Working Tree)', basename);
+
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return localize('git.title.deleted', '{0} (Deleted)', basename);
+
+			case Status.DELETED_BY_US:
+				return localize('git.title.theirs', '{0} (Theirs)', basename);
+
+			case Status.DELETED_BY_THEM:
+				return localize('git.title.ours', '{0} (Ours)', basename);
+
+			case Status.UNTRACKED:
+				return localize('git.title.untracked', '{0} (Untracked)', basename);
+
+			default:
+				return '';
+		}
 	}
 }
 
@@ -832,6 +914,7 @@ export class Repository implements Disposable {
 			e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
+			|| e.affectsConfiguration('git.openDiffOnClick', root)
 		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {

@@ -90,8 +90,63 @@ function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorat
 	return result;
 }
 
+function compareCommands(a: vscode.Command, b: vscode.Command): number {
+	if (a.command !== b.command) {
+		return a.command < b.command ? -1 : 1;
+	}
+
+	if (a.title !== b.title) {
+		return a.title < b.title ? -1 : 1;
+	}
+
+	if (a.tooltip !== b.tooltip) {
+		if (a.tooltip !== undefined && b.tooltip !== undefined) {
+			return a.tooltip < b.tooltip ? -1 : 1;
+		} else if (a.tooltip !== undefined) {
+			return 1;
+		} else if (b.tooltip !== undefined) {
+			return -1;
+		}
+	}
+
+	if (a.arguments === b.arguments) {
+		return 0;
+	} else if (!a.arguments) {
+		return -1;
+	} else if (!b.arguments) {
+		return 1;
+	} else if (a.arguments.length !== b.arguments.length) {
+		return a.arguments.length - b.arguments.length;
+	}
+
+	for (let i = 0; i < a.arguments.length; i++) {
+		const aArg = a.arguments[i];
+		const bArg = b.arguments[i];
+
+		if (aArg === bArg) {
+			continue;
+		}
+
+		return aArg < bArg ? -1 : 1;
+	}
+
+	return 0;
+}
+
 function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.SourceControlResourceState): number {
 	let result = comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath, true);
+
+	if (result !== 0) {
+		return result;
+	}
+
+	if (a.command && b.command) {
+		result = compareCommands(a.command, b.command);
+	} else if (a.command) {
+		return 1;
+	} else if (b.command) {
+		return -1;
+	}
 
 	if (result !== 0) {
 		return result;
