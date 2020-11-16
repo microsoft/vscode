@@ -6,6 +6,8 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
+import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 
 export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');
 
@@ -98,6 +100,7 @@ export interface IKeyboardLayoutService {
 
 	getKeyboardMapping(): IKeyboardMapping | null;
 	getKeyboardLayoutInfo(): IKeyboardLayoutInfo | null;
+	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
 }
 
 export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeyboardLayoutInfo | null): boolean {
