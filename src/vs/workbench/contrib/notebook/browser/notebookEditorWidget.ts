@@ -34,7 +34,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listFocusBackground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento } from 'vs/workbench/common/editor';
@@ -1842,7 +1842,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 }
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
-	dark: transparent(PANEL_BORDER, .4),
+	dark: transparent(listInactiveSelectionBackground, 1),
 	light: transparent(listInactiveSelectionBackground, 1),
 	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
@@ -1873,7 +1873,7 @@ export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.fo
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: notebookCellBorder,
-	light: transparent(listFocusBackground, .4),
+	light: notebookCellBorder,
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
@@ -1885,8 +1885,8 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparat
 }, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
-	dark: transparent(PANEL_BORDER, .4),
-	light: transparent(listFocusBackground, .4),
+	dark: null,
+	light: null,
 	hc: null
 }, nls.localize('focusedCellBackground', "The background color of a cell when the cell is focused."));
 
@@ -1896,9 +1896,15 @@ export const cellHoverBackground = registerColor('notebook.cellHoverBackground',
 	hc: null
 }, nls.localize('notebook.cellHoverBackground', "The background color of a cell when the cell is hovered."));
 
+export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
+	dark: notebookCellBorder,
+	light: notebookCellBorder,
+	hc: focusBorder
+}, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focusd."));
+
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
-	dark: Color.white.transparent(0.12),
-	light: Color.black.transparent(0.12),
+	dark: focusBorder,
+	light: focusBorder,
 	hc: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
 
@@ -2024,6 +2030,13 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused:after {
 				border-color: ${focusedCellBorderColor} !important;
+			}`);
+
+	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
+	collector.addRule(`
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before {
+				border-color: ${selectedCellBorderColor} !important;
 			}`);
 
 	const cellSymbolHighlightColor = theme.getColor(cellSymbolHighlight);
