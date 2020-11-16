@@ -407,13 +407,13 @@ function registerOpenEditorAPICommands(): void {
 		];
 	}
 
-	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents, columnAndOptions?: [ITextEditorOptions?, EditorGroupColumn?], label?: string, context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], label?: string, context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
 
 		const resource = URI.revive(resourceArg);
-		const [optionsArg, columnArg] = columnAndOptions ?? [];
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
 		// use editor options or editor view column as a hint to use the editor service for opening
 		if (optionsArg || typeof columnArg === 'number') {
@@ -433,10 +433,11 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, leftResource: UriComponents, rightResource: UriComponents, label?: string, optionsArg?: ITextEditorOptions, columnArg?: EditorGroupColumn, context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, leftResource: UriComponents, rightResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
+		let [columnArg, optionsArg] = columnAndOptions ?? [];
 		if (!optionsArg || typeof optionsArg !== 'object') {
 			optionsArg = {
 				preserveFocus: false
