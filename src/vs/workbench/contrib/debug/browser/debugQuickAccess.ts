@@ -95,7 +95,9 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					accept: async () => {
 						await configManager.selectConfiguration(undefined, name, undefined, { type });
 						try {
-							await this.debugService.startDebugging(configManager.selectedConfiguration.launch, configManager.selectedConfiguration.config);
+							const { launch, getConfig } = configManager.selectedConfiguration;
+							const config = await getConfig();
+							await this.debugService.startDebugging(launch, config);
 						} catch (error) {
 							this.notificationService.error(error);
 						}
