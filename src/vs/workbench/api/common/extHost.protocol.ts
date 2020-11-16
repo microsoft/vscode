@@ -865,7 +865,8 @@ export type SCMRawResource = [
 	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/,
-	string /*context value*/
+	string /*context value*/,
+	ICommandDto | undefined /*command*/
 ];
 
 export type SCMRawResourceSplice = [
