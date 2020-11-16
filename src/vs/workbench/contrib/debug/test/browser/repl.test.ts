@@ -85,7 +85,7 @@ suite('Debug - REPL', () => {
 		assert.equal(grandChild.getReplElements().length, 1);
 		assert.equal(child3.getReplElements().length, 0);
 
-		grandChild.appendToRepl('1\n', severity.Info);
+		grandChild.appendToRepl('2\n', severity.Info);
 		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 0);
@@ -93,7 +93,7 @@ suite('Debug - REPL', () => {
 		assert.equal(grandChild.getReplElements().length, 2);
 		assert.equal(child3.getReplElements().length, 0);
 
-		child3.appendToRepl('1\n', severity.Info);
+		child3.appendToRepl('3\n', severity.Info);
 		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 0);
@@ -101,7 +101,7 @@ suite('Debug - REPL', () => {
 		assert.equal(grandChild.getReplElements().length, 2);
 		assert.equal(child3.getReplElements().length, 1);
 
-		child1.appendToRepl('1\n', severity.Info);
+		child1.appendToRepl('4\n', severity.Info);
 		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 1);
