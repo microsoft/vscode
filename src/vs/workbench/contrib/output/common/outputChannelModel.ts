@@ -37,7 +37,7 @@ export interface IOutputChannelModelService {
 
 }
 
-export abstract class AsbtractOutputChannelModelService {
+export abstract class AbstractOutputChannelModelService {
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService

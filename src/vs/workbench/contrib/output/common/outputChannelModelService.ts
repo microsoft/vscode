@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IOutputChannelModelService, AsbtractOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
+import { IOutputChannelModelService, AbstractOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class OutputChannelModelService extends AsbtractOutputChannelModelService implements IOutputChannelModelService {
+export class OutputChannelModelService extends AbstractOutputChannelModelService implements IOutputChannelModelService {
 	declare readonly _serviceBrand: undefined;
 }
 

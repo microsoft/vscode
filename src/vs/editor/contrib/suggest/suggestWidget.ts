@@ -82,7 +82,7 @@ class PersistedWidgetSize {
 	}
 
 	store(size: dom.Dimension) {
-		this._service.store2(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	reset(): void {
@@ -850,7 +850,7 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _setDetailsVisible(value: boolean) {
-		this._storageService.store2('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
+		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 }
 

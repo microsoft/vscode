@@ -194,7 +194,19 @@ suite('KeybindingsEditing', () => {
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
+	test('add another keybinding', () => {
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
+		return testObject.addKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined)
+			.then(() => assert.deepEqual(getUserKeybindings(), expected));
+	});
+
 	test('add a new default keybinding', () => {
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
+		return testObject.addKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined)
+			.then(() => assert.deepEqual(getUserKeybindings(), expected));
+	});
+
+	test('add a new default keybinding using edit', () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
 		return testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined)
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));

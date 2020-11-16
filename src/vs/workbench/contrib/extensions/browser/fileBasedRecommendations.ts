@@ -271,7 +271,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private addToPromptedRecommendations(exeName: string, extensions: string[]) {
 		const promptedRecommendations = this.getPromptedRecommendations();
 		promptedRecommendations[exeName] = extensions;
-		this.storageService.store2(promptedRecommendationsStorageKey, JSON.stringify(promptedRecommendations), StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(promptedRecommendationsStorageKey, JSON.stringify(promptedRecommendations), StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private getPromptedFileExtensions(): string[] {
@@ -281,7 +281,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private addToPromptedFileExtensions(fileExtension: string) {
 		const promptedFileExtensions = this.getPromptedFileExtensions();
 		promptedFileExtensions.push(fileExtension);
-		this.storageService.store2(promptedFileExtensionsStorageKey, JSON.stringify(distinct(promptedFileExtensions)), StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(promptedFileExtensionsStorageKey, JSON.stringify(distinct(promptedFileExtensions)), StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private async promptRecommendedExtensionForFileExtension(fileExtension: string, installed: IExtension[]): Promise<void> {
@@ -325,7 +325,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				label: localize('dontShowAgainExtension', "Don't Show Again for '.{0}' files", fileExtension),
 				run: () => {
 					fileExtensionSuggestionIgnoreList.push(fileExtension);
-					this.storageService.store2(
+					this.storageService.store(
 						'extensionsAssistant/fileExtensionsSuggestionIgnore',
 						JSON.stringify(fileExtensionSuggestionIgnoreList),
 						StorageScope.GLOBAL,
@@ -374,7 +374,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private storeCachedRecommendations(): void {
 		const storedRecommendations: IStringDictionary<number> = {};
 		this.fileBasedRecommendations.forEach((value, key) => storedRecommendations[key] = value.recommendedTime);
-		this.storageService.store2(recommendationsStorageKey, JSON.stringify(storedRecommendations), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(recommendationsStorageKey, JSON.stringify(storedRecommendations), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 

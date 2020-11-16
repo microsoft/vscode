@@ -109,6 +109,17 @@ suite('TextSearchResult', () => {
 		assert.equal(result.preview.text, 'foo bar 123456⟪ 117 characters skipped ⟫o bar baz bar');
 	});
 
+	test('trims lines endings', () => {
+		const range = new SearchRange(5, 3, 5, 5);
+		const previewOptions: ITextSearchPreviewOptions = {
+			matchLines: 1,
+			charsPerLine: 10000
+		};
+
+		assert.equal(new TextSearchMatch('foo bar\n', range, previewOptions).preview.text, 'foo bar');
+		assert.equal(new TextSearchMatch('foo bar\r\n', range, previewOptions).preview.text, 'foo bar');
+	});
+
 	// test('all lines of multiline match', () => {
 	// 	const previewOptions: ITextSearchPreviewOptions = {
 	// 		matchLines: 5,

@@ -88,7 +88,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			if (!terminal) {
 				const options: vscode.TerminalOptions = {
 					shellPath: shell,
-					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
+					shellArgs: this._terminalService.getDefaultShellArgs(true, configProvider),
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
 				};

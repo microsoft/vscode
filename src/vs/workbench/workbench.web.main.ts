@@ -37,7 +37,6 @@ import 'vs/workbench/browser/web.main';
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
 import 'vs/workbench/services/search/common/searchService';
-import 'vs/workbench/services/output/common/outputChannelModelService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keymapService';
 import 'vs/workbench/services/extensions/browser/extensionService';
@@ -107,6 +106,9 @@ registerSingleton(ITimerService, TimerService);
 
 
 //#region --- workbench contributions
+
+// Output
+import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';

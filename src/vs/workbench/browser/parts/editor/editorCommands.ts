@@ -402,18 +402,18 @@ function registerOpenEditorAPICommands(): void {
 		}
 
 		return [
-			{ ...(options ?? Object.create(null)), ...context.editorOptions },
+			{ ...context.editorOptions, ...(options ?? Object.create(null)) },
 			context.sideBySide ? SIDE_GROUP : column
 		];
 	}
 
-	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [UriComponents, ITextEditorOptions | undefined, EditorGroupColumn | undefined, string | undefined], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents, columnAndOptions?: [ITextEditorOptions?, EditorGroupColumn?], label?: string, context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
 
-		const [resourceArg, optionsArg, columnArg, label] = payload;
 		const resource = URI.revive(resourceArg);
+		const [optionsArg, columnArg] = columnAndOptions ?? [];
 
 		// use editor options or editor view column as a hint to use the editor service for opening
 		if (optionsArg || typeof columnArg === 'number') {
@@ -433,11 +433,9 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [UriComponents, UriComponents, string, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, leftResource: UriComponents, rightResource: UriComponents, label?: string, optionsArg?: ITextEditorOptions, columnArg?: EditorGroupColumn, context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
-
-		let [leftResource, rightResource, label, description, optionsArg, columnArg] = payload;
 
 		if (!optionsArg || typeof optionsArg !== 'object') {
 			optionsArg = {
@@ -451,7 +449,6 @@ function registerOpenEditorAPICommands(): void {
 			leftResource: URI.revive(leftResource),
 			rightResource: URI.revive(rightResource),
 			label,
-			description,
 			options
 		}, viewColumnToEditorGroup(editorGroupService, column));
 	});

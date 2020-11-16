@@ -68,7 +68,7 @@ export class ContributedCustomEditors extends Disposable {
 			}
 		}
 
-		const mementoObject = this._memento.legacygetMemento(StorageScope.GLOBAL);
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		mementoObject[ContributedCustomEditors.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._editors.values());
 		this._memento.saveMemento();
 

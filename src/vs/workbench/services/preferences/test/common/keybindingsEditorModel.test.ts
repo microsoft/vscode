@@ -262,6 +262,29 @@ suite('KeybindingsEditorModel', () => {
 		assert.ok(actual);
 	});
 
+	test('filter by command prefix with different commands', async () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: true });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: true }));
+
+		await testObject.resolve(new Map<string, string>());
+		const actual = testObject.fetch(`@command:${command}`);
+		assert.equal(actual.length, 1);
+		assert.deepEqual(actual[0].keybindingItem.command, command);
+	});
+
+	test('filter by command prefix with same commands', async () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: true });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, when: 'whenContext1 && whenContext2', isDefault: true }));
+
+		await testObject.resolve(new Map<string, string>());
+		const actual = testObject.fetch(`@command:${command}`);
+		assert.equal(actual.length, 2);
+		assert.deepEqual(actual[0].keybindingItem.command, command);
+		assert.deepEqual(actual[1].keybindingItem.command, command);
+	});
+
 	test('filter by when context', async () => {
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'whenContext1 && whenContext2', isDefault: false });
