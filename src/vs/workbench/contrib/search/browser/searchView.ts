@@ -71,7 +71,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { Range } from 'vs/editor/common/core/range';
+import { Location, Range } from 'vs/workbench/api/common/extHostTypes';
 
 const $ = dom.$;
 
@@ -92,16 +92,8 @@ export const SearchViewContextMid = 13;
 export interface IMatchContext {
 	/** Identifies which kind of match this is (text,file,folder) */
 	matchingKind: 'textMatch';
-	/** vscode id for this match */
-	id: string;
-	/** The text that was matched */
-	matchedText: string;
-	/** Text we would replace the matched text for, if we apply the match */
-	replacementText: string;
-	/** uri of the file were this match happened */
-	uri: URI;
-	/** location of where the matched text is inside the file */
-	matchRange: Range;
+	/** location of where the matched text is */
+	location: Location;
 	renderableMatch: Match;
 	$mid: SearchViewContextMid;
 }
@@ -109,8 +101,6 @@ export interface IMatchContext {
 export interface IFileMatchContext {
 	/** Identifies which kind of match this is (text,file,folder) */
 	matchingKind: 'fileMatch';
-	/** uri of the file were all these matches happened */
-	uri: URI;
 	/** matches for this particular file */
 	matches: IMatchContext[];
 	renderableMatch: FileMatch;
@@ -120,12 +110,8 @@ export interface IFileMatchContext {
 export interface IFolderMatchContext {
 	/** Identifies which kind of match this is (text,file,folder) */
 	matchingKind: 'folderMatch';
-	/** vscode id for this match */
-	id: string;
 	/** matches for this particular folder */
 	matches: IFileMatchContext[];
-	/** resource that might be associate with this match  */
-	resource: URI | null;
 	renderableMatch: FolderMatch;
 	$mid: SearchViewContextMid;
 }
@@ -138,13 +124,13 @@ export interface IFolderMatchWithResourceContext extends IFolderMatchContext {
 export type IRenderableMatchContext = (IMatchContext | IFileMatchContext | IFolderMatchContext);
 
 function toMatchContext(match: Match): IMatchContext {
+	const range = match.range();
+	const location = new Location(URI.parse(match.parent().id()),
+		new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+
 	return {
 		matchingKind: 'textMatch',
-		id: match.id(),
-		uri: URI.parse(match.parent().id()),
-		matchedText: match.fullMatchText(),
-		replacementText: match.replaceString,
-		matchRange: match.range(),
+		location,
 		renderableMatch: match,
 		$mid: SearchViewContextMid
 	};
@@ -153,7 +139,6 @@ function toMatchContext(match: Match): IMatchContext {
 function toFileMatchContext(fileMatch: FileMatch): IFileMatchContext {
 	return {
 		matchingKind: 'fileMatch',
-		uri: URI.parse(fileMatch.id()),
 		matches: fileMatch.matches().map(toMatchContext),
 		renderableMatch: fileMatch,
 		$mid: SearchViewContextMid
@@ -164,7 +149,6 @@ function toFolderMatchContext<T extends IFolderMatchContext>(folderMatch: Folder
 	return {
 		matchingKind: 'folderMatch',
 		matches: folderMatch.matches().map(toFileMatchContext),
-		id: folderMatch.id(),
 		renderableMatch: folderMatch,
 		$mid: SearchViewContextMid
 	} as T;
@@ -873,7 +857,6 @@ export class SearchView extends ViewPane {
 			context = toMatchContext(match);
 		} else if (match instanceof FolderMatch) {
 			context = toFolderMatchContext(match);
-			context.resource = match.resource;
 		}
 
 		const actions: IAction[] = [];
