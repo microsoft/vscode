@@ -417,7 +417,7 @@ class TunnelItem implements ITunnelItem {
 		let displayAddress: string = address;
 		try {
 			if (!address.startsWith('http')) {
-				address = `https://${address}`;
+				address = `http://${address}`;
 			}
 			const url = new URL(address);
 			if (url && url.host) {
@@ -888,7 +888,7 @@ export namespace OpenPortInBrowserAction {
 		let address: string | undefined;
 		if (tunnel && tunnel.localAddress && (address = model.address(tunnel.remoteHost, tunnel.remotePort))) {
 			if (!address.startsWith('http')) {
-				address = `https://${address}`;
+				address = `http://${address}`;
 			}
 			return openerService.open(URI.parse(address));
 		}
