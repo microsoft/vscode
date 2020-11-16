@@ -72,6 +72,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { Location, Range } from 'vs/workbench/api/common/extHostTypes';
+import { flatten } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -90,68 +91,37 @@ export type SearchViewContextMid = 13;
 export const SearchViewContextMid = 13;
 
 export interface IMatchContext {
-	/** Identifies which kind of match this is (text,file,folder) */
-	matchingKind: 'textMatch';
-	/** location of where the matched text is */
-	location: Location;
+	/** locations of where the matched texts are */
+	locations: Location[];
 	renderableMatch: Match;
 	$mid: SearchViewContextMid;
 }
 
 export interface IFileMatchContext {
-	/** Identifies which kind of match this is (text,file,folder) */
-	matchingKind: 'fileMatch';
 	/** matches for this particular file */
-	matches: IMatchContext[];
+	locations: Location[];
 	renderableMatch: FileMatch;
 	$mid: SearchViewContextMid;
 }
 
 export interface IFolderMatchContext {
-	/** Identifies which kind of match this is (text,file,folder) */
-	matchingKind: 'folderMatch';
 	/** matches for this particular folder */
-	matches: IFileMatchContext[];
+	locations: Location[];
 	renderableMatch: FolderMatch;
 	$mid: SearchViewContextMid;
 }
 
 export interface IFolderMatchWithResourceContext extends IFolderMatchContext {
-	resource: URI;
 	renderableMatch: FolderMatchWithResource;
 }
 
 export type IRenderableMatchContext = (IMatchContext | IFileMatchContext | IFolderMatchContext);
 
-function toMatchContext(match: Match): IMatchContext {
+function toLocation(match: Match): Location {
 	const range = match.range();
 	const location = new Location(URI.parse(match.parent().id()),
 		new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
-
-	return {
-		matchingKind: 'textMatch',
-		location,
-		renderableMatch: match,
-		$mid: SearchViewContextMid
-	};
-}
-
-function toFileMatchContext(fileMatch: FileMatch): IFileMatchContext {
-	return {
-		matchingKind: 'fileMatch',
-		matches: fileMatch.matches().map(toMatchContext),
-		renderableMatch: fileMatch,
-		$mid: SearchViewContextMid
-	};
-}
-
-function toFolderMatchContext<T extends IFolderMatchContext>(folderMatch: FolderMatch): T {
-	return {
-		matchingKind: 'folderMatch',
-		matches: folderMatch.matches().map(toFileMatchContext),
-		renderableMatch: folderMatch,
-		$mid: SearchViewContextMid
-	} as T;
+	return location;
 }
 
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
@@ -850,14 +820,20 @@ export class SearchView extends ViewPane {
 		e.browserEvent.stopPropagation();
 
 		const match = e.element;
-		let context: IRenderableMatchContext | undefined = undefined;
+		let locations: Location[] = [];
 		if (match instanceof FileMatch) {
-			context = toFileMatchContext(match);
+			locations = match.matches().map(toLocation);
 		} else if (match instanceof Match) {
-			context = toMatchContext(match);
+			locations = [toLocation(match)];
 		} else if (match instanceof FolderMatch) {
-			context = toFolderMatchContext(match);
+			locations = flatten(match.matches().map(fileMatch => fileMatch.matches().map(toLocation)));
 		}
+
+		let context = {
+			locations,
+			renderableMatch: match,
+			$mid: SearchViewContextMid
+		};
 
 		const actions: IAction[] = [];
 		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions);
