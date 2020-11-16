@@ -14,7 +14,7 @@ import * as typeConverters from '../utils/typeConverters';
 class TypeScriptOnTypeRenameProvider implements vscode.OnTypeRenameProvider {
 
 	private static enabledKinds = new Set<string>([
-		Kind.let, Kind.const, Kind.localVariable, Kind.parameter
+		Kind.let, Kind.const, Kind.localVariable, Kind.parameter, Kind.typeParameter
 	]);
 
 	public constructor(
@@ -52,6 +52,9 @@ class TypeScriptOnTypeRenameProvider implements vscode.OnTypeRenameProvider {
 		}
 
 		const ranges = renameResponse.body.locs[0].locs.map(typeConverters.Range.fromTextSpan);
+		if (ranges.length <= 1) {
+			return undefined; // not enough usages
+		}
 		return new vscode.OnTypeRenameRanges(ranges);
 	}
 
