@@ -239,13 +239,45 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IVisi
 }
 
 function registerEditorGroupsLayoutCommand(): void {
-	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, args: EditorGroupLayout) => {
-		if (!args || typeof args !== 'object') {
+
+	function applyEditorLayout(accessor: ServicesAccessor, layout: EditorGroupLayout): void {
+		if (!layout || typeof layout !== 'object') {
 			return;
 		}
 
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		editorGroupService.applyLayout(args);
+		editorGroupService.applyLayout(layout);
+	}
+
+	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, args: EditorGroupLayout) => {
+		applyEditorLayout(accessor, args);
+	});
+
+	// API Command
+	CommandsRegistry.registerCommand({
+		id: 'vscode.setEditorLayout',
+		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
+		description: {
+			description: 'Set Editor Layout',
+			args: [{
+				name: 'args',
+				schema: {
+					'type': 'object',
+					'required': ['groups'],
+					'properties': {
+						'orientation': {
+							'type': 'number',
+							'default': 0,
+							'enum': [0, 1]
+						},
+						'groups': {
+							'$ref': '#/definitions/editorGroupsSchema',
+							'default': [{}, {}]
+						}
+					}
+				}
+			}]
+		}
 	});
 }
 

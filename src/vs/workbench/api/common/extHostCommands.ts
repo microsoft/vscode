@@ -276,7 +276,7 @@ export class CommandsConverter {
 	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined;
 	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
-		if (!command || !command.command) {
+		if (!command) {
 			return undefined;
 		}
 
@@ -287,6 +287,11 @@ export class CommandsConverter {
 			tooltip: command.tooltip
 		};
 
+		if (!command.command) {
+			// falsy command id -> return converted command but don't attempt any
+			// argument or API-command dance since this command won't run anyways
+			return result;
+		}
 
 		const apiCommand = this._lookupApiCommand(command.command);
 		if (apiCommand) {
@@ -350,9 +355,8 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Position = new ApiCommandArgument<extHostTypes.Position, IPosition>('position', 'A position in a text document', v => extHostTypes.Position.isPosition(v), extHostTypeConverter.Position.from);
 	static readonly Range = new ApiCommandArgument<extHostTypes.Range, IRange>('range', 'A range in a text document', v => extHostTypes.Range.isRange(v), extHostTypeConverter.Range.from);
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
-
-	static Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
-	static String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
+	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
+	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
 
 	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.to);
 

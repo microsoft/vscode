@@ -60,6 +60,20 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return this.labelService.getUriLabel(fileResource, { noPrefix: true });
 			},
+			getWorkspaceFolderPathForFile: (): string | undefined => {
+				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
+					supportSideBySide: SideBySideEditor.PRIMARY,
+					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+				});
+				if (!fileResource) {
+					return undefined;
+				}
+				const wsFolder = workspaceContextService.getWorkspaceFolder(fileResource);
+				if (!wsFolder) {
+					return undefined;
+				}
+				return this.labelService.getUriLabel(wsFolder.uri, { noPrefix: true });
+			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorControl = editorService.activeTextEditorControl;
 				if (isCodeEditor(activeTextEditorControl)) {
