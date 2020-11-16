@@ -25,7 +25,7 @@ import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backu
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
-import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeyboardLayoutService } from 'vs/workbench/services/keybinding/common/keyboardLayout';
 import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -53,7 +53,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
-import { BrowserKeymapService } from 'vs/workbench/services/keybinding/browser/keymapService';
+import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -498,9 +498,9 @@ registerSingleton(ITelemetryService, SimpleTelemetryService);
 
 //#region Keymap Service (borrowed from browser for now to enable keyboard access)
 
-class SimpleKeymapService extends BrowserKeymapService { }
+class SimpleKeyboardLayoutService extends BrowserKeyboardLayoutService { }
 
-registerSingleton(IKeymapService, SimpleKeymapService);
+registerSingleton(IKeyboardLayoutService, SimpleKeyboardLayoutService);
 
 //#endregion
 

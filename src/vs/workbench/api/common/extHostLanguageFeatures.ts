@@ -311,10 +311,10 @@ class DocumentHighlightAdapter {
 	}
 }
 
-class OnTypeRenameAdapter {
+class OnTypeRenameRangeAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.OnTypeRenameProvider
+		private readonly _provider: vscode.OnTypeRenameRangeProvider
 	) { }
 
 	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.OnTypeRenameRanges | undefined> {
@@ -1320,7 +1320,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
-	| OnTypeRenameAdapter;
+	| OnTypeRenameRangeAdapter;
 
 class AdapterData {
 	constructor(
@@ -1564,14 +1564,14 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- on type rename
 
-	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new OnTypeRenameAdapter(this._documents, provider), extension);
-		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector));
+	registerOnTypeRenameRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameRangeProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new OnTypeRenameRangeAdapter(this._documents, provider), extension);
+		this._proxy.$registerOnTypeRenameRangeProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
 	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.IOnTypeRenameRangesDto | undefined> {
-		return this._withAdapter(handle, OnTypeRenameAdapter, async adapter => {
+		return this._withAdapter(handle, OnTypeRenameRangeAdapter, async adapter => {
 			const res = await adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token);
 			if (res) {
 				return {

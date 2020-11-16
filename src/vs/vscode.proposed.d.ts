@@ -1081,10 +1081,10 @@ declare module 'vscode' {
 	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/109923 @aeschli
 
 	/**
-	 * The 'on type' rename provider interface defines the contract between extensions and
+	 * The 'on type' rename range provider interface defines the contract between extensions and
 	 * the 'on type' rename feature.
 	 */
-	export interface OnTypeRenameProvider {
+	export interface OnTypeRenameRangeProvider {
 		/**
 		 * For a given position in a document, returns the range of the symbol at the position and all ranges
 		 * that have the same content and can be renamed together. Optionally a word pattern can be returned
@@ -1102,17 +1102,17 @@ declare module 'vscode' {
 
 	namespace languages {
 		/**
-		 * Register a 'on type' rename provider.
+		 * Register a 'on type' rename range provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider that has a result is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An 'on type' rename provider.
+		 * @param provider An 'on type' rename range provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider): Disposable;
+		export function registerOnTypeRenameRangeProvider(selector: DocumentSelector, provider: OnTypeRenameRangeProvider): Disposable;
 	}
 
 	/**

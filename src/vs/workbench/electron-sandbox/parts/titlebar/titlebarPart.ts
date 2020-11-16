@@ -41,7 +41,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		return 22;
 	}
 
-	get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() : super.minimumHeight; }
+	get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
 	get maximumHeight(): number { return this.minimumHeight; }
 
 	constructor(

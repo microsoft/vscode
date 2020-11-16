@@ -38,7 +38,7 @@ import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
 import 'vs/workbench/services/search/common/searchService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
-import 'vs/workbench/services/keybinding/browser/keymapService';
+import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import 'vs/workbench/services/extensions/browser/extensionService';
 import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';

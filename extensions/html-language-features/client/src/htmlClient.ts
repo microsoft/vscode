@@ -169,7 +169,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 		});
 
-		disposable = languages.registerOnTypeRenameProvider(documentSelector, {
+		disposable = languages.registerOnTypeRenameRangeProvider(documentSelector, {
 			async provideOnTypeRenameRanges(document, position) {
 				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
 				return client.sendRequest(OnTypeRenameRequest.type, param).then(response => {
