@@ -660,32 +660,36 @@
         "javascript.preferences.importModuleSpecifier": {
           "type": "string",
           "enum": [
-            "auto",
+            "shortest",
             "relative",
-            "non-relative"
+            "non-relative",
+            "project-relative"
           ],
           "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.shortest%",
             "%typescript.preferences.importModuleSpecifier.relative%",
-            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+            "%typescript.preferences.importModuleSpecifier.nonRelative%",
+            "%typescript.preferences.importModuleSpecifier.projectRelative%"
           ],
-          "default": "auto",
+          "default": "shortest",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
         "typescript.preferences.importModuleSpecifier": {
           "type": "string",
           "enum": [
-            "auto",
+            "shortest",
             "relative",
-            "non-relative"
+            "non-relative",
+            "project-relative"
           ],
           "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifier.auto%",
+            "%typescript.preferences.importModuleSpecifier.shortest%",
             "%typescript.preferences.importModuleSpecifier.relative%",
-            "%typescript.preferences.importModuleSpecifier.nonRelative%"
+            "%typescript.preferences.importModuleSpecifier.nonRelative%",
+            "%typescript.preferences.importModuleSpecifier.projectRelative%"
           ],
-          "default": "auto",
+          "default": "shortest",
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
