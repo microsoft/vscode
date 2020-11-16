@@ -8,8 +8,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
-import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
+import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
@@ -29,7 +29,7 @@ import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardLayout';
+import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 export class BrowserKeyboardMapperFactoryBase {
 	// keyboard mapper

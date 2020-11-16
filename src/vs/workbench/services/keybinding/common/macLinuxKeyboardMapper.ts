@@ -8,9 +8,9 @@ import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from 'vs/workbench/services/keybinding/common/keyboardLayout';
+import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 /**
  * A map from character to key codes.

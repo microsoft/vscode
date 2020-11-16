@@ -9,10 +9,10 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
 import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardLayout';
+import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const LOG = false;
 function log(str: string): void {

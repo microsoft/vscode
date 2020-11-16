@@ -6,8 +6,8 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');

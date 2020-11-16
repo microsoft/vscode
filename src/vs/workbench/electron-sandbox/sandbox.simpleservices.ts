@@ -25,7 +25,7 @@ import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backu
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
-import { IKeyboardLayoutService } from 'vs/workbench/services/keybinding/common/keyboardLayout';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';

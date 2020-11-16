@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/workbench/services/keybinding/common/keyboardLayout';
+import { getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 function deserializeMapping(serializedMapping: ISerializedMapping) {
 	let mapping = serializedMapping;
