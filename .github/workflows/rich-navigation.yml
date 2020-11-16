@@ -22,6 +22,8 @@ jobs:
     - name: Install dependencies
       if: steps.caching-stage.outputs.cache-hit != 'true'
       run: yarn --frozen-lockfile
+      with:
+        node-version: '12.x'
       env:
         CHILD_CONCURRENCY: 1
 
