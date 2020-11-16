@@ -276,7 +276,7 @@ export class CommandsConverter {
 	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined;
 	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
-		if (!command || !command.command) {
+		if (!command) {
 			return undefined;
 		}
 
@@ -287,6 +287,11 @@ export class CommandsConverter {
 			tooltip: command.tooltip
 		};
 
+		if (!command.command) {
+			// falsy command id -> return converted command but don't attempt any
+			// argument or API-command dance since this command won't run anyways
+			return result;
+		}
 
 		const apiCommand = this._lookupApiCommand(command.command);
 		if (apiCommand) {
