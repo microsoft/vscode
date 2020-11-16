@@ -23,6 +23,8 @@ import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugCon
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
+import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 
 const $ = dom.$;
 
@@ -40,10 +42,13 @@ interface IReplEvaluationResultTemplateData {
 
 interface ISimpleReplElementTemplateData {
 	container: HTMLElement;
+	count: CountBadge;
+	countContainer: HTMLElement;
 	value: HTMLElement;
 	source: HTMLElement;
 	getReplElementSource(): IReplElementSource | undefined;
 	toDispose: IDisposable[];
+	elementListener: IDisposable;
 }
 
 interface IRawObjectReplTemplateData {
@@ -151,9 +156,12 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		const expression = dom.append(container, $('.output.expression.value-and-source'));
 
 		data.container = container;
+		data.countContainer = dom.append(expression, $('.count-badge-wrapper'));
+		data.count = new CountBadge(data.countContainer);
 		data.value = dom.append(expression, $('span.value'));
 		data.source = dom.append(expression, $('.source'));
 		data.toDispose = [];
+		data.toDispose.push(attachBadgeStyler(data.count, this.themeService));
 		data.toDispose.push(dom.addDisposableListener(data.source, 'click', e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -172,6 +180,8 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 	}
 
 	renderElement({ element }: ITreeNode<SimpleReplElement, FuzzyScore>, index: number, templateData: ISimpleReplElementTemplateData): void {
+		this.setElementCount(element, templateData);
+		templateData.elementListener = element.onDidChangeCount(() => this.setElementCount(element, templateData));
 		// value
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
@@ -185,8 +195,21 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
+	private setElementCount(element: SimpleReplElement, templateData: ISimpleReplElementTemplateData): void {
+		if (element.count >= 2) {
+			templateData.count.setCount(element.count);
+			templateData.countContainer.hidden = false;
+		} else {
+			templateData.countContainer.hidden = true;
+		}
+	}
+
 	disposeTemplate(templateData: ISimpleReplElementTemplateData): void {
 		dispose(templateData.toDispose);
+	}
+
+	disposeElement(_element: ITreeNode<SimpleReplElement, FuzzyScore>, _index: number, templateData: ISimpleReplElementTemplateData): void {
+		templateData.elementListener.dispose();
 	}
 }
 
@@ -359,13 +382,13 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return localize('replValueOutputAriaLabel', "{0}", element.value);
+			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize('occurred', ", occured {0} times", element.count) : '');
 		}
 		if (element instanceof RawObjectReplElement) {
 			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof ReplGroup) {
-			return localize('replGroup', "Debug console group {0}, read eval print loop, debug", element.name);
+			return localize('replGroup', "Debug console group {0}", element.name);
 		}
 
 		return '';

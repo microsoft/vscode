@@ -960,6 +960,11 @@ export class ExtensionEditorManageExtensionAction extends ExtensionDropDownActio
 	run(): Promise<any> {
 		const actionGroups: IAction[][] = [];
 		getContextMenuActions(this.extension, true, this.instantiationService).forEach(actions => actionGroups.push(actions));
+		actionGroups.forEach(group => group.forEach(extensionAction => {
+			if (extensionAction instanceof ExtensionAction) {
+				extensionAction.extension = this.extension;
+			}
+		}));
 		return super.run({ actionGroups, disposeActionsOnHide: true });
 	}
 

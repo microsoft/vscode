@@ -321,7 +321,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
-		const local = await this.extensionsWorkbenchService.queryLocal();
+		const local = await this.extensionsWorkbenchService.queryLocal(this.server);
 		const runningExtensions = await this.extensionService.getExtensions();
 		let { extensions, canIncludeInstalledExtensions } = this.filterLocal(local, runningExtensions, query, options);
 		const disposables = new DisposableStore();
@@ -334,7 +334,7 @@ export class ExtensionsListView extends ViewPane {
 				Event.filter(this.extensionsWorkbenchService.onChange, e => e?.state === ExtensionState.Installed),
 				this.extensionService.onDidChangeExtensions
 			), () => undefined)(async () => {
-				const local = this.extensionsWorkbenchService.local;
+				const local = this.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.server) : this.extensionsWorkbenchService.local;
 				const runningExtensions = await this.extensionService.getExtensions();
 				const { extensions: newExtensions } = this.filterLocal(local, runningExtensions, query, options);
 				if (!isDisposed) {

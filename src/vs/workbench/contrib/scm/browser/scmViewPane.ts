@@ -78,6 +78,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1936,13 +1937,17 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		// ISCMResource
-		await e.element.open(!!e.editorOptions.preserveFocus);
+		if (e.element.command?.id === API_OPEN_EDITOR_COMMAND_ID || e.element.command?.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
+			await this.commandService.executeCommand(e.element.command.id, ...(e.element.command.arguments || []), e);
+		} else {
+			await e.element.open(!!e.editorOptions.preserveFocus);
 
-		if (e.editorOptions.pinned) {
-			const activeEditorPane = this.editorService.activeEditorPane;
+			if (e.editorOptions.pinned) {
+				const activeEditorPane = this.editorService.activeEditorPane;
 
-			if (activeEditorPane) {
-				activeEditorPane.group.pinEditor(activeEditorPane.input);
+				if (activeEditorPane) {
+					activeEditorPane.group.pinEditor(activeEditorPane.input);
+				}
 			}
 		}
 

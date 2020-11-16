@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
@@ -357,167 +356,14 @@ export class CommandCenter {
 	}
 
 	@command('git.openResource')
-	async openResource(resource: Resource, preserveFocus: boolean): Promise<void> {
+	async openResource(resource: Resource): Promise<void> {
 		const repository = this.model.getRepository(resource.resourceUri);
 
 		if (!repository) {
 			return;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const openDiffOnClick = config.get<boolean>('openDiffOnClick');
-
-		if (openDiffOnClick) {
-			await this._openResource(resource, undefined, preserveFocus, false);
-		} else {
-			await this.openFile(resource);
-		}
-	}
-
-	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
-		let stat: Stats | undefined;
-
-		try {
-			stat = await new Promise<Stats>((c, e) => lstat(resource.resourceUri.fsPath, (err, stat) => err ? e(err) : c(stat)));
-		} catch (err) {
-			// noop
-		}
-
-		let left: Uri | undefined;
-		let right: Uri | undefined;
-
-		if (stat && stat.isDirectory()) {
-			const repository = this.model.getRepositoryForSubmodule(resource.resourceUri);
-
-			if (repository) {
-				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
-			}
-		} else {
-			if (resource.type === Status.DELETED_BY_US || resource.type === Status.DELETED_BY_THEM) {
-				left = toGitUri(resource.resourceUri, '~1');
-			} else {
-				left = this.getLeftResource(resource);
-			}
-
-			right = this.getRightResource(resource);
-		}
-
-		const title = this.getTitle(resource);
-
-		if (!right) {
-			// TODO
-			console.error('oh no');
-			return;
-		}
-
-		const opts: TextDocumentShowOptions = {
-			preserveFocus,
-			preview,
-			viewColumn: ViewColumn.Active
-		};
-
-		const activeTextEditor = window.activeTextEditor;
-
-		// Check if active text editor has same path as other editor. we cannot compare via
-		// URI.toString() here because the schemas can be different. Instead we just go by path.
-		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.path === right.path) {
-			opts.selection = activeTextEditor.selection;
-		}
-
-		if (!left) {
-			await commands.executeCommand<void>('vscode.open', right, { ...opts, override: resource.type === Status.BOTH_MODIFIED ? false : undefined }, title);
-		} else {
-			await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
-		}
-	}
-
-	private getLeftResource(resource: Resource): Uri | undefined {
-		switch (resource.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
-				return toGitUri(resource.original, 'HEAD');
-
-			case Status.MODIFIED:
-			case Status.UNTRACKED:
-				return toGitUri(resource.resourceUri, '~');
-
-			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '');
-		}
-		return undefined;
-	}
-
-	private getRightResource(resource: Resource): Uri | undefined {
-		switch (resource.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.INDEX_ADDED:
-			case Status.INDEX_COPIED:
-			case Status.INDEX_RENAMED:
-				return toGitUri(resource.resourceUri, '');
-
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return toGitUri(resource.resourceUri, 'HEAD');
-
-			case Status.DELETED_BY_US:
-				return toGitUri(resource.resourceUri, '~3');
-
-			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~2');
-
-			case Status.MODIFIED:
-			case Status.UNTRACKED:
-			case Status.IGNORED:
-			case Status.INTENT_TO_ADD:
-				const repository = this.model.getRepository(resource.resourceUri);
-
-				if (!repository) {
-					return;
-				}
-
-				const uriString = resource.resourceUri.toString();
-				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-
-				if (indexStatus && indexStatus.renameResourceUri) {
-					return indexStatus.renameResourceUri;
-				}
-
-				return resource.resourceUri;
-
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return resource.resourceUri;
-		}
-		return undefined;
-	}
-
-	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.resourceUri.fsPath);
-
-		switch (resource.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
-				return localize('git.title.index', '{0} (Index)', basename);
-
-			case Status.MODIFIED:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return localize('git.title.workingTree', '{0} (Working Tree)', basename);
-
-			case Status.DELETED_BY_US:
-				return localize('git.title.theirs', '{0} (Theirs)', basename);
-
-			case Status.DELETED_BY_THEM:
-				return localize('git.title.ours', '{0} (Ours)', basename);
-
-			case Status.UNTRACKED:
-				return localize('git.title.untracked', '{0} (Untracked)', basename);
-
-			default:
-				return '';
-		}
+		await resource.open();
 	}
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
@@ -871,7 +717,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const HEAD = this.getLeftResource(resource);
+		const HEAD = resource.leftUri;
 		const basename = path.basename(resource.resourceUri.fsPath);
 		const title = `${basename} (HEAD)`;
 
@@ -889,10 +735,6 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const preserveFocus = arg instanceof Resource;
-		const preview = !(arg instanceof Resource);
-
-		const preserveSelection = arg instanceof Uri || !arg;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -919,7 +761,7 @@ export class CommandCenter {
 		}
 
 		for (const resource of resources) {
-			await this._openResource(resource, preview, preserveFocus, preserveSelection);
+			await resource.openChange();
 		}
 	}
 

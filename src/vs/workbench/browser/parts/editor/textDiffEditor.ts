@@ -225,6 +225,10 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			diffEditorConfiguration.modifiedCodeLens = diffEditorConfiguration.codeLens;
 			delete diffEditorConfiguration.codeLens;
 
+			// User settings defines `diffEditor.wordWrap`, but here we rename that to `diffEditor.diffWordWrap`.
+			diffEditorConfiguration.diffWordWrap = <'off' | 'on' | 'inherit' | undefined>diffEditorConfiguration.wordWrap;
+			delete diffEditorConfiguration.wordWrap;
+
 			objects.mixin(editorConfiguration, diffEditorConfiguration);
 		}
 

@@ -66,7 +66,7 @@ suite('On type rename', () => {
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
-			disposables.add(modes.OnTypeRenameProviderRegistry.register(mockFileSelector, {
+			disposables.add(modes.OnTypeRenameRangeProviderRegistry.register(mockFileSelector, {
 				provideOnTypeRenameRanges(model: ITextModel, pos: IPosition) {
 					const wordAtPos = model.getWordAtPosition(pos);
 					if (wordAtPos) {
