@@ -33,7 +33,7 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 	}
 
 	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
-		return this._keyboardLayoutService.getKeyboardLayoutInfo();
+		return this._keyboardLayoutService.getCurrentKeyboardLayout();
 	}
 
 	getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
@@ -41,7 +41,7 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 	}
 
 	public getRawKeyboardMapping(): IKeyboardMapping | null {
-		return this._keyboardLayoutService.getKeyboardMapping();
+		return this._keyboardLayoutService.getRawKeyboardMapping();
 	}
 
 	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {

@@ -15,6 +15,7 @@ import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/w
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 
@@ -47,12 +48,16 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		});
 	}
 
-	public getKeyboardMapping(): IKeyboardMapping | null {
+	public getRawKeyboardMapping(): IKeyboardMapping | null {
 		return this._keyboardMapping;
 	}
 
-	public getKeyboardLayoutInfo(): IKeyboardLayoutInfo | null {
+	public getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null {
 		return this._keyboardLayoutInfo;
+	}
+
+	public getAllKeyboardLayouts(): IKeyboardLayoutInfo[] {
+		return [];
 	}
 
 	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
@@ -61,6 +66,10 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
 		return this._keyboardMapper;
+	}
+
+	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
+		return;
 	}
 }
 

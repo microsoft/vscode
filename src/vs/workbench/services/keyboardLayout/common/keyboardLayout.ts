@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');
 
@@ -98,9 +99,11 @@ export interface IKeyboardLayoutService {
 
 	readonly onDidChangeKeyboardLayout: Event<void>;
 
-	getKeyboardMapping(): IKeyboardMapping | null;
-	getKeyboardLayoutInfo(): IKeyboardLayoutInfo | null;
+	getRawKeyboardMapping(): IKeyboardMapping | null;
+	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
+	getAllKeyboardLayouts(): IKeyboardLayoutInfo[];
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
+	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void;
 }
 
 export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeyboardLayoutInfo | null): boolean {
