@@ -53,7 +53,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private launches!: ILaunch[];
 	private selectedName: string | undefined;
 	private selectedLaunch: ILaunch | undefined;
-	private selectedConfig: IConfig | undefined;
+	private getSelectedConfig: () => Promise<IConfig | undefined> = () => Promise.resolve(undefined);
 	private selectedType: string | undefined;
 	private toDispose: IDisposable[];
 	private readonly _onDidSelectConfigurationName = new Emitter<void>();
@@ -327,11 +327,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches.find(l => l.workspace && this.uriIdentityService.extUri.isEqual(l.workspace.uri, workspaceUri));
 	}
 
-	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, config: IConfig | undefined, type: string | undefined } {
+	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, getConfig: () => Promise<IConfig | undefined>, type: string | undefined } {
 		return {
 			launch: this.selectedLaunch,
 			name: this.selectedName,
-			config: this.selectedConfig,
+			getConfig: this.getSelectedConfig,
 			type: this.selectedType
 		};
 	}
@@ -368,27 +368,32 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		const names = launch ? launch.getConfigurationNames() : [];
+		this.getSelectedConfig = () => Promise.resolve(config);
+		let type = config?.type;
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
 		} else if (dynamicConfig && dynamicConfig.type) {
 			// We could not find the previously used name and config is not passed. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
-			let nameToSet = config ? config.name : names.length ? names[0] : undefined;
+			type = dynamicConfig.type;
 			if (!config) {
-				const providers = (await this.getDynamicProviders()).filter(p => p.type === dynamicConfig.type);
-				const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
-				const provider = activatedProviders.find(p => p && p.type === dynamicConfig.type);
-				if (provider && launch && launch.workspace) {
-					const token = new CancellationTokenSource();
-					const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
-					const dynamicConfig = dynamicConfigs.find(c => c.name === name);
-					if (dynamicConfig) {
-						config = dynamicConfig;
-						nameToSet = name;
+				const providers = (await this.getDynamicProviders()).filter(p => p.type === type);
+				this.getSelectedConfig = async () => {
+					const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
+					const provider = activatedProviders.find(p => p && p.type === type);
+					if (provider && launch && launch.workspace) {
+						const token = new CancellationTokenSource();
+						const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
+						const dynamicConfig = dynamicConfigs.find(c => c.name === name);
+						if (dynamicConfig) {
+							return dynamicConfig;
+						}
 					}
-				}
+
+					return undefined;
+				};
 			}
-			this.setSelectedLaunchName(nameToSet);
+			this.setSelectedLaunchName(name);
 
 			let recentDynamicProviders = this.getRecentDynamicConfigurations();
 			if (name && dynamicConfig.type) {
@@ -403,12 +408,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setSelectedLaunchName(nameToSet);
 		}
 
-		this.selectedConfig = config;
-		this.selectedType = dynamicConfig?.type || this.selectedConfig?.type;
+		this.selectedType = dynamicConfig?.type || config?.type;
 		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
-		if (configForType) {
-			this.debugConfigurationTypeContext.set(configForType.type);
+		if (type) {
+			this.debugConfigurationTypeContext.set(type);
 		} else {
 			this.debugConfigurationTypeContext.reset();
 		}

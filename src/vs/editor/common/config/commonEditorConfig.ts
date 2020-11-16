@@ -556,6 +556,16 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
+		},
+		'diffEditor.wordWrap': {
+			type: 'string',
+			enum: ['off', 'on', 'inherit'],
+			default: 'inherit',
+			markdownEnumDescriptions: [
+				nls.localize('wordWrap.off', "Lines will never wrap."),
+				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
+				nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
+			]
 		}
 	}
 };

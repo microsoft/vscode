@@ -664,7 +664,8 @@ export interface IConfigurationManager {
 	 */
 	readonly selectedConfiguration: {
 		launch: ILaunch | undefined;
-		config: IConfig | undefined;
+		// Potentially activates extensions
+		getConfig: () => Promise<IConfig | undefined>;
 		name: string | undefined;
 		// Type is used when matching dynamic configurations to their corresponding provider
 		type: string | undefined;
