@@ -29,7 +29,7 @@ import { EditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IKeybindingsEditorOptions, IKeybindingsEditorPane, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel, DefaultRawSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -282,32 +282,38 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 	}
 
-	openGlobalKeybindingSettings(textual: boolean): Promise<void> {
+	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
 		type OpenKeybindingsClassification = {
 			textual: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });
+
+		options = { pinned: true, revealIfOpened: true, ...options };
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
 			const editableKeybindings = this.environmentService.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
-			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-				if (openDefaultKeybindings) {
-					const activeEditorGroup = this.editorGroupService.activeGroup;
-					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
-					return Promise.all([
-						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }, sideEditorGroup.id)
-					]).then(editors => undefined);
-				} else {
-					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true, revealIfOpened: true } }).then(() => undefined);
-				}
-			});
+			await this.createIfNotExists(editableKeybindings, emptyContents);
+			if (openDefaultKeybindings) {
+				const activeEditorGroup = this.editorGroupService.activeGroup;
+				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+				await Promise.all([
+					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
+				]);
+			} else {
+				await this.editorService.openEditor({ resource: editableKeybindings, options });
+			}
+
+		} else {
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), options)) as IKeybindingsEditorPane;
+			if (options.query) {
+				editor.search(options.query);
+			}
 		}
 
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true, revealIfOpened: true }).then(() => undefined);
 	}
 
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined> {

@@ -92,7 +92,13 @@ export class KeybindingsEditorModel extends EditorModel {
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
-		if (/@source:\s*(user|default)/i.test(searchValue)) {
+		const matches = /@command:\s*(.+)/i.exec(searchValue);
+		if (matches && matches[1]) {
+			return keybindingItems.filter(k => k.command === matches[1])
+				.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+		}
+
+		else if (/@source:\s*(user|default)/i.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
 			searchValue = searchValue.replace(/@source:\s*(user|default)/i, '');
 		}

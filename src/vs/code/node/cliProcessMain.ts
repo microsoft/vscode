@@ -162,28 +162,32 @@ export class Main {
 			}));
 		}
 
-		const [galleryExtensions, installed] = await Promise.all([
-			this.getGalleryExtensions(installExtensionInfos),
-			this.extensionManagementService.getInstalled(ExtensionType.User)
-		]);
+		if (installExtensionInfos.length) {
 
-		await Promise.all(installExtensionInfos.map(async extensionInfo => {
-			const gallery = galleryExtensions.get(extensionInfo.id.toLowerCase());
-			if (gallery) {
-				try {
-					const manifest = await this.installFromGallery(extensionInfo, gallery, installed, force);
-					if (manifest) {
-						installedExtensionsManifests.push(manifest);
+			const [galleryExtensions, installed] = await Promise.all([
+				this.getGalleryExtensions(installExtensionInfos),
+				this.extensionManagementService.getInstalled(ExtensionType.User)
+			]);
+
+			await Promise.all(installExtensionInfos.map(async extensionInfo => {
+				const gallery = galleryExtensions.get(extensionInfo.id.toLowerCase());
+				if (gallery) {
+					try {
+						const manifest = await this.installFromGallery(extensionInfo, gallery, installed, force);
+						if (manifest) {
+							installedExtensionsManifests.push(manifest);
+						}
+					} catch (err) {
+						console.error(err.message || err.stack || err);
+						failed.push(extensionInfo.id);
 					}
-				} catch (err) {
-					console.error(err.message || err.stack || err);
+				} else {
+					console.error(`${notFound(extensionInfo.version ? `${extensionInfo.id}@${extensionInfo.version}` : extensionInfo.id)}\n${useId}`);
 					failed.push(extensionInfo.id);
 				}
-			} else {
-				console.error(`${notFound(extensionInfo.version ? `${extensionInfo.id}@${extensionInfo.version}` : extensionInfo.id)}\n${useId}`);
-				failed.push(extensionInfo.id);
-			}
-		}));
+			}));
+
+		}
 
 		if (installedExtensionsManifests.some(manifest => isLanguagePackExtension(manifest))) {
 			await this.updateLocalizationsCache();

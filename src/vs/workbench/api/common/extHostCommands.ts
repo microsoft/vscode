@@ -20,7 +20,6 @@ import { URI } from 'vs/base/common/uri';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { DiffAPICommand, ICommandsExecutor, OpenAPICommand } from 'vs/workbench/api/common/apiCommands';
 import { ISelection } from 'vs/editor/common/core/selection';
 
 interface CommandHandler {
@@ -38,6 +37,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	readonly _serviceBrand: undefined;
 
 	private readonly _commands = new Map<string, CommandHandler>();
+	private readonly _apiCommands = new Map<string, ApiCommand>();
+
 	private readonly _proxy: MainThreadCommandsShape;
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
@@ -50,7 +51,18 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
-		this.converter = new CommandsConverter(this, logService);
+		this.converter = new CommandsConverter(
+			this,
+			id => {
+				// API commands that have no return type (void) can be
+				// converted to their internal command and don't need
+				// any indirection commands
+				const candidate = this._apiCommands.get(id);
+				return candidate?.result === ApiCommandResult.Void
+					? candidate : undefined;
+			},
+			logService
+		);
 		this._argumentProcessors = [
 			{
 				processArgument(a) {
@@ -86,7 +98,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	registerApiCommand(apiCommand: ApiCommand): extHostTypes.Disposable {
 
-		return this.registerCommand(false, apiCommand.id, async (...apiArgs) => {
+
+		const registration = this.registerCommand(false, apiCommand.id, async (...apiArgs) => {
 
 			const internalArgs = apiCommand.args.map((arg, i) => {
 				if (!arg.validate(apiArgs[i])) {
@@ -101,6 +114,13 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			description: apiCommand.description,
 			args: apiCommand.args,
 			returns: apiCommand.result.description
+		});
+
+		this._apiCommands.set(apiCommand.id, apiCommand);
+
+		return new extHostTypes.Disposable(() => {
+			registration.dispose();
+			this._apiCommands.delete(apiCommand.id);
 		});
 	}
 
@@ -238,8 +258,6 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter {
 
-	private readonly _commandConverter = new Map<string, (executor: ICommandsExecutor, ...more: any[]) => Promise<any>>();
-
 	private readonly _delegatingCommandId: string;
 	private readonly _cache = new Map<number, vscode.Command>();
 	private _cachIdPool = 0;
@@ -247,13 +265,11 @@ export class CommandsConverter {
 	// --- conversion between internal and api commands
 	constructor(
 		private readonly _commands: ExtHostCommands,
+		private readonly _lookupApiCommand: (id: string) => ApiCommand | undefined,
 		private readonly _logService: ILogService
 	) {
 		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
-
-		this._commandConverter.set(OpenAPICommand.ID, OpenAPICommand.execute);
-		this._commandConverter.set(DiffAPICommand.ID, DiffAPICommand.execute);
 	}
 
 	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
@@ -271,19 +287,20 @@ export class CommandsConverter {
 			tooltip: command.tooltip
 		};
 
-		const apiCommand = this._commandConverter.get(command.command);
-		if (apiCommand) {
-			// we have some API command registered for which we know how to convert
-			// them, e.g what internal ID they use and how to convert the arguments
-			apiCommand({
-				async executeCommand(id, ...internalArgs: []) {
-					result.id = id;
-					result.arguments = internalArgs;
-					return undefined;
-				}
-			}, ...command.arguments ?? []);
+		if (!command.command) {
+			// falsy command id -> return converted command but don't attempt any
+			// argument or API-command dance since this command won't run anyways
+			return result;
+		}
 
-		} else if (command.command && isNonEmptyArray(command.arguments)) {
+		const apiCommand = this._lookupApiCommand(command.command);
+		if (apiCommand) {
+			// API command with return-value can be converted inplace
+			result.id = apiCommand.internalId;
+			result.arguments = apiCommand.args.map((arg, i) => arg.convert(command.arguments && command.arguments[i]));
+
+
+		} else if (isNonEmptyArray(command.arguments)) {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
@@ -338,9 +355,8 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Position = new ApiCommandArgument<extHostTypes.Position, IPosition>('position', 'A position in a text document', v => extHostTypes.Position.isPosition(v), extHostTypeConverter.Position.from);
 	static readonly Range = new ApiCommandArgument<extHostTypes.Range, IRange>('range', 'A range in a text document', v => extHostTypes.Range.isRange(v), extHostTypeConverter.Range.from);
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
-
-	static Number(name: string, description: string) { return new ApiCommandArgument<number>(name, description, v => typeof v === 'number', v => v); }
-	static String(name: string, description: string) { return new ApiCommandArgument<string>(name, description, v => typeof v === 'string', v => v); }
+	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
+	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
 
 	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.to);
 
@@ -358,9 +374,15 @@ export class ApiCommandArgument<V, O = V> {
 			value => value === undefined ? undefined : value === null ? null : this.convert(value)
 		);
 	}
+
+	with(name: string | undefined, description: string | undefined): ApiCommandArgument<V, O> {
+		return new ApiCommandArgument(name ?? this.name, description ?? this.description, this.validate, this.convert);
+	}
 }
 
 export class ApiCommandResult<V, O = V> {
+
+	static readonly Void = new ApiCommandResult<void, void>('no result', v => v);
 
 	constructor(
 		readonly description: string,

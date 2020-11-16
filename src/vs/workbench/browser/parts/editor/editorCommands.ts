@@ -239,13 +239,45 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IVisi
 }
 
 function registerEditorGroupsLayoutCommand(): void {
-	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, args: EditorGroupLayout) => {
-		if (!args || typeof args !== 'object') {
+
+	function applyEditorLayout(accessor: ServicesAccessor, layout: EditorGroupLayout): void {
+		if (!layout || typeof layout !== 'object') {
 			return;
 		}
 
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		editorGroupService.applyLayout(args);
+		editorGroupService.applyLayout(layout);
+	}
+
+	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, args: EditorGroupLayout) => {
+		applyEditorLayout(accessor, args);
+	});
+
+	// API Command
+	CommandsRegistry.registerCommand({
+		id: 'vscode.setEditorLayout',
+		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
+		description: {
+			description: 'Set Editor Layout',
+			args: [{
+				name: 'args',
+				schema: {
+					'type': 'object',
+					'required': ['groups'],
+					'properties': {
+						'orientation': {
+							'type': 'number',
+							'default': 0,
+							'enum': [0, 1]
+						},
+						'groups': {
+							'$ref': '#/definitions/editorGroupsSchema',
+							'default': [{}, {}]
+						}
+					}
+				}
+			}]
+		}
 	});
 }
 
@@ -402,18 +434,18 @@ function registerOpenEditorAPICommands(): void {
 		}
 
 		return [
-			{ ...(options ?? Object.create(null)), ...context.editorOptions },
+			{ ...context.editorOptions, ...(options ?? Object.create(null)) },
 			context.sideBySide ? SIDE_GROUP : column
 		];
 	}
 
-	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [UriComponents, ITextEditorOptions | undefined, EditorGroupColumn | undefined, string | undefined], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], label?: string, context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
 
-		const [resourceArg, optionsArg, columnArg, label] = payload;
 		const resource = URI.revive(resourceArg);
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
 		// use editor options or editor view column as a hint to use the editor service for opening
 		if (optionsArg || typeof columnArg === 'number') {
@@ -433,12 +465,11 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, payload: [UriComponents, UriComponents, string, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, leftResource: UriComponents, rightResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		let [leftResource, rightResource, label, description, optionsArg, columnArg] = payload;
-
+		let [columnArg, optionsArg] = columnAndOptions ?? [];
 		if (!optionsArg || typeof optionsArg !== 'object') {
 			optionsArg = {
 				preserveFocus: false
@@ -451,7 +482,6 @@ function registerOpenEditorAPICommands(): void {
 			leftResource: URI.revive(leftResource),
 			rightResource: URI.revive(rightResource),
 			label,
-			description,
 			options
 		}, viewColumnToEditorGroup(editorGroupService, column));
 	});

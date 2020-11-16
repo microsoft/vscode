@@ -14,12 +14,12 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
-import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICommandsExecutor, RemoveFromRecentlyOpenedAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 //#region --- NEW world
 
@@ -129,7 +129,7 @@ const newCommands: ApiCommand[] = [
 	// -- symbol search
 	new ApiCommand(
 		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
-		[ApiCommandArgument.String('query', 'Search string')],
+		[ApiCommandArgument.String.with('query', 'Search string')],
 		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
@@ -159,7 +159,7 @@ const newCommands: ApiCommand[] = [
 	// --- rename
 	new ApiCommand(
 		'vscode.executeDocumentRenameProvider', '_executeDocumentRenameProvider', 'Execute rename provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String('newName', 'The new symbol name')],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String.with('newName', 'The new symbol name')],
 		new ApiCommandResult<IWorkspaceEditDto, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
 			if (!value) {
 				return undefined;
@@ -173,7 +173,7 @@ const newCommands: ApiCommand[] = [
 	// --- links
 	new ApiCommand(
 		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Number('linkResolveCount', 'Number of links that should be resolved, only when links are unresolved.').optional()],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Number.with('linkResolveCount', 'Number of links that should be resolved, only when links are unresolved.').optional()],
 		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
 	),
 	// --- completions
@@ -182,8 +182,8 @@ const newCommands: ApiCommand[] = [
 		[
 			ApiCommandArgument.Uri,
 			ApiCommandArgument.Position,
-			ApiCommandArgument.String('triggerCharacter', 'Trigger completion when the user types the character, like `,` or `(`').optional(),
-			ApiCommandArgument.Number('itemResolveCount', 'Number of completions to resolve (too large numbers slow down completions)').optional()
+			ApiCommandArgument.String.with('triggerCharacter', 'Trigger completion when the user types the character, like `,` or `(`').optional(),
+			ApiCommandArgument.Number.with('itemResolveCount', 'Number of completions to resolve (too large numbers slow down completions)').optional()
 		],
 		new ApiCommandResult<modes.CompletionList, vscode.CompletionList>('A promise that resolves to a CompletionList-instance.', (value, _args, converter) => {
 			if (!value) {
@@ -196,7 +196,7 @@ const newCommands: ApiCommand[] = [
 	// --- signature help
 	new ApiCommand(
 		'vscode.executeSignatureHelpProvider', '_executeSignatureHelpProvider', 'Execute signature help provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String('triggerCharacter', 'Trigger signature help when the user types the character, like `,` or `(`').optional()],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String.with('triggerCharacter', 'Trigger signature help when the user types the character, like `,` or `(`').optional()],
 		new ApiCommandResult<modes.SignatureHelp, vscode.SignatureHelp | undefined>('A promise that resolves to SignatureHelp.', value => {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
@@ -207,7 +207,7 @@ const newCommands: ApiCommand[] = [
 	// --- code lens
 	new ApiCommand(
 		'vscode.executeCodeLensProvider', '_executeCodeLensProvider', 'Execute code lens provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Number('itemResolveCount', 'Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)').optional()],
+		[ApiCommandArgument.Uri, ApiCommandArgument.Number.with('itemResolveCount', 'Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)').optional()],
 		new ApiCommandResult<modes.CodeLens[], vscode.CodeLens[] | undefined>('A promise that resolves to an array of CodeLens-instances.', (value, _args, converter) => {
 			return tryMapWith<modes.CodeLens, vscode.CodeLens>(item => {
 				return new types.CodeLens(typeConverters.Range.to(item.range), item.command && converter.fromInternal(item.command));
@@ -220,8 +220,8 @@ const newCommands: ApiCommand[] = [
 		[
 			ApiCommandArgument.Uri,
 			new ApiCommandArgument('rangeOrSelection', 'Range in a text document. Some refactoring provider requires Selection object.', v => types.Range.isRange(v), v => types.Selection.isSelection(v) ? typeConverters.Selection.from(v) : typeConverters.Range.from(v)),
-			ApiCommandArgument.String('kind', 'Code action kind to return code actions for').optional(),
-			ApiCommandArgument.Number('itemResolveCount', 'Number of code actions to resolve (too large numbers slow down code actions)').optional()
+			ApiCommandArgument.String.with('kind', 'Code action kind to return code actions for').optional(),
+			ApiCommandArgument.Number.with('itemResolveCount', 'Number of code actions to resolve (too large numbers slow down code actions)').optional()
 		],
 		new ApiCommandResult<CustomCodeAction[], (vscode.CodeAction | vscode.Command | undefined)[] | undefined>('A promise that resolves to an array of Command-instances.', (value, _args, converter) => {
 			return tryMapWith<CustomCodeAction, vscode.CodeAction | vscode.Command | undefined>((codeAction) => {
@@ -297,7 +297,34 @@ const newCommands: ApiCommand[] = [
 				filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
 			};
 		}))
-	)
+	),
+	// --- open'ish commands
+	new ApiCommand(
+		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
+		[
+			ApiCommandArgument.Uri,
+			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
+				v => v === undefined || typeof v === 'number' || typeof v === 'object',
+				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
+			).optional(),
+			ApiCommandArgument.String.with('label', '').optional()
+
+		],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.diff', '_workbench.diff', 'Opens the provided resources in the diff editor to compare their contents.',
+		[
+			ApiCommandArgument.Uri.with('left', 'Left-hand side resource of the diff editor'),
+			ApiCommandArgument.Uri.with('right', 'Rigth-hand side resource of the diff editor'),
+			ApiCommandArgument.String.with('title', 'Human readable title for the diff editor').optional(),
+			new ApiCommandArgument<typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
+				v => v === undefined || typeof v === 'object',
+				v => v && [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
+			).optional(),
+		],
+		ApiCommandResult.Void
+	),
 ];
 
 //#endregion
@@ -339,43 +366,10 @@ export class ExtHostApiCommands {
 			};
 		};
 
-		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
-			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
-			args: [
-				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || URI.isUri(value) },
-				{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Whether the opened URI will appear in the \'Open Recent\' list. Defaults to true. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
-			]
-		});
-
-		this._register(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute), {
-			description: 'Opens the provided resources in the diff editor to compare their contents.',
-			args: [
-				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
-				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
-				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: (v: any) => v === undefined || typeof v === 'string' },
-				{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
-			]
-		});
-
-		this._register(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute), {
-			description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
-			args: [
-				{ name: 'resource', description: 'Resource to open', constraint: URI },
-				{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: (v: any) => v === undefined || typeof v === 'number' || typeof v === 'object' }
-			]
-		});
-
 		this._register(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute), {
 			description: 'Removes an entry with the given path from the recently opened list.',
 			args: [
 				{ name: 'path', description: 'Path to remove from recently opened.', constraint: (value: any) => typeof value === 'string' }
-			]
-		});
-
-		this._register(SetEditorLayoutAPICommand.ID, adjustHandler(SetEditorLayoutAPICommand.execute), {
-			description: 'Sets the editor layout. The layout is described as object with an initial (optional) orientation (0 = horizontal, 1 = vertical) and an array of editor groups within. Each editor group can have a size and another array of editor groups that will be laid out orthogonal to the orientation. If editor group sizes are provided, their sum must be 1 to be applied per row or column. Example for a 2x2 grid: `{ orientation: 0, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}, {}], size: 0.5 }] }`',
-			args: [
-				{ name: 'layout', description: 'The editor layout to set.', constraint: (value: EditorGroupLayout) => typeof value === 'object' && Array.isArray(value.groups) }
 			]
 		});
 
