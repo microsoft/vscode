@@ -12,7 +12,7 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
 import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IWindowsKeyboardMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
+import { IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/keyboardLayout';
 
 const LOG = false;
 function log(str: string): void {

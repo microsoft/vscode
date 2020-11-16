@@ -92,7 +92,7 @@ export interface IMacKeyboardLayoutInfo {
 	localizedName?: string;
 }
 
-export type IKeyboardLayoutInfo = IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo;
+export type IKeyboardLayoutInfo = (IWindowsKeyboardLayoutInfo | ILinuxKeyboardLayoutInfo | IMacKeyboardLayoutInfo) & { isUserKeyboardLayout?: boolean; isUSStandard?: true };
 
 export interface IKeyboardLayoutService {
 	readonly _serviceBrand: undefined;

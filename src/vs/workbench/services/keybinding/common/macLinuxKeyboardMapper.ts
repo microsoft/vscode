@@ -10,7 +10,7 @@ import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanC
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from 'vs/workbench/services/keyboardLayout/common/keyboardLayout';
+import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from 'vs/workbench/services/keybinding/common/keyboardLayout';
 
 /**
  * A map from character to key codes.
