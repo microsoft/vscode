@@ -568,7 +568,7 @@ class ResourceCommandResolver {
 			return {
 				command: 'vscode.diff',
 				title: localize('open', "Open"),
-				arguments: [left, right, 'GIT DIFF']
+				arguments: [left, right]
 			};
 		}
 	}
