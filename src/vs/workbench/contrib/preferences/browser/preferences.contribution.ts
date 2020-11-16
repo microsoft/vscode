@@ -832,8 +832,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false);
+			run(accessor: ServicesAccessor, args: string | undefined) {
+				const query = typeof args === 'string' ? args : undefined;
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
