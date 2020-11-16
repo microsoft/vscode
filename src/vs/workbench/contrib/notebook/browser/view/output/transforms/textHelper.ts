@@ -8,6 +8,9 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { splitLines } from 'vs/base/common/strings';
+import { DefaultEndOfLine, EndOfLinePreference, ITextBuffer } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
@@ -52,33 +55,51 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 		return p + c.length;
 	}, 0);
 
-	if (fullLen > SIZE_LIMIT) {
-		// it's too large
-		const truncatedText = outputs.join('').slice(0, SIZE_LIMIT);
-		if (renderANSI) {
-			container.appendChild(handleANSIOutput(truncatedText, themeService));
-		} else {
-			const pre = DOM.$('div');
-			pre.innerText = truncatedText;
-			container.appendChild(pre);
-		}
+	let buffer: ITextBuffer | undefined = undefined;
 
-		// view more ...
-		container.appendChild(generateViewMoreElement(outputs, openerService, textFileService));
-		return;
+	if (fullLen > SIZE_LIMIT) {
+		// it's too large and we should find min(maxSizeLimit, maxLineLimit)
+		const bufferBuilder = new PieceTreeTextBufferBuilder();
+		outputs.forEach(output => bufferBuilder.acceptChunk(output));
+		const factory = bufferBuilder.finish();
+		buffer = factory.create(DefaultEndOfLine.LF);
+		const sizeBufferLimitPosition = buffer.getPositionAt(SIZE_LIMIT);
+		if (sizeBufferLimitPosition.lineNumber < LINES_LIMIT) {
+			const truncatedText = buffer.getValueInRange(new Range(1, 1, sizeBufferLimitPosition.lineNumber, sizeBufferLimitPosition.column), EndOfLinePreference.TextDefined);
+			if (renderANSI) {
+				container.appendChild(handleANSIOutput(truncatedText, themeService));
+			} else {
+				const pre = DOM.$('div');
+				pre.innerText = truncatedText;
+				container.appendChild(pre);
+			}
+
+			// view more ...
+			container.appendChild(generateViewMoreElement(outputs, openerService, textFileService));
+			return;
+		}
 	}
 
-	const fullLines = splitLines(outputs.join(''));
-	if (fullLines.length < LINES_LIMIT) {
-		container.innerText = fullLines.join('\n');
+	if (!buffer) {
+		const bufferBuilder = new PieceTreeTextBufferBuilder();
+		outputs.forEach(output => bufferBuilder.acceptChunk(output));
+		const factory = bufferBuilder.finish();
+		buffer = factory.create(DefaultEndOfLine.LF);
+	}
+
+	if (buffer.getLineCount() < LINES_LIMIT) {
+		const lineCount = buffer.getLineCount();
+		const fullRange = new Range(1, 1, lineCount, buffer.getLineLength(lineCount));
+
+		container.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
 		return;
 	}
 
 	if (renderANSI) {
-		container.appendChild(handleANSIOutput(fullLines.slice(0, LINES_LIMIT - 5).join('\n'), themeService));
+		container.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined), themeService));
 	} else {
 		const pre = DOM.$('div');
-		pre.innerText = fullLines.slice(0, LINES_LIMIT - 5).join('\n');
+		pre.innerText = buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined);
 		container.appendChild(pre);
 	}
 
@@ -86,11 +107,12 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 	// view more ...
 	container.appendChild(generateViewMoreElement(outputs, openerService, textFileService));
 
+	const lineCount = buffer.getLineCount();
 	if (renderANSI) {
-		container.appendChild(handleANSIOutput(fullLines.slice(fullLines.length - 5).join('\n'), themeService));
+		container.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), themeService));
 	} else {
 		const post = DOM.$('div');
-		post.innerText = fullLines.slice(fullLines.length - 5).join('\n');
+		post.innerText = buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined);
 		container.appendChild(post);
 	}
 }
