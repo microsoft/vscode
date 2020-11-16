@@ -21,6 +21,7 @@ export interface IssueReporterData {
 	includeExtensions: boolean;
 	includeSearchedExtensions: boolean;
 	includeSettingsSearchDetails: boolean;
+	includeExperiments: boolean;
 
 	numberOfThemeExtesions?: number;
 	allExtensions: IssueReporterExtensionData[];
@@ -31,6 +32,7 @@ export interface IssueReporterData {
 	actualSearchResults?: ISettingSearchResult[];
 	query?: string;
 	filterResultCount?: number;
+	experimentInfo?: string;
 }
 
 export class IssueReporterModel {
@@ -45,6 +47,7 @@ export class IssueReporterModel {
 			includeExtensions: true,
 			includeSearchedExtensions: true,
 			includeSettingsSearchDetails: true,
+			includeExperiments: true,
 			allExtensions: []
 		};
 
@@ -133,6 +136,12 @@ ${this.getInfos()}
 			}
 		}
 
+		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
+			if (this._data.includeExperiments && this._data.experimentInfo) {
+				info += this.generateExperimentsInfoMd();
+			}
+		}
+
 		return info;
 	}
 
@@ -201,6 +210,18 @@ ${this._data.processInfo}
 
 \`\`\`
 ${this._data.workspaceInfo};
+\`\`\`
+
+</details>
+`;
+	}
+
+	private generateExperimentsInfoMd(): string {
+		return `<details>
+<summary>A/B Experiments</summary>
+
+\`\`\`
+${this._data.experimentInfo}
 \`\`\`
 
 </details>

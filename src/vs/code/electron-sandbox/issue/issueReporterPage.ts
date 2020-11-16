@@ -131,5 +131,15 @@ export default (): string => `
 				<!-- To be dynamically filled -->
 			</div>
 		</div>
+		<div class="block block-experiments">
+			<input class="sendData" type="checkbox" id="includeExperiments" checked/>
+			<label class="caption" for="includeExperiments">${escape(localize({
+			key: 'sendExperiments',
+			comment: ['{0} is either "show" or "hide" and is a button to toggle the visibility of the current experiment information']
+		}, "Include A/B experiment info ({0})")).replace('{0}', `<a href="#" class="showInfo">${escape(localize('show', "show"))}</a>`)}</label>
+			<pre class="block-info hidden">
+				<!-- To be dynamically filled -->
+			</pre>
+		</div>
 	</div>
 </div>`;
