@@ -150,6 +150,7 @@ export class IssueReporter extends Disposable {
 		applyZoom(configuration.data.zoomLevel);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
+		this.updateExperimentsInfo(configuration.data.experiments);
 	}
 
 	render(): void {
@@ -285,7 +286,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'] as const).forEach(elementId => {
+		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails', 'includeExperiments'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -695,6 +696,7 @@ export class IssueReporter extends Disposable {
 		const extensionsBlock = document.querySelector('.block-extensions');
 		const searchedExtensionsBlock = document.querySelector('.block-searchedExtensions');
 		const settingsSearchResultsBlock = document.querySelector('.block-settingsSearchResults');
+		const experimentsBlock = document.querySelector('.block-experiments');
 
 		const problemSource = this.getElementById('problem-source')!;
 		const descriptionTitle = this.getElementById('issue-description-label')!;
@@ -709,6 +711,7 @@ export class IssueReporter extends Disposable {
 		hide(extensionsBlock);
 		hide(searchedExtensionsBlock);
 		hide(settingsSearchResultsBlock);
+		hide(experimentsBlock);
 		hide(problemSource);
 		hide(extensionSelector);
 
@@ -716,6 +719,7 @@ export class IssueReporter extends Disposable {
 			show(blockContainer);
 			show(systemBlock);
 			show(problemSource);
+			show(experimentsBlock);
 
 			if (fileOnExtension) {
 				show(extensionSelector);
@@ -730,6 +734,7 @@ export class IssueReporter extends Disposable {
 			show(processBlock);
 			show(workspaceBlock);
 			show(problemSource);
+			show(experimentsBlock);
 
 			if (fileOnExtension) {
 				show(extensionSelector);
@@ -1081,6 +1086,14 @@ export class IssueReporter extends Disposable {
 			}
 
 			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
+		}
+	}
+
+	private updateExperimentsInfo(experimentInfo: string | undefined) {
+		this.issueReporterModel.update({ experimentInfo });
+		const target = document.querySelector<HTMLElement>('.block-experiments .block-info');
+		if (target) {
+			target.textContent = experimentInfo ? experimentInfo : localize('noCurrentExperiments', "No current experiments.");
 		}
 	}
 
