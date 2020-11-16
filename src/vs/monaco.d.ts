@@ -3211,6 +3211,10 @@ declare namespace monaco.editor {
 		 * Defaults to false
 		 */
 		isInEmbeddedEditor?: boolean;
+		/**
+		 * Control the wrapping of the diff editor.
+		 */
+		diffWordWrap?: 'off' | 'on' | 'inherit';
 	}
 
 	/**
