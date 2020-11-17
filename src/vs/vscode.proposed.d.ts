@@ -239,7 +239,7 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions, elevate?: boolean) => Thenable<Tunnel> | undefined;
 
 		/**
 		 * Provides filtering for candidate ports.
