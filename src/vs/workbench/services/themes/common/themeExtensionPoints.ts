@@ -67,6 +67,27 @@ export function registerFileIconThemeExtensionPoint() {
 					path: {
 						description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the file icon theme definition file. The path is relative to the extension folder and is typically \'./fileicons/awesome-icon-theme.json\'.'),
 						type: 'string'
+					},
+					extends: {
+						description: nls.localize('vscode.extension.contributes.iconThemes.extends', 'Extends existing file icon themes.'),
+						type: 'object',
+						properties: {
+							all: {
+								description: nls.localize('vscode.extension.contributes.iconThemes.extends.all', 'Whether to extend all icon themes generally or not.'),
+								type: 'boolean'
+							},
+							ids: {
+								description: nls.localize('vscode.extension.contributes.iconThemes.extends.ids', 'Ids of file icon themes that should be extended.'),
+								type: 'array',
+								items: {
+									type: 'string'
+								}
+							}
+						},
+						anyOf: [
+							{ required: ['all'] },
+							{ required: ['ids'] }
+						]
 					}
 				},
 				required: ['path', 'id']
@@ -119,6 +140,7 @@ export interface IThemeData {
 export class ThemeRegistry<T extends IThemeData> {
 
 	private extensionThemes: T[];
+	private extensionThemeExtenders: T[];
 
 	private readonly onDidChangeEmitter = new Emitter<ThemeChangeEvent<T>>();
 	public readonly onDidChange: Event<ThemeChangeEvent<T>> = this.onDidChangeEmitter.event;
@@ -131,6 +153,7 @@ export class ThemeRegistry<T extends IThemeData> {
 		private isProposedApi = false
 	) {
 		this.extensionThemes = [];
+		this.extensionThemeExtenders = [];
 		this.initialize();
 	}
 
@@ -143,6 +166,7 @@ export class ThemeRegistry<T extends IThemeData> {
 				previousIds[theme.id] = theme;
 			}
 			this.extensionThemes.length = 0;
+			this.extensionThemeExtenders.length = 0;
 			for (let ext of extensions) {
 				if (this.isProposedApi) {
 					checkProposedApiEnabled(ext.description);
@@ -201,8 +225,43 @@ export class ThemeRegistry<T extends IThemeData> {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
+			const isExtender = !!theme.extends;
+			if (isExtender) {
+				if (!types.isObject(theme.extends)) {
+					collector.error(nls.localize(
+						'reqextends',
+						"Expected object in `contributes.{0}.extends`. Provided value: {1}",
+						this.themesExtPoint.name,
+						String(theme.extends)
+					));
+					return;
+				}
+				if (theme.extends.ids !== undefined && !Array.isArray(theme.extends.ids)) {
+					collector.error(nls.localize(
+						'reqextendsids',
+						"Expected array in `contributes.{0}.extends.ids`. Provided value: {1}",
+						this.themesExtPoint.name,
+						String(theme.extends.ids)
+					));
+					return;
+				}
+				if (!theme.extends.all && (!theme.extends.ids || theme.extends.ids.length === 0)) {
+					collector.error(nls.localize(
+						'reqextendsproperties',
+						"Expected at least one property in `contributes.{0}.extends`. Provided value: {1}",
+						this.themesExtPoint.name,
+						String(theme.extends)
+					));
+					return;
+				}
+			}
+
 			let themeData = this.create(theme, themeLocation, extensionData);
-			this.extensionThemes.push(themeData);
+			if (isExtender) {
+				this.extensionThemeExtenders.push(themeData);
+			} else {
+				this.extensionThemes.push(themeData);
+			}
 		});
 	}
 
@@ -249,6 +308,10 @@ export class ThemeRegistry<T extends IThemeData> {
 
 	public getThemes(): T[] {
 		return this.extensionThemes;
+	}
+
+	public getThemeExtenders(): T[] {
+		return this.extensionThemeExtenders;
 	}
 
 }

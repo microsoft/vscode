@@ -154,5 +154,9 @@ export interface IThemeExtensionPoint {
 	description?: string;
 	path: string;
 	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
+	extends?: {
+		all?: boolean;
+		ids?: string[];
+	};
 	_watch: boolean; // unsupported options to watch location
 }

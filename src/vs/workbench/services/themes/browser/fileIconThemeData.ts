@@ -18,6 +18,8 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 	static readonly STORAGE_KEY = 'iconThemeData';
 
+	static extenderData: FileIconThemeData[] = [];
+
 	id: string;
 	label: string;
 	settingsId: string | null;
@@ -29,6 +31,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 	location?: URI;
 	extensionData?: ExtensionData;
 	watch?: boolean;
+	extends?: ExtendsOptions;
 
 	styleSheetContent?: string;
 
@@ -54,8 +57,12 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		if (!this.location) {
 			return Promise.resolve(this.styleSheetContent);
 		}
-		return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
-			const result = _processIconThemeDocument(this.id, this.location!, iconThemeDocument);
+		return Promise.all([
+			_loadIconThemeDocument(fileService, this.location),
+			_loadIconThemeExtenders(fileService, this.settingsId, FileIconThemeData.extenderData)
+		]).then(([iconThemeDocument, { generalExtenders, specificExtenders }]) => {
+			const extendedIconThemeDocument = _mergeIconThemeExtenders(iconThemeDocument, generalExtenders, specificExtenders);
+			const result = _processIconThemeDocument(this.id, this.location!, extendedIconThemeDocument);
 			this.styleSheetContent = result.content;
 			this.hasFileIcons = result.hasFileIcons;
 			this.hasFolderIcons = result.hasFolderIcons;
@@ -77,6 +84,8 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		themeData.extensionData = extensionData;
 		themeData.watch = iconTheme._watch;
 		themeData.isLoaded = false;
+		themeData.extends = iconTheme.extends;
+
 		return themeData;
 	}
 
@@ -92,6 +101,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			themeData.isLoaded = true;
 			themeData.extensionData = undefined;
 			themeData.watch = false;
+			themeData.extends = undefined;
 		}
 		return themeData;
 	}
@@ -104,6 +114,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		themeData.hidesExplorerArrows = false;
 		themeData.extensionData = undefined;
 		themeData.watch = false;
+		themeData.extends = undefined;
 		return themeData;
 	}
 
@@ -135,6 +146,9 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 					case 'extensionData':
 						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
+					case 'extends':
+						theme.extends = ExtendsOptions.fromJSONObject(data.extends);
+						break;
 				}
 			}
 			return theme;
@@ -154,14 +168,38 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			hasFolderIcons: this.hasFolderIcons,
 			hidesExplorerArrows: this.hidesExplorerArrows,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
+			extends: ExtendsOptions.toJSONObject(this.extends),
 			watch: this.watch
 		});
 		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
+interface ExtendsOptions {
+	all?: boolean;
+	ids?: string[];
+}
+
+namespace ExtendsOptions {
+	export function toJSONObject(o: ExtendsOptions | undefined): any {
+		return o && { all: o.all, ids: o.ids };
+	}
+	export function fromJSONObject(o: any): ExtendsOptions | undefined {
+		if (o && (o === undefined || typeof o === 'boolean') && (o.ids === undefined || Array.isArray(o.ids))) {
+			return { all: o.all, ids: o.ids };
+		}
+		return undefined;
+	}
+}
+
+interface ExtenderInformation {
+	dirname: URI;
+	document: IconThemeDocument;
+}
+
 interface IconDefinition {
 	iconPath: string;
+	_iconPathOrigin?: URI; // Unsupported property. Used internally to preserve dirnames of theme extenders.
 	fontColor: string;
 	fontCharacter: string;
 	fontSize: string;
@@ -173,7 +211,11 @@ interface FontDefinition {
 	weight: string;
 	style: string;
 	size: string;
-	src: { path: string; format: string; }[];
+	src: {
+		path: string;
+		_pathOrigin?: URI; // Unsupported property. Used internally to preserve dirnames of theme extenders.
+		format: string;
+	}[];
 }
 
 interface IconsAssociation {
@@ -210,6 +252,158 @@ function _loadIconThemeDocument(fileService: IFileService, location: URI): Promi
 	});
 }
 
+function _loadIconThemeExtenders(fileService: IFileService, settingsId: string | null, extenderData: FileIconThemeData[]): Promise<{ generalExtenders: ExtenderInformation[], specificExtenders: ExtenderInformation[] }> {
+	const generalExtenderData: FileIconThemeData[] = [];
+	const specificExtenderData: FileIconThemeData[] = [];
+
+	extenderData.forEach(data => {
+		if (data.extends) {
+			if (settingsId && data.extends.ids?.includes(settingsId)) {
+				specificExtenderData.push(data);
+			} else if (data.extends.all) {
+				generalExtenderData.push(data);
+			}
+		}
+	});
+
+	const loadExtenderInformation = (e: FileIconThemeData) => e.location
+		? _loadIconThemeDocument(fileService, e.location).then(document => ({ dirname: resources.dirname(e.location!), document }))
+		: undefined;
+	const generalExtenderPromises = generalExtenderData.map(loadExtenderInformation);
+	const specificExtenderPromises = specificExtenderData.map(loadExtenderInformation);
+
+	function notUndefined(e: ExtenderInformation | undefined): e is ExtenderInformation {
+		return !!e;
+	}
+
+	return Promise.all([Promise.all(generalExtenderPromises), Promise.all(specificExtenderPromises)]).then(([generalExtenders, specificExtenders]) => ({
+		generalExtenders: generalExtenders.filter(notUndefined),
+		specificExtenders: specificExtenders.filter(notUndefined)
+	}));
+}
+
+function _mergeIconThemeExtenders(iconThemeDocument: IconThemeDocument, generalExtenders: ExtenderInformation[], specificExtenders: ExtenderInformation[]): IconThemeDocument {
+
+	function mergeIconDefinitions(extender: ExtenderInformation, canOverride: boolean) {
+		for (const key in extender.document.iconDefinitions) {
+			if (!(key in iconThemeDocument.iconDefinitions) || canOverride) {
+				iconThemeDocument.iconDefinitions[key] = extender.document.iconDefinitions[key];
+				iconThemeDocument.iconDefinitions[key]._iconPathOrigin = extender.dirname;
+			}
+		}
+	}
+
+	function mergeFonts(extender: ExtenderInformation, canOverride: boolean) {
+		let fonts = iconThemeDocument.fonts;
+		const extenderFonts = extender.document.fonts;
+		if (Array.isArray(extenderFonts) && extenderFonts.length > 0) {
+			if (!Array.isArray(fonts)) {
+				fonts = iconThemeDocument.fonts = [];
+			}
+			for (const extenderFont of extenderFonts) {
+				for (const s of extenderFont.src) {
+					s._pathOrigin = extender.dirname;
+				}
+				const existingIndex = fonts.findIndex(f => f.id === extenderFont.id);
+				if (existingIndex === -1) {
+					fonts.push(extenderFont);
+				} else if (canOverride) {
+					fonts[existingIndex] = extenderFont;
+				}
+			}
+		}
+	}
+
+	function mergeAssociations(associations: IconsAssociation | undefined, extender: IconsAssociation | undefined, canOverride: boolean) {
+		if (associations && extender) {
+
+			function mergeObject(type: 'fileExtensions' | 'fileNames' | 'languageIds' | 'folderNames' | 'folderNamesExpanded') {
+				let base = associations?.[type];
+				const extenderObject = extender?.[type];
+				function findExistingKey(key: string): string | undefined {
+					return Object.keys(base ?? {}).find(k => k.toLowerCase() === key.toLowerCase());
+				}
+
+				if (extenderObject) {
+					for (const key in extenderObject) {
+						if (!base) {
+							base = associations![type] = {};
+						}
+						const existingKey = findExistingKey(key);
+						if (!existingKey || canOverride) {
+							base[existingKey ?? key] = extenderObject[key];
+						}
+					}
+				}
+			}
+			function mergeSpecificFileIcons() {
+				mergeObject('fileExtensions');
+				mergeObject('fileNames');
+				mergeObject('languageIds');
+			}
+			function mergeSpecificFolderIcons() {
+				mergeObject('folderNames');
+				mergeObject('folderNamesExpanded');
+			}
+
+			function mergeNormalIcons() {
+				if (extender?.file) {
+					associations!.file = extender.file;
+				}
+				if (extender?.folder) {
+					associations!.folder = extender.folder;
+				}
+				if (extender?.folderExpanded) {
+					associations!.folderExpanded = extender.folderExpanded;
+				}
+				if (extender?.rootFolder) {
+					associations!.rootFolder = extender.rootFolder;
+				}
+				if (extender?.rootFolderExpanded) {
+					associations!.rootFolderExpanded = extender.rootFolderExpanded;
+				}
+			}
+
+			if (!canOverride) {
+				const hasSpecificFileIcons = Object.keys(associations?.fileExtensions ?? {}).length > 0
+					|| Object.keys(associations?.fileNames ?? {}).length > 0
+					|| Object.keys(associations?.languageIds ?? {}).length > 0;
+				const hasSpecificFolderIcons = Object.keys(associations?.folderNames ?? {}).length > 0
+					|| Object.keys(associations?.folderNamesExpanded ?? {}).length > 0;
+
+				if (hasSpecificFileIcons) {
+					mergeSpecificFileIcons();
+				}
+				if (hasSpecificFolderIcons) {
+					mergeSpecificFolderIcons();
+				}
+			} else {
+				mergeSpecificFileIcons();
+				mergeSpecificFolderIcons();
+				mergeNormalIcons();
+			}
+		}
+	}
+
+	function mergeExtender(extender: ExtenderInformation, canOverride: boolean) {
+		mergeIconDefinitions(extender, canOverride);
+		mergeFonts(extender, canOverride);
+
+		mergeAssociations(iconThemeDocument, extender.document, canOverride);
+		mergeAssociations(iconThemeDocument.light, extender.document.light, canOverride);
+		mergeAssociations(iconThemeDocument.highContrast, extender.document.highContrast, canOverride);
+	}
+
+	specificExtenders.forEach(extender => {
+		mergeExtender(extender, true);
+	});
+	generalExtenders.forEach(extender => {
+		mergeExtender(extender, false);
+	});
+
+	return iconThemeDocument;
+}
+
 function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
 
 	const result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: !!iconThemeDocument.hidesExplorerArrows };
@@ -220,8 +414,8 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	let selectorByDefinitionId: { [def: string]: string[] } = {};
 
 	const iconThemeDocumentLocationDirname = resources.dirname(iconThemeDocumentLocation);
-	function resolvePath(path: string) {
-		return resources.joinPath(iconThemeDocumentLocationDirname, path);
+	function resolvePath(path: string, dirname = iconThemeDocumentLocationDirname) {
+		return resources.joinPath(dirname, path);
 	}
 
 	function collectSelectors(associations: IconsAssociation | undefined, baseThemeClassName?: string) {
@@ -342,7 +536,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	let fonts = iconThemeDocument.fonts;
 	if (Array.isArray(fonts)) {
 		fonts.forEach(font => {
-			let src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
+			let src = font.src.map(l => `${asCSSUrl(resolvePath(l.path, l._pathOrigin))} format('${l.format}')`).join(', ');
 			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; }`);
 		});
 		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}}`);
@@ -353,7 +547,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 		let definition = iconThemeDocument.iconDefinitions[defId];
 		if (definition) {
 			if (definition.iconPath) {
-				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
+				cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: ${asCSSUrl(resolvePath(definition.iconPath, definition._iconPathOrigin))}; }`);
 			}
 			if (definition.fontCharacter || definition.fontColor) {
 				let body = '';
