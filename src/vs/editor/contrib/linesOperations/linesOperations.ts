@@ -1049,6 +1049,21 @@ export class TitleCaseAction extends AbstractCaseAction {
 	}
 }
 
+export class SnakeCaseAction extends AbstractCaseAction {
+	constructor() {
+		super({
+			id: 'editor.action.transformToSnakecase',
+			label: nls.localize('editor.transformToSnakecase', "Transform to Snake Case"),
+			alias: 'Transform to Snake Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		return text.replace(/(?<=\p{Ll})(\p{Lu})|(?<!\b|_)(\p{Lu})(?=\p{Ll})/gmu, '_$&').replace(/(?<=\p{L})[- ](?=\p{L})/gmu, '_').toLocaleLowerCase();
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(DuplicateSelectionAction);
@@ -1069,3 +1084,4 @@ registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
 registerEditorAction(TitleCaseAction);
+registerEditorAction(SnakeCaseAction);

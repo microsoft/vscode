@@ -8,7 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction, SnakeCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -534,12 +534,28 @@ suite('Editor Contrib - Line Operations', () => {
 		withTestCodeEditor(
 			[
 				'hello world',
-				'öçşğü'
+				'öçşğü',
+				'parseHTMLString',
+				'getElementById',
+				'insertHTML',
+				'PascalCase',
+				'CSSSelectorsList',
+				'iD',
+				'tEST',
+				'öçşÖÇŞğüĞÜ',
+				'myObject.doSomethingV2();',
+				'snake_case',
+				'Capital_Snake_Case',
+				'kebab-case',
+				'Capital-Kebab-Case',
+				'Title Case',
+				'some text'
 			], {}, (editor) => {
 				let model = editor.getModel()!;
 				let uppercaseAction = new UpperCaseAction();
 				let lowercaseAction = new LowerCaseAction();
 				let titlecaseAction = new TitleCaseAction();
+				let snakecaseAction = new SnakeCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(uppercaseAction, editor);
@@ -580,6 +596,81 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(titlecaseAction, editor);
 				assert.equal(model.getLineContent(2), 'Öçşğü');
 				assertSelection(editor, new Selection(2, 1, 2, 6));
+
+				editor.setSelection(new Selection(3, 1, 3, 16));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(3), 'parse_html_string');
+				assertSelection(editor, new Selection(3, 1, 3, 16));
+
+				editor.setSelection(new Selection(4, 1, 4, 15));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(4), 'get_element_by_id');
+				assertSelection(editor, new Selection(4, 1, 4, 15));
+
+				editor.setSelection(new Selection(5, 1, 5, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(5), 'insert_html');
+				assertSelection(editor, new Selection(5, 1, 5, 11));
+
+				editor.setSelection(new Selection(6, 1, 6, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(6), 'pascal_case');
+				assertSelection(editor, new Selection(6, 1, 6, 11));
+
+				editor.setSelection(new Selection(7, 1, 7, 17));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(7), 'css_selectors_list');
+				assertSelection(editor, new Selection(7, 1, 7, 17));
+
+				editor.setSelection(new Selection(8, 1, 8, 3));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(8), 'i_d');
+				assertSelection(editor, new Selection(8, 1, 8, 3));
+
+				editor.setSelection(new Selection(9, 1, 9, 5));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(9), 't_est');
+				assertSelection(editor, new Selection(9, 1, 9, 5));
+
+				editor.setSelection(new Selection(10, 1, 10, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(10), 'öçş_öç_şğü_ğü');
+				assertSelection(editor, new Selection(10, 1, 10, 11));
+
+				editor.setSelection(new Selection(11, 1, 11, 26));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(11), 'my_object.do_something_v2();');
+				assertSelection(editor, new Selection(11, 1, 11, 26));
+
+				editor.setSelection(new Selection(12, 1, 12, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(12), 'snake_case');
+				assertSelection(editor, new Selection(12, 1, 12, 11));
+
+				editor.setSelection(new Selection(13, 1, 13, 19));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(13), 'capital_snake_case');
+				assertSelection(editor, new Selection(13, 1, 13, 19));
+
+				editor.setSelection(new Selection(14, 1, 14, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(14), 'kebab_case');
+				assertSelection(editor, new Selection(14, 1, 14, 11));
+
+				editor.setSelection(new Selection(15, 1, 15, 19));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(15), 'capital_kebab_case');
+				assertSelection(editor, new Selection(15, 1, 15, 19));
+
+				editor.setSelection(new Selection(16, 1, 16, 11));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(16), 'title_case');
+				assertSelection(editor, new Selection(16, 1, 16, 11));
+
+				editor.setSelection(new Selection(17, 1, 17, 10));
+				executeAction(snakecaseAction, editor);
+				assert.equal(model.getLineContent(17), 'some_text');
+				assertSelection(editor, new Selection(17, 1, 17, 10));
 			}
 		);
 
