@@ -656,15 +656,10 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	originalEditable?: boolean;
 	/**
-	 * Original editor should be have code lens enabled?
+	 * Should the diff editor enable code lens?
 	 * Defaults to false.
 	 */
-	originalCodeLens?: boolean;
-	/**
-	 * Modified editor should be have code lens enabled?
-	 * Defaults to false.
-	 */
-	modifiedCodeLens?: boolean;
+	diffCodeLens?: boolean;
 	/**
 	 * Is the diff editor inside another editor
 	 * Defaults to false
@@ -849,18 +844,21 @@ class SimpleEditorOption<K1 extends EditorOption, V> implements IEditorOption<K1
 	}
 }
 
-class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
-
-	public static boolean(value: any, defaultValue: boolean): boolean {
-		if (typeof value === 'undefined') {
-			return defaultValue;
-		}
-		if (value === 'false') {
-			// treat the string 'false' as false
-			return false;
-		}
-		return Boolean(value);
+/**
+ * @internal
+ */
+export function boolean(value: any, defaultValue: boolean): boolean {
+	if (typeof value === 'undefined') {
+		return defaultValue;
 	}
+	if (value === 'false') {
+		// treat the string 'false' as false
+		return false;
+	}
+	return Boolean(value);
+}
+
+class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1, boolean> {
 
 	constructor(id: K1, name: PossibleKeyName<boolean>, defaultValue: boolean, schema: IConfigurationPropertySchema | undefined = undefined) {
 		if (typeof schema !== 'undefined') {
@@ -871,7 +869,7 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 	}
 
 	public validate(input: any): boolean {
-		return EditorBooleanOption.boolean(input, this.defaultValue);
+		return boolean(input, this.defaultValue);
 	}
 }
 
@@ -1137,8 +1135,8 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 		}
 		const input = _input as IEditorCommentsOptions;
 		return {
-			insertSpace: EditorBooleanOption.boolean(input.insertSpace, this.defaultValue.insertSpace),
-			ignoreEmptyLines: EditorBooleanOption.boolean(input.ignoreEmptyLines, this.defaultValue.ignoreEmptyLines),
+			insertSpace: boolean(input.insertSpace, this.defaultValue.insertSpace),
+			ignoreEmptyLines: boolean(input.ignoreEmptyLines, this.defaultValue.ignoreEmptyLines),
 		};
 	}
 }
@@ -1399,14 +1397,14 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		}
 		const input = _input as IEditorFindOptions;
 		return {
-			cursorMoveOnType: EditorBooleanOption.boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
-			seedSearchStringFromSelection: EditorBooleanOption.boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
+			cursorMoveOnType: boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
+			seedSearchStringFromSelection: boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
 			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
 				? (_input.autoFindInSelection ? 'always' : 'never')
 				: stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
-			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
-			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
-			loop: EditorBooleanOption.boolean(input.loop, this.defaultValue.loop),
+			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
+			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
+			loop: boolean(input.loop, this.defaultValue.loop),
 		};
 	}
 }
@@ -1746,9 +1744,9 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 		}
 		const input = _input as IEditorHoverOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
-			sticky: EditorBooleanOption.boolean(input.sticky, this.defaultValue.sticky)
+			sticky: boolean(input.sticky, this.defaultValue.sticky)
 		};
 	}
 }
@@ -2345,7 +2343,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLig
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
 		};
 	}
 }
@@ -2489,11 +2487,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 		}
 		const input = _input as IEditorMinimapOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			size: stringSet<'proportional' | 'fill' | 'fit'>(input.size, this.defaultValue.size, ['proportional', 'fill', 'fit']),
 			side: stringSet<'right' | 'left'>(input.side, this.defaultValue.side, ['right', 'left']),
 			showSlider: stringSet<'always' | 'mouseover'>(input.showSlider, this.defaultValue.showSlider, ['always', 'mouseover']),
-			renderCharacters: EditorBooleanOption.boolean(input.renderCharacters, this.defaultValue.renderCharacters),
+			renderCharacters: boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 		};
@@ -2622,8 +2620,8 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 		}
 		const input = _input as IEditorParameterHintOptions;
 		return {
-			enabled: EditorBooleanOption.boolean(input.enabled, this.defaultValue.enabled),
-			cycle: EditorBooleanOption.boolean(input.cycle, this.defaultValue.cycle)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			cycle: boolean(input.cycle, this.defaultValue.cycle)
 		};
 	}
 }
@@ -2710,9 +2708,9 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		if (_input && typeof _input === 'object') {
 			const input = _input as IQuickSuggestionsOptions;
 			const opts = {
-				other: EditorBooleanOption.boolean(input.other, this.defaultValue.other),
-				comments: EditorBooleanOption.boolean(input.comments, this.defaultValue.comments),
-				strings: EditorBooleanOption.boolean(input.strings, this.defaultValue.strings),
+				other: boolean(input.other, this.defaultValue.other),
+				comments: boolean(input.comments, this.defaultValue.comments),
+				strings: boolean(input.strings, this.defaultValue.strings),
 			};
 			if (opts.other && opts.comments && opts.strings) {
 				return true; // all on
@@ -3008,16 +3006,16 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 			arrowSize: EditorIntOption.clampedInt(input.arrowSize, this.defaultValue.arrowSize, 0, 1000),
 			vertical: _scrollbarVisibilityFromString(input.vertical, this.defaultValue.vertical),
 			horizontal: _scrollbarVisibilityFromString(input.horizontal, this.defaultValue.horizontal),
-			useShadows: EditorBooleanOption.boolean(input.useShadows, this.defaultValue.useShadows),
-			verticalHasArrows: EditorBooleanOption.boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
-			horizontalHasArrows: EditorBooleanOption.boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
-			handleMouseWheel: EditorBooleanOption.boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
-			alwaysConsumeMouseWheel: EditorBooleanOption.boolean(input.alwaysConsumeMouseWheel, this.defaultValue.alwaysConsumeMouseWheel),
+			useShadows: boolean(input.useShadows, this.defaultValue.useShadows),
+			verticalHasArrows: boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
+			horizontalHasArrows: boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
+			handleMouseWheel: boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
+			alwaysConsumeMouseWheel: boolean(input.alwaysConsumeMouseWheel, this.defaultValue.alwaysConsumeMouseWheel),
 			horizontalScrollbarSize: horizontalScrollbarSize,
 			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
-			scrollByPage: EditorBooleanOption.boolean(input.scrollByPage, this.defaultValue.scrollByPage),
+			scrollByPage: boolean(input.scrollByPage, this.defaultValue.scrollByPage),
 		};
 	}
 }
@@ -3422,40 +3420,40 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		const input = _input as ISuggestOptions;
 		return {
 			insertMode: stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
-			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
-			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
-			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
-			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
-			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
-			showStatusBar: EditorBooleanOption.boolean(input.showStatusBar, this.defaultValue.showStatusBar),
-			showInlineDetails: EditorBooleanOption.boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
-			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
-			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
-			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),
-			showFields: EditorBooleanOption.boolean(input.showFields, this.defaultValue.showFields),
-			showVariables: EditorBooleanOption.boolean(input.showVariables, this.defaultValue.showVariables),
-			showClasses: EditorBooleanOption.boolean(input.showClasses, this.defaultValue.showClasses),
-			showStructs: EditorBooleanOption.boolean(input.showStructs, this.defaultValue.showStructs),
-			showInterfaces: EditorBooleanOption.boolean(input.showInterfaces, this.defaultValue.showInterfaces),
-			showModules: EditorBooleanOption.boolean(input.showModules, this.defaultValue.showModules),
-			showProperties: EditorBooleanOption.boolean(input.showProperties, this.defaultValue.showProperties),
-			showEvents: EditorBooleanOption.boolean(input.showEvents, this.defaultValue.showEvents),
-			showOperators: EditorBooleanOption.boolean(input.showOperators, this.defaultValue.showOperators),
-			showUnits: EditorBooleanOption.boolean(input.showUnits, this.defaultValue.showUnits),
-			showValues: EditorBooleanOption.boolean(input.showValues, this.defaultValue.showValues),
-			showConstants: EditorBooleanOption.boolean(input.showConstants, this.defaultValue.showConstants),
-			showEnums: EditorBooleanOption.boolean(input.showEnums, this.defaultValue.showEnums),
-			showEnumMembers: EditorBooleanOption.boolean(input.showEnumMembers, this.defaultValue.showEnumMembers),
-			showKeywords: EditorBooleanOption.boolean(input.showKeywords, this.defaultValue.showKeywords),
-			showWords: EditorBooleanOption.boolean(input.showWords, this.defaultValue.showWords),
-			showColors: EditorBooleanOption.boolean(input.showColors, this.defaultValue.showColors),
-			showFiles: EditorBooleanOption.boolean(input.showFiles, this.defaultValue.showFiles),
-			showReferences: EditorBooleanOption.boolean(input.showReferences, this.defaultValue.showReferences),
-			showFolders: EditorBooleanOption.boolean(input.showFolders, this.defaultValue.showFolders),
-			showTypeParameters: EditorBooleanOption.boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
-			showSnippets: EditorBooleanOption.boolean(input.showSnippets, this.defaultValue.showSnippets),
-			showUsers: EditorBooleanOption.boolean(input.showUsers, this.defaultValue.showUsers),
-			showIssues: EditorBooleanOption.boolean(input.showIssues, this.defaultValue.showIssues),
+			filterGraceful: boolean(input.filterGraceful, this.defaultValue.filterGraceful),
+			snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
+			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
+			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
+			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
+			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
+			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
+			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
+			showFields: boolean(input.showFields, this.defaultValue.showFields),
+			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
+			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
+			showStructs: boolean(input.showStructs, this.defaultValue.showStructs),
+			showInterfaces: boolean(input.showInterfaces, this.defaultValue.showInterfaces),
+			showModules: boolean(input.showModules, this.defaultValue.showModules),
+			showProperties: boolean(input.showProperties, this.defaultValue.showProperties),
+			showEvents: boolean(input.showEvents, this.defaultValue.showEvents),
+			showOperators: boolean(input.showOperators, this.defaultValue.showOperators),
+			showUnits: boolean(input.showUnits, this.defaultValue.showUnits),
+			showValues: boolean(input.showValues, this.defaultValue.showValues),
+			showConstants: boolean(input.showConstants, this.defaultValue.showConstants),
+			showEnums: boolean(input.showEnums, this.defaultValue.showEnums),
+			showEnumMembers: boolean(input.showEnumMembers, this.defaultValue.showEnumMembers),
+			showKeywords: boolean(input.showKeywords, this.defaultValue.showKeywords),
+			showWords: boolean(input.showWords, this.defaultValue.showWords),
+			showColors: boolean(input.showColors, this.defaultValue.showColors),
+			showFiles: boolean(input.showFiles, this.defaultValue.showFiles),
+			showReferences: boolean(input.showReferences, this.defaultValue.showReferences),
+			showFolders: boolean(input.showFolders, this.defaultValue.showFolders),
+			showTypeParameters: boolean(input.showTypeParameters, this.defaultValue.showTypeParameters),
+			showSnippets: boolean(input.showSnippets, this.defaultValue.showSnippets),
+			showUsers: boolean(input.showUsers, this.defaultValue.showUsers),
+			showIssues: boolean(input.showIssues, this.defaultValue.showIssues),
 		};
 	}
 }
@@ -3493,7 +3491,7 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, SmartSelect
 			return this.defaultValue;
 		}
 		return {
-			selectLeadingAndTrailingWhitespace: EditorBooleanOption.boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
+			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
 		};
 	}
 }
