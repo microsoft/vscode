@@ -339,10 +339,12 @@ class DesktopMain extends Disposable {
 		} catch (error) {
 			onUnexpectedError(error);
 		}
+
 		return;
 	}
 
 	private async createHash(resource: URI): Promise<string> {
+
 		// Return early the folder is not local
 		if (resource.scheme !== Schemas.file) {
 			return createHash('md5').update(resource.toString()).digest('hex');
@@ -397,7 +399,6 @@ class DesktopMain extends Disposable {
 			return storageService;
 		}
 	}
-
 }
 
 export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {

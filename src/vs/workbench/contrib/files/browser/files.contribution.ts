@@ -102,8 +102,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileEditorInputFactory({
-	createFileEditorInput: (resource, preferredResource, encoding, mode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, encoding, mode);
+
+	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);
 	},
 
 	isFileEditorInput: (obj): obj is IFileEditorInput => {
@@ -114,6 +115,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 interface ISerializedFileEditorInput {
 	resourceJSON: UriComponents;
 	preferredResourceJSON?: UriComponents;
+	name?: string;
+	description?: string;
 	encoding?: string;
 	modeId?: string;
 }
@@ -132,6 +135,8 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		const serializedFileEditorInput: ISerializedFileEditorInput = {
 			resourceJSON: resource.toJSON(),
 			preferredResourceJSON: isEqual(resource, preferredResource) ? undefined : preferredResource, // only storing preferredResource if it differs from the resource
+			name: fileEditorInput.getPreferredName(),
+			description: fileEditorInput.getPreferredDescription(),
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};
@@ -144,10 +149,12 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
 			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
 			const preferredResource = URI.revive(serializedFileEditorInput.preferredResourceJSON);
+			const name = serializedFileEditorInput.name;
+			const description = serializedFileEditorInput.description;
 			const encoding = serializedFileEditorInput.encoding;
 			const mode = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
+			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, label: name, description, encoding, mode, forceFile: true }) as FileEditorInput;
 			if (preferredResource) {
 				fileEditorInput.setPreferredResource(preferredResource);
 			}

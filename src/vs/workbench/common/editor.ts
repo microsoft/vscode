@@ -178,7 +178,7 @@ export interface IFileEditorInputFactory {
 	/**
 	 * Creates new new editor input capable of showing files.
 	 */
-	createFileEditorInput(resource: URI, preferredResource: URI | undefined, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	/**
 	 * Check if the provided object is a file editor input.
@@ -703,6 +703,24 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Sets the preferred resource to use for this file input.
 	 */
 	setPreferredResource(preferredResource: URI): void;
+
+	/**
+	 * Sets the preferred name to use for this file input.
+	 *
+	 * Note: for certain file schemes the input may decide to ignore this
+	 * name and use our standard naming. Specifically for schemes we own,
+	 * we do not let others override the name.
+	 */
+	setPreferredName(name: string): void;
+
+	/**
+	 * Sets the preferred description to use for this file input.
+	 *
+	 * Note: for certain file schemes the input may decide to ignore this
+	 * description and use our standard naming. Specifically for schemes we own,
+	 * we do not let others override the description.
+	 */
+	setPreferredDescription(description: string): void;
 
 	/**
 	 * Sets the preferred encoding to use for this file input.
