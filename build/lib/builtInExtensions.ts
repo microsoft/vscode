@@ -21,6 +21,7 @@ interface IExtensionDefinition {
 	name: string;
 	version: string;
 	repo: string;
+	platforms?: string[];
 	metadata: {
 		id: string;
 		publisherId: {
@@ -82,6 +83,15 @@ function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
 }
 
 function syncExtension(extension: IExtensionDefinition, controlState: 'disabled' | 'marketplace'): Stream {
+	if (extension.platforms) {
+		const platforms = new Set(extension.platforms);
+
+		if (!platforms.has(process.platform)) {
+			log(ansiColors.gray('[skip]'), `${extension.name}@${extension.version}: Platform '${process.platform}' not supported: [${extension.platforms}]`, ansiColors.green('✔︎'));
+			return es.readArray([]);
+		}
+	}
+
 	switch (controlState) {
 		case 'disabled':
 			log(ansiColors.blue('[disabled]'), ansiColors.gray(extension.name));

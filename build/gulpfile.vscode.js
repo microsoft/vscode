@@ -161,7 +161,17 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true });
+		const platformSpecificBuiltInExtensionsFilter = product.builtInExtensions.filter(ext => {
+			if (!ext.platforms) {
+				return false;
+			}
+
+			const set = new Set(ext.platforms);
+			return !set.has(platform);
+		}).map(ext => `!.build/extensions/${ext.name}/**`);
+
+		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true })
+			.pipe(filter(['**', ...platformSpecificBuiltInExtensionsFilter]));
 
 		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
@@ -201,7 +211,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
-		const jsFilter = util.filter(data => !data.isDirectory() &&/\.js$/.test(data.path));
+		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 

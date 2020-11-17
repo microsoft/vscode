@@ -119,6 +119,22 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "ms-vscode-remote.remote-wsl",
+			"version": "0.51.3",
+			"repo": "https://github.com/microsoft/vscode-remote-release",
+			"metadata": {
+				"id": "f0c5397b-d357-4197-99f0-cb4202f22818",
+				"publisherId": {
+					"publisherId": "ac9410a2-0d75-40ec-90de-b59bb705801d",
+					"publisherName": "ms-vscode",
+					"displayName": "Microsoft",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Microsoft"
+			},
+			"platforms": ["win32"]
 		}
 	],
 	"webBuiltInExtensions": [
