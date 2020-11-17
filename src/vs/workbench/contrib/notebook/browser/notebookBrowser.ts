@@ -91,6 +91,8 @@ export interface CodeCellLayoutInfo {
 	readonly totalHeight: number;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
+	readonly outputShowMoreContainerHeight: number;
+	readonly outputShowMoreContainerOffset: number;
 	readonly indicatorHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly layoutState: CodeCellLayoutState;
@@ -99,6 +101,7 @@ export interface CodeCellLayoutInfo {
 export interface CodeCellLayoutChangeEvent {
 	editorHeight?: boolean;
 	outputHeight?: boolean;
+	outputShowMoreContainerHeight?: number;
 	totalHeight?: boolean;
 	outerWidth?: number;
 	font?: BareFontInfo;
@@ -558,6 +561,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: HTMLElement;
+	outputShowMoreContainer: HTMLElement;
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
