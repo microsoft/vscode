@@ -57,7 +57,7 @@
     "keytar": "^7.1.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
-    "native-keymap": "2.2.0",
+    "native-keymap": "2.2.1",
     "native-watchdog": "1.3.0",
     "node-pty": "0.10.0-beta17",
     "spdlog": "^0.11.1",
