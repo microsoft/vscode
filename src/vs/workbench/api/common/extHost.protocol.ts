@@ -57,6 +57,7 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { TestsDiff } from 'vs/platform/testing/common/testCollection';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1751,6 +1752,20 @@ export interface ExtHostTunnelServiceShape {
 
 export interface ExtHostTimelineShape {
 	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+}
+
+export interface RunTestsRequest {
+	handles: number[];
+	debug: boolean;
+}
+
+export interface ExtHostTestingShape {
+	$runTests(req: RunTestsRequest): Promise<void>;
+	$acceptDiff(diff: TestsDiff): void;
+}
+
+export interface MainThreadTestingShape {
+
 }
 
 // --- proxy identifiers

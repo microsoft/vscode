@@ -2897,3 +2897,14 @@ export class OnTypeRenameRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
 	}
 }
+
+//#region Testing
+export enum TestRunState {
+	Unset,
+	Running,
+	Passed,
+	Failed,
+	Skipped,
+	Errored
+}
+//#endregion

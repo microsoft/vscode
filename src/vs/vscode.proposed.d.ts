@@ -2122,4 +2122,195 @@ declare module 'vscode' {
 		notebook: NotebookDocument | undefined;
 	}
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/107467
+	/*
+		General activation events:
+			- `onLanguage:*` most test extensions will want to activate when their
+				language is opened to provide code lenses.
+			- `onTests:*` new activation event very simiular to `workspaceContains`,
+				but only fired when the user wants to run tests or opens the test explorer.
+	*/
+	export namespace test {
+		/**
+		 * Registers a provider that discovers tests for the given document
+		 * selectors. It is activated when either tests need to be enumerated, or
+		 * a document matching the selector is opened.
+		 */
+		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
+
+		/**
+		 * Runs tests with the given options. If no options are given, then
+		 * all tests are run. Returns the resulting test run.
+		 */
+		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+
+		// todo: test enumeration and events for extensions to build on
+	}
+
+	/**
+	 * Discovers and provides tests. It's expected that the TestProvider will
+	 * ambiently listen to {@link vscode.window.onDidChangeVisibleTextEditors} to
+	 * provide test information about the open files for use in code lenses and
+	 * other file-specific UI.
+	 *
+	 * Additionally, the UI may request it to discover tests for the workspace
+	 * via `addWorkspaceTests`.
+	 */
+	export interface TestProvider<T extends TestItem = TestItem> {
+		/**
+		 * Root node for tests. The `testRoot` instance must not be replaced over
+		 * the lifespan of the TestProvider, since you will need to reference it
+		 * in `onDidChangeTest` when a test is added or removed.
+		 */
+		readonly testRoot: T;
+
+		/**
+		 * An event that fires when an existing test in the collection changes.
+		 * This can be a result of a state change in a test run or its properties
+		 * update.
+		 *
+		 * This should also be fired when a test gains or loses a direct child
+		 * from its `children` array.
+		 */
+		readonly onDidChangeTest: Event<T>;
+
+		/**
+		 * Requests that tests be provided for the given workspace. This will
+		 * generally be called when tests need to be enumerated for the
+		 * workspace.
+		 *
+		 * The promise returned from this method should be resolved when all
+		 * tests have been added to the collection, and should continue
+		 * updating the collection and/or firing {@link onDidChangeTest} until
+		 * the returned object is disposed.
+		 *
+		 * It's guaranteed that this method will not be called again while
+		 * there is a previous undisposed watcher.
+		 */
+		addWorkspaceTests?(workspace: WorkspaceFolder): ProviderResult<Disposable>;
+
+		/**
+		 * Starts a test run. This should cause {@link onDidChangeTest} to
+		 * fire with update test states during the run.
+		 * @todo this will eventually need to be able to return a summary report, coverage for example.
+		 */
+		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
+	}
+
+	/**
+	 * Options given to `TestProvider.runTests`
+	 */
+	export interface TestRunOptions<T extends TestItem> {
+		/**
+		 * Array of specific tests to run. The {@link TestProvider.testRoot} may
+		 * be provided as an indication to run all tests.
+		 */
+		tests: T[];
+
+		/**
+		 * Whether or not tests in this run should be debugged.
+		 */
+		debug: boolean;
+	}
+
+	/**
+	 * A test item is an item shown in the "test explorer" view. It encompasses
+	 * both a suite and a test, since they have almost or identical capabilities.
+	 */
+	export interface TestItem {
+		/**
+		 * Display name describing the test case.
+		 */
+		label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		description?: string;
+
+		/**
+		 * Whether this test item can be run individually, defaults to `true`
+		 * if not provided.
+		 *
+		 * In some cases, like Go's tests, test can have children but these
+		 * children cannot be run independently.
+		 */
+		runnable?: boolean;
+
+		/**
+		 * Whether this test item can be debugged.
+		 */
+		debuggable?: boolean;
+
+		/**
+		 * VS Code location.
+		 */
+		location: Location;
+
+		/**
+		 * Optional list of nested tests for this item.
+		 */
+		children?: TestItem[];
+
+		/**
+		 * Test run state. Will generally be {@link TestRunState.Unset} by
+		 * default.
+		 */
+		runState: TestRunState;
+	}
+
+	export enum TestRunState {
+		// Initial state
+		Unset,
+		// Test is currently running
+		Running,
+		// Test run has passed
+		Passed,
+		// Test run has failed (on an assertion)
+		Failed,
+		// Test run has been skipped
+		Skipped,
+		// Test run failed for some other reason (compilation error, timeout, etc)
+		Errored
+	}
+
+	/**
+	 * TestState includes a test and its run state. This is emitted by
+	 * the {@link TestRun} and may also be queried from the API.
+	 */
+	export interface TestState {
+		/**
+		 * Current state of the test.
+		 */
+		state: TestRunState;
+
+		/**
+		 * Optional duration of the test run, in milliseconds.
+		 */
+		duration?: number;
+
+		/**
+		 * Associated test run message. Can, for example, contain assertion
+		 * failure information if the test fails.
+		 */
+		messages: TestMessage[];
+	}
+
+	/**
+	 * Message associated with the test state. Can be linked to a specific
+	 * source range -- useful for assertion failures, for example.
+	 */
+	export interface TestMessage {
+		/**
+		 * Message text to display.
+		 */
+		message: string;
+
+		/**
+		 * Associated file location.
+		 */
+		location?: Location;
+	}
+	//#endregion
 }
