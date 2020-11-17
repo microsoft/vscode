@@ -33,7 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -171,7 +171,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._activeKernel = kernel;
 		this._activeKernelResolvePromise = undefined;
 
-		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		memento[this.viewModel!.viewType] = this._activeKernel?.id;
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
@@ -307,7 +307,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	protected getMemento(scope: StorageScope): MementoObject {
-		return this._memento.legacygetMemento(scope);
+		return this._memento.getMemento(scope, StorageTarget.MACHINE);
 	}
 
 	public get isNotebookEditor() {
@@ -780,7 +780,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private async _setKernelsFromProviders(provider: NotebookProviderInfo, kernels: INotebookKernelInfo2[], tokenSource: CancellationTokenSource) {
 		const rawAssociations = this.configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId) || [];
 		const userSetKernelProvider = rawAssociations.filter(e => e.viewType === this.viewModel?.viewType)[0]?.kernelProvider;
-		const memento = this._activeKernelMemento.legacygetMemento(StorageScope.GLOBAL);
+		const memento = this._activeKernelMemento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 		if (userSetKernelProvider) {
 			const filteredKernels = kernels.filter(kernel => kernel.extension.value === userSetKernelProvider);

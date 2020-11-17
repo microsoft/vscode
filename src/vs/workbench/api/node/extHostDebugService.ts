@@ -79,22 +79,26 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				});
 			}
 
-			let terminal = await this._integratedTerminalInstances.checkout();
 			const configProvider = await this._configurationService.getConfigProvider();
 			const shell = this._terminalService.getDefaultShell(true, configProvider);
+			const shellArgs = this._terminalService.getDefaultShellArgs(true, configProvider);
+
+			const shellConfig = JSON.stringify({ shell, shellArgs });
+			let terminal = await this._integratedTerminalInstances.checkout(shellConfig);
+
 			let cwdForPrepareCommand: string | undefined;
 			let giveShellTimeToInitialize = false;
 
 			if (!terminal) {
 				const options: vscode.TerminalOptions = {
 					shellPath: shell,
-					shellArgs: this._terminalService.getDefaultShellArgs(true, configProvider),
+					shellArgs: shellArgs,
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
 				};
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, true);
-				this._integratedTerminalInstances.insert(terminal);
+				this._integratedTerminalInstances.insert(terminal, shellConfig);
 
 			} else {
 				cwdForPrepareCommand = args.cwd;
@@ -132,9 +136,9 @@ class DebugTerminalCollection {
 	 */
 	private static minUseDelay = 1000;
 
-	private _terminalInstances = new Map<vscode.Terminal, number /* last used at */>();
+	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
 
-	public async checkout() {
+	public async checkout(config: string) {
 		const entries = [...this._terminalInstances.keys()];
 		const promises = entries.map((terminal) => createCancelablePromise(async ct => {
 			const pid = await terminal.processId;
@@ -144,20 +148,24 @@ class DebugTerminalCollection {
 
 			// important: date check and map operations must be synchronous
 			const now = Date.now();
-			const usedAt = this._terminalInstances.get(terminal);
-			if (!usedAt || usedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
+			const termInfo = this._terminalInstances.get(terminal);
+			if (!termInfo || termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
 				return null;
 			}
 
-			this._terminalInstances.set(terminal, now);
+			if (termInfo.config !== config) {
+				return null;
+			}
+
+			termInfo.lastUsedAt = now;
 			return terminal;
 		}));
 
 		return await firstParallel(promises, (t): t is vscode.Terminal => !!t);
 	}
 
-	public insert(terminal: vscode.Terminal) {
-		this._terminalInstances.set(terminal, Date.now());
+	public insert(terminal: vscode.Terminal, termConfig: string) {
+		this._terminalInstances.set(terminal, { lastUsedAt: Date.now(), config: termConfig });
 	}
 
 	public onTerminalClosed(terminal: vscode.Terminal) {
