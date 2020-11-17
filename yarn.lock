@@ -160,12 +160,33 @@
   resolved "https://registry.yarnpkg.com/@istanbuljs/schema/-/schema-0.1.2.tgz#26520bf09abe4a5644cd5414e37125a8954241dd"
   integrity sha512-tsAQNx32a8CoFhjhijUIhI4kccIAgmGhy8LZMZgGfmXcpMbPRUqn5LWmgRttILi6yeGmBJd2xsPkFMs0PzgPCw==
 
-"@malept/cross-spawn-promise@^1.1.0":
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/@malept/cross-spawn-promise/-/cross-spawn-promise-1.1.0.tgz#258fde4098f5004a56db67c35f33033af64810f6"
-  integrity sha512-GeIK5rfU1Yd7BZJQPTGZMMmcZy5nhRToPXZcjaDwQDRSewdhp648GT2E4dh+L7+Io7AOW6WQ+GR44QSzja4qxg==
+"@shiftkey/node-abi@2.19.2-pre":
+  version "2.19.2-pre"
+  resolved "https://registry.yarnpkg.com/@shiftkey/node-abi/-/node-abi-2.19.2-pre.tgz#02599b37253e414f8f6ef3c67ea704e37da640a9"
+  integrity sha512-+LfXo6nd2uZ8cGSJ66zL3OuddvG2oMWMc9GzpDoX2ZNMLmYpu+ReoEKXtmoKVwd6JSavDymldebCxSJh9NQ9cg==
   dependencies:
-    cross-spawn "^7.0.1"
+    semver "^5.4.1"
+
+"@shiftkey/prebuild-install@6.0.1-pre2":
+  version "6.0.1-pre2"
+  resolved "https://registry.yarnpkg.com/@shiftkey/prebuild-install/-/prebuild-install-6.0.1-pre2.tgz#8cea022dd9aa0eb064164987b6ab12539efb892e"
+  integrity sha512-wDV1DgFxi0F+kTpyGNdnDctdw3Rb9aP8RBAGFE2wXr1+pXSCJRRA+Qh5ko5dKc0LeNIBZzjEECjmtAykajv+Xw==
+  dependencies:
+    "@shiftkey/node-abi" "2.19.2-pre"
+    detect-libc "^1.0.3"
+    expand-template "^2.0.3"
+    github-from-package "0.0.0"
+    minimist "^1.2.3"
+    mkdirp-classic "^0.5.3"
+    napi-build-utils "^1.0.1"
+    noop-logger "^0.1.1"
+    npmlog "^4.0.1"
+    pump "^3.0.0"
+    rc "^1.2.7"
+    simple-get "^3.0.3"
+    tar-fs "^2.0.0"
+    tunnel-agent "^0.6.0"
+    which-pm-runs "^1.0.0"
 
 "@sindresorhus/is@^0.14.0":
   version "0.14.0"
@@ -1275,7 +1296,7 @@ bindings@^1.5.0:
   dependencies:
     file-uri-to-path "1.0.0"
 
-bl@^4.0.1, bl@^4.0.2:
+bl@^4.0.2, bl@^4.0.3:
   version "4.0.3"
   resolved "https://registry.yarnpkg.com/bl/-/bl-4.0.3.tgz#12d6287adc29080e22a705e5764b2a9522cdc489"
   integrity sha512-fs4G6/Hu4/EE+F75J8DuN/0IpQqNjAdC7aEQv7Qt8MHGUH7Ckv2MwTEEeN9QehD0pfIDkMI1bkHYkKy7xHyKIg==
@@ -5567,12 +5588,13 @@ just-debounce@^1.0.0:
   resolved "https://registry.yarnpkg.com/just-debounce/-/just-debounce-1.0.0.tgz#87fccfaeffc0b68cd19d55f6722943f929ea35ea"
   integrity sha1-h/zPrv/AtozRnVX2cilD+SnqNeo=
 
-keytar@deepak1556/node-keytar#22b95ab754e4c4f94747ac2d177f06697d567052:
-  version "6.0.1"
-  resolved "https://codeload.github.com/deepak1556/node-keytar/tar.gz/22b95ab754e4c4f94747ac2d177f06697d567052"
+keytar@^7.1.0:
+  version "7.1.0"
+  resolved "https://registry.yarnpkg.com/keytar/-/keytar-7.1.0.tgz#961e6c5cf0615f2c184a48752d3265063e492925"
+  integrity sha512-ciDrtCcvhKpmVfPMVAiKSeKKQd+8S2VWOIcJP0Rdwz/ezSxHxYrycpwufDGpEHJqLyi/F7C7iwoz0eKGllzcMw==
   dependencies:
+    "@shiftkey/prebuild-install" "6.0.1-pre2"
     node-addon-api "^3.0.0"
-    prebuild-install "5.3.5"
 
 keyv@^3.0.0:
   version "3.1.0"
@@ -6238,7 +6260,7 @@ mixin-deep@^1.2.0:
     for-in "^1.0.2"
     is-extendable "^1.0.1"
 
-mkdirp-classic@^0.5.2:
+mkdirp-classic@^0.5.2, mkdirp-classic@^0.5.3:
   version "0.5.3"
   resolved "https://registry.yarnpkg.com/mkdirp-classic/-/mkdirp-classic-0.5.3.tgz#fa10c9115cc6d8865be221ba47ee9bed78601113"
   integrity sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==
@@ -6346,12 +6368,7 @@ mute-stream@0.0.8:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
   integrity sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==
 
-nan@^2.10.0:
-  version "2.14.2"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
-  integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
-
-nan@^2.13.2, nan@^2.14.0:
+nan@^2.10.0, nan@^2.13.2, nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -6427,33 +6444,15 @@ nice-try@^1.0.4:
   resolved "https://registry.yarnpkg.com/nice-try/-/nice-try-1.0.4.tgz#d93962f6c52f2c1558c0fbda6d512819f1efe1c4"
   integrity sha512-2NpiFHqC87y/zFke0fC0spBXL3bBsoh/p5H1EFhshxjCR5+0g2d6BiXbUFz9v1sAcxsk2htp2eQnNIci2dIYcA==
 
-node-abi@^2.19.1, node-abi@^2.7.0:
-  version "2.19.1"
-  resolved "https://registry.yarnpkg.com/node-abi/-/node-abi-2.19.1.tgz#6aa32561d0a5e2fdb6810d8c25641b657a8cea85"
-  integrity sha512-HbtmIuByq44yhAzK7b9j/FelKlHYISKQn0mtvcBrU5QBkhoCMp5bu8Hv5AI34DcKfOAcJBcOEMwLlwO62FFu9A==
-  dependencies:
-    semver "^5.4.1"
+node-addon-api@1.6.2:
+  version "1.6.2"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
+  integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
 node-addon-api@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.0.0.tgz#812446a1001a54f71663bed188314bba07e09247"
-  integrity sha512-sSHCgWfJ+Lui/u+0msF3oyCgvdkhxDbkCS6Q8uiJquzOimkJBvX6hl5aSSA7DR1XbMpdM8r7phjcF63sF4rkKg==
-
-node-gyp@^7.1.0:
-  version "7.1.0"
-  resolved "https://registry.yarnpkg.com/node-gyp/-/node-gyp-7.1.0.tgz#cb8aed7ab772e73ad592ae0c71b0e3741099fe39"
-  integrity sha512-rjlHQlnl1dqiDZxZYiKqQdrjias7V+81OVR5PTzZioCBtWkNdrKy06M05HLKxy/pcKikKRCabeDRoZaEc6nIjw==
-  dependencies:
-    env-paths "^2.2.0"
-    glob "^7.1.4"
-    graceful-fs "^4.2.3"
-    nopt "^4.0.3"
-    npmlog "^4.1.2"
-    request "^2.88.2"
-    rimraf "^2.6.3"
-    semver "^7.3.2"
-    tar "^6.0.1"
-    which "^2.0.2"
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.0.2.tgz#04bc7b83fd845ba785bb6eae25bc857e1ef75681"
+  integrity sha512-+D4s2HCnxPd5PjjI0STKwncjXTUKKqm74MDMz9OPXavjsGmjkvwgLtA5yoxJUdmpj52+2u+RrXgPipahKczMKg==
 
 node-libs-browser@^2.2.1:
   version "2.2.1"
@@ -7582,27 +7581,6 @@ postcss@^7.0.14, postcss@^7.0.16, postcss@^7.0.17, postcss@^7.0.5, postcss@^7.0.
     chalk "^2.4.2"
     source-map "^0.6.1"
     supports-color "^6.1.0"
-
-prebuild-install@5.3.5:
-  version "5.3.5"
-  resolved "https://registry.yarnpkg.com/prebuild-install/-/prebuild-install-5.3.5.tgz#e7e71e425298785ea9d22d4f958dbaccf8bb0e1b"
-  integrity sha512-YmMO7dph9CYKi5IR/BzjOJlRzpxGGVo1EsLSUZ0mt/Mq0HWZIHOKHHcHdT69yG54C9m6i45GpItwRHpk0Py7Uw==
-  dependencies:
-    detect-libc "^1.0.3"
-    expand-template "^2.0.3"
-    github-from-package "0.0.0"
-    minimist "^1.2.3"
-    mkdirp "^0.5.1"
-    napi-build-utils "^1.0.1"
-    node-abi "^2.7.0"
-    noop-logger "^0.1.1"
-    npmlog "^4.0.1"
-    pump "^3.0.0"
-    rc "^1.2.7"
-    simple-get "^3.0.3"
-    tar-fs "^2.0.0"
-    tunnel-agent "^0.6.0"
-    which-pm-runs "^1.0.0"
 
 prelude-ls@~1.1.2:
   version "1.1.2"
@@ -9212,21 +9190,21 @@ tapable@^1.1.3:
   integrity sha512-4WK/bYZmj8xLr+HUCODHGF1ZFzsYffasLUgEiMBY4fgtltdO6B4WJtlSbPaDTLpYTcGVwM2qLnFTICEcNxs3kA==
 
 tar-fs@^2.0.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/tar-fs/-/tar-fs-2.1.0.tgz#d1cdd121ab465ee0eb9ccde2d35049d3f3daf0d5"
-  integrity sha512-9uW5iDvrIMCVpvasdFHW0wJPez0K4JnMZtsuIeDI7HyMGJNxmDZDOCQROr7lXyS+iL/QMpj07qcjGYTSdRFXUg==
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/tar-fs/-/tar-fs-2.1.1.tgz#489a15ab85f1f0befabb370b7de4f9eb5cbe8784"
+  integrity sha512-V0r2Y9scmbDRLCNex/+hYzvp/zyYjvFbHPNgVTKfQvVrb6guiE/fxP+XblDNR011utopbkex2nM4dHNV6GDsng==
   dependencies:
     chownr "^1.1.1"
     mkdirp-classic "^0.5.2"
     pump "^3.0.0"
-    tar-stream "^2.0.0"
+    tar-stream "^2.1.4"
 
-tar-stream@^2.0.0:
-  version "2.1.3"
-  resolved "https://registry.yarnpkg.com/tar-stream/-/tar-stream-2.1.3.tgz#1e2022559221b7866161660f118255e20fa79e41"
-  integrity sha512-Z9yri56Dih8IaK8gncVPx4Wqt86NDmQTSh49XLZgjWpGZL9GK9HKParS2scqHCC4w6X9Gh2jwaU45V47XTKwVA==
+tar-stream@^2.1.4:
+  version "2.1.4"
+  resolved "https://registry.yarnpkg.com/tar-stream/-/tar-stream-2.1.4.tgz#c4fb1a11eb0da29b893a5b25476397ba2d053bfa"
+  integrity sha512-o3pS2zlG4gxr67GmFYBLlq+dM8gyRGUOvsrHclSkvtVtQbjV0s/+ZE8OpICbaj8clrX3tjeHngYGP7rweaBnuw==
   dependencies:
-    bl "^4.0.1"
+    bl "^4.0.3"
     end-of-stream "^1.4.1"
     fs-constants "^1.0.0"
     inherits "^2.0.3"
@@ -10041,10 +10019,10 @@ vscode-regexpp@^3.1.0:
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
   integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
 
-vscode-ripgrep@^1.11.0:
-  version "1.11.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.11.0.tgz#2874adea1753545590a315f02f36bed05b9e2380"
-  integrity sha512-SYTpUPLlJGg9HDMs4BI+2cIFfwFSKYMmDbDfLfdhxPkOW71qD5S8TChFhBNPWwOweY7VUWeSE2o1boGiAi7V5Q==
+vscode-ripgrep@^1.11.1:
+  version "1.11.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.11.1.tgz#9fa3c0a96c2939d5a2389f71218bd1bb6eaa8679"
+  integrity sha512-oHJfpqeXuTQhOO+szqIObYOddwQ9o+lzd4PQLlTQN+sQ7ex8D1qqFip207O2iJyFc5oWE8Bekf4YHTibdbW66w==
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"

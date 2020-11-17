@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.52.0",
-  "distro": "f5fda805c62b552c4c9076c0ee433bd13186240f",
+  "distro": "76bf1b1082a5f0d9ce2a2c1105ac087ef7219015",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,7 +55,7 @@
     "https-proxy-agent": "^2.2.3",
     "iconv-lite-umd": "0.6.8",
     "jschardet": "2.2.1",
-    "keytar": "deepak1556/node-keytar#22b95ab754e4c4f94747ac2d177f06697d567052",
+    "keytar": "^7.1.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.2.0",
@@ -69,7 +69,7 @@
     "vscode-oniguruma": "1.3.1",
     "vscode-proxy-agent": "^0.5.2",
     "vscode-regexpp": "^3.1.0",
-    "vscode-ripgrep": "^1.11.0",
+    "vscode-ripgrep": "^1.11.1",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
     "xterm": "4.10.0-beta.4",
