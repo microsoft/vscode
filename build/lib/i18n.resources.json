@@ -373,6 +373,10 @@
 		{
 			"name": "vs/workbench/services/extensionRecommendations",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/gettingStarted",
+			"project": "vscode-workbench"
 		}
 	]
 }
