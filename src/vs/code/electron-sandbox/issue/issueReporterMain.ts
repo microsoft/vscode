@@ -286,7 +286,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails', 'includeExperiments'] as const).forEach(elementId => {
+		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -694,8 +694,6 @@ export class IssueReporter extends Disposable {
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
 		const extensionsBlock = document.querySelector('.block-extensions');
-		const searchedExtensionsBlock = document.querySelector('.block-searchedExtensions');
-		const settingsSearchResultsBlock = document.querySelector('.block-settingsSearchResults');
 		const experimentsBlock = document.querySelector('.block-experiments');
 
 		const problemSource = this.getElementById('problem-source')!;
@@ -709,8 +707,6 @@ export class IssueReporter extends Disposable {
 		hide(processBlock);
 		hide(workspaceBlock);
 		hide(extensionsBlock);
-		hide(searchedExtensionsBlock);
-		hide(settingsSearchResultsBlock);
 		hide(experimentsBlock);
 		hide(problemSource);
 		hide(extensionSelector);
