@@ -344,7 +344,7 @@
                 "category": "Emmet"
             },
             {
-                "command": "editor.emmet.action.showEmmetCommands",
+                "command": "workbench.action.showEmmetCommands",
                 "title": "%command.showEmmetCommands%",
                 "category": ""
             }
