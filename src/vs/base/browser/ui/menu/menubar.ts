@@ -115,7 +115,7 @@ export class MenuBar extends Disposable {
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.update(), 200));
 
 		this.actionRunner = this._register(new ActionRunner());
-		this._register(this.actionRunner.onDidBeforeRun(() => {
+		this._register(this.actionRunner.onBeforeRun(() => {
 			this.setUnfocusedState();
 		}));
 
