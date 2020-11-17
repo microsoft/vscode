@@ -124,7 +124,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		return reflectCssValue();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.showEmmetCommands', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('workbench.action.showEmmetCommands', () => {
 		vscode.commands.executeCommand('workbench.action.quickOpen', '>Emmet: ');
 	}));
 
