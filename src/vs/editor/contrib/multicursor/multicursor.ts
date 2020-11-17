@@ -1019,7 +1019,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 		const currentFindState = CommonFindController.get(this.editor).getState();
 		if (currentFindState.isRegex || currentFindState.matchCase || currentFindState.wholeWord) {
-			CommonFindController.get(this.editor).highlightFindOptions();
+			CommonFindController.get(this.editor).highlightFindOptions(true);
 		}
 	}
 

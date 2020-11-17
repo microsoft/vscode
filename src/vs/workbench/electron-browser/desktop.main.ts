@@ -234,7 +234,7 @@ class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.configuration.backupPath ? URI.file(this.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
 
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -339,10 +339,12 @@ class DesktopMain extends Disposable {
 		} catch (error) {
 			onUnexpectedError(error);
 		}
+
 		return;
 	}
 
 	private async createHash(resource: URI): Promise<string> {
+
 		// Return early the folder is not local
 		if (resource.scheme !== Schemas.file) {
 			return createHash('md5').update(resource.toString()).digest('hex');
@@ -397,7 +399,6 @@ class DesktopMain extends Disposable {
 			return storageService;
 		}
 	}
-
 }
 
 export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
