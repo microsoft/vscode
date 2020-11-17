@@ -79,7 +79,6 @@ export class Main {
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@ILogService private readonly logService: ILogService,
 	) { }
 
 	async run(argv: NativeParsedArgs): Promise<void> {
@@ -128,10 +127,6 @@ export class Main {
 	}
 
 	private async installExtensions(extensions: string[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean): Promise<void> {
-		if (this.logService.getLevel() === LogLevel.Trace || this.logService.getLevel() === LogLevel.Debug) {
-			console.time('Installing Extensions');
-		}
-
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -196,10 +191,6 @@ export class Main {
 
 		if (installedExtensionsManifests.some(manifest => isLanguagePackExtension(manifest))) {
 			await this.updateLocalizationsCache();
-		}
-
-		if (this.logService.getLevel() === LogLevel.Trace || this.logService.getLevel() === LogLevel.Debug) {
-			console.timeEnd('Installing Extensions');
 		}
 
 		if (failed.length) {
