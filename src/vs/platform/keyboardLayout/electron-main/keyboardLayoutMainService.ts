@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyboardLayoutData, IMainKeyboardLayoutService as ICommonMainKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
+import { IKeyboardLayoutData, IKeyboardLayoutMainService as ICommonKeyboardLayoutMainService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as nativeKeymap from 'native-keymap';
 
-export const IMainKeyboardLayoutService = createDecorator<IMainKeyboardLayoutService>('encryptionMainService');
+export const IKeyboardLayoutMainService = createDecorator<IKeyboardLayoutMainService>('keyboardLayoutMainService');
 
-export interface IMainKeyboardLayoutService extends ICommonMainKeyboardLayoutService { }
+export interface IKeyboardLayoutMainService extends ICommonKeyboardLayoutMainService { }
 
-export class MainKeyboardLayoutService extends Disposable implements ICommonMainKeyboardLayoutService {
+export class KeyboardLayoutMainService extends Disposable implements ICommonKeyboardLayoutMainService {
 
 	declare readonly _serviceBrand: undefined;
 

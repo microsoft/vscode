@@ -11,7 +11,7 @@ export interface IKeyboardLayoutData {
 	keyboardMapping: IKeyboardMapping;
 }
 
-export interface IMainKeyboardLayoutService {
+export interface IKeyboardLayoutMainService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeKeyboardLayout: Event<IKeyboardLayoutData>;
 	getKeyboardLayoutData(): Promise<IKeyboardLayoutData>;

@@ -14,7 +14,7 @@ import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/
 import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { IMainKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
+import { IKeyboardLayoutMainService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
 export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
@@ -24,7 +24,7 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<void>());
 	readonly onDidChangeKeyboardLayout = this._onDidChangeKeyboardLayout.event;
 
-	private readonly _mainKeyboardLayoutService: IMainKeyboardLayoutService;
+	private readonly _keyboardLayoutMainService: IKeyboardLayoutMainService;
 	private _initPromise: Promise<void> | null;
 	private _keyboardMapping: IKeyboardMapping | null;
 	private _keyboardLayoutInfo: IKeyboardLayoutInfo | null;
@@ -34,13 +34,13 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
 		super();
-		this._mainKeyboardLayoutService = createChannelSender<IMainKeyboardLayoutService>(mainProcessService.getChannel('mainKeyboardLayout'));
+		this._keyboardLayoutMainService = createChannelSender<IKeyboardLayoutMainService>(mainProcessService.getChannel('keyboardLayout'));
 		this._initPromise = null;
 		this._keyboardMapping = null;
 		this._keyboardLayoutInfo = null;
 		this._keyboardMapper = new MacLinuxFallbackKeyboardMapper(OS);
 
-		this._register(this._mainKeyboardLayoutService.onDidChangeKeyboardLayout(async ({ keyboardLayoutInfo, keyboardMapping }) => {
+		this._register(this._keyboardLayoutMainService.onDidChangeKeyboardLayout(async ({ keyboardLayoutInfo, keyboardMapping }) => {
 			await this.initialize();
 			if (keyboardMappingEquals(this._keyboardMapping, keyboardMapping)) {
 				// the mappings are equal
@@ -62,7 +62,7 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 	}
 
 	private async _doInitialize(): Promise<void> {
-		const keyboardLayoutData = await this._mainKeyboardLayoutService.getKeyboardLayoutData();
+		const keyboardLayoutData = await this._keyboardLayoutMainService.getKeyboardLayoutData();
 		const { keyboardLayoutInfo, keyboardMapping } = keyboardLayoutData;
 		this._keyboardMapping = keyboardMapping;
 		this._keyboardLayoutInfo = keyboardLayoutInfo;
