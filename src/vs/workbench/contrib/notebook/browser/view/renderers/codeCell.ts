@@ -26,6 +26,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { BUILTIN_RENDERER_ID, CellOutputKind, CellUri, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
 const OUTPUT_COUNT_LIMIT = 500;
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -463,6 +464,16 @@ export class CodeCell extends Disposable {
 				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
 			}
 		});
+
+		this._register(templateData.statusBar.onDidClick(e => {
+			if (e.type !== ClickTargetType.ContributedItem) {
+				const target = templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - viewCell.getEditorStatusbarHeight());
+				if (target?.position) {
+					templateData.editor.setPosition(target.position);
+					templateData.editor.focus();
+				}
+			}
+		}));
 
 		this._register(templateData.editor!.onMouseDown(e => {
 			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes

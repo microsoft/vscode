@@ -131,7 +131,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 	}
 
-	protected getEditorStatusbarHeight() {
+	getEditorStatusbarHeight() {
 		const showCellStatusBar = this._configurationService.getValue<boolean>(ShowCellStatusBarKey);
 		return showCellStatusBar ? CELL_STATUSBAR_HEIGHT : 0;
 	}
