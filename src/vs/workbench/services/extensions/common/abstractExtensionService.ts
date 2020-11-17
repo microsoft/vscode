@@ -36,8 +36,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import product from 'vs/platform/product/common/product';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -890,76 +890,71 @@ class ProposedApiController {
 	}
 }
 
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.manageProposedAPI',
-			title: { value: nls.localize('manageProposedAPI', "Manage Proposed API for Extensions"), original: 'Manage Proposed API for Extensions' },
-			category: CATEGORIES.Developer,
-			precondition: ContextKeyExpr.has('config.' + ENABLE_PROPOSED_API_OVERRIDE_CONFIG_KEY),
-			f1: true,
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const productService = accessor.get(IProductService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const dialogService = accessor.get(IDialogService);
-		const notificationService = accessor.get(INotificationService);
-
-		if (productService.quality === 'stable') {
-			notificationService.error(nls.localize('notAvailableInStable', "Managing Proposed API is not available outside of VS Code Insiders"));
-			return;
+if (product.quality !== 'stable') {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.manageProposedAPI',
+				title: { value: nls.localize('manageProposedAPI', "Proposed API..."), original: 'Proposed API...' },
+				category: CATEGORIES.Developer,
+				f1: true,
+			});
 		}
 
-		const enabledProposedApiStorage = new GlobalyEnabledProposedAPIStorage(accessor.get(IStorageService), accessor.get(IConfigurationService));
-		const extensions = await accessor.get(IExtensionService).getExtensions();
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const productService = accessor.get(IProductService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const dialogService = accessor.get(IDialogService);
+			const notificationService = accessor.get(INotificationService);
 
-		const confirmation = await dialogService.confirm({
-			message: nls.localize('manageProposedApiWarning', "Proposed API is for development only"),
-			detail: nls.localize('manageProposedApiWarningDetail', "Extensions using Proposed API are subject to break at any point, without warning.\n\nYou should only enable Proposed API for testing extensions you are actively developing.\n\nAre you sure you want to continue?"),
-		});
+			const enabledProposedApiStorage = new GlobalyEnabledProposedAPIStorage(accessor.get(IStorageService), accessor.get(IConfigurationService));
+			const extensions = await accessor.get(IExtensionService).getExtensions();
 
-		if (!confirmation.confirmed) { return; }
+			const confirmation = await dialogService.confirm({
+				message: nls.localize('manageProposedApiWarning', "Use Proposed API during development only"),
+				detail: nls.localize('manageProposedApiWarningDetail', "Extensions using Proposed API are subject to break at any point, without warning.\n\nProposed API should only be enabled for testing extensions under active development."),
+			});
 
-		const productAllowProposedApi = new Set<string>();
-		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
-			productService.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
-		}
+			if (!confirmation.confirmed) { return; }
 
-		const extensionNeedsProposedApiGrant = (ext: IExtensionDescription) => {
-			const key = ExtensionIdentifier.toKey(ext.identifier);
+			const productAllowProposedApi = new Set<string>();
+			if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
+				productService.extensionAllowedProposedApi.forEach((id) => productAllowProposedApi.add(ExtensionIdentifier.toKey(id)));
+			}
 
-			if (extensionsAttemptingProposedApi.has(key)) {
+			const extensionNeedsProposedApiGrant = (ext: IExtensionDescription) => {
+				const key = ExtensionIdentifier.toKey(ext.identifier);
+
+				if (extensionsAttemptingProposedApi.has(key)) {
+					return true;
+				}
+
+				if (ext.isBuiltin || !ext.enableProposedApi || productAllowProposedApi.has(key)) {
+					return false;
+				}
+
 				return true;
+			};
+
+			const extensionsNeedingProposedAPIGrant = extensions
+				.filter(extensionNeedsProposedApiGrant)
+				.map(ext => ExtensionIdentifier.toKey(ext.identifier));
+
+			if (extensionsNeedingProposedAPIGrant.length === 0) {
+				notificationService.info(nls.localize('noExtensionsNeedProposed', "No extensions have requested Proposed API"));
 			}
 
-			if (ext.isBuiltin || !ext.enableProposedApi || productAllowProposedApi.has(key)) {
-				return false;
-			}
+			const alreadyGranted = enabledProposedApiStorage.extensions;
+			const grant = await quickInputService.pick(
+				extensionsNeedingProposedAPIGrant.map(id => ({ label: id, picked: alreadyGranted.includes(id) })),
+				{ canPickMany: true });
 
-			return true;
-		};
-
-		const extensionsNeedingProposedAPIGrant = extensions
-			.filter(extensionNeedsProposedApiGrant)
-			.map(ext => ExtensionIdentifier.toKey(ext.identifier));
-
-		if (extensionsNeedingProposedAPIGrant.length === 0) {
-			notificationService.info(nls.localize('noExtensionsNeedProposed', "No extensions have requested Proposed API"));
+			if (!grant) { return; }
+			enabledProposedApiStorage.extensions = grant.map(grant => grant.label);
+			notificationService.info(nls.localize('restartRequired', "Changes require restart to take effect."));
 		}
-
-		const alreadyGranted = enabledProposedApiStorage.extensions;
-		const grant = await quickInputService.pick(
-			extensionsNeedingProposedAPIGrant.map(id => ({ label: id, picked: alreadyGranted.includes(id) })),
-			{ canPickMany: true });
-
-		if (!grant) { return; }
-		enabledProposedApiStorage.extensions = grant.map(grant => grant.label);
-		notificationService.info(nls.localize('restartRequired', "Changes require restart to take effect."));
-	}
-});
+	});
+}
 
 function filterByRunningLocation<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): T[] {
 	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(extId(ext))) === desiredRunningLocation);
