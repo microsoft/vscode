@@ -56,13 +56,12 @@ import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceL
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
+import 'vs/workbench/services/backup/browser/backupFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -85,7 +84,6 @@ import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 registerSingleton(IWorkbenchExtensioManagementService, ExtensionManagementService);
-registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
 registerSingleton(ITunnelService, TunnelService, true);

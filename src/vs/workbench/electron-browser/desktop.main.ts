@@ -45,7 +45,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/electron
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
@@ -325,8 +325,8 @@ class DesktopMain extends Disposable {
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
 			let id: string;
-			if (this.environmentService.backupWorkspaceHome) {
-				id = basename(this.environmentService.backupWorkspaceHome); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			if (this.configuration.backupPath) {
+				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
 			} else if (this.environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
