@@ -913,6 +913,7 @@ if (product.quality !== 'stable') {
 			const confirmation = await dialogService.confirm({
 				message: nls.localize('manageProposedApiWarning', "Proposed API is Unstable"),
 				detail: nls.localize('manageProposedApiWarningDetail', "Extensions using Proposed API are subject to break at any point, without warning.\n\nProposed API should only be enabled for testing extensions under active development."),
+				primaryButton: nls.localize('continue', "Continue")
 			});
 
 			if (!confirmation.confirmed) { return; }
