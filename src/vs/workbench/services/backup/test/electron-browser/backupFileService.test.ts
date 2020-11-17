@@ -67,7 +67,7 @@ export class NodeTestBackupFileService extends BackupFileService {
 		const fileService = new FileService(logService);
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, URI.file(workspaceBackupPath), diskFileSystemProvider, environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
 
 		super(environmentService, fileService, logService);
 

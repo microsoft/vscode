@@ -49,6 +49,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { dirname } from 'vs/base/common/resources';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -658,6 +659,7 @@ class UserKeybindings extends Disposable {
 	) {
 		super();
 
+		this._register(fileService.watch(dirname(keybindingsResource)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();
