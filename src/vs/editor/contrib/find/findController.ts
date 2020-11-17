@@ -267,7 +267,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._state.change({ searchString: searchString }, false);
 	}
 
-	public highlightFindOptions(): void {
+	public highlightFindOptions(ignoreWhenVisible: boolean = false): void {
 		// overwritten in subclass
 	}
 
@@ -458,11 +458,11 @@ export class FindController extends CommonFindController implements IFindControl
 		}
 	}
 
-	public highlightFindOptions(): void {
+	public highlightFindOptions(ignoreWhenVisible: boolean = false): void {
 		if (!this._widget) {
 			this._createFindWidget();
 		}
-		if (this._state.isRevealed) {
+		if (this._state.isRevealed && !ignoreWhenVisible) {
 			this._widget!.highlightFindOptions();
 		} else {
 			this._findOptionsWidget!.highlightFindOptions();
