@@ -21,6 +21,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
 const SOURCE_DEFAULT = localize('default', "Default");
+const SOURCE_EXTENSION = localize('extension', "Extension");
 const SOURCE_USER = localize('user', "User");
 
 export interface KeybindingMatch {
@@ -122,6 +123,9 @@ export class KeybindingsEditorModel extends EditorModel {
 		}
 		if (/@source:\s*user/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source === SOURCE_USER);
+		}
+		if (/@source:\s*extension/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source === SOURCE_EXTENSION);
 		}
 		return keybindingItems;
 	}
@@ -232,7 +236,11 @@ export class KeybindingsEditorModel extends EditorModel {
 			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorActionLabel),
 			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand, workbenchActionsRegistry),
 			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
-			source: keybindingItem.isDefault ? SOURCE_DEFAULT : SOURCE_USER
+			source: (
+				keybindingItem.extensionId
+					? (keybindingItem.isBuiltinExtension ? SOURCE_DEFAULT : SOURCE_EXTENSION)
+					: (keybindingItem.isDefault ? SOURCE_DEFAULT : SOURCE_USER)
+			)
 		};
 	}
 
