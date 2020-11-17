@@ -3676,6 +3676,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		cycle?: boolean;
+		/**
+		 * Show pending message for parameter hints and explicit no parameter hints message.
+		 * Defaults to false.
+		 */
+		verbose?: boolean;
 	}
 
 	export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;

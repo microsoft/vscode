@@ -68,11 +68,12 @@ export class TriggerParameterHintsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: { auto?: boolean }): void {
 		const controller = ParameterHintsController.get(editor);
 		if (controller) {
 			controller.trigger({
-				triggerKind: modes.SignatureHelpTriggerKind.Invoke
+				triggerKind: modes.SignatureHelpTriggerKind.Invoke,
+				auto: args.auto
 			});
 		}
 	}

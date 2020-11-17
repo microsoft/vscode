@@ -2711,6 +2711,11 @@ export interface IEditorParameterHintOptions {
 	 * Defaults to false.
 	 */
 	cycle?: boolean;
+	/**
+	 * Show pending message for parameter hints and explicit no parameter hints message.
+	 * Defaults to false.
+	 */
+	verbose?: boolean;
 }
 
 export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
@@ -2720,7 +2725,8 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 	constructor() {
 		const defaults: InternalParameterHintOptions = {
 			enabled: true,
-			cycle: false
+			cycle: false,
+			verbose: false,
 		};
 		super(
 			EditorOption.parameterHints, 'parameterHints', defaults,
@@ -2735,6 +2741,11 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 					default: defaults.cycle,
 					description: nls.localize('parameterHints.cycle', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
 				},
+				'editor.parameterHints.verbose': {
+					type: 'boolean',
+					default: defaults.verbose,
+					description: nls.localize('parameterHints.verbose', "Show pending message for parameter hints and explicit no parameter hints message.")
+				},
 			}
 		);
 	}
@@ -2746,7 +2757,8 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 		const input = _input as IEditorParameterHintOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			cycle: boolean(input.cycle, this.defaultValue.cycle)
+			cycle: boolean(input.cycle, this.defaultValue.cycle),
+			verbose: boolean(input.verbose, this.defaultValue.verbose),
 		};
 	}
 }
