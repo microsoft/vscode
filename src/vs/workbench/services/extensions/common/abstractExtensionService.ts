@@ -911,7 +911,7 @@ if (product.quality !== 'stable') {
 			const extensions = await accessor.get(IExtensionService).getExtensions();
 
 			const confirmation = await dialogService.confirm({
-				message: nls.localize('manageProposedApiWarning', "Use Proposed API during development only"),
+				message: nls.localize('manageProposedApiWarning', "Proposed API is Unstable"),
 				detail: nls.localize('manageProposedApiWarningDetail', "Extensions using Proposed API are subject to break at any point, without warning.\n\nProposed API should only be enabled for testing extensions under active development."),
 			});
 
