@@ -207,7 +207,7 @@ class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, simpleFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(URI.file('user-home'), undefined, simpleFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, simpleFileSystemProvider, Schemas.userData, logService));
 
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);

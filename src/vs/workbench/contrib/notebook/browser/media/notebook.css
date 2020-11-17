@@ -433,9 +433,7 @@
 }
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container {
 	position: relative;
-	height: 16px;
 	flex-shrink: 0;
-	top: 9px;
 	z-index: 27;
 	/* Above the drag handle */
 }
@@ -445,8 +443,8 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .codicon {
-	margin: 0;
-	padding-right: 4px;
+	margin: 0 4px 0 0;
+	padding: 6px;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .actions-container {
@@ -479,7 +477,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell .monaco-progress-container {
-	top: -5px;
+	top: -3px;
 
 	position: absolute;
 	left: 0;
@@ -491,7 +489,7 @@
 	height: 2px;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .cell-has-toolbar-actions .cell-title-toolbar,
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-has-toolbar-actions .cell-title-toolbar,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions.cell-output-hover .cell-title-toolbar,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions:hover .cell-title-toolbar {
 	visibility: visible;
@@ -795,6 +793,7 @@
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
 	height: 16px;
+	padding: 4px;
 }
 
 /** Theming */
@@ -846,4 +845,17 @@
 	top: -6px;
 	position: absolute;
 	display: flex;
+}
+
+/* TODO @misolori localize string */
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .cell-statusbar-container .cell-run-status:empty::before {
+	content: "Ctrl + Enter to run";
+	width: auto;
+	height: 100%;
+	display: block;
+	opacity: 0.7;
+}
+
+.output-show-more {
+	padding: 8px 0;
 }

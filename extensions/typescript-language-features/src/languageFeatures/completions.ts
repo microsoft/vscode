@@ -568,7 +568,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			type: response?.type ?? 'unknown',
 			count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
 			updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
-			createAutoImportProviderProgramDurationMs: response?.type === 'response' ? (response.performanceData as Proto.PerformanceData & { createAutoImportProviderProgramDurationMs?: number })?.createAutoImportProviderProgramDurationMs : undefined,
+			createAutoImportProviderProgramDurationMs: response?.type === 'response' ? response.performanceData?.createAutoImportProviderProgramDurationMs : undefined,
 			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
 		});
 	}
