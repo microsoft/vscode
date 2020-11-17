@@ -19,8 +19,6 @@ export interface IssueReporterData {
 	includeWorkspaceInfo: boolean;
 	includeProcessInfo: boolean;
 	includeExtensions: boolean;
-	includeSearchedExtensions: boolean;
-	includeSettingsSearchDetails: boolean;
 	includeExperiments: boolean;
 
 	numberOfThemeExtesions?: number;
@@ -45,8 +43,6 @@ export class IssueReporterModel {
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,
-			includeSearchedExtensions: true,
-			includeSettingsSearchDetails: true,
 			includeExperiments: true,
 			allExtensions: []
 		};
