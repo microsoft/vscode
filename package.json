@@ -54,7 +54,7 @@
     "https-proxy-agent": "^2.2.3",
     "iconv-lite-umd": "0.6.8",
     "jschardet": "2.2.1",
-    "keytar": "^5.5.0",
+    "keytar": "^7.1.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.2.0",
