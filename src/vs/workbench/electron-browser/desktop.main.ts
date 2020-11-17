@@ -53,6 +53,8 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 class DesktopMain extends Disposable {
 
@@ -279,6 +281,14 @@ class DesktopMain extends Disposable {
 				serviceCollection.set(IStorageService, service);
 
 				return service;
+			}),
+
+			this.createKeyboardLayoutService(logService, mainProcessService).then(service => {
+
+				// KeyboardLayout
+				serviceCollection.set(IKeyboardLayoutService, service);
+
+				return service;
 			})
 		]);
 
@@ -397,6 +407,21 @@ class DesktopMain extends Disposable {
 			logService.error(error);
 
 			return storageService;
+		}
+	}
+
+	private async createKeyboardLayoutService(logService: ILogService, mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
+		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+
+		try {
+			await keyboardLayoutService.initialize();
+
+			return keyboardLayoutService;
+		} catch (error) {
+			onUnexpectedError(error);
+			logService.error(error);
+
+			return keyboardLayoutService;
 		}
 	}
 }
