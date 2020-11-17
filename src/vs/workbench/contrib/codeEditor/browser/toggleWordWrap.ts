@@ -17,7 +17,6 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
@@ -138,12 +137,6 @@ class ToggleWordWrapAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		if (editor.getOption(EditorOption.inDiffEditor)) {
-			// Cannot change wrapping settings inside the diff editor
-			const notificationService = accessor.get(INotificationService);
-			notificationService.info(nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
-			return;
-		}
 
 		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
 		const codeEditorService = accessor.get(ICodeEditorService);
@@ -182,7 +175,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOption.wrappingInfo) && !e.hasChanged(EditorOption.inDiffEditor)) {
+			if (!e.hasChanged(EditorOption.wrappingInfo)) {
 				return;
 			}
 			const options = this.editor.getOptions();
@@ -215,10 +208,6 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
-				return;
-			}
-
-			if (this.editor.getOption(EditorOption.inDiffEditor)) {
 				return;
 			}
 
