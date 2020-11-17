@@ -44,7 +44,7 @@ suite('FileUserDataProvider', () => {
 
 		const workspaceId = 'workspaceId';
 		rootResource = URI.file(path.join(os.tmpdir(), 'vsctests', uuid.generateUuid()));
-		userDataHomeOnDisk = joinPath(rootResource, 'user');
+		userDataHomeOnDisk = joinPath(rootResource, 'User');
 		const backupHome = joinPath(rootResource, 'Backups');
 		backupWorkspaceHomeOnDisk = joinPath(backupHome, workspaceId);
 		await Promise.all([testObject.createFolder(userDataHomeOnDisk), testObject.createFolder(backupWorkspaceHomeOnDisk)]);
