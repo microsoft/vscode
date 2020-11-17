@@ -727,6 +727,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const cellRunState = new RunStateRenderer(statusBar.cellRunStatusContainer, runToolbar, this.instantiationService);
 
 		const outputContainer = DOM.append(container, $('.output'));
+		const outputShowMoreContainer = DOM.append(container, $('.output-show-more-container'));
 
 		const focusIndicatorRight = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right'));
 
@@ -761,6 +762,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			runButtonContainer,
 			executionOrderLabel,
 			outputContainer,
+			outputShowMoreContainer,
 			editor,
 			disposables,
 			elementDisposables: new DisposableStore(),
@@ -843,6 +845,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP - CELL_BOTTOM_MARGIN}px`;
 		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+		templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
 		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP}px`;
 	}
 
