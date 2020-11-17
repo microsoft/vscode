@@ -11,7 +11,7 @@ import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
 
 
-class TypeScriptOnTypeRenameProvider implements vscode.OnTypeRenameProvider {
+class TypeScriptOnTypeRenameProvider implements vscode.OnTypeRenameRangeProvider {
 
 	private static enabledKinds = new Set<string>([
 		Kind.let, Kind.const, Kind.localVariable, Kind.parameter, Kind.typeParameter
@@ -67,7 +67,7 @@ export function register(
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerOnTypeRenameProvider(selector.syntax,
+		return vscode.languages.registerOnTypeRenameRangeProvider(selector.syntax,
 			new TypeScriptOnTypeRenameProvider(client));
 	});
 }
