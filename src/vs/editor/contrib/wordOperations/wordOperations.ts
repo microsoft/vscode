@@ -480,23 +480,10 @@ export class DeleteWordRight extends DeleteWordRightCommand {
 	}
 }
 
-export class DeleteWordEntireCommand extends DeleteWordCommand {
-	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations.deleteWordEntire(ctx, wordNavigationType);
-		if (r) {
-			return r;
-		}
-		const lineCount = ctx.model.getLineCount();
-		const maxColumn = ctx.model.getLineMaxColumn(lineCount);
-		return new Range(lineCount, maxColumn, lineCount, maxColumn);
-	}
-}
+export class DeleteWordEntire extends EditorCommand {
 
-export class DeleteWordEntire extends DeleteWordEntireCommand {
 	constructor() {
 		super({
-			whitespaceHeuristics: true,
-			wordNavigationType: WordNavigationType.WordStart,
 			id: 'deleteWordEntire',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -506,6 +493,34 @@ export class DeleteWordEntire extends DeleteWordEntireCommand {
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
+		const model = editor.getModel();
+		const selections = editor.getSelections();
+
+		const commands = selections.map((sel) => {
+			const deleteRange = this._delete(wordSeparators, model, sel);
+			return new ReplaceCommand(deleteRange, '');
+		});
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+
+	private _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
+		let r = WordOperations.deleteWordEntire(wordSeparators, model, selection);
+		if (r) {
+			return r;
+		}
+		const lineCount = model.getLineCount();
+		const maxColumn = model.getLineMaxColumn(lineCount);
+		return new Range(lineCount, maxColumn, lineCount, maxColumn);
 	}
 }
 

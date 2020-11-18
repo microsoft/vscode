@@ -438,39 +438,19 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static deleteWordEntire(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range | null {
-		const wordSeparators = ctx.wordSeparators;
-		const model = ctx.model;
-		const selection = ctx.selection;
-		const whitespaceHeuristics = ctx.whitespaceHeuristics;
-
+	public static deleteWordEntire(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range | null {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
 
-		if (DeleteOperations.isAutoClosingPairDelete(ctx.autoClosingBrackets, ctx.autoClosingQuotes, ctx.autoClosingPairs.autoClosingPairsOpenByEnd, ctx.model, [ctx.selection])) {
-			const position = ctx.selection.getPosition();
-			return new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column + 1);
-		}
-
 		const position = new Position(selection.positionLineNumber, selection.positionColumn);
 
-		let lineNumber = position.lineNumber;
-		let column = position.column;
-
-		if (lineNumber === 1 && column === 1) {
-			// Ignore deleting at beginning of file
-			return null;
+		let r = this._deleteWordEntireWhitespace(model, position);
+		if (r) {
+			return r;
 		}
 
-		if (whitespaceHeuristics) {
-			let r = this._deleteWordEntireWhitespace(model, position);
-			if (r) {
-				return r;
-			}
-		}
-
-		return this._determineDeleteRange(wordSeparators, model, wordNavigationType, position, true);
+		return this._determineDeleteRange(wordSeparators, model, position);
 	}
 
 	private static _deleteWordEntireWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
@@ -485,7 +465,7 @@ export class WordOperations {
 		return null;
 	}
 
-	private static _determineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, wordNavigationType: WordNavigationType, position: Position, isEntire: boolean): Range {
+	private static _determineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 		let columnEnd = position.column;
@@ -493,40 +473,21 @@ export class WordOperations {
 
 		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
 
-		if (wordNavigationType === WordNavigationType.WordStart) {
-			if (prevWordOnLine) {
-				column = prevWordOnLine.start + 1;
-				if (isEntire) {
-					columnEnd = prevWordOnLine.end + 1;
-					const chCode = lineContent.charCodeAt(columnEnd - 1);
-					if (chCode === CharCode.Space || chCode === CharCode.Tab) {
-						columnEnd++;
-					}
-				}
-			} else {
-				if (column > 1) {
-					column = 1;
-				} else {
-					lineNumber--;
-					column = model.getLineMaxColumn(lineNumber);
-				}
+		if (prevWordOnLine) {
+			column = prevWordOnLine.start + 1;
+			columnEnd = prevWordOnLine.end + 1;
+			const chCode = lineContent.charCodeAt(columnEnd - 1);
+			if (chCode === CharCode.Space || chCode === CharCode.Tab) {
+				columnEnd++;
 			}
 		} else {
-			if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
-				prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
-			}
-			if (prevWordOnLine) {
-				column = prevWordOnLine.end + 1;
+			if (column > 1) {
+				column = 1;
 			} else {
-				if (column > 1) {
-					column = 1;
-				} else {
-					lineNumber--;
-					column = model.getLineMaxColumn(lineNumber);
-				}
+				lineNumber--;
+				column = model.getLineMaxColumn(lineNumber);
 			}
 		}
-
 		return new Range(lineNumber, column, position.lineNumber, columnEnd);
 	}
 
