@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -48,7 +47,7 @@ suite('ExtHostDecorations', function () {
 
 		// never returns
 		extHostDecorations.registerDecorationProvider({
-			onDidChange: Event.None,
+
 			provideFileDecoration() {
 				calledA = true;
 				return new Promise(() => { });
@@ -57,7 +56,7 @@ suite('ExtHostDecorations', function () {
 
 		// always returns
 		extHostDecorations.registerDecorationProvider({
-			onDidChange: Event.None,
+
 			provideFileDecoration() {
 				calledB = true;
 				return new Promise(resolve => resolve({ badge: 'H', tooltip: 'Hello' }));
