@@ -161,7 +161,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const platformSpecificBuiltInExtensionsFilter = product.builtInExtensions.filter(ext => {
+		const platformSpecificBuiltInExtensionsExclusions = product.builtInExtensions.filter(ext => {
 			if (!ext.platforms) {
 				return false;
 			}
@@ -170,8 +170,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
-		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true })
-			.pipe(filter(['**', ...platformSpecificBuiltInExtensionsFilter]));
+		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
 
 		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
