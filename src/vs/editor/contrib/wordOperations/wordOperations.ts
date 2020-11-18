@@ -402,6 +402,23 @@ export class DeleteWordRightCommand extends DeleteWordCommand {
 	}
 }
 
+export class DeleteWordRight extends DeleteWordRightCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: true,
+			wordNavigationType: WordNavigationType.WordEnd,
+			id: 'deleteWordRight',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Delete,
+				mac: { primary: KeyMod.Alt | KeyCode.Delete },
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+}
+
 export class DeleteWordStartLeft extends DeleteWordLeftCommand {
 	constructor() {
 		super({
@@ -463,22 +480,35 @@ export class DeleteWordEndRight extends DeleteWordRightCommand {
 	}
 }
 
-export class DeleteWordRight extends DeleteWordRightCommand {
+export class DeleteWordEntireCommand extends DeleteWordCommand {
+	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
+		let r = WordOperations.deleteWordEntire(ctx, wordNavigationType);
+		if (r) {
+			return r;
+		}
+		const lineCount = ctx.model.getLineCount();
+		const maxColumn = ctx.model.getLineMaxColumn(lineCount);
+		return new Range(lineCount, maxColumn, lineCount, maxColumn);
+	}
+}
+
+export class DeleteWordEntire extends DeleteWordEntireCommand {
 	constructor() {
 		super({
 			whitespaceHeuristics: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'deleteWordRight',
+			wordNavigationType: WordNavigationType.WordStart,
+			id: 'deleteWordEntire',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Delete,
-				mac: { primary: KeyMod.Alt | KeyCode.Delete },
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
+				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_U },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 }
+
 
 registerEditorCommand(new CursorWordStartLeft());
 registerEditorCommand(new CursorWordEndLeft());
@@ -502,3 +532,4 @@ registerEditorCommand(new DeleteWordLeft());
 registerEditorCommand(new DeleteWordStartRight());
 registerEditorCommand(new DeleteWordEndRight());
 registerEditorCommand(new DeleteWordRight());
+registerEditorCommand(new DeleteWordEntire());
