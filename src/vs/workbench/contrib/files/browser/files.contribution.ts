@@ -19,7 +19,7 @@ import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editor
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -40,6 +40,8 @@ import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWat
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 import { isEqual } from 'vs/base/common/resources';
+import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -484,4 +486,26 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer")
 	},
 	order: 1
+});
+
+UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
+	const undoRedoService = accessor.get(IUndoRedoService);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerService.hasViewFocus()) {
+		undoRedoService.undo(explorerService.undoRedoSource);
+		return true;
+	}
+
+	return false;
+});
+
+RedoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
+	const undoRedoService = accessor.get(IUndoRedoService);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerService.hasViewFocus()) {
+		undoRedoService.redo(explorerService.undoRedoSource);
+		return true;
+	}
+
+	return false;
 });

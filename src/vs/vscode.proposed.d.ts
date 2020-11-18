@@ -786,9 +786,9 @@ declare module 'vscode' {
 		/**
 		 * An event to signal decorations for one or many files have changed.
 		 *
-		 * @see [EventEmitter](#EventEmitter
+		 * @see [EventEmitter](#EventEmitter)
 		 */
-		onDidChange: Event<undefined | Uri | Uri[]>;
+		onDidChangeFileDecorations?: Event<undefined | Uri | Uri[]>;
 
 		/**
 		 * Provide decorations for a given uri.
