@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
+import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -291,10 +291,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAnyFeature(featureFilters?: Set<string>): boolean {
-		const features = ['explorer', 'search', 'debug', 'scm', 'extensions', 'terminal', 'task', 'problems', 'output', 'comments', 'remote', 'timeline'];
+		const features = tocData.children!.filter(child => child.id === 'features')[0].children!.map(child => child.id.substring(9));
+
 		if (!featureFilters || !featureFilters.size) {
 			return true;
 		}
+
 		return Array.from(featureFilters).filter(feature => features.includes(feature)).some(feature => this.setting.key.toLowerCase().startsWith(feature));
 	}
 }
