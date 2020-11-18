@@ -134,6 +134,7 @@ export class ExplorerView extends ViewPane {
 
 	private styleElement!: HTMLStyleElement;
 	private treeContainer!: HTMLElement;
+	private container!: HTMLElement;
 	private compressedFocusContext: IContextKey<boolean>;
 	private compressedFocusFirstContext: IContextKey<boolean>;
 	private compressedFocusLastContext: IContextKey<boolean>;
@@ -245,6 +246,7 @@ export class ExplorerView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		this.container = container;
 		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 
 		this.styleElement = DOM.createStyleSheet(this.treeContainer);
@@ -301,6 +303,10 @@ export class ExplorerView extends ViewPane {
 		if (focused.length === 1 && this.autoReveal) {
 			this.tree.reveal(focused[0], 0.5);
 		}
+	}
+
+	hasFocus(): boolean {
+		return DOM.isAncestor(document.activeElement, this.container);
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {

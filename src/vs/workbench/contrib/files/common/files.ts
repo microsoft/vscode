@@ -22,6 +22,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 
 /**
  * Explorer viewlet id.
@@ -37,8 +38,10 @@ export interface IExplorerService {
 	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
+	undoRedoSource: UndoRedoSource;
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
+	hasViewFocus(): boolean;
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
 	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
@@ -67,6 +70,7 @@ export interface IExplorerView {
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
 	focusNeighbourIfItemFocused(item: ExplorerItem): void;
 	isItemVisible(item: ExplorerItem): boolean;
+	hasFocus(): boolean;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
