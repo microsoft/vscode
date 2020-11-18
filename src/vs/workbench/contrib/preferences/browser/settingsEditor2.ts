@@ -90,7 +90,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
 
 	private static readonly SUGGESTIONS: string[] = [
-		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@${EXTENSION_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}`
+		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@${EXTENSION_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}scm`, `@${FEATURE_SETTING_TAG}explorer`, `@${FEATURE_SETTING_TAG}search`, `@${FEATURE_SETTING_TAG}debug`, `@${FEATURE_SETTING_TAG}extensions`, `@${FEATURE_SETTING_TAG}terminal`, `@${FEATURE_SETTING_TAG}task`, `@${FEATURE_SETTING_TAG}problems`, `@${FEATURE_SETTING_TAG}output`, `@${FEATURE_SETTING_TAG}comments`, `@${FEATURE_SETTING_TAG}remote`, `@${FEATURE_SETTING_TAG}timeline`
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
@@ -1131,10 +1131,6 @@ export class SettingsEditor2 extends EditorPane {
 		return match && match[1];
 	}
 
-	private hasSome(set: Set<string>): boolean {
-		return set && set.size > 0;
-	}
-
 	private triggerSearch(query: string): Promise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
@@ -1151,7 +1147,7 @@ export class SettingsEditor2 extends EditorPane {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if (this.hasSome(this.viewState.tagFilters) || this.hasSome(this.viewState.extensionFilters) || this.hasSome(this.viewState.featureFilters)) {
+			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;
