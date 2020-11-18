@@ -12,7 +12,6 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class ResourceNotebookCellEdit extends ResourceEdit {
 
@@ -32,7 +31,6 @@ export class BulkCellEdits {
 		private _undoRedoGroup: UndoRedoGroup,
 		private readonly _progress: IProgress<void>,
 		private readonly _edits: ResourceNotebookCellEdit[],
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
 
@@ -52,7 +50,6 @@ export class BulkCellEdits {
 
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
-			this._notebookService.transformEditsOutputs(ref.object.notebook, edits);
 			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, undefined, () => undefined, this._undoRedoGroup);
 			ref.dispose();
 
