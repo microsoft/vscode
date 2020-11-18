@@ -114,12 +114,17 @@ class CreateOperation implements IFileOperation {
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
-		await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite });
-		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, true);
+		if (this.options.folder) {
+			await this._workingCopyFileService.createFolder(this.newUri);
+		} else {
+			await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite });
+		}
+		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, !this.options.folder);
 	}
 
 	toString(): string {
-		return `(create ${resources.basename(this.newUri)} with ${this.contents?.byteLength || 0} bytes)`;
+		return this.options.folder ? `create ${resources.basename(this.newUri)} folder`
+			: `(create ${resources.basename(this.newUri)} with ${this.contents?.byteLength || 0} bytes)`;
 	}
 }
 
