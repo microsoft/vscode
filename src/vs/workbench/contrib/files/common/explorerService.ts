@@ -16,11 +16,13 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 
 export class ExplorerService implements IExplorerService {
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
+	private static readonly UNDO_REDO_SOURCE = new UndoRedoSource();
 
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
@@ -82,6 +84,14 @@ export class ExplorerService implements IExplorerService {
 			return [];
 		}
 		return this.view.getContext(respectMultiSelection);
+	}
+
+	get undoRedoSource(): UndoRedoSource {
+		return ExplorerService.UNDO_REDO_SOURCE;
+	}
+
+	hasViewFocus(): boolean {
+		return !!this.view && this.view.hasFocus();
 	}
 
 	// IExplorerService methods
