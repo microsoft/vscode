@@ -1385,6 +1385,7 @@ export interface WorkspaceFileEditOptions {
 	ignoreIfNotExists?: boolean;
 	ignoreIfExists?: boolean;
 	recursive?: boolean;
+	copy?: boolean;
 }
 
 export interface WorkspaceFileEdit {
