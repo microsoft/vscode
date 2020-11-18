@@ -128,23 +128,27 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			const onDidChangeServerLabel: EventOf<void> = EventOf.map(this.labelService.onDidChangeFormatters, () => undefined);
 			const onDidChangeTitle = EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName());
 			const id = servers.length > 1 ? `workbench.views.extensions.${server.id}.installed` : `workbench.views.extensions.installed`;
-			const viewDescriptor = {
+			viewDescriptors.push(...[{
+				/* Empty installed extensions view */
+				id: `${id}.empty`,
 				get name() { return getInstalledViewName(); },
 				weight: 100,
 				order: 1,
-				/* Installed extensions views shall not be hidden when there are more than one server */
-				canToggleVisibility: servers.length === 1
-			};
-			viewDescriptors.push(...[{
-				...viewDescriptor,
-				id: `${id}.empty`,
 				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.not('hasInstalledExtensions')),
+				/* Empty installed extensions view shall have fixed height */
 				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, fixedHeight: true, onDidChangeTitle }]),
+				/* Empty installed extensions views shall not be allowed to hidden */
+				canToggleVisibility: false
 			}, {
-				...viewDescriptor,
+				/* Installed extensions view */
 				id,
+				get name() { return getInstalledViewName(); },
+				weight: 100,
+				order: 1,
 				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions')),
 				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, onDidChangeTitle }]),
+				/* Installed extensions views shall not be allowed to hidden when there are more than one server */
+				canToggleVisibility: servers.length === 1
 			}]);
 		}
 
