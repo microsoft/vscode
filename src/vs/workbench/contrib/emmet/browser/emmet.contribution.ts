@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ExpandEmmetAbbreviationCommand } from './expandEmmetAbbreviation';
+import { expandEmmetAbbreviationCommand } from './expandEmmetAbbreviation';
 
-registerEditorCommand(new ExpandEmmetAbbreviationCommand());
+registerEditorCommand(expandEmmetAbbreviationCommand);

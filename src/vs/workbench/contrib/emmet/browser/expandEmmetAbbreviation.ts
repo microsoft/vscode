@@ -102,12 +102,12 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 			return null;
 		}
 
-		let checkParentMode = (): string => {
-			let languageGrammar = grammars.getGrammar(syntax);
+		const checkParentMode = (): string => {
+			const languageGrammar = grammars.getGrammar(syntax);
 			if (!languageGrammar) {
 				return syntax;
 			}
-			let languages = languageGrammar.split('.');
+			const languages = languageGrammar.split('.');
 			if (languages.length < 2) {
 				return syntax;
 			}
@@ -126,3 +126,5 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 		};
 	}
 }
+
+export const expandEmmetAbbreviationCommand = new ExpandEmmetAbbreviationCommand();
