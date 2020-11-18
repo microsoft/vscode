@@ -23,7 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -352,7 +352,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			if (editor?.viewModel) {
 				return editor.viewModel.undo().then(cellResources => {
 					if (cellResources?.length) {
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
+						editor?.viewModel?.viewCells.forEach(cell => {
+							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
+								cell.editState = CellEditState.Editing;
+							}
+						});
+
+						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
 					}
 				});
 			}
@@ -365,7 +371,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			if (editor?.viewModel) {
 				return editor.viewModel.redo().then(cellResources => {
 					if (cellResources?.length) {
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
+						editor?.viewModel?.viewCells.forEach(cell => {
+							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
+								cell.editState = CellEditState.Editing;
+							}
+						});
+
+						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
 					}
 				});
 			}
