@@ -239,6 +239,11 @@
                 "category": "Emmet"
             },
             {
+                "command": "editor.emmet.action.expandAbbreviation",
+                "title": "%command.expandAbbreviation%",
+                "category": "Emmet"
+            },
+            {
                 "command": "editor.emmet.action.removeTag",
                 "title": "%command.removeTag%",
                 "category": "Emmet"
@@ -349,6 +354,13 @@
                 "category": ""
             }
         ],
+        "keybindings": [
+            {
+                "key": "tab",
+                "command": "editor.emmet.action.expandAbbreviation",
+                "when": "config.emmet.triggerExpansionOnTab && editorTextFocus && !editorReadonly && !editorTabMovesFocus"
+            }
+        ],
         "menus": {
             "commandPalette": [
                 {
@@ -356,6 +368,9 @@
                 },
                 {
                     "command": "editor.emmet.action.wrapWithAbbreviation"
+                },
+                {
+                    "command": "editor.emmet.action.expandAbbreviation"
                 },
                 {
                     "command": "editor.emmet.action.removeTag"
@@ -420,6 +435,12 @@
                 },
                 {
                     "command": "editor.emmet.action.reflectCSSValue"
+                }
+            ],
+            "editor/context": [
+                {
+                    "command": "editor.emmet.action.expandAbbreviation",
+                    "group": "2_emmet"
                 }
             ]
         }

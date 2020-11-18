@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor, EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
@@ -24,7 +24,6 @@ export interface ILanguageIdentifierResolver {
 }
 
 class GrammarContributions implements IGrammarContributions {
-
 	private static _grammars: ModeScopeMap = {};
 
 	constructor(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
@@ -48,20 +47,12 @@ class GrammarContributions implements IGrammarContributions {
 	}
 }
 
-export interface IEmmetActionOptions extends IActionOptions {
-	actionName: string;
-}
-
-export abstract class EmmetEditorAction extends EditorAction {
-
-	protected emmetActionName: string;
-
-	constructor(opts: IEmmetActionOptions) {
-		super(opts);
-		this.emmetActionName = opts.actionName;
+export class ExpandEmmetAbbreviationCommand extends EditorCommand {
+	constructor() {
+		super({ id: 'workbench.action.expandEmmetAbbreviation', precondition: undefined });
 	}
 
-	private static readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
+	private static readonly emmetSupportedModes = ['html', 'xml', 'xsl', 'jsx', 'js', 'pug', 'slim', 'haml', 'css', 'sass', 'scss', 'less', 'sss', 'stylus'];
 
 	private _lastGrammarContributions: Promise<GrammarContributions> | null = null;
 	private _lastExtensionService: IExtensionService | null = null;
@@ -75,20 +66,21 @@ export abstract class EmmetEditorAction extends EditorAction {
 		return this._lastGrammarContributions || Promise.resolve(null);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
+		if (!accessor) {
+			return;
+		}
+
 		const extensionService = accessor.get(IExtensionService);
 		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
-
-			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
-				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
+			if (this.id === 'workbench.action.expandEmmetAbbreviation' && grammarContributions) {
+				return commandService.executeCommand<void>('editor.emmet.action.expandAbbreviationInternal', ExpandEmmetAbbreviationCommand.getLanguage(modeService, editor, grammarContributions));
 			}
-
 			return undefined;
 		});
-
 	}
 
 	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICodeEditor, grammars: IGrammarContributions) {
@@ -133,6 +125,4 @@ export abstract class EmmetEditorAction extends EditorAction {
 			parentMode: checkParentMode()
 		};
 	}
-
-
 }
