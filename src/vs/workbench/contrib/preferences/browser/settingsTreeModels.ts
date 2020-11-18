@@ -291,13 +291,29 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAnyFeature(featureFilters?: Set<string>): boolean {
-		const features = tocData.children!.filter(child => child.id === 'features')[0].children!.map(child => child.id.substring(9));
+		const features = tocData.children!.filter(child => child.id === 'features')[0].children!.map(feature => {
+			return {
+				name: feature.id.substring(9),
+				values: feature.settings!.map(setting => setting.toString().substring(0, setting.toString().length - 2))
+			};
+		});
 
 		if (!featureFilters || !featureFilters.size) {
 			return true;
 		}
-
-		return Array.from(featureFilters).filter(feature => features.includes(feature)).some(feature => this.setting.key.toLowerCase().startsWith(feature));
+		const result = Array.from(featureFilters).map(filter => {
+			const foundFeature = features.find(item => item.name === filter);
+			if (foundFeature) {
+				if (foundFeature.values.length === 1) {
+					return Array.from(featureFilters).some((feature: string) => this.setting.key.toLowerCase().startsWith(feature));
+				} else {
+					return Array.from(featureFilters).some((feature: string) => this.setting.key.toLowerCase().startsWith(feature) || this.setting.key.toLowerCase().startsWith(foundFeature.values[1]));
+				}
+			} else {
+				return false;
+			}
+		});
+		return result.filter(r => r).length > 0;
 	}
 }
 
