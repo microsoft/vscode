@@ -44,7 +44,7 @@ steps:
       BUILD_VERSION="$(date +%s)"
       SNAP_FILENAME="code-$VSCODE_QUALITY-$(VSCODE_ARCH)-$BUILD_VERSION.snap"
       SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
-      (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap --output "$SNAP_PATH")
+      (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap --target-arch $(VSCODE_ARCH) --output "$SNAP_PATH")
 
       # Publish snap package
       AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
