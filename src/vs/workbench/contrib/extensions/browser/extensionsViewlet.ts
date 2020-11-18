@@ -130,7 +130,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 				id: servers.length > 1 ? `workbench.views.extensions.${server.id}.installed` : `workbench.views.extensions.installed`,
 				get name() { return getInstalledViewName(); },
 				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, fixedHeight: true, onDidChangeTitle: EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName()) }]),
-				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions')),
+				when: ContextKeyExpr.has('defaultExtensionViews'),
 				weight: 100,
 				order: 1,
 				/* Installed extensions views shall not be hidden when there are more than one server */
