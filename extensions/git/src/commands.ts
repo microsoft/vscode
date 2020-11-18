@@ -766,7 +766,9 @@ export class CommandCenter {
 	}
 
 	@command('git.rename', { repository: true })
-	async rename(repository: Repository, fromUri: Uri): Promise<void> {
+	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
+		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
+
 		if (!fromUri) {
 			return;
 		}
