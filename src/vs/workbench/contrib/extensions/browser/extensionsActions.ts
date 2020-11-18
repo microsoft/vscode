@@ -1834,7 +1834,7 @@ export class RefreshExtensionsAction extends Action {
 		const viewPaneContainer = this.viewsService.getActiveViewPaneContainerWithId(VIEWLET_ID);
 		if (viewPaneContainer) {
 			const extensionsViewPaneContainer = viewPaneContainer as IExtensionsViewPaneContainer;
-			extensionsViewPaneContainer.refresh();
+			return extensionsViewPaneContainer.refresh();
 		}
 	}
 }

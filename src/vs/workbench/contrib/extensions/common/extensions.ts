@@ -19,7 +19,7 @@ export const VIEWLET_ID = 'workbench.view.extensions';
 
 export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
 	search(text: string): void;
-	refresh(): void;
+	refresh(): Promise<void>;
 }
 
 export const enum ExtensionState {
