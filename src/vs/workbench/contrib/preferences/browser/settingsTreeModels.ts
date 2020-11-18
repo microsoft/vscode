@@ -301,13 +301,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (!featureFilters || !featureFilters.size) {
 			return true;
 		}
+
 		const result = Array.from(featureFilters).map(filter => {
 			const foundFeature = features.find(item => item.name === filter);
 			if (foundFeature) {
 				if (foundFeature.values.length === 1) {
-					return Array.from(featureFilters).some((feature: string) => this.setting.key.toLowerCase().startsWith(feature));
+					return Array.from(featureFilters).some((feature: string) => this.setting.key.toLowerCase().startsWith(feature) && !this.setting.extensionInfo);
 				} else {
-					return Array.from(featureFilters).some((feature: string) => this.setting.key.toLowerCase().startsWith(feature) || this.setting.key.toLowerCase().startsWith(foundFeature.values[1]));
+					return Array.from(featureFilters).some((feature: string) => (this.setting.key.toLowerCase().startsWith(feature) || this.setting.key.toLowerCase().startsWith(foundFeature.values[1])) && !this.setting.extensionInfo);
 				}
 			} else {
 				return false;
