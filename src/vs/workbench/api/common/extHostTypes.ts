@@ -2900,11 +2900,11 @@ export class OnTypeRenameRanges {
 
 //#region Testing
 export enum TestRunState {
-	Unset,
-	Running,
-	Passed,
-	Failed,
-	Skipped,
-	Errored
+	Unset = 0,
+	Running = 1,
+	Passed = 2,
+	Failed = 3,
+	Skipped = 4,
+	Errored = 5
 }
 //#endregion

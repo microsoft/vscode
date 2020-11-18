@@ -2181,14 +2181,25 @@ declare module 'vscode' {
 		 * workspace.
 		 *
 		 * The promise returned from this method should be resolved when all
-		 * tests have been added to the collection, and should continue
-		 * updating the collection and/or firing {@link onDidChangeTest} until
+		 * tests have been added to the test tree, and should continue
+		 * updating the test tree and firing {@link onDidChangeTest} until
 		 * the returned object is disposed.
 		 *
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher.
 		 */
-		addWorkspaceTests?(workspace: WorkspaceFolder): ProviderResult<Disposable>;
+		provideWorkspaceTests?(workspace: WorkspaceFolder, cancellationToken: CancellationToken): ProviderResult<Disposable>;
+
+		/**
+		 * Requests that tests be provided for the given file. This will
+		 * generally be called when tests need to be enumerated for a single file.
+		 *
+		 * The promise returned from this method should be resolved when the file's
+		 * tests have been added to the test tree, and should continue
+		 * updating the test tree and firing {@link onDidChangeTest} until
+		 * the returned object is disposed.
+		 */
+		provideFileTests?(file: Uri, cancellationToken: CancellationToken): ProviderResult<Disposable>;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
@@ -2257,44 +2268,58 @@ declare module 'vscode' {
 		 * Test run state. Will generally be {@link TestRunState.Unset} by
 		 * default.
 		 */
-		runState: TestRunState;
+		state: TestState;
 	}
 
 	export enum TestRunState {
 		// Initial state
-		Unset,
+		Unset = 0,
 		// Test is currently running
-		Running,
+		Running = 1,
 		// Test run has passed
-		Passed,
+		Passed = 2,
 		// Test run has failed (on an assertion)
-		Failed,
+		Failed = 3,
 		// Test run has been skipped
-		Skipped,
+		Skipped = 4,
 		// Test run failed for some other reason (compilation error, timeout, etc)
-		Errored
+		Errored = 5
 	}
 
 	/**
 	 * TestState includes a test and its run state. This is emitted by
 	 * the {@link TestRun} and may also be queried from the API.
 	 */
-	export interface TestState {
+	export class TestState {
 		/**
 		 * Current state of the test.
 		 */
-		state: TestRunState;
+		readonly state: TestRunState;
 
 		/**
 		 * Optional duration of the test run, in milliseconds.
 		 */
-		duration?: number;
+		readonly duration?: number;
 
 		/**
 		 * Associated test run message. Can, for example, contain assertion
 		 * failure information if the test fails.
 		 */
-		messages: TestMessage[];
+		readonly messages: readonly Readonly<TestMessage>[];
+
+		constructor(state: TestRunState, messages?: TestMessage[], duration?: number);
+
+		
+	}
+
+	/**
+	 * Represents the severity of test messages.
+	 */
+	export enum TestMessageSeverity {
+		Error = 0,
+		Warning = 1,
+		Information = 2,
+		Hint = 3
 	}
 
 	/**
@@ -2303,9 +2328,24 @@ declare module 'vscode' {
 	 */
 	export interface TestMessage {
 		/**
-		 * Message text to display.
+		 * Human-readable message text to display.
 		 */
-		message: string;
+		message: string | MarkdownString;
+
+		/**
+		 * Message severity. Defaults to "Error", if not provided.
+		 */
+		severity?: TestMessageSeverity;
+
+		/**
+		 * Expected test output. If given with `actual`, a diff view will be shown.
+		 */
+		expectedOutput?: string;
+
+		/**
+		 * Actual test output. If given with `actual`, a diff view will be shown.
+		 */
+		actualOutput?: string;
 
 		/**
 		 * Associated file location.

@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { throttle } from 'vs/base/common/decorators';
+import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
-import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/platform/testing/common/testCollection';
-import { ExtHostTestingShape, IMainContext, MainContext, MainThreadClipboardShape, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
-import { equals as equalArray } from 'vs/base/common/arrays';
 
 
 export class ExtHostTesting implements ExtHostTestingShape {
+	private readonly providers = new Map<string, vscode.TestProvider>();
 	private readonly mirroredTests = new MirroredTestCollection();
 	private readonly proxy: MainThreadTestingShape;
 	private readonly ownedTests = new OwnedTestCollection();
 
 	constructor(@IExtHostRpcService rpc: IExtHostRpcService) {
-		this.proxy = rpc.getProxy(MainContext.MainThreadLog);
+		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
 	}
 
 	/**
@@ -27,13 +31,38 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		return this.mirroredTests.rootTestItems;
 	}
 
+	/**
+	 * Implements vscode.test.registerTestProvider
+	 */
 	public registerTestProvider<T extends vscode.TestItem>(provider: vscode.TestProvider<T>): vscode.Disposable {
-		provider.onDidChangeTest(test => {
+		const providerId = generateUuid();
+		this.providers.set(providerId, provider);
 
+		this.ownedTests.addRoot(provider.testRoot, providerId);
+		this.proxy.$registerTestProvider(providerId);
+		provider.onDidChangeTest(test => {
+			this.ownedTests.onItemChange(test, providerId);
+			this.throttleSendDiff();
 		});
 
 		return new Disposable(() => {
+			this.providers.delete(providerId);
+			this.proxy.$unregisterTestProvider(providerId);
+			this.ownedTests.removeRoot(provider.testRoot);
+			this.throttleSendDiff();
+		});
+	}
 
+	/**
+	 * Implements vscode.test.runTests
+	 */
+	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>) {
+		await this.proxy.$runTests({
+			tests: req.tests
+				.map(test => this.mirroredTests.getMirroredTestItemId(test) ?? this.ownedTests.getTestByReference(test))
+				.filter(isDefined)
+				.map(item => ({ providerId: item.providerId, testId: item.id })),
+			debug: req.debug
 		});
 	}
 
@@ -46,7 +75,30 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		this.mirroredTests.apply(diff);
 	}
 
-	private onTestChanged()
+	/**
+	 * Runs tests with the given set of IDs. Allows for test from multiple
+	 * providers to be run.
+	 * @override
+	 */
+	public async $runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult> {
+		const provider = this.providers.get(req.providerId);
+		if (!provider || !provider.runTests) {
+			return EMPTY_TEST_RESULT;
+		}
+
+		const tests = req.ids.map(id => this.ownedTests.getTestById(id)?.actual).filter(isDefined);
+		if (!tests.length) {
+			return EMPTY_TEST_RESULT;
+		}
+
+		await provider.runTests({ tests, debug: req.debug }, CancellationToken.None);
+		return EMPTY_TEST_RESULT;
+	}
+
+	@throttle(200)
+	private throttleSendDiff() {
+		this.proxy.$publishDiff(this.ownedTests.collectDiff());
+	}
 }
 
 const keyMap: { [K in keyof Omit<Required<vscode.TestItem>, 'children'>]: null } = {
@@ -69,15 +121,44 @@ const serializeTestItem = (item: vscode.TestItem): Omit<vscode.TestItem, 'childr
 	return obj;
 };
 
-class OwnedTestCollection {
-	private readonly testItemToInternal = new WeakMap<vscode.TestItem, InternalTestItem>();
-	private diff: TestsDiff = [];
+/**
+ * @private
+ */
+export interface OwnedCollectionTestItem extends InternalTestItem {
+	actual: vscode.TestItem;
+	previousChildren: Set<string>;
+}
+
+/**
+ * Maintains tests created and registered in this extension host.
+ * @private
+ */
+export class OwnedTestCollection {
+	protected readonly testItemToInternal = new Map<vscode.TestItem, OwnedCollectionTestItem>();
+	protected readonly testIdToInternal = new Map<string, OwnedCollectionTestItem>();
+	protected diff: TestsDiff = [];
 
 	/**
 	 * Adds a new root node to the collection.
 	 */
-	public addRoot(item: vscode.TestItem) {
-		this.addItem(item, true);
+	public addRoot(item: vscode.TestItem, providerId: string) {
+		this.addItem(item, providerId, null);
+	}
+
+	/**
+	 * Gets test information by ID, if it was defined and still exists in this
+	 * extension host.
+	 */
+	public getTestById(id: string) {
+		return this.testIdToInternal.get(id);
+	}
+
+	/**
+	 * Gets test information by its reference, if it was defined and still exists
+	 * in this extension host.
+	 */
+	public getTestByReference(item: vscode.TestItem) {
+		return this.testItemToInternal.get(item);
 	}
 
 	/**
@@ -90,19 +171,20 @@ class OwnedTestCollection {
 			return;
 		}
 
-		this.diff.push([TestDiffOpType.RemoveRoot, internal.id]);
+		this.removeItembyId(internal.id);
 	}
 
 	/**
 	 * Should be called when an item change is fired on the test provider.
 	 */
-	public onItemChange(item: vscode.TestItem) {
-		if (!this.testItemToInternal.has(item)) {
+	public onItemChange(item: vscode.TestItem, providerId: string) {
+		const existing = this.testItemToInternal.get(item);
+		if (!existing) {
 			console.warn(`Received a TestProvider.onDidChangeTest for a test that wasn't seen before as a child.`);
 			return;
 		}
 
-		this.addItem(item);
+		this.addItem(item, providerId, existing.parent);
 	}
 
 	/**
@@ -114,36 +196,88 @@ class OwnedTestCollection {
 		return diff;
 	}
 
-	private addItem(item: vscode.TestItem, isRoot = false): string {
-		const children = item.children?.map(c => this.addItem(c));
-		let internal = this.testItemToInternal.get(item);
+	protected getId(): string {
+		return generateUuid();
+	}
+
+	private addItem(actual: vscode.TestItem, providerId: string, parent: string | null) {
+		let internal = this.testItemToInternal.get(actual);
 		if (!internal) {
-			internal = { id: generateUuid(), isRoot, children: [], item: serializeTestItem(item) };
-			this.testItemToInternal.set(item, internal);
-			this.diff.push([TestDiffOpType.Upsert, internal]);
-		} else {
-			if (simpleProps.some(key => item[key] !== internal!.item[key])
-				|| !equalArray(children, internal.children)) {
+			internal = {
+				actual,
+				id: this.getId(),
+				parent,
+				item: serializeTestItem(actual),
+				providerId,
+				previousChildren: new Set(),
+			};
+
+			this.testItemToInternal.set(actual, internal);
+			this.testIdToInternal.set(internal.id, internal);
+			this.diff.push([TestDiffOpType.Add, { id: internal.id, parent, providerId, item: internal.item }]);
+		} else if (simpleProps.some(key => actual[key] !== internal!.item[key])) {
+			internal.item = serializeTestItem(actual);
+			this.diff.push([TestDiffOpType.Update, { id: internal.id, parent, providerId, item: internal.item }]);
+		}
+
+		// If there are children, track which ones are deleted
+		// and recursively and/update them.
+		if (actual.children) {
+			const deletedChildren = internal.previousChildren;
+			const currentChildren = new Set<string>();
+			for (const child of actual.children) {
+				const c = this.addItem(child, providerId, internal.id);
+				deletedChildren.delete(c.id);
+				currentChildren.add(c.id);
 			}
+
+			for (const child of deletedChildren) {
+				this.removeItembyId(child);
+			}
+
+			internal.previousChildren = currentChildren;
 		}
 
 
-		return internal.id;
+		return internal;
+	}
+
+	private removeItembyId(id: string) {
+		this.diff.push([TestDiffOpType.Remove, id]);
+
+		const queue = [this.testIdToInternal.get(id)];
+		while (queue.length) {
+			const item = queue.pop();
+			if (!item) {
+				continue;
+			}
+
+			this.testIdToInternal.delete(item.id);
+			this.testItemToInternal.delete(item.actual);
+			for (const child of item.previousChildren) {
+				queue.push(this.testIdToInternal.get(child));
+			}
+		}
 	}
 }
 
-interface TestCollectionItem extends InternalTestItem {
+/**
+ * @private
+ */
+interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
 	wrapped?: vscode.TestItem;
 }
 
-const isDefined = <T>(x: T | undefined): x is T => x !== undefined;
-
 /**
  * Maintains tests in this extension host sent from the main thread.
+ * @private
  */
-class MirroredTestCollection {
-	private readonly items = new Map<string, TestCollectionItem>();
-	private readonly roots = new Set<string>();
+export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
+	/**
+	 * Mapping of mirrored test items to their underlying ID. Given here to avoid
+	 * exposing them to extensions.
+	 */
+	protected readonly mirroredTestIds = new WeakMap<vscode.TestItem, string>();
 
 	/**
 	 * Gets a list of root test items.
@@ -153,89 +287,54 @@ class MirroredTestCollection {
 	}
 
 	/**
-	 * Proxy wrapper for the target item. Passes through most properties, but
-	 * handles mapping of children.
-	 */
-	private wrapper: ProxyHandler<TestCollectionItem> = {
-		ownKeys(target) {
-			const keys = Reflect.ownKeys(target);
-			keys.push('children');
-			return keys;
-		},
-		get: (target, property) => {
-			if (property === 'children') {
-				return this.getAllAsTestItem(target.children);
-			}
-
-			return target.item[property as string];
-		}
-	};
-
-	public apply(diff: TestsDiff) {
-		for (const op of diff) {
-			switch (op[0]) {
-				case TestDiffOpType.Upsert: {
-					const item = op[1];
-					const existing = this.items.get(item.id);
-					if (!existing) {
-						this.items.set(item.id, item);
-						if (item.isRoot) {
-							this.roots.add(item.id);
-						}
-					} else {
-						const oldChildren = new Set(existing.children);
-						for (const newChild of item.children) {
-							oldChildren.delete(newChild);
-						}
-						for (const oldChild of oldChildren) {
-							this.removeRecursive(oldChild);
-						}
-						Object.assign(existing.item, item.item);
-					}
-					break;
-				}
-
-				case TestDiffOpType.RemoveRoot:
-					this.removeRecursive(op[1]);
-					break;
-			}
-		}
-	}
-
-	/**
-	 * Recursively deletes the test item ID and all its children.
-	 */
-	private removeRecursive(itemId: string) {
-		this.roots.delete(itemId);
-		const queue = [[itemId]];
-		while (queue.length) {
-			for (const itemId of queue.pop()!) {
-				const existing = this.items.get(itemId);
-				if (!existing) {
-					continue;
-				}
-
-				queue.push(existing.children);
-				this.items.delete(itemId);
-			}
-		}
-	}
-
-	/**
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
-	private getAllAsTestItem(itemIds: ReadonlyArray<string>): vscode.TestItem[] {
+	public getAllAsTestItem(itemIds: ReadonlyArray<string>): vscode.TestItem[] {
 		return itemIds.map(itemId => {
 			const item = this.items.get(itemId);
 			return item && this.createCollectionItemWrapper(item);
 		}).filter(isDefined);
 	}
 
-	private createCollectionItemWrapper(item: TestCollectionItem): vscode.TestItem {
-		if (item.wrapped) {
-			return item.wrapped;
+	/**
+	 * If the test item is a mirrored test item, returns its underlying ID.
+	 */
+	public getMirroredTestItemId(item: vscode.TestItem) {
+		const itemId = this.mirroredTestIds.get(item);
+		return itemId ? this.items.get(itemId) : undefined;
+	}
+
+	/**
+	 * @override
+	 */
+	protected createItem(item: InternalTestItem): MirroredCollectionTestItem {
+		return { ...item, children: new Set() };
+	}
+
+	private createCollectionItemWrapper(item: MirroredCollectionTestItem): vscode.TestItem {
+		if (!item.wrapped) {
+			item.wrapped = createMirroredTestItem(item, this);
+			this.mirroredTestIds.set(item.wrapped, item.id);
 		}
 
-		return new Proxy(item, this.wrapper) as any;
+		return item.wrapped;
 	}
 }
+
+const createMirroredTestItem = (internal: MirroredCollectionTestItem, collection: MirroredTestCollection): vscode.TestItem => {
+	const obj = {};
+
+	Object.defineProperty(obj, 'children', {
+		enumerable: true,
+		configurable: false,
+		get: () => collection.getAllAsTestItem([...internal.children])
+	});
+
+	simpleProps.forEach(prop => Object.defineProperty(obj, prop, {
+		enumerable: true,
+		configurable: false,
+		get: () => internal.item[prop],
+	}));
+
+	return obj as any;
+};

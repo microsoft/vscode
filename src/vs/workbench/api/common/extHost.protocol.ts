@@ -57,7 +57,7 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { TestsDiff } from 'vs/platform/testing/common/testCollection';
+import { RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1754,18 +1754,16 @@ export interface ExtHostTimelineShape {
 	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
 }
 
-export interface RunTestsRequest {
-	handles: number[];
-	debug: boolean;
-}
-
 export interface ExtHostTestingShape {
-	$runTests(req: RunTestsRequest): Promise<void>;
+	$runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult>;
 	$acceptDiff(diff: TestsDiff): void;
 }
 
 export interface MainThreadTestingShape {
-
+	$publishDiff(diff: TestsDiff): void;
+	$registerTestProvider(id: string): void;
+	$unregisterTestProvider(id: string): void;
+	$runTests(req: RunTestsRequest): Promise<RunTestsResult>;
 }
 
 // --- proxy identifiers
@@ -1817,7 +1815,8 @@ export const MainContext = {
 	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
-	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline')
+	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
+	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
 };
 
 export const ExtHostContext = {
@@ -1860,5 +1859,6 @@ export const ExtHostContext = {
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
-	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline')
+	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
+	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
 };
