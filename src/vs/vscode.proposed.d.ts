@@ -2131,21 +2131,94 @@ declare module 'vscode' {
 			- `onTests:*` new activation event very simiular to `workspaceContains`,
 				but only fired when the user wants to run tests or opens the test explorer.
 	*/
-	export namespace test {
+export namespace test {
+	/**
+	 * Registers a provider that discovers tests for the given document
+	 * selectors. It is activated when either tests need to be enumerated, or
+	 * a document matching the selector is opened.
+	 */
+	export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
+
+	/**
+	 * Runs tests with the given options. If no options are given, then
+	 * all tests are run. Returns the resulting test run.
+	 */
+	export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+
+	/**
+	 * Returns an observer that retrieves tests in the given workspace folder.
+	 */
+	export function createWorkspaceTestObserver(workspaceFolder: WorkspaceFolder): TestObserver;
+
+	/**
+	 * Returns an observer that retrieves tests in the given text document.
+	 */
+	export function createDocumentTestObserver(document: TextDocument): TestObserver;
+}
+
+export interface TestObserver {
+	/**
+	 * List of tests returned by test provider for files in the workspace.
+	 */
+	readonly tests: ReadonlyArray<TestItem>;
+
+	/**
+	 * An event that fires when an existing test in the collection changes, or
+	 * null if a top-level test was added or removed. When fired, the consumer
+	 * should check the test item and all its children for changes.
+	 */
+	readonly onDidChangeTest: Event<TestItem | null>;
+
+	/**
+	 * An event the fires when all test providers have signalled that the tests
+	 * the observer references have been discovered. Providers may continue to
+	 * watch for changes and cause {@link onDidChangeTest} to fire as files
+	 * change, until the observer is disposed.
+	 */
+	readonly onDidDiscoverInitialTests: Event<void>;
+
+	/**
+	 * Dispose of the observer, allowing VS Code to eventually tell test
+	 * providers that they no longer need to update tests.
+	 */
+	dispose(): void;
+}
+
+	/**
+	 * Tree of tests returned from the provide methods in the {@link TestProvider}.
+	 */
+	export interface TestHierarchy<T extends TestItem> {
 		/**
-		 * Registers a provider that discovers tests for the given document
-		 * selectors. It is activated when either tests need to be enumerated, or
-		 * a document matching the selector is opened.
+		 * Root node for tests. The `testRoot` instance must not be replaced over
+		 * the lifespan of the TestHierarchy, since you will need to reference it
+		 * in `onDidChangeTest` when a test is added or removed.
 		 */
-		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
+		readonly root: T;
 
 		/**
-		 * Runs tests with the given options. If no options are given, then
-		 * all tests are run. Returns the resulting test run.
+		 * An event that fires when an existing test under the `root` changes.
+		 * This can be a result of a state change in a test run, a property update,
+		 * or an update to its children. Changes made to tests will not be visible
+		 * to {@link TestObserver} instances until this event is fired.
+		 *
+		 * This will signal a change recursively to all children of the given node.
+		 * For example, firing the event with the {@link testRoot} will refresh
+		 * all tests.
 		 */
-		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+		readonly onDidChangeTest: Event<T>;
 
-		// todo: test enumeration and events for extensions to build on
+		/**
+		 * An event that should be fired when all tests that are currently defined
+		 * have been discovered. The provider should continue to watch for changes
+		 * and fire `onDidChangeTest` until the hierarchy is disposed.
+		 */
+		readonly onDidDiscoverInitialTests: Event<void>;
+
+		/**
+		 * Dispose will be called when there are no longer observers interested
+		 * in the hierarchy.
+		 */
+		dispose(): void;
 	}
 
 	/**
@@ -2158,48 +2231,23 @@ declare module 'vscode' {
 	 * via `addWorkspaceTests`.
 	 */
 	export interface TestProvider<T extends TestItem = TestItem> {
-		/**
-		 * Root node for tests. The `testRoot` instance must not be replaced over
-		 * the lifespan of the TestProvider, since you will need to reference it
-		 * in `onDidChangeTest` when a test is added or removed.
-		 */
-		readonly testRoot: T;
-
-		/**
-		 * An event that fires when an existing test in the collection changes.
-		 * This can be a result of a state change in a test run or its properties
-		 * update.
-		 *
-		 * This should also be fired when a test gains or loses a direct child
-		 * from its `children` array.
-		 */
-		readonly onDidChangeTest: Event<T>;
 
 		/**
 		 * Requests that tests be provided for the given workspace. This will
 		 * generally be called when tests need to be enumerated for the
 		 * workspace.
 		 *
-		 * The promise returned from this method should be resolved when all
-		 * tests have been added to the test tree, and should continue
-		 * updating the test tree and firing {@link onDidChangeTest} until
-		 * the returned object is disposed.
-		 *
 		 * It's guaranteed that this method will not be called again while
-		 * there is a previous undisposed watcher.
+		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
-		provideWorkspaceTests?(workspace: WorkspaceFolder, cancellationToken: CancellationToken): ProviderResult<Disposable>;
+		provideWorkspaceTests?(workspace: WorkspaceFolder): TestHierarchy<T>;
 
 		/**
-		 * Requests that tests be provided for the given file. This will
-		 * generally be called when tests need to be enumerated for a single file.
-		 *
-		 * The promise returned from this method should be resolved when the file's
-		 * tests have been added to the test tree, and should continue
-		 * updating the test tree and firing {@link onDidChangeTest} until
-		 * the returned object is disposed.
+		 * Requests that tests be provided for the given document. This will
+		 * be called when tests need to be enumerated for a single open file,
+		 * for instance by code lens UI.
 		 */
-		provideFileTests?(file: Uri, cancellationToken: CancellationToken): ProviderResult<Disposable>;
+		provideDocumentTests?(document: TextDocument): TestHierarchy<T>;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
@@ -2212,7 +2260,7 @@ declare module 'vscode' {
 	/**
 	 * Options given to `TestProvider.runTests`
 	 */
-	export interface TestRunOptions<T extends TestItem> {
+	export interface TestRunOptions<T extends TestItem = TestItem> {
 		/**
 		 * Array of specific tests to run. The {@link TestProvider.testRoot} may
 		 * be provided as an indication to run all tests.
@@ -2257,7 +2305,7 @@ declare module 'vscode' {
 		/**
 		 * VS Code location.
 		 */
-		location: Location;
+		location?: Location;
 
 		/**
 		 * Optional list of nested tests for this item.
@@ -2287,14 +2335,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * TestState includes a test and its run state. This is emitted by
-	 * the {@link TestRun} and may also be queried from the API.
+	 * TestState includes a test and its run state. This is included in the
+	 * {@link TestItem} and is immutable; it should be replaced in th TestItem
+	 * in order to update it. This allows consumers to quickly and easily check
+	 * for changes via object identity.
 	 */
 	export class TestState {
 		/**
 		 * Current state of the test.
 		 */
-		readonly state: TestRunState;
+		readonly runState: TestRunState;
 
 		/**
 		 * Optional duration of the test run, in milliseconds.
@@ -2305,11 +2355,14 @@ declare module 'vscode' {
 		 * Associated test run message. Can, for example, contain assertion
 		 * failure information if the test fails.
 		 */
-		readonly messages: readonly Readonly<TestMessage>[];
+		readonly messages: ReadonlyArray<Readonly<TestMessage>>;
 
-		constructor(state: TestRunState, messages?: TestMessage[], duration?: number);
-
-		
+		/**
+		 * @param state Run state to hold in the test state
+		 * @param messages List of associated messages for the test
+		 * @param duration Length of time the test run took, if appropriate.
+		 */
+		constructor(runState: TestRunState, messages?: TestMessage[], duration?: number);
 	}
 
 	/**

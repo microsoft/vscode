@@ -5,14 +5,15 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
+import { memoizeFnWeak } from 'vs/base/common/functional';
 import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, TestState } from 'vs/workbench/api/common/extHostTypes';
+import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
-
 
 export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly providers = new Map<string, vscode.TestProvider>();
@@ -20,7 +21,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly proxy: MainThreadTestingShape;
 	private readonly ownedTests = new OwnedTestCollection();
 
-	constructor(@IExtHostRpcService rpc: IExtHostRpcService) {
+	constructor(@IExtHostRpcService rpc: IExtHostRpcService, private readonly _documents: ExtHostDocuments) {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
 	}
 
@@ -104,7 +105,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 const keyMap: { [K in keyof Omit<Required<vscode.TestItem>, 'children'>]: null } = {
 	label: null,
 	location: null,
-	runState: null,
+	state: null,
 	debuggable: null,
 	description: null,
 	runnable: null
@@ -323,6 +324,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 
 const createMirroredTestItem = (internal: MirroredCollectionTestItem, collection: MirroredTestCollection): vscode.TestItem => {
 	const obj = {};
+	const buildState = memoizeFnWeak((value: any) => new TestState(value.runState, value.messages, value.duration));
 
 	Object.defineProperty(obj, 'children', {
 		enumerable: true,
@@ -333,7 +335,10 @@ const createMirroredTestItem = (internal: MirroredCollectionTestItem, collection
 	simpleProps.forEach(prop => Object.defineProperty(obj, prop, {
 		enumerable: true,
 		configurable: false,
-		get: () => internal.item[prop],
+		get: () => {
+			const value = internal.item[prop];
+			return prop === 'state' ? buildState(value) : value;
+		},
 	}));
 
 	return obj as any;

@@ -1213,6 +1213,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			OnTypeRenameRanges: extHostTypes.OnTypeRenameRanges,
 			TestRunState: extHostTypes.TestRunState,
+			TestMessageSeverity: extHostTypes.TestMessageSeverity,
+			TestState: extHostTypes.TestState,
 		};
 	};
 }
