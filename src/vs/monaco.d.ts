@@ -6260,6 +6260,8 @@ declare namespace monaco.languages {
 		ignoreIfNotExists?: boolean;
 		ignoreIfExists?: boolean;
 		recursive?: boolean;
+		copy?: boolean;
+		folder?: boolean;
 	}
 
 	export interface WorkspaceFileEdit {

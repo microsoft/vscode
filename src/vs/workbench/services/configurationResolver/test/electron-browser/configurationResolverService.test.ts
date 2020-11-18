@@ -215,6 +215,17 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
+	test('substitute configuration variable with undefined workspace folder', () => {
+		let configurationService: IConfigurationService = new TestConfigurationService({
+			editor: {
+				fontFamily: 'foo'
+			}
+		});
+
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
+		assert.strictEqual(service.resolve(undefined, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
+	});
+
 	test('substitute many configuration variables', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new TestConfigurationService({

@@ -9,7 +9,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -64,6 +64,36 @@ class RenameOperation implements IFileOperation {
 	}
 }
 
+class CopyOperation implements IFileOperation {
+
+	constructor(
+		readonly newUri: URI,
+		readonly oldUri: URI,
+		readonly options: WorkspaceFileEditOptions,
+		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
+		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService private readonly _instaService: IInstantiationService
+	) { }
+
+	get uris() {
+		return [this.newUri, this.oldUri];
+	}
+
+	async perform(): Promise<IFileOperation> {
+		// copy
+		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
+			return new Noop(); // not overwriting, but ignoring, and the target file exists
+		}
+
+		await this._workingCopyFileService.copy([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite });
+		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, true);
+	}
+
+	toString(): string {
+		return `(copy ${this.oldUri} to ${this.newUri})`;
+	}
+}
+
 class CreateOperation implements IFileOperation {
 
 	constructor(
@@ -84,12 +114,17 @@ class CreateOperation implements IFileOperation {
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
-		await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite });
-		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, true);
+		if (this.options.folder) {
+			await this._workingCopyFileService.createFolder(this.newUri);
+		} else {
+			await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite });
+		}
+		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, !this.options.folder);
 	}
 
 	toString(): string {
-		return `(create ${resources.basename(this.newUri)} with ${this.contents?.byteLength || 0} bytes)`;
+		return this.options.folder ? `create ${resources.basename(this.newUri)} folder`
+			: `(create ${resources.basename(this.newUri)} with ${this.contents?.byteLength || 0} bytes)`;
 	}
 }
 
@@ -177,6 +212,7 @@ export class BulkFileEdits {
 	constructor(
 		private readonly _label: string,
 		private readonly _undoRedoGroup: UndoRedoGroup,
+		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
 		private readonly _edits: ResourceFileEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -190,9 +226,11 @@ export class BulkFileEdits {
 
 			const options = edit.options || {};
 			let op: IFileOperation | undefined;
-			if (edit.newResource && edit.oldResource) {
+			if (edit.newResource && edit.oldResource && !options.copy) {
 				// rename
 				op = this._instaService.createInstance(RenameOperation, edit.newResource, edit.oldResource, options);
+			} else if (edit.newResource && edit.oldResource && options.copy) {
+				op = this._instaService.createInstance(CopyOperation, edit.newResource, edit.oldResource, options);
 			} else if (!edit.newResource && edit.oldResource) {
 				// delete file
 				op = this._instaService.createInstance(DeleteOperation, edit.oldResource, options, false);
@@ -206,6 +244,6 @@ export class BulkFileEdits {
 			}
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup);
+		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup, this._undoRedoSource);
 	}
 }

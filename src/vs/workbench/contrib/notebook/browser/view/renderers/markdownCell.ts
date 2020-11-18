@@ -255,7 +255,7 @@ export class StatefulMarkdownCell extends Disposable {
 			this.relayoutCell();
 		} else {
 			// first time, readonly mode
-			this.localDisposables.add(markdownRenderer.onDidRenderCodeBlock(() => {
+			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
 				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
 				this.relayoutCell();
 			}));
