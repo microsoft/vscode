@@ -170,7 +170,7 @@ export class SuggestDetailsWidget {
 			const renderedContents = this._markdownRenderer.render(documentation);
 			this._docs.appendChild(renderedContents.element);
 			this._renderDisposeable.add(renderedContents);
-			this._renderDisposeable.add(this._markdownRenderer.onDidRenderCodeBlock(() => {
+			this._renderDisposeable.add(this._markdownRenderer.onDidRenderAsync(() => {
 				this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 				this._onDidChangeContents.fire(this);
 			}));
