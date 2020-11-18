@@ -527,10 +527,7 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 
 	public static create(key: string, value: any): ContextKeyExpression {
 		if (typeof value === 'boolean') {
-			if (value) {
-				return ContextKeyNotExpr.create(key);
-			}
-			return ContextKeyDefinedExpr.create(key);
+			return (value ? ContextKeyNotExpr.create(key) : ContextKeyDefinedExpr.create(key));
 		}
 		const staticValue = STATIC_VALUES.get(key);
 		if (typeof staticValue === 'boolean') {
