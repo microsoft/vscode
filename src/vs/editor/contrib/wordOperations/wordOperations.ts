@@ -480,18 +480,12 @@ export class DeleteWordRight extends DeleteWordRightCommand {
 	}
 }
 
-export class DeleteWordEntire extends EditorCommand {
+export class DeleteInsideWord extends EditorCommand {
 
 	constructor() {
 		super({
-			id: 'deleteWordEntire',
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
-				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_U },
-				weight: KeybindingWeight.EditorContrib
-			}
+			id: 'deleteInsideWord',
+			precondition: EditorContextKeys.writable
 		});
 	}
 
@@ -514,7 +508,7 @@ export class DeleteWordEntire extends EditorCommand {
 	}
 
 	private _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
-		let r = WordOperations.deleteWordEntire(wordSeparators, model, selection);
+		let r = WordOperations.deleteInsideWord(wordSeparators, model, selection);
 		if (r) {
 			return r;
 		}
@@ -546,4 +540,4 @@ registerEditorCommand(new DeleteWordLeft());
 registerEditorCommand(new DeleteWordStartRight());
 registerEditorCommand(new DeleteWordEndRight());
 registerEditorCommand(new DeleteWordRight());
-registerEditorCommand(new DeleteWordEntire());
+registerEditorCommand(new DeleteInsideWord());

@@ -438,22 +438,22 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static deleteWordEntire(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range | null {
+	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range | null {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
 
 		const position = new Position(selection.positionLineNumber, selection.positionColumn);
 
-		let r = this._deleteWordEntireWhitespace(model, position);
+		let r = this._deleteInsideWordWhitespace(model, position);
 		if (r) {
 			return r;
 		}
 
-		return this._determineDeleteRange(wordSeparators, model, position);
+		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position);
 	}
 
-	private static _deleteWordEntireWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
+	private static _deleteInsideWordWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const startIndex1 = position.column - 1; // deleteRight
 		const startIndex2 = position.column - 2; // deleteLeft
@@ -465,7 +465,7 @@ export class WordOperations {
 		return null;
 	}
 
-	private static _determineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
+	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 		let columnEnd = position.column;
