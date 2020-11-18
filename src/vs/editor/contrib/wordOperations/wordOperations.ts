@@ -402,23 +402,6 @@ export class DeleteWordRightCommand extends DeleteWordCommand {
 	}
 }
 
-export class DeleteWordRight extends DeleteWordRightCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'deleteWordRight',
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Delete,
-				mac: { primary: KeyMod.Alt | KeyCode.Delete },
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-}
-
 export class DeleteWordStartLeft extends DeleteWordLeftCommand {
 	constructor() {
 		super({
@@ -480,6 +463,23 @@ export class DeleteWordEndRight extends DeleteWordRightCommand {
 	}
 }
 
+export class DeleteWordRight extends DeleteWordRightCommand {
+	constructor() {
+		super({
+			whitespaceHeuristics: true,
+			wordNavigationType: WordNavigationType.WordEnd,
+			id: 'deleteWordRight',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Delete,
+				mac: { primary: KeyMod.Alt | KeyCode.Delete },
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+}
+
 export class DeleteWordEntireCommand extends DeleteWordCommand {
 	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
 		let r = WordOperations.deleteWordEntire(ctx, wordNavigationType);
@@ -508,7 +508,6 @@ export class DeleteWordEntire extends DeleteWordEntireCommand {
 		});
 	}
 }
-
 
 registerEditorCommand(new CursorWordStartLeft());
 registerEditorCommand(new CursorWordEndLeft());
