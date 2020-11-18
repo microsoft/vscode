@@ -15,12 +15,12 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
 	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
 
-	readonly onDidChange: Event<Uri[]>;
+	readonly onDidChangeFileDecorations: Event<Uri[]>;
 	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>>; }>();
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		this.onDidChange = fireEvent(anyEvent<any>(
+		this.onDidChangeFileDecorations = fireEvent(anyEvent<any>(
 			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
@@ -93,7 +93,7 @@ class GitDecorationProvider implements FileDecorationProvider {
 	};
 
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
-	readonly onDidChange: Event<Uri[]> = this._onDidChangeDecorations.event;
+	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private disposables: Disposable[] = [];
 	private decorations = new Map<string, FileDecoration>();
