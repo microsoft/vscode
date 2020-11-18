@@ -244,6 +244,17 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
 
+	// signal size changes for image tags
+	if (options.codeBlockRenderCallback) {
+		for (const img of element.getElementsByTagName('img')) {
+			const listener = DOM.addDisposableListener(img, 'load', () => {
+				listener.dispose();
+				options.codeBlockRenderCallback!();
+			});
+		}
+	}
+
+
 	return element;
 }
 
