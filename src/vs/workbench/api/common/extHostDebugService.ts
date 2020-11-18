@@ -942,7 +942,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			getWorkspaceFolderCount: (): number => {
 				return folders.length;
 			},
-			getConfigurationValue: (folderUri: URI, section: string): string | undefined => {
+			getConfigurationValue: (folderUri: URI | undefined, section: string): string | undefined => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
 			getExecPath: (): string | undefined => {
