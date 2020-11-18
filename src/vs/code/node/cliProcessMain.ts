@@ -31,7 +31,7 @@ import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/node/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
+import { ILogService, getLogLevel, LogLevel, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { URI } from 'vs/base/common/uri';
@@ -78,7 +78,7 @@ export class Main {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 	) { }
 
 	async run(argv: NativeParsedArgs): Promise<void> {
@@ -357,7 +357,13 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 	const disposables = new DisposableStore();
 
 	const environmentService = new NativeEnvironmentService(argv);
-	const logService: ILogService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
+	const logLevel = getLogLevel(environmentService);
+	const loggers: ILogService[] = [];
+	loggers.push(new SpdLogService('cli', environmentService.logsPath, logLevel));
+	if (logLevel === LogLevel.Trace) {
+		loggers.push(new ConsoleLogService(logLevel));
+	}
+	const logService = new MultiplexLogService(loggers);
 	process.once('exit', () => logService.dispose());
 	logService.info('main', argv);
 

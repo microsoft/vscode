@@ -82,6 +82,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
+import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -282,17 +283,6 @@ export class CodeApplication extends Disposable {
 		ipc.on('vscode:openDevTools', (event: IpcMainEvent) => event.sender.openDevTools());
 
 		ipc.on('vscode:reloadWindow', (event: IpcMainEvent) => event.sender.reload());
-
-		// Some listeners after window opened
-		(async () => {
-			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
-
-			// Keyboard layout changes (after window opened)
-			const nativeKeymap = await import('native-keymap');
-			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				this.windowsMainService?.sendToAll('vscode:keyboardLayoutChanged');
-			});
-		})();
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -441,6 +431,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
@@ -530,6 +521,10 @@ export class CodeApplication extends Disposable {
 		const encryptionMainService = accessor.get(IEncryptionMainService);
 		const encryptionChannel = createChannelReceiver(encryptionMainService);
 		electronIpcServer.registerChannel('encryption', encryptionChannel);
+
+		const keyboardLayoutMainService = accessor.get(IKeyboardLayoutMainService);
+		const keyboardLayoutChannel = createChannelReceiver(keyboardLayoutMainService);
+		electronIpcServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
 
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);

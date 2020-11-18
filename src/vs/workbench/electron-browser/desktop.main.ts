@@ -45,7 +45,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/electron
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
@@ -53,6 +53,8 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 class DesktopMain extends Disposable {
 
@@ -279,6 +281,14 @@ class DesktopMain extends Disposable {
 				serviceCollection.set(IStorageService, service);
 
 				return service;
+			}),
+
+			this.createKeyboardLayoutService(logService, mainProcessService).then(service => {
+
+				// KeyboardLayout
+				serviceCollection.set(IKeyboardLayoutService, service);
+
+				return service;
 			})
 		]);
 
@@ -315,8 +325,8 @@ class DesktopMain extends Disposable {
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
 			let id: string;
-			if (this.environmentService.backupWorkspaceHome) {
-				id = basename(this.environmentService.backupWorkspaceHome); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			if (this.configuration.backupPath) {
+				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
 			} else if (this.environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
@@ -397,6 +407,21 @@ class DesktopMain extends Disposable {
 			logService.error(error);
 
 			return storageService;
+		}
+	}
+
+	private async createKeyboardLayoutService(logService: ILogService, mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
+		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+
+		try {
+			await keyboardLayoutService.initialize();
+
+			return keyboardLayoutService;
+		} catch (error) {
+			onUnexpectedError(error);
+			logService.error(error);
+
+			return keyboardLayoutService;
 		}
 	}
 }

@@ -19,11 +19,11 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -88,7 +88,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		super();
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
 
-		const mementoObject = this._memento.legacygetMemento(StorageScope.GLOBAL);
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
 			this.add(new NotebookProviderInfo(info));
 		}
@@ -129,7 +129,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			}
 		}
 
-		const mementoObject = this._memento.legacygetMemento(StorageScope.GLOBAL);
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
 
@@ -179,7 +179,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		}
 		this._contributedEditors.set(info.id, info);
 
-		const mementoObject = this._memento.legacygetMemento(StorageScope.GLOBAL);
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
 	}
@@ -352,7 +352,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			if (editor?.viewModel) {
 				return editor.viewModel.undo().then(cellResources => {
 					if (cellResources?.length) {
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
+						editor?.viewModel?.viewCells.forEach(cell => {
+							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
+								cell.editState = CellEditState.Editing;
+							}
+						});
+
+						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
 					}
 				});
 			}
@@ -365,7 +371,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			if (editor?.viewModel) {
 				return editor.viewModel.redo().then(cellResources => {
 					if (cellResources?.length) {
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
+						editor?.viewModel?.viewCells.forEach(cell => {
+							if (cell.cellKind === CellKind.Markdown && cellResources.find(resource => resource.fragment === cell.model.uri.fragment)) {
+								cell.editState = CellEditState.Editing;
+							}
+						});
+
+						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
 					}
 				});
 			}

@@ -6,9 +6,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, ILinuxKeyboardLayoutInfo, IMacKeyboardLayoutInfo, IMacLinuxKeyboardMapping, IWindowsKeyboardLayoutInfo, IWindowsKeyboardMapping, macLinuxKeyboardMappingEquals, windowsKeyboardMappingEquals } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { Emitter } from 'vs/base/common/event';
-import * as nativeKeymap from 'native-keymap';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CachedKeyboardMapper, IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
@@ -16,6 +13,9 @@ import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IKeyboardLayoutMainService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
 export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 
@@ -24,28 +24,49 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<void>());
 	readonly onDidChangeKeyboardLayout = this._onDidChangeKeyboardLayout.event;
 
+	private readonly _keyboardLayoutMainService: IKeyboardLayoutMainService;
+	private _initPromise: Promise<void> | null;
 	private _keyboardMapping: IKeyboardMapping | null;
 	private _keyboardLayoutInfo: IKeyboardLayoutInfo | null;
 	private _keyboardMapper: IKeyboardMapper;
 
-	constructor() {
+	constructor(
+		@IMainProcessService mainProcessService: IMainProcessService
+	) {
 		super();
-		this._keyboardMapping = nativeKeymap.getKeyMap();
-		this._keyboardLayoutInfo = nativeKeymap.getCurrentKeyboardLayout();
-		this._keyboardMapper = new CachedKeyboardMapper(createKeyboardMapper(this._keyboardLayoutInfo, this._keyboardMapping));
+		this._keyboardLayoutMainService = createChannelSender<IKeyboardLayoutMainService>(mainProcessService.getChannel('keyboardLayout'));
+		this._initPromise = null;
+		this._keyboardMapping = null;
+		this._keyboardLayoutInfo = null;
+		this._keyboardMapper = new MacLinuxFallbackKeyboardMapper(OS);
 
-		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
-			const newKeyboardMapping = nativeKeymap.getKeyMap();
-			if (keyboardMappingEquals(this._keyboardMapping, newKeyboardMapping)) {
+		this._register(this._keyboardLayoutMainService.onDidChangeKeyboardLayout(async ({ keyboardLayoutInfo, keyboardMapping }) => {
+			await this.initialize();
+			if (keyboardMappingEquals(this._keyboardMapping, keyboardMapping)) {
 				// the mappings are equal
 				return;
 			}
 
-			this._keyboardMapping = nativeKeymap.getKeyMap();
-			this._keyboardLayoutInfo = nativeKeymap.getCurrentKeyboardLayout();
+			this._keyboardMapping = keyboardMapping;
+			this._keyboardLayoutInfo = keyboardLayoutInfo;
 			this._keyboardMapper = new CachedKeyboardMapper(createKeyboardMapper(this._keyboardLayoutInfo, this._keyboardMapping));
 			this._onDidChangeKeyboardLayout.fire();
-		});
+		}));
+	}
+
+	public initialize(): Promise<void> {
+		if (!this._initPromise) {
+			this._initPromise = this._doInitialize();
+		}
+		return this._initPromise;
+	}
+
+	private async _doInitialize(): Promise<void> {
+		const keyboardLayoutData = await this._keyboardLayoutMainService.getKeyboardLayoutData();
+		const { keyboardLayoutInfo, keyboardMapping } = keyboardLayoutData;
+		this._keyboardMapping = keyboardMapping;
+		this._keyboardLayoutInfo = keyboardLayoutInfo;
+		this._keyboardMapper = new CachedKeyboardMapper(createKeyboardMapper(this._keyboardLayoutInfo, this._keyboardMapping));
 	}
 
 	public getRawKeyboardMapping(): IKeyboardMapping | null {
@@ -121,5 +142,3 @@ function isUSStandard(_kbInfo: IKeyboardLayoutInfo | null): boolean {
 
 	return false;
 }
-
-registerSingleton(IKeyboardLayoutService, KeyboardLayoutService, false);

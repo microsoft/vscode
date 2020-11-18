@@ -3197,15 +3197,10 @@ declare namespace monaco.editor {
 		 */
 		originalEditable?: boolean;
 		/**
-		 * Original editor should be have code lens enabled?
+		 * Should the diff editor enable code lens?
 		 * Defaults to false.
 		 */
-		originalCodeLens?: boolean;
-		/**
-		 * Modified editor should be have code lens enabled?
-		 * Defaults to false.
-		 */
-		modifiedCodeLens?: boolean;
+		diffCodeLens?: boolean;
 		/**
 		 * Is the diff editor inside another editor
 		 * Defaults to false

@@ -342,6 +342,11 @@
                 "command": "editor.emmet.action.reflectCSSValue",
                 "title": "%command.reflectCSSValue%",
                 "category": "Emmet"
+            },
+            {
+                "command": "workbench.action.showEmmetCommands",
+                "title": "%command.showEmmetCommands%",
+                "category": ""
             }
         ],
         "menus": {

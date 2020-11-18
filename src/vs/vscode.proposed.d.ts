@@ -239,7 +239,7 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions, elevate?: boolean) => Thenable<Tunnel> | undefined;
 
 		/**
 		 * Provides filtering for candidate ports.
@@ -1001,6 +1001,16 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/100741
 	export interface TreeDataProvider<T> {
+		/**
+		 * Called only on hover to resolve the TreeItem2#tooltip property if it is undefined.
+		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
+		 * Will only ever be called once per TreeItem.
+		 * Functionality may be expanded later to include being called to resolve other missing
+		 * properties on selection and/or on open.
+		 *
+		 * @param element
+		 * @param item Undefined properties of `item` should be set then `item` should be returned.
+		 */
 		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
 	}
 

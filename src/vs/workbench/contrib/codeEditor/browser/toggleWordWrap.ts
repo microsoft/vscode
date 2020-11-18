@@ -17,13 +17,12 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
 const isDominatedByLongLinesKey = 'isDominatedByLongLines';
-const inDiffEditorKey = 'inDiffEditor';
 
 /**
  * State written/read by the toggle word wrap action and associated with a particular model.
@@ -138,12 +137,6 @@ class ToggleWordWrapAction extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
-		if (editor.getOption(EditorOption.inDiffEditor)) {
-			// Cannot change wrapping settings inside the diff editor
-			const notificationService = accessor.get(INotificationService);
-			notificationService.info(nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
-			return;
-		}
 
 		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
 		const codeEditorService = accessor.get(ICodeEditorService);
@@ -179,18 +172,16 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const isWordWrapMinified = this.contextKeyService.createKey(isWordWrapMinifiedKey, wrappingInfo.isWordWrapMinified);
 		const isDominatedByLongLines = this.contextKeyService.createKey(isDominatedByLongLinesKey, wrappingInfo.isDominatedByLongLines);
-		const inDiffEditor = this.contextKeyService.createKey(inDiffEditorKey, options.get(EditorOption.inDiffEditor));
 		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOption.wrappingInfo) && !e.hasChanged(EditorOption.inDiffEditor)) {
+			if (!e.hasChanged(EditorOption.wrappingInfo)) {
 				return;
 			}
 			const options = this.editor.getOptions();
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			isWordWrapMinified.set(wrappingInfo.isWordWrapMinified);
 			isDominatedByLongLines.set(wrappingInfo.isDominatedByLongLines);
-			inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 			if (!currentlyApplyingEditorConfig) {
 				// I am not the cause of the word wrap getting changed
 				ensureWordWrapSettings();
@@ -217,10 +208,6 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
-				return;
-			}
-
-			if (this.editor.getOption(EditorOption.inDiffEditor)) {
 				return;
 			}
 
@@ -282,7 +269,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: 'navigation',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.not(inDiffEditorKey),
 		ContextKeyExpr.has(isDominatedByLongLinesKey),
 		ContextKeyExpr.has(isWordWrapMinifiedKey)
 	)
@@ -298,7 +284,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: 'navigation',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.not(inDiffEditorKey),
+		EditorContextKeys.inDiffEditor.negate(),
 		ContextKeyExpr.has(isDominatedByLongLinesKey),
 		ContextKeyExpr.not(isWordWrapMinifiedKey)
 	)

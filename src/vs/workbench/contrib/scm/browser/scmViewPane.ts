@@ -1733,7 +1733,7 @@ export class SCMViewPane extends ViewPane {
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		this._register(actionRunner);
-		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
+		this._register(actionRunner.onBeforeRun(() => this.tree.domFocus()));
 
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider),
@@ -2000,7 +2000,7 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
-		actionRunner.onDidBeforeRun(() => this.tree.domFocus());
+		actionRunner.onBeforeRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
