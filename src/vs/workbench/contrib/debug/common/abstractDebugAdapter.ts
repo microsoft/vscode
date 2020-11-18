@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDebugAdapter } from 'vs/workbench/contrib/debug/common/debug';
 import { timeout } from 'vs/base/common/async';
+import { localize } from 'vs/nls';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -40,7 +41,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
-		if (this.eventCallback) {
+		if (this.messageCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Message' callback`));
 		}
 		this.messageCallback = callback;
@@ -88,7 +89,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 						request_seq: request.seq,
 						success: false,
 						command,
-						message: `timeout after ${timeout} ms`
+						message: localize('timeout', "Timeout after {0} ms for '{1}'", timeout, command)
 					};
 					clb(err);
 				}

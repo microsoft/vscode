@@ -28,7 +28,8 @@ export type Keytar = {
 	deletePassword: typeof keytarType['deletePassword'];
 };
 
-const SERVICE_ID = `${vscode.env.uriScheme}-microsoft.login`;
+const OLD_SERVICE_ID = `${vscode.env.uriScheme}-microsoft.login`;
+const SERVICE_ID = `microsoft.login`;
 const ACCOUNT_ID = 'account';
 
 export class Keychain {
@@ -43,26 +44,10 @@ export class Keychain {
 		this.keytar = keytar;
 	}
 
-	// TODO remove, temporary migration
-	async migrateToken(): Promise<void> {
-		const oldServiceId = `${vscode.env.uriScheme}-vscode.login`;
-		try {
-			const data = await this.keytar.getPassword(oldServiceId, ACCOUNT_ID);
-			if (data) {
-				Logger.info('Migrating token...');
-				this.setToken(data);
-				await this.keytar.deletePassword(oldServiceId, ACCOUNT_ID);
-				Logger.info('Migration successful');
-			}
-		} catch (e) {
-			Logger.error(`Migrating token failed: ${e}`);
-		}
-	}
-
 
 	async setToken(token: string): Promise<void> {
 		try {
-			return await this.keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
+			return await vscode.authentication.setPassword(SERVICE_ID, token);
 		} catch (e) {
 			Logger.error(`Setting token failed: ${e}`);
 
@@ -84,7 +69,7 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await this.keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
+			return await vscode.authentication.getPassword(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);
@@ -92,13 +77,28 @@ export class Keychain {
 		}
 	}
 
-	async deleteToken(): Promise<boolean | undefined> {
+	async deleteToken(): Promise<void> {
 		try {
-			return await this.keytar.deletePassword(SERVICE_ID, ACCOUNT_ID);
+			return await vscode.authentication.deletePassword(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Deleting token failed: ${e}`);
 			return Promise.resolve(undefined);
+		}
+	}
+
+	async tryMigrate(): Promise<string | null> {
+		try {
+			const oldValue = await this.keytar.getPassword(OLD_SERVICE_ID, ACCOUNT_ID);
+			if (oldValue) {
+				await this.setToken(oldValue);
+				await this.keytar.deletePassword(OLD_SERVICE_ID, ACCOUNT_ID);
+			}
+
+			return oldValue;
+		} catch (_) {
+			// Ignore
+			return Promise.resolve(null);
 		}
 	}
 }

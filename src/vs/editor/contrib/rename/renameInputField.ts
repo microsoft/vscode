@@ -82,7 +82,7 @@ export class RenameInputField implements IContentWidget {
 			const updateLabel = () => {
 				const [accept, preview] = this._acceptKeybindings;
 				this._keybindingService.lookupKeybinding(accept);
-				this._label!.innerText = localize('label', "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+				this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
 			};
 			updateLabel();
 			this._disposables.add(this._keybindingService.onDidUpdateKeybindings(updateLabel));
@@ -100,7 +100,7 @@ export class RenameInputField implements IContentWidget {
 
 		const widgetShadowColor = theme.getColor(widgetShadow);
 		this._domNode.style.backgroundColor = String(theme.getColor(editorWidgetBackground) ?? '');
-		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : '';
+		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 0 8px 2px ${widgetShadowColor}` : '';
 		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
 
 		this._input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
@@ -133,6 +133,14 @@ export class RenameInputField implements IContentWidget {
 			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
 	}
+
+	afterRender(position: ContentWidgetPositionPreference | null): void {
+		if (!position) {
+			// cancel rename when input widget isn't rendered anymore
+			this.cancelInput(true);
+		}
+	}
+
 
 	private _currentAcceptInput?: (wantsPreview: boolean) => void;
 	private _currentCancelInput?: (focusEditor: boolean) => void;

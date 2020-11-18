@@ -13,6 +13,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { deepClone } from 'vs/base/common/objects';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -97,7 +98,10 @@ export class ConfigureAction extends AbstractDebugAction {
 				launch = launches[0];
 			} else {
 				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in or add it to the workspace config file") });
+				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, {
+					activeItem: picks[0],
+					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
+				});
 				if (picked) {
 					launch = picked.launch;
 				}
@@ -128,8 +132,10 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	async run(): Promise<boolean> {
-		let { launch, name, config } = this.debugService.getConfigurationManager().selectedConfiguration;
-		return this.debugService.startDebugging(launch, config || name, { noDebug: this.isNoDebug() });
+		let { launch, name, getConfig } = this.debugService.getConfigurationManager().selectedConfiguration;
+		const config = await getConfig();
+		const clonedConfig = deepClone(config);
+		return this.debugService.startDebugging(launch, clonedConfig || name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {
@@ -142,10 +148,10 @@ export class StartAction extends AbstractDebugAction {
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		let { name, config } = debugService.getConfigurationManager().selectedConfiguration;
-		let nameToStart = name || config?.name;
+		let { name, launch } = debugService.getConfigurationManager().selectedConfiguration;
+		let nameToStart = name;
 
-		if (sessions.some(s => s.configuration.name === nameToStart)) {
+		if (sessions.some(s => s.configuration.name === nameToStart && s.root === launch?.workspace)) {
 			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}
@@ -403,7 +409,9 @@ export class CopyValueAction extends Action {
 
 		try {
 			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
-			this.clipboardService.writeText(evaluation.body.result);
+			if (evaluation) {
+				this.clipboardService.writeText(evaluation.body.result);
+			}
 		} catch (e) {
 			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
 		}

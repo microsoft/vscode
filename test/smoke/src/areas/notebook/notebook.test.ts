@@ -48,19 +48,27 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
-			await app.workbench.notebook.waitForActiveCellEditorContents(' ');
+			await app.workbench.notebook.waitForActiveCellEditorContents('');
 			await app.workbench.notebook.stopEditingCell();
 			await app.workbench.notebook.deleteActiveCell();
 			await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
 		});
 
-		it('moves focus in and out of output', async function () {
+		it.skip('moves focus in and out of output', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.executeActiveCell();
 			await app.workbench.notebook.focusInCellOutput();
 			await app.workbench.notebook.focusOutCellOutput();
 			await app.workbench.notebook.waitForActiveCellEditorContents('code()');
+		});
+
+		it.skip('cell action execution', async function () {
+			const app = this.app as Application;
+			await app.workbench.notebook.openNotebook();
+			await app.workbench.notebook.insertNotebookCell('code');
+			await app.workbench.notebook.executeCellAction('.notebook-editor .monaco-list-row.focused div.monaco-toolbar .codicon-debug');
+			await app.workbench.notebook.waitForActiveCellEditorContents('test');
 		});
 	});
 }

@@ -10,12 +10,14 @@ import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfigurat
 import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { TestRPCProtocol } from './testRPCProtocol';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { assign } from 'vs/base/common/objects';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { isLinux } from 'vs/base/common/platform';
 
 suite('ExtHostConfiguration', function () {
 
@@ -28,7 +30,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function createExtHostWorkspace(): ExtHostWorkspace {
-		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new NullLogService());
+		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService());
 	}
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
@@ -211,20 +213,22 @@ suite('ExtHostConfiguration', function () {
 		}), JSON.stringify(actual));
 
 		actual = all.getConfiguration('workbench').get('emptyobjectkey');
-		actual = assign(actual || {}, {
+		actual = {
+			...(actual || {}),
 			'statusBar.background': `#0ff`,
 			'statusBar.foreground': `#ff0`,
-		});
+		};
 		assert.deepEqual(JSON.stringify({
 			'statusBar.background': `#0ff`,
 			'statusBar.foreground': `#ff0`,
 		}), JSON.stringify(actual));
 
 		actual = all.getConfiguration('workbench').get('unknownkey');
-		actual = assign(actual || {}, {
+		actual = {
+			...(actual || {}),
 			'statusBar.background': `#0ff`,
 			'statusBar.foreground': `#ff0`,
-		});
+		};
 		assert.deepEqual(JSON.stringify({
 			'statusBar.background': `#0ff`,
 			'statusBar.foreground': `#ff0`,

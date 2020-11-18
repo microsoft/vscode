@@ -40,11 +40,13 @@ export interface ISelectBoxOptions {
 	useCustomDrawn?: boolean;
 	ariaLabel?: string;
 	minBottomMargin?: number;
+	optionsAsChildren?: boolean;
 }
 
 // Utilize optionItem interface to capture all option parameters
 export interface ISelectOptionItem {
 	text: string;
+	detail?: string;
 	decoratorRight?: string;
 	description?: string;
 	descriptionIsMarkdown?: boolean;

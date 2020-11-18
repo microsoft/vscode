@@ -24,6 +24,7 @@ export namespace EditorContextKeys {
 	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
+	export const inDiffEditor = new RawContextKey<boolean>('inDiffEditor', false);
 	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false);
 	export const writable = readOnly.toNegated();
 	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
@@ -35,6 +36,8 @@ export namespace EditorContextKeys {
 	export const isInWalkThroughSnippet = new RawContextKey<boolean>('isInEmbeddedEditor', false);
 	export const canUndo = new RawContextKey<boolean>('canUndo', false);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false);
+
+	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false);
 
 	/**
 	 * A context key that is set when an editor is part of a larger editor, like notebooks or

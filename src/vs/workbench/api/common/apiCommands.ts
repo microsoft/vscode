@@ -8,14 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
-import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
+import { IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWorkspacesService, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IViewDescriptorService, IViewsService, ViewVisibilityState } from 'vs/workbench/common/views';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -33,41 +32,6 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 		return handler(accessor.get(ICommandService), ...args);
 	};
 }
-
-interface IOpenFolderAPICommandOptions {
-	forceNewWindow?: boolean;
-	forceReuseWindow?: boolean;
-	noRecentEntry?: boolean;
-}
-
-export class OpenFolderAPICommand {
-	public static readonly ID = 'vscode.openFolder';
-	public static execute(executor: ICommandsExecutor, uri?: URI, forceNewWindow?: boolean): Promise<any>;
-	public static execute(executor: ICommandsExecutor, uri?: URI, options?: IOpenFolderAPICommandOptions): Promise<any>;
-	public static execute(executor: ICommandsExecutor, uri?: URI, arg: boolean | IOpenFolderAPICommandOptions = {}): Promise<any> {
-		if (typeof arg === 'boolean') {
-			arg = { forceNewWindow: arg };
-		}
-		if (!uri) {
-			return executor.executeCommand('_files.pickFolderAndOpen', { forceNewWindow: arg.forceNewWindow });
-		}
-		const options: IOpenWindowOptions = { forceNewWindow: arg.forceNewWindow, forceReuseWindow: arg.forceReuseWindow, noRecentEntry: arg.noRecentEntry };
-		uri = URI.revive(uri);
-		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
-		return executor.executeCommand('_files.windowOpen', [uriToOpen], options);
-	}
-}
-CommandsRegistry.registerCommand({
-	id: OpenFolderAPICommand.ID,
-	handler: adjustHandler(OpenFolderAPICommand.execute),
-	description: {
-		description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
-		args: [
-			{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
-			{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Wheter the opened URI will appear in the \'Open Recent\' list. Defaults to true.  Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
-		]
-	}
-});
 
 interface INewWindowAPICommandOptions {
 	reuseWindow?: boolean;
@@ -95,55 +59,16 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export class DiffAPICommand {
-	public static readonly ID = 'vscode.diff';
-	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions): Promise<any> {
-		return executor.executeCommand('_workbench.diff', [
-			left, right,
-			label,
-			undefined,
-			typeConverters.TextEditorOptions.from(options),
-			options ? typeConverters.ViewColumn.from(options.viewColumn) : undefined
-		]);
-	}
-}
-CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));
-
-export class OpenAPICommand {
-	public static readonly ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Promise<any> {
-		let options: ITextEditorOptions | undefined;
-		let position: EditorViewColumn | undefined;
-
-		if (columnOrOptions) {
-			if (typeof columnOrOptions === 'number') {
-				position = typeConverters.ViewColumn.from(columnOrOptions);
-			} else {
-				options = typeConverters.TextEditorOptions.from(columnOrOptions);
-				position = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
-			}
-		}
-
-		return executor.executeCommand('_workbench.open', [
-			resource,
-			options,
-			position,
-			label
-		]);
-	}
-}
-CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
-
 export class OpenWithAPICommand {
 	public static readonly ID = 'vscode.openWith';
-	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Promise<any> {
+	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions): Promise<any> {
 		let options: ITextEditorOptions | undefined;
-		let position: EditorViewColumn | undefined;
+		let position: EditorGroupColumn | undefined;
 
 		if (typeof columnOrOptions === 'number') {
 			position = typeConverters.ViewColumn.from(columnOrOptions);
 		} else if (typeof columnOrOptions !== 'undefined') {
-			options = typeConverters.TextEditorOptions.from(columnOrOptions);
+			options = typeConverters.TextEditorOpenOptions.from(columnOrOptions);
 		}
 
 		return executor.executeCommand('_workbench.openWith', [
@@ -218,38 +143,6 @@ CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function 
 	return workspacesService.getRecentlyOpened();
 });
 
-export class SetEditorLayoutAPICommand {
-	public static readonly ID = 'vscode.setEditorLayout';
-	public static execute(executor: ICommandsExecutor, layout: EditorGroupLayout): Promise<any> {
-		return executor.executeCommand('layoutEditorGroups', layout);
-	}
-}
-CommandsRegistry.registerCommand({
-	id: SetEditorLayoutAPICommand.ID,
-	handler: adjustHandler(SetEditorLayoutAPICommand.execute),
-	description: {
-		description: 'Set Editor Layout',
-		args: [{
-			name: 'args',
-			schema: {
-				'type': 'object',
-				'required': ['groups'],
-				'properties': {
-					'orientation': {
-						'type': 'number',
-						'default': 0,
-						'enum': [0, 1]
-					},
-					'groups': {
-						'$ref': '#/definitions/editorGroupsSchema', // defined in keybindingService.ts ...
-						'default': [{}, {}],
-					}
-				}
-			}
-		}]
-	}
-});
-
 CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
@@ -264,3 +157,70 @@ CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (access
 
 	return logService.getLevel();
 });
+
+
+CommandsRegistry.registerCommand('_workbench.action.moveViews', async function (accessor: ServicesAccessor, options: { viewIds: string[], destinationId: string }) {
+	const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+	const destination = viewDescriptorService.getViewContainerById(options.destinationId);
+	if (!destination) {
+		return;
+	}
+
+	// FYI, don't use `moveViewsToContainer` in 1 shot, because it expects all views to have the same current location
+	for (const viewId of options.viewIds) {
+		const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
+		if (viewDescriptor?.canMoveView) {
+			viewDescriptorService.moveViewsToContainer([viewDescriptor], destination, ViewVisibilityState.Default);
+		}
+	}
+
+	await accessor.get(IViewsService).openViewContainer(destination.id, true);
+});
+
+export class MoveViewsAPICommand {
+	public static readonly ID = 'vscode.moveViews';
+	public static execute(executor: ICommandsExecutor, options: { viewIds: string[], destinationId: string }): Promise<any> {
+		if (!Array.isArray(options?.viewIds) || typeof options?.destinationId !== 'string') {
+			return Promise.reject('Invalid arguments');
+		}
+
+		return executor.executeCommand('_workbench.action.moveViews', options);
+	}
+}
+CommandsRegistry.registerCommand({
+	id: MoveViewsAPICommand.ID,
+	handler: adjustHandler(MoveViewsAPICommand.execute),
+	description: {
+		description: 'Move Views',
+		args: []
+	}
+});
+
+
+// -----------------------------------------------------------------
+// The following commands are registered on the renderer but as API
+// command. DO NOT USE this unless you have understood what this
+// means
+// -----------------------------------------------------------------
+
+
+class OpenAPICommand {
+	public static readonly ID = 'vscode.open';
+	public static execute(executor: ICommandsExecutor, resource: URI): Promise<any> {
+
+		return executor.executeCommand('_workbench.open', resource);
+	}
+}
+CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
+
+class DiffAPICommand {
+	public static readonly ID = 'vscode.diff';
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
+		return executor.executeCommand('_workbench.diff', [
+			left, right,
+			label,
+		]);
+	}
+}
+CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));

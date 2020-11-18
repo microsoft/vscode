@@ -125,6 +125,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
@@ -178,14 +179,7 @@ export class TextAreaHandler extends ViewPart {
 					mode
 				};
 			},
-
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-
-				if (browser.isIPad) {
-					// Do not place anything in the textarea for the iPad
-					return TextAreaState.EMPTY;
-				}
-
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
@@ -258,14 +252,13 @@ export class TextAreaHandler extends ViewPart {
 			const lineNumber = this._selections[0].startLineNumber;
 			const column = this._selections[0].startColumn - (e.moveOneCharacterLeft ? 1 : 0);
 
-			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+			this._context.model.revealRange(
 				'keyboard',
-				new Range(lineNumber, column, lineNumber, column),
-				null,
-				viewEvents.VerticalRevealType.Simple,
 				true,
+				new Range(lineNumber, column, lineNumber, column),
+				viewEvents.VerticalRevealType.Simple,
 				ScrollType.Immediate
-			));
+			);
 
 			// Find range pixel position
 			const visibleRange = this._viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -308,12 +301,10 @@ export class TextAreaHandler extends ViewPart {
 
 		this._register(this._textAreaInput.onFocus(() => {
 			this._context.model.setHasFocus(true);
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(true));
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
 			this._context.model.setHasFocus(false);
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(false));
 		}));
 	}
 
@@ -385,6 +376,7 @@ export class TextAreaHandler extends ViewPart {
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (platform.isWeb && e.hasChanged(EditorOption.readOnly)) {
 			if (options.get(EditorOption.readOnly)) {

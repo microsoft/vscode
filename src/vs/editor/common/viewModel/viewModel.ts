@@ -10,12 +10,13 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
-import { IViewEventEmitter, VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -60,6 +61,8 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	isAfterLines(verticalOffset: number): boolean;
+	isInTopPadding(verticalOffset: number): boolean;
+	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
@@ -81,9 +84,68 @@ export interface ICoordinatesConverter {
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
 	modelPositionIsVisible(modelPosition: Position): boolean;
+	getModelLineViewLineCount(modelLineNumber: number): number;
 }
 
-export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
+export class OutputPosition {
+	outputLineIndex: number;
+	outputOffset: number;
+
+	constructor(outputLineIndex: number, outputOffset: number) {
+		this.outputLineIndex = outputLineIndex;
+		this.outputOffset = outputOffset;
+	}
+}
+
+export class LineBreakData {
+	constructor(
+		public breakOffsets: number[],
+		public breakOffsetsVisibleColumn: number[],
+		public wrappedTextIndentLength: number
+	) { }
+
+	public static getInputOffsetOfOutputPosition(breakOffsets: number[], outputLineIndex: number, outputOffset: number): number {
+		if (outputLineIndex === 0) {
+			return outputOffset;
+		} else {
+			return breakOffsets[outputLineIndex - 1] + outputOffset;
+		}
+	}
+
+	public static getOutputPositionOfInputOffset(breakOffsets: number[], inputOffset: number): OutputPosition {
+		let low = 0;
+		let high = breakOffsets.length - 1;
+		let mid = 0;
+		let midStart = 0;
+
+		while (low <= high) {
+			mid = low + ((high - low) / 2) | 0;
+
+			const midStop = breakOffsets[mid];
+			midStart = mid > 0 ? breakOffsets[mid - 1] : 0;
+
+			if (inputOffset < midStart) {
+				high = mid - 1;
+			} else if (inputOffset >= midStop) {
+				low = mid + 1;
+			} else {
+				break;
+			}
+		}
+
+		return new OutputPosition(mid, inputOffset - midStart);
+	}
+}
+
+export interface ILineBreaksComputer {
+	/**
+	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
+	 */
+	addRequest(lineText: string, previousLineBreakData: LineBreakData | null): void;
+	finalize(): (LineBreakData | null)[];
+}
+
+export interface IViewModel extends ICursorSimpleModel {
 
 	readonly model: ITextModel;
 
@@ -93,12 +155,16 @@ export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 
 	readonly cursorConfig: CursorConfiguration;
 
+	addViewEventHandler(eventHandler: ViewEventHandler): void;
+	removeViewEventHandler(eventHandler: ViewEventHandler): void;
+
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
+	onDidColorThemeChange(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
@@ -137,6 +203,7 @@ export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 
 	//#endregion
 
+	createLineBreaksComputer(): ILineBreaksComputer;
 
 	//#region cursor
 	getPrimaryCursorState(): CursorState;

@@ -7,11 +7,13 @@
 import * as assert from 'assert';
 import severity from 'vs/base/common/severity';
 import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockRawSession, MockDebugAdapter, createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockRawSession, MockDebugAdapter, createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { timeout } from 'vs/base/common/async';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
+import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 
 suite('Debug - REPL', () => {
 	let model: DebugModel;
@@ -62,6 +64,41 @@ suite('Debug - REPL', () => {
 		assert.equal(elements[0], '1\n');
 		assert.equal(elements[1], '23\n45\n');
 		assert.equal(elements[2], '6');
+
+		repl.removeReplExpressions();
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'third line', severity.Info);
+		elements = <SimpleReplElement[]>repl.getReplElements();
+		assert.equal(elements.length, 3);
+		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].count, 3);
+		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].count, 2);
+		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].count, 1);
+	});
+
+	test('repl output count', () => {
+		const session = createMockSession(model);
+		const repl = new ReplModel();
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'second line', severity.Info);
+		repl.appendToRepl(session, 'third line', severity.Info);
+		const elements = <SimpleReplElement[]>repl.getReplElements();
+		assert.equal(elements.length, 3);
+		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].count, 3);
+		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].count, 2);
+		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].count, 1);
 	});
 
 	test('repl merging', () => {
@@ -83,7 +120,7 @@ suite('Debug - REPL', () => {
 		assert.equal(grandChild.getReplElements().length, 1);
 		assert.equal(child3.getReplElements().length, 0);
 
-		grandChild.appendToRepl('1\n', severity.Info);
+		grandChild.appendToRepl('2\n', severity.Info);
 		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 0);
@@ -91,7 +128,7 @@ suite('Debug - REPL', () => {
 		assert.equal(grandChild.getReplElements().length, 2);
 		assert.equal(child3.getReplElements().length, 0);
 
-		child3.appendToRepl('1\n', severity.Info);
+		child3.appendToRepl('3\n', severity.Info);
 		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 0);
@@ -99,7 +136,7 @@ suite('Debug - REPL', () => {
 		assert.equal(grandChild.getReplElements().length, 2);
 		assert.equal(child3.getReplElements().length, 1);
 
-		child1.appendToRepl('1\n', severity.Info);
+		child1.appendToRepl('4\n', severity.Info);
 		assert.equal(parentChanges, 2);
 		assert.equal(parent.getReplElements().length, 2);
 		assert.equal(child1.getReplElements().length, 1);
@@ -188,5 +225,63 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, 'second global line', severity.Info);
 		assert.equal(repl.getReplElements().length, 3);
 		assert.equal((<SimpleReplElement>repl.getReplElements()[2]).value, 'second global line');
+	});
+
+	test('repl filter', async () => {
+		const session = createMockSession(model);
+		const repl = new ReplModel();
+		const replFilter = new ReplFilter();
+
+		const getFilteredElements = () => {
+			const elements = repl.getReplElements();
+			return elements.filter(e => {
+				const filterResult = replFilter.filter(e, TreeVisibility.Visible);
+				return filterResult === true || filterResult === TreeVisibility.Visible;
+			});
+		};
+
+		repl.appendToRepl(session, 'first line\n', severity.Info);
+		repl.appendToRepl(session, 'second line\n', severity.Info);
+		repl.appendToRepl(session, 'third line\n', severity.Info);
+		repl.appendToRepl(session, 'fourth line\n', severity.Info);
+
+		replFilter.filterQuery = 'first';
+		let r1 = <SimpleReplElement[]>getFilteredElements();
+		assert.equal(r1.length, 1);
+		assert.equal(r1[0].value, 'first line\n');
+
+		replFilter.filterQuery = '!first';
+		let r2 = <SimpleReplElement[]>getFilteredElements();
+		assert.equal(r1.length, 1);
+		assert.equal(r2[0].value, 'second line\n');
+		assert.equal(r2[1].value, 'third line\n');
+		assert.equal(r2[2].value, 'fourth line\n');
+
+		replFilter.filterQuery = 'first, line';
+		let r3 = <SimpleReplElement[]>getFilteredElements();
+		assert.equal(r3.length, 4);
+		assert.equal(r3[0].value, 'first line\n');
+		assert.equal(r3[1].value, 'second line\n');
+		assert.equal(r3[2].value, 'third line\n');
+		assert.equal(r3[3].value, 'fourth line\n');
+
+		replFilter.filterQuery = 'line, !second';
+		let r4 = <SimpleReplElement[]>getFilteredElements();
+		assert.equal(r4.length, 3);
+		assert.equal(r4[0].value, 'first line\n');
+		assert.equal(r4[1].value, 'third line\n');
+		assert.equal(r4[2].value, 'fourth line\n');
+
+		replFilter.filterQuery = '!second, line';
+		let r4_same = <SimpleReplElement[]>getFilteredElements();
+		assert.equal(r4.length, r4_same.length);
+
+		replFilter.filterQuery = '!line';
+		let r5 = <SimpleReplElement[]>getFilteredElements();
+		assert.equal(r5.length, 0);
+
+		replFilter.filterQuery = 'smth';
+		let r6 = <SimpleReplElement[]>getFilteredElements();
+		assert.equal(r6.length, 0);
 	});
 });

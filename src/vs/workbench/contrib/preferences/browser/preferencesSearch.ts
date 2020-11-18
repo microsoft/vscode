@@ -33,7 +33,7 @@ export interface IEndpointDetails {
 }
 
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
@@ -402,7 +402,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		const uuid = ext.identifier.uuid;
 		const versionString = ext.manifest.version
 			.split('.')
-			.map(versionPart => strings.pad(<any>versionPart, 10))
+			.map(versionPart => String(versionPart).padStart(10), '0')
 			.join('');
 
 		return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;

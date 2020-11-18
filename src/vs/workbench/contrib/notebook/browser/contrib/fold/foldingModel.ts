@@ -6,11 +6,14 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
+import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+
+type RegionFilter = (r: FoldingRegion) => boolean;
+type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
+
 
 export class FoldingModel extends Disposable {
 	private _viewModel: NotebookViewModel | null = null;
@@ -73,13 +76,76 @@ export class FoldingModel extends Disposable {
 		this.recompute();
 	}
 
-	public setCollapsed(index: number, newState: boolean) {
+	getRegionAtLine(lineNumber: number): FoldingRegion | null {
+		if (this._regions) {
+			let index = this._regions.findRange(lineNumber);
+			if (index >= 0) {
+				return this._regions.toRegion(index);
+			}
+		}
+		return null;
+	}
+
+	getRegionsInside(region: FoldingRegion | null, filter?: RegionFilter | RegionFilterWithLevel): FoldingRegion[] {
+		let result: FoldingRegion[] = [];
+		let index = region ? region.regionIndex + 1 : 0;
+		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
+
+		if (filter && filter.length === 2) {
+			const levelStack: FoldingRegion[] = [];
+			for (let i = index, len = this._regions.length; i < len; i++) {
+				let current = this._regions.toRegion(i);
+				if (this._regions.getStartLineNumber(i) < endLineNumber) {
+					while (levelStack.length > 0 && !current.containedBy(levelStack[levelStack.length - 1])) {
+						levelStack.pop();
+					}
+					levelStack.push(current);
+					if (filter(current, levelStack.length)) {
+						result.push(current);
+					}
+				} else {
+					break;
+				}
+			}
+		} else {
+			for (let i = index, len = this._regions.length; i < len; i++) {
+				let current = this._regions.toRegion(i);
+				if (this._regions.getStartLineNumber(i) < endLineNumber) {
+					if (!filter || (filter as RegionFilter)(current)) {
+						result.push(current);
+					}
+				} else {
+					break;
+				}
+			}
+		}
+		return result;
+	}
+
+	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {
+		let result: FoldingRegion[] = [];
+		if (this._regions) {
+			let index = this._regions.findRange(lineNumber);
+			let level = 1;
+			while (index >= 0) {
+				let current = this._regions.toRegion(index);
+				if (!filter || filter(current, level)) {
+					result.push(current);
+				}
+				level++;
+				index = current.parentIndex;
+			}
+		}
+		return result;
+	}
+
+	setCollapsed(index: number, newState: boolean) {
 		this._regions.setCollapsed(index, newState);
 	}
 
 	recompute() {
 		const cells = this._viewModel!.viewCells;
-		let stack: { index: number, level: number, endIndex: number }[] = [];
+		const stack: { index: number, level: number, endIndex: number }[] = [];
 
 		for (let i = 0; i < cells.length; i++) {
 			const cell = cells[i];
@@ -129,9 +195,9 @@ export class FoldingModel extends Disposable {
 
 		// restore collased state
 		let i = 0;
-		let nextCollapsed = () => {
+		const nextCollapsed = () => {
 			while (i < this._regions.length) {
-				let isCollapsed = this._regions.isCollapsed(i);
+				const isCollapsed = this._regions.isCollapsed(i);
 				i++;
 				if (isCollapsed) {
 					return i - 1;
@@ -145,12 +211,12 @@ export class FoldingModel extends Disposable {
 
 		while (collapsedIndex !== -1 && k < newRegions.length) {
 			// get the latest range
-			let decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
+			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
 			if (decRange) {
-				let collasedStartIndex = decRange.start;
+				const collasedStartIndex = decRange.start;
 
 				while (k < newRegions.length) {
-					let startIndex = newRegions.getStartLineNumber(k) - 1;
+					const startIndex = newRegions.getStartLineNumber(k) - 1;
 					if (collasedStartIndex >= startIndex) {
 						newRegions.setCollapsed(k, collasedStartIndex === startIndex);
 						k++;
@@ -186,7 +252,7 @@ export class FoldingModel extends Disposable {
 		const collapsedRanges: ICellRange[] = [];
 		let i = 0;
 		while (i < this._regions.length) {
-			let isCollapsed = this._regions.isCollapsed(i);
+			const isCollapsed = this._regions.isCollapsed(i);
 
 			if (isCollapsed) {
 				const region = this._regions.toRegion(i);
@@ -205,12 +271,12 @@ export class FoldingModel extends Disposable {
 
 		while (k < state.length && i < this._regions.length) {
 			// get the latest range
-			let decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
+			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
 			if (decRange) {
-				let collasedStartIndex = state[k].start;
+				const collasedStartIndex = state[k].start;
 
 				while (i < this._regions.length) {
-					let startIndex = this._regions.getStartLineNumber(i) - 1;
+					const startIndex = this._regions.getStartLineNumber(i) - 1;
 					if (collasedStartIndex >= startIndex) {
 						this._regions.setCollapsed(i, collasedStartIndex === startIndex);
 						i++;

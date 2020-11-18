@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IResourceLabelProps {
-	resource?: URI | { master?: URI, detail?: URI };
+	resource?: URI | { primary?: URI, secondary?: URI };
 	name?: string | string[];
 	description?: string;
 }
@@ -38,7 +38,7 @@ function toResource(props: IResourceLabelProps | undefined): URI | undefined {
 		return props.resource;
 	}
 
-	return props.resource.master;
+	return props.resource.primary;
 }
 
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
@@ -100,8 +100,8 @@ export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
 };
 
 export class ResourceLabels extends Disposable {
-	private _widgets: ResourceLabelWidget[] = [];
-	private _labels: IResourceLabel[] = [];
+	private widgets: ResourceLabelWidget[] = [];
+	private labels: IResourceLabel[] = [];
 
 	constructor(
 		container: IResourceLabelsContainer,
@@ -123,11 +123,11 @@ export class ResourceLabels extends Disposable {
 
 		// notify when visibility changes
 		this._register(container.onDidChangeVisibility(visible => {
-			this._widgets.forEach(widget => widget.notifyVisibilityChanged(visible));
+			this.widgets.forEach(widget => widget.notifyVisibilityChanged(visible));
 		}));
 
 		// notify when extensions are registered with potentially new languages
-		this._register(this.modeService.onLanguagesMaybeChanged(() => this._widgets.forEach(widget => widget.notifyExtensionsRegistered())));
+		this._register(this.modeService.onLanguagesMaybeChanged(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
 
 		// notify when model mode changes
 		this._register(this.modelService.onModelModeChanged(e => {
@@ -135,7 +135,7 @@ export class ResourceLabels extends Disposable {
 				return; // we need the resource to compare
 			}
 
-			this._widgets.forEach(widget => widget.notifyModelModeChanged(e.model));
+			this.widgets.forEach(widget => widget.notifyModelModeChanged(e.model));
 		}));
 
 		// notify when model is added
@@ -144,35 +144,35 @@ export class ResourceLabels extends Disposable {
 				return; // we need the resource to compare
 			}
 
-			this._widgets.forEach(widget => widget.notifyModelAdded(model));
+			this.widgets.forEach(widget => widget.notifyModelAdded(model));
 		}));
 
 		// notify when file decoration changes
-		this._register(this.decorationsService.onDidChangeDecorations(e => this._widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
+		this._register(this.decorationsService.onDidChangeDecorations(e => this.widgets.forEach(widget => widget.notifyFileDecorationsChanges(e))));
 
 		// notify when theme changes
-		this._register(this.themeService.onDidColorThemeChange(() => this._widgets.forEach(widget => widget.notifyThemeChange())));
+		this._register(this.themeService.onDidColorThemeChange(() => this.widgets.forEach(widget => widget.notifyThemeChange())));
 
 		// notify when files.associations changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
-				this._widgets.forEach(widget => widget.notifyFileAssociationsChange());
+				this.widgets.forEach(widget => widget.notifyFileAssociationsChange());
 			}
 		}));
 
 		// notify when label formatters change
 		this._register(this.labelService.onDidChangeFormatters(e => {
-			this._widgets.forEach(widget => widget.notifyFormattersChange(e.scheme));
+			this.widgets.forEach(widget => widget.notifyFormattersChange(e.scheme));
 		}));
 
 		// notify when untitled labels change
 		this._register(this.textFileService.untitled.onDidChangeLabel(model => {
-			this._widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
+			this.widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
 		}));
 	}
 
 	get(index: number): IResourceLabel {
-		return this._labels[index];
+		return this.labels[index];
 	}
 
 	create(container: HTMLElement, options?: IIconLabelCreationOptions): IResourceLabel {
@@ -190,25 +190,25 @@ export class ResourceLabels extends Disposable {
 		};
 
 		// Store
-		this._labels.push(label);
-		this._widgets.push(widget);
+		this.labels.push(label);
+		this.widgets.push(widget);
 
 		return label;
 	}
 
 	private disposeWidget(widget: ResourceLabelWidget): void {
-		const index = this._widgets.indexOf(widget);
+		const index = this.widgets.indexOf(widget);
 		if (index > -1) {
-			this._widgets.splice(index, 1);
-			this._labels.splice(index, 1);
+			this.widgets.splice(index, 1);
+			this.labels.splice(index, 1);
 		}
 
 		dispose(widget);
 	}
 
 	clear(): void {
-		this._widgets = dispose(this._widgets);
-		this._labels = [];
+		this.widgets = dispose(this.widgets);
+		this.labels = [];
 	}
 
 	dispose(): void {
@@ -219,12 +219,13 @@ export class ResourceLabels extends Disposable {
 }
 
 /**
- * Note: please consider to use ResourceLabels if you are in need
+ * Note: please consider to use `ResourceLabels` if you are in need
  * of more than one label for your widget.
  */
 export class ResourceLabel extends ResourceLabels {
 
-	private _label: IResourceLabel;
+	private label: IResourceLabel;
+	get element(): IResourceLabel { return this.label; }
 
 	constructor(
 		container: HTMLElement,
@@ -240,11 +241,7 @@ export class ResourceLabel extends ResourceLabels {
 	) {
 		super(DEFAULT_LABELS_CONTAINER, instantiationService, configurationService, modelService, modeService, decorationsService, themeService, labelService, textFileService);
 
-		this._label = this._register(this.create(container, options));
-	}
-
-	get element(): IResourceLabel {
-		return this._label;
+		this.label = this._register(this.create(container, options));
 	}
 }
 
@@ -307,7 +304,7 @@ class ResourceLabelWidget extends IconLabel {
 			return; // only update if resource exists
 		}
 
-		if (model.uri.toString() === resource.toString()) {
+		if (isEqual(model.uri, resource)) {
 			if (this.lastKnownDetectedModeId !== model.getModeId()) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
@@ -379,9 +376,9 @@ class ResourceLabelWidget extends IconLabel {
 
 	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
 		const resource = toResource(label);
-		const isMasterDetail = label?.resource && !URI.isUri(label.resource);
+		const isSideBySideEditor = label?.resource && !URI.isUri(label.resource);
 
-		if (!options.forceLabel && !isMasterDetail && resource?.scheme === Schemas.untitled) {
+		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
 			// whenever the content changes (unless a path is associated).
 			// As such we always ask the actual editor for it's name and
@@ -390,7 +387,7 @@ class ResourceLabelWidget extends IconLabel {
 			// we assume that the client does not want to display them
 			// and as such do not override.
 			//
-			// We do not touch the label if it represents a master-detail
+			// We do not touch the label if it represents a primary-secondary
 			// because in that case we expect it to carry a proper label
 			// and description.
 			const untitledModel = this.textFileService.untitled.get(resource);
@@ -514,7 +511,7 @@ class ResourceLabelWidget extends IconLabel {
 		const resource = toResource(this.label);
 		const label = this.label.name;
 
-		if (this.options && typeof this.options.title === 'string') {
+		if (this.options && (this.options.title !== undefined)) {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
@@ -544,7 +541,7 @@ class ResourceLabelWidget extends IconLabel {
 			if (deco) {
 				this.renderDisposables.add(deco);
 
-				if (deco.tooltip) {
+				if (deco.tooltip && (typeof iconLabelOptions.title === 'string')) {
 					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
 				}
 

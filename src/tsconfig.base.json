@@ -5,6 +5,7 @@
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
+		"allowUnreachableCode": false,
 		"strict": true,
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",
@@ -15,6 +16,7 @@
 		},
 		"lib": [
 			"ES2015",
+			"ES2016.Array.Include",
 			"ES2017.String",
 			"ES2018.Promise",
 			"DOM",
