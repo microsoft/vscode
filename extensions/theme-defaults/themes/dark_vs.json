@@ -309,7 +309,7 @@
 				"keyword.operator.typeid",
 				"keyword.operator.alignas",
 				"keyword.operator.instanceof",
-				"keyword.operator.logical.python",
+				"keyword.operator.logical",
 				"keyword.operator.wordlike"
 			],
 			"settings": {
