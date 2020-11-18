@@ -34,6 +34,12 @@ interface IMimeTypeRenderer extends IQuickPickItem {
 }
 
 class OutputElement extends Disposable {
+
+	// this isn't super proper but I couldn't find a view-model equivalent for output
+	// and it seems as of today we use the domain model - and pragamtically enrich it
+	// with UX properties
+	private pickedMimeTypes = new WeakMap<ITransformedDisplayOutputDto, number>();
+
 	readonly resizeListener = new DisposableStore();
 	domNode!: HTMLElement;
 	renderResult?: IRenderOutput;
@@ -60,12 +66,15 @@ class OutputElement extends Disposable {
 		if (this.output.outputKind === CellOutputKind.Rich) {
 			const transformedDisplayOutput = this.output as ITransformedDisplayOutputDto;
 
-			if (transformedDisplayOutput.orderedMimeTypes!.length > 1) {
+			const mimeTypes = this.notebookService.getMimeTypeInfo(this.notebookEditor.textModel!, this.output);
+			const pick = this.pickedMimeTypes.get(this.output) ?? 0;
+
+			if (mimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
 				mimeTypePicker.classList.add('codicon', 'codicon-code');
 				mimeTypePicker.tabIndex = 0;
-				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", transformedDisplayOutput.orderedMimeTypes!.map(mimeType => mimeType.mimeType).join(', '));
+				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", mimeTypes.map(mimeType => mimeType.mimeType).join(', '));
 				outputItemDiv.appendChild(mimeTypePicker);
 				this.resizeListener.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
 					if (e.leftButton) {
@@ -85,7 +94,7 @@ class OutputElement extends Disposable {
 				})));
 
 			}
-			const pickedMimeTypeRenderer = this.output.orderedMimeTypes![this.output.pickedMimeTypeIndex!];
+			const pickedMimeTypeRenderer = mimeTypes[pick];
 
 			const innerContainer = DOM.$('.output-inner-container');
 			DOM.append(outputItemDiv, innerContainer);
@@ -167,8 +176,12 @@ class OutputElement extends Disposable {
 	}
 
 	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {
-		const currIndex = output.pickedMimeTypeIndex;
-		const items = output.orderedMimeTypes!.map((mimeType, index): IMimeTypeRenderer => ({
+
+		const mimeTypes = this.notebookService.getMimeTypeInfo(this.notebookEditor.textModel!, output);
+		const currIndex = this.pickedMimeTypes.get(output) ?? 0;
+
+		// const currIndex = output.pickedMimeTypeIndex;
+		const items = mimeTypes.map((mimeType, index): IMimeTypeRenderer => ({
 			label: mimeType.mimeType,
 			id: mimeType.mimeType,
 			index: index,
@@ -205,7 +218,7 @@ class OutputElement extends Disposable {
 				this.notebookEditor.removeInset(output);
 			}
 
-			output.pickedMimeTypeIndex = pick;
+			this.pickedMimeTypes.set(output, pick);
 			this.render(index, nextElement as HTMLElement);
 			this.relayoutCell();
 		}
@@ -769,4 +782,3 @@ export class CodeCell extends Disposable {
 		super.dispose();
 	}
 }
-

@@ -190,8 +190,8 @@ export interface ITransformedDisplayOutputDto {
 	data: { [key: string]: unknown; }
 	metadata?: NotebookCellOutputMetadata;
 
-	orderedMimeTypes?: IOrderedMimeType[];
-	pickedMimeTypeIndex?: number;
+	// orderedMimeTypes?: IOrderedMimeType[];
+	// pickedMimeTypeIndex?: number;
 }
 
 export function isTransformedDisplayOutput(thing: unknown): thing is ITransformedDisplayOutputDto {
