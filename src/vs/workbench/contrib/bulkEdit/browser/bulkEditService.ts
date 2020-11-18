@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
 import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
 import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 
 class BulkEdit {
 
@@ -25,6 +25,7 @@ class BulkEdit {
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<IProgressStep>,
 		private readonly _edits: ResourceEdit[],
+		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -67,11 +68,11 @@ class BulkEdit {
 		for (let range of ranges) {
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, undoRedoGroup, progress);
+				await this._performFileEdits(<ResourceFileEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
 			} else if (group[0] instanceof ResourceTextEdit) {
-				await this._performTextEdits(<ResourceTextEdit[]>group, undoRedoGroup, progress);
+				await this._performTextEdits(<ResourceTextEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
-				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, undoRedoGroup, progress);
+				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
@@ -79,21 +80,21 @@ class BulkEdit {
 		}
 	}
 
-	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, progress: IProgress<void>) {
+	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>) {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, progress, edits);
+		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, undoRedoSource, progress, edits);
 		await model.apply();
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, progress: IProgress<void>): Promise<void> {
+	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, undoRedoGroup, progress, edits);
+		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, undoRedoGroup, undoRedoSource, progress, edits);
 		await model.apply();
 	}
 
-	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, progress: IProgress<void>): Promise<void> {
+	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performCellEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, progress, edits);
+		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, edits);
 		await model.apply();
 	}
 }
@@ -151,7 +152,8 @@ export class BulkEditService implements IBulkEditService {
 			BulkEdit,
 			options?.quotableLabel || options?.label,
 			codeEditor, options?.progress ?? Progress.None,
-			edits
+			edits,
+			options?.undoRedoSource
 		);
 
 		try {

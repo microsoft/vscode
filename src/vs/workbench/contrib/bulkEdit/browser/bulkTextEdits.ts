@@ -14,7 +14,7 @@ import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'v
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IUndoRedoService, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceMap } from 'vs/base/common/map';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -134,6 +134,7 @@ export class BulkTextEdits {
 		private readonly _label: string,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _undoRedoGroup: UndoRedoGroup,
+		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
 		edits: ResourceTextEdit[],
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
@@ -233,7 +234,7 @@ export class BulkTextEdits {
 				const task = tasks[0];
 				if (!task.isNoOp()) {
 					const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
-					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup);
+					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 					task.apply();
 					singleModelEditStackElement.close();
 				}
@@ -244,7 +245,7 @@ export class BulkTextEdits {
 					this._label,
 					tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
 				);
-				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup);
+				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 				for (const task of tasks) {
 					task.apply();
 					this._progress.report(undefined);

@@ -9,7 +9,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -212,6 +212,7 @@ export class BulkFileEdits {
 	constructor(
 		private readonly _label: string,
 		private readonly _undoRedoGroup: UndoRedoGroup,
+		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
 		private readonly _edits: ResourceFileEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -243,6 +244,6 @@ export class BulkFileEdits {
 			}
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup);
+		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup, this._undoRedoSource);
 	}
 }
