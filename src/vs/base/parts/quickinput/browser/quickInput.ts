@@ -27,9 +27,10 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
-import { registerIcon, Codicon, renderCodicons } from 'vs/base/common/codicons';
+import { registerIcon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -414,6 +415,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _validationMessage: string | undefined;
+	private _lastValidationMessage: string | undefined;
 	private _ok: boolean | 'default' = 'default';
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
@@ -962,12 +964,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.selectedItemsToConfirm = null;
 			}
 		}
-		if (this.validationMessage) {
-			this.ui.message.innerHTML = renderCodicons(escape(this.validationMessage));
-			this.showMessageDecoration(Severity.Error);
-		} else {
-			this.ui.message.innerHTML = '';
-			this.showMessageDecoration(Severity.Ignore);
+		const validationMessage = this.validationMessage || '';
+		if (this._lastValidationMessage !== validationMessage) {
+			this._lastValidationMessage = validationMessage;
+			dom.reset(this.ui.message, ...renderCodicons(escape(validationMessage)));
+			this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
 		}
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
@@ -997,6 +998,7 @@ class InputBox extends QuickInput implements IInputBox {
 	private _prompt: string | undefined;
 	private noValidationMessage = InputBox.noPromptMessage;
 	private _validationMessage: string | undefined;
+	private _lastValidationMessage: string | undefined;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
@@ -1098,11 +1100,12 @@ class InputBox extends QuickInput implements IInputBox {
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
 		}
-		let messageInnerHtml = renderCodicons(escape(this.validationMessage || this.noValidationMessage));
-		if (this.ui.message.innerHTML !== messageInnerHtml) {
-			this.ui.message.innerHTML = messageInnerHtml;
+		const validationMessage = this.validationMessage || this.noValidationMessage;
+		if (this._lastValidationMessage !== validationMessage) {
+			this._lastValidationMessage = validationMessage;
+			dom.reset(this.ui.message, ...renderCodicons(validationMessage));
+			this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
 		}
-		this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
 	}
 }
 
@@ -1526,7 +1529,7 @@ export class QuickInputController extends Disposable {
 		ui.inputBox.showDecoration(Severity.Ignore);
 		ui.visibleCount.setCount(0);
 		ui.count.setCount(0);
-		ui.message.innerHTML = '';
+		dom.reset(ui.message);
 		ui.progressBar.stop();
 		ui.list.setElements([]);
 		ui.list.matchOnDescription = false;
