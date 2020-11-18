@@ -1903,7 +1903,7 @@ export const cellHoverBackground = registerColor('notebook.cellHoverBackground',
 export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
 	dark: notebookCellBorder,
 	light: notebookCellBorder,
-	hc: focusBorder
+	hc: contrastBorder
 }, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focusd."));
 
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
