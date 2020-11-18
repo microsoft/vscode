@@ -134,7 +134,8 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			},
-			"platforms": ["win32"]
+			"platforms": ["win32"],
+			"clientOnly": true
 		}
 	],
 	"webBuiltInExtensions": [
