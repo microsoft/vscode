@@ -365,7 +365,6 @@ export class StatefulMarkdownCell extends Disposable {
 			// so we don't want to update the focus state too eagerly
 			if (document.activeElement?.contains(this.templateData.container)) {
 				setTimeout(() => {
-					console.log(document.activeElement);
 					updateFocusMode();
 				}, 300);
 			} else {
