@@ -28,7 +28,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
-	codeBlockRenderCallback?: () => void;
+	asyncRenderCallback?: () => void;
 	baseUrl?: URI;
 }
 
@@ -177,8 +177,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				// ignore
 			});
 
-			if (options.codeBlockRenderCallback) {
-				promise.then(options.codeBlockRenderCallback);
+			if (options.asyncRenderCallback) {
+				promise.then(options.asyncRenderCallback);
 			}
 
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
@@ -245,11 +245,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	signalInnerHTML!();
 
 	// signal size changes for image tags
-	if (options.codeBlockRenderCallback) {
+	if (options.asyncRenderCallback) {
 		for (const img of element.getElementsByTagName('img')) {
 			const listener = DOM.addDisposableListener(img, 'load', () => {
 				listener.dispose();
-				options.codeBlockRenderCallback!();
+				options.asyncRenderCallback!();
 			});
 		}
 	}
