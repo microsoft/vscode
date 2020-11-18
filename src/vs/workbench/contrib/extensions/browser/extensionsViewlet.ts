@@ -126,16 +126,26 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		for (const server of servers) {
 			const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
 			const onDidChangeServerLabel: EventOf<void> = EventOf.map(this.labelService.onDidChangeFormatters, () => undefined);
-			viewDescriptors.push({
-				id: servers.length > 1 ? `workbench.views.extensions.${server.id}.installed` : `workbench.views.extensions.installed`,
+			const onDidChangeTitle = EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName());
+			const id = servers.length > 1 ? `workbench.views.extensions.${server.id}.installed` : `workbench.views.extensions.installed`;
+			const viewDescriptor = {
 				get name() { return getInstalledViewName(); },
-				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, fixedHeight: true, onDidChangeTitle: EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName()) }]),
-				when: ContextKeyExpr.has('defaultExtensionViews'),
 				weight: 100,
 				order: 1,
 				/* Installed extensions views shall not be hidden when there are more than one server */
 				canToggleVisibility: servers.length === 1
-			});
+			};
+			viewDescriptors.push(...[{
+				...viewDescriptor,
+				id: `${id}.empty`,
+				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.not('hasInstalledExtensions')),
+				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, fixedHeight: true, onDidChangeTitle }]),
+			}, {
+				...viewDescriptor,
+				id,
+				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions')),
+				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, onDidChangeTitle }]),
+			}]);
 		}
 
 		/*
@@ -176,7 +186,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.enabled',
 				name: localize('enabledExtensions', "Enabled"),
-				ctorDescriptor: new SyncDescriptor(EnabledExtensionsView, [{ fixedHeight: true }]),
+				ctorDescriptor: new SyncDescriptor(EnabledExtensionsView, []),
 				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
 				weight: 40,
@@ -191,7 +201,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.disabled',
 				name: localize('disabledExtensions', "Disabled"),
-				ctorDescriptor: new SyncDescriptor(DisabledExtensionsView, [{ fixedHeight: true }]),
+				ctorDescriptor: new SyncDescriptor(DisabledExtensionsView, []),
 				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
 				weight: 10,
