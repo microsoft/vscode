@@ -55,6 +55,7 @@ steps:
 - script: |
     echo -n $VSCODE_ARCH > .build/arch
   displayName: Prepare arch cache flag
+  condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
