@@ -502,6 +502,7 @@ export interface INotebookCellList {
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
 	revealElementInCenter(element: ICellViewModel): void;
+	revealElementInCenterIfOutsideViewportAsync(element: ICellViewModel): Promise<void>;
 	revealElementLineInViewAsync(element: ICellViewModel, line: number): Promise<void>;
 	revealElementLineInCenterAsync(element: ICellViewModel, line: number): Promise<void>;
 	revealElementLineInCenterIfOutsideViewportAsync(element: ICellViewModel, line: number): Promise<void>;

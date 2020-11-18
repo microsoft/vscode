@@ -690,7 +690,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const cell = this._notebookViewModel!.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
 				this.selectElement(cell);
-				this.revealInCenterIfOutsideViewport(cell);
+				await this.revealInCenterIfOutsideViewportAsync(cell);
 				const editor = this._renderedEditors.get(cell)!;
 				if (editor) {
 					if (cellOptions.options?.selection) {
@@ -1198,6 +1198,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
 		this._list?.revealElementInCenterIfOutsideViewport(cell);
+	}
+
+	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
+		return this._list?.revealElementInCenterIfOutsideViewportAsync(cell);
 	}
 
 	revealInCenter(cell: ICellViewModel) {
