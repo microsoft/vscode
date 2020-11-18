@@ -489,7 +489,17 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(templateData.editor!.onDidBlurEditorWidget(() => {
-			updateFocusMode();
+			// this is for a special case:
+			// users click the status bar empty space, which we will then focus the editor
+			// so we don't want to update the focus state too eagerly
+			if (document.activeElement?.contains(this.templateData.container)) {
+				setTimeout(() => {
+					console.log(document.activeElement);
+					updateFocusMode();
+				}, 300);
+			} else {
+				updateFocusMode();
+			}
 		}));
 
 		updateFocusMode();
