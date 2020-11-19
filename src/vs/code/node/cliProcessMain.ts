@@ -144,7 +144,7 @@ export class Main {
 				const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
 				if (installedExtension) {
 					if (!version && !force) {
-						console.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' is already installed. Use '--force' option to check and update to newer version.", id));
+						console.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide `@${version}` to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
 						continue;
 					}
 					if (version && installedExtension.manifest.version === version) {
