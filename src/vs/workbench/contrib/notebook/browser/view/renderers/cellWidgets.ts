@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderCodicons } from 'vs/base/browser/codicons';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
@@ -13,16 +14,22 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { extUri } from 'vs/base/common/resources';
+import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ChangeCellLanguageAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarEntry } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+
 
 const $ = DOM.$;
 
@@ -251,5 +258,89 @@ export class CellLanguageStatusBarItem extends Disposable {
 		const modeId = this.cell?.cellKind === CellKind.Markdown ? 'markdown' : this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
 		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
 		this.labelElement.title = localize('notebook.cell.status.language', "Select Cell Language Mode");
+	}
+}
+
+export class CodiconActionViewItem extends MenuEntryActionViewItem {
+	constructor(
+		readonly _action: MenuItemAction,
+		keybindingService: IKeybindingService,
+		notificationService: INotificationService,
+	) {
+		super(_action, keybindingService, notificationService);
+	}
+	updateLabel(): void {
+		if (this.options.label && this.label) {
+			DOM.reset(this.label, ...renderCodicons(this._commandAction.label ?? ''));
+		}
+	}
+}
+
+declare const ResizeObserver: any;
+
+export interface IResizeObserver {
+	startObserving: () => void;
+	stopObserving: () => void;
+	getWidth(): number;
+	getHeight(): number;
+	dispose(): void;
+}
+
+export class BrowserResizeObserver extends Disposable implements IResizeObserver {
+	private readonly referenceDomElement: HTMLElement | null;
+
+	private readonly observer: any;
+	private width: number;
+	private height: number;
+
+	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
+		super();
+
+		this.referenceDomElement = referenceDomElement;
+		this.width = -1;
+		this.height = -1;
+
+		this.observer = new ResizeObserver((entries: any) => {
+			for (const entry of entries) {
+				if (entry.target === referenceDomElement && entry.contentRect) {
+					if (this.width !== entry.contentRect.width || this.height !== entry.contentRect.height) {
+						this.width = entry.contentRect.width;
+						this.height = entry.contentRect.height;
+						DOM.scheduleAtNextAnimationFrame(() => {
+							changeCallback();
+						});
+					}
+				}
+			}
+		});
+	}
+
+	getWidth(): number {
+		return this.width;
+	}
+
+	getHeight(): number {
+		return this.height;
+	}
+
+	startObserving(): void {
+		this.observer.observe(this.referenceDomElement!);
+	}
+
+	stopObserving(): void {
+		this.observer.unobserve(this.referenceDomElement!);
+	}
+
+	dispose(): void {
+		this.observer.disconnect();
+		super.dispose();
+	}
+}
+
+export function getResizesObserver(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void): IResizeObserver {
+	if (ResizeObserver) {
+		return new BrowserResizeObserver(referenceDomElement, dimension, changeCallback);
+	} else {
+		return new ElementSizeObserver(referenceDomElement, dimension, changeCallback);
 	}
 }

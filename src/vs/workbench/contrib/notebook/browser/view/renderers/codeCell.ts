@@ -21,12 +21,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellOutputKind, CellUri, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RENDERER_NOT_AVAILABLE, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellOutputKind, CellUri, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, NotebookCellOutputsSplice, outputHasDynamicHeight, RENDERER_NOT_AVAILABLE, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
+import { ClickTargetType, getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
 const OUTPUT_COUNT_LIMIT = 500;
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -365,76 +364,6 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this._register(viewCell.onDidChangeOutputs((splices) => {
-			if (!splices.length) {
-				return;
-			}
-
-			const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
-
-			if (this.viewCell.outputs.length) {
-				this.templateData.outputContainer!.style.display = 'block';
-			} else {
-				this.templateData.outputContainer!.style.display = 'none';
-			}
-
-			const reversedSplices = splices.reverse();
-
-			reversedSplices.forEach(splice => {
-				viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
-			});
-
-			const removedKeys: IProcessedOutput[] = [];
-
-			this.outputEntries.forEach((value, key) => {
-				if (viewCell.outputs.indexOf(key) < 0) {
-					// already removed
-					removedKeys.push(key);
-					// remove element from DOM
-					this.templateData?.outputContainer?.removeChild(value.domNode);
-					this.notebookEditor.removeInset(key);
-				}
-			});
-
-			removedKeys.forEach(key => {
-				this.outputEntries.get(key)?.dispose();
-				this.outputEntries.delete(key);
-			});
-
-			let prevElement: HTMLElement | undefined = undefined;
-			const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
-
-			outputsToRender.reverse().forEach(output => {
-				if (this.outputEntries.has(output)) {
-					// already exist
-					prevElement = this.outputEntries.get(output)!.domNode;
-					return;
-				}
-
-				// newly added element
-				const currIndex = this.viewCell.outputs.indexOf(output);
-				this.renderOutput(output, currIndex, prevElement);
-				prevElement = this.outputEntries.get(output)?.domNode;
-			});
-
-			if (this.viewCell.outputs.length > OUTPUT_COUNT_LIMIT) {
-				this.templateData.outputShowMoreContainer.style.display = 'block';
-				this.viewCell.updateOutputShowMoreContainerHeight(46);
-			} else {
-				this.templateData.outputShowMoreContainer.style.display = 'none';
-			}
-
-			const editorHeight = templateData.editor!.getContentHeight();
-			viewCell.editorHeight = editorHeight;
-
-			if (previousOutputHeight === 0 || this.viewCell.outputs.length === 0) {
-				// first execution or removing all outputs
-				this.relayoutCell();
-			} else {
-				this.relayoutCellDebounced();
-			}
-		}));
-
 		this._register(viewCell.onDidChangeLayout(() => {
 			this.outputEntries.forEach((value, key) => {
 				const index = viewCell.outputs.indexOf(key);
@@ -446,6 +375,7 @@ export class CodeCell extends Disposable {
 
 		}));
 
+		// Apply decorations
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
@@ -467,7 +397,6 @@ export class CodeCell extends Disposable {
 				}
 			});
 		}));
-		// apply decorations
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
@@ -479,6 +408,7 @@ export class CodeCell extends Disposable {
 			}
 		});
 
+		// Mouse click handlers
 		this._register(templateData.statusBar.onDidClick(e => {
 			if (e.type !== ClickTargetType.ContributedItem) {
 				const target = templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - viewCell.getEditorStatusbarHeight());
@@ -497,11 +427,11 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
+		// Focus Mode
 		const updateFocusMode = () => viewCell.focusMode = templateData.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
 		this._register(templateData.editor!.onDidFocusEditorWidget(() => {
 			updateFocusMode();
 		}));
-
 		this._register(templateData.editor!.onDidBlurEditorWidget(() => {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
@@ -514,10 +444,19 @@ export class CodeCell extends Disposable {
 				updateFocusMode();
 			}
 		}));
-
 		updateFocusMode();
 
-		if (viewCell.outputs.length > 0) {
+		// Render Outputs
+		this.renderOutputs(editorHeight);
+		this._register(viewCell.onDidChangeOutputs((splices) => {
+			this.updateOutputs(splices);
+		}));
+		// Need to do this after the intial renderOutput
+		updateForCollapseState();
+	}
+
+	renderOutputs(editorHeight: number) {
+		if (this.viewCell.outputs.length > 0) {
 			let layoutCache = false;
 			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
 				layoutCache = true;
@@ -535,7 +474,7 @@ export class CodeCell extends Disposable {
 				this.renderOutput(currOutput, index, undefined);
 			}
 
-			viewCell.editorHeight = editorHeight;
+			this.viewCell.editorHeight = editorHeight;
 			if (this.viewCell.outputs.length > OUTPUT_COUNT_LIMIT) {
 				this.templateData.outputShowMoreContainer.style.display = 'block';
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
@@ -548,7 +487,7 @@ export class CodeCell extends Disposable {
 			}
 		} else {
 			// noop
-			viewCell.editorHeight = editorHeight;
+			this.viewCell.editorHeight = editorHeight;
 			this.relayoutCell();
 			this.templateData.outputContainer!.style.display = 'none';
 		}
@@ -561,9 +500,76 @@ export class CodeCell extends Disposable {
 			this.templateData.outputShowMoreContainer.style.display = 'none';
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
 		}
+	}
 
-		// Need to do this after the intial renderOutput
-		updateForCollapseState();
+	updateOutputs(splices: NotebookCellOutputsSplice[]) {
+		if (!splices.length) {
+			return;
+		}
+
+		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
+
+		if (this.viewCell.outputs.length) {
+			this.templateData.outputContainer!.style.display = 'block';
+		} else {
+			this.templateData.outputContainer!.style.display = 'none';
+		}
+
+		const reversedSplices = splices.reverse();
+
+		reversedSplices.forEach(splice => {
+			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
+		});
+
+		const removedKeys: IProcessedOutput[] = [];
+
+		this.outputEntries.forEach((value, key) => {
+			if (this.viewCell.outputs.indexOf(key) < 0) {
+				// already removed
+				removedKeys.push(key);
+				// remove element from DOM
+				this.templateData?.outputContainer?.removeChild(value.domNode);
+				this.notebookEditor.removeInset(key);
+			}
+		});
+
+		removedKeys.forEach(key => {
+			this.outputEntries.get(key)?.dispose();
+			this.outputEntries.delete(key);
+		});
+
+		let prevElement: HTMLElement | undefined = undefined;
+		const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
+
+		outputsToRender.reverse().forEach(output => {
+			if (this.outputEntries.has(output)) {
+				// already exist
+				prevElement = this.outputEntries.get(output)!.domNode;
+				return;
+			}
+
+			// newly added element
+			const currIndex = this.viewCell.outputs.indexOf(output);
+			this.renderOutput(output, currIndex, prevElement);
+			prevElement = this.outputEntries.get(output)?.domNode;
+		});
+
+		if (this.viewCell.outputs.length > OUTPUT_COUNT_LIMIT) {
+			this.templateData.outputShowMoreContainer.style.display = 'block';
+			this.viewCell.updateOutputShowMoreContainerHeight(46);
+		} else {
+			this.templateData.outputShowMoreContainer.style.display = 'none';
+		}
+
+		const editorHeight = this.templateData.editor!.getContentHeight();
+		this.viewCell.editorHeight = editorHeight;
+
+		if (previousOutputHeight === 0 || this.viewCell.outputs.length === 0) {
+			// first execution or removing all outputs
+			this.relayoutCell();
+		} else {
+			this.relayoutCellDebounced();
+		}
 	}
 
 	generateShowMoreElement(): any {
