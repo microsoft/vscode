@@ -8,7 +8,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText, ReplaceCommandThatModifiesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -1059,8 +1059,49 @@ export class SnakeCaseAction extends AbstractCaseAction {
 		});
 	}
 
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let selections = editor.getSelections();
+		if (selections === null) {
+			return;
+		}
+
+		let model = editor.getModel();
+		if (model === null) {
+			return;
+		}
+
+		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
+
+		let commands: ICommand[] = [];
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
+			if (selection.isEmpty()) {
+				let cursor = selection.getStartPosition();
+				const word = editor.getConfiguredWordAtPosition(cursor);
+
+				if (!word) {
+					continue;
+				}
+
+				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				let text = model.getValueInRange(wordRange);
+				commands.push(new ReplaceCommandThatModifiesSelection(wordRange, this._modifyText(text, wordSeparators),
+					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column), text));
+
+			} else {
+				let text = model.getValueInRange(selection);
+				commands.push(new ReplaceCommandThatModifiesSelection(selection, this._modifyText(text, wordSeparators), selection, text));
+			}
+		}
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+
 	protected _modifyText(text: string, wordSeparators: string): string {
-		return text.replace(/(?<=\p{Ll})(\p{Lu})|(?<!\b|_)(\p{Lu})(?=\p{Ll})/gmu, '_$&').replace(/(?<=\p{L})[- ](?=\p{L})/gmu, '_').toLocaleLowerCase();
+		return text.replace(/(?<=\p{Ll})(\p{Lu})|(?<!\b|_)(\p{Lu})(?=\p{Ll})/gmu, '_$&').toLocaleLowerCase();
 	}
 }
 

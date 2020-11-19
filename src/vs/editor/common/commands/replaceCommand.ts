@@ -142,3 +142,48 @@ export class ReplaceCommandThatPreservesSelection implements ICommand {
 		return helper.getTrackedSelection(this._selectionId!);
 	}
 }
+
+export class ReplaceCommandThatModifiesSelection implements ICommand {
+
+	private readonly _range: Range;
+	private readonly _text: string;
+	private readonly _initialSelection: Selection;
+	private readonly _initialText: string;
+	private readonly _forceMoveMarkers: boolean;
+
+	constructor(editRange: Range, text: string, initialSelection: Selection, initialText: string, forceMoveMarkers: boolean = false) {
+		this._range = editRange;
+		this._text = text;
+		this._initialSelection = initialSelection;
+		this._initialText = initialText;
+		this._forceMoveMarkers = forceMoveMarkers;
+	}
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		builder.addTrackedEditOperation(this._range, this._text, this._forceMoveMarkers);
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		let start = 0;
+		let end = 0;
+		let modifiedLines = this._text.split('\n');
+		let initialLines = this._initialText.split('\n');
+
+		if (this._initialSelection.selectionStartLineNumber < this._initialSelection.positionLineNumber ||
+			(this._initialSelection.selectionStartLineNumber === this._initialSelection.positionLineNumber &&
+				this._initialSelection.selectionStartColumn < this._initialSelection.positionColumn)) {
+			start = this._initialSelection.selectionStartColumn;
+			end = this._initialSelection.positionColumn + (modifiedLines[modifiedLines.length - 1].length - initialLines[initialLines.length - 1].length);
+		} else if (this._initialSelection.selectionStartLineNumber > this._initialSelection.positionLineNumber ||
+			(this._initialSelection.selectionStartLineNumber === this._initialSelection.positionLineNumber &&
+				this._initialSelection.selectionStartColumn > this._initialSelection.positionColumn)) {
+			end = this._initialSelection.positionColumn;
+			start = this._initialSelection.selectionStartColumn + (modifiedLines[modifiedLines.length - 1].length - initialLines[initialLines.length - 1].length);
+		} else {
+			start = this._initialSelection.selectionStartColumn;
+			end = this._initialSelection.positionColumn;
+		}
+
+		return new Selection(this._initialSelection.selectionStartLineNumber, start, this._initialSelection.positionLineNumber, end);
+	}
+}
