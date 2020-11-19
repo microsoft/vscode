@@ -18,6 +18,7 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { createSettingMatchRegExp } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -291,30 +292,22 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAnyFeature(featureFilters?: Set<string>): boolean {
-		const features = tocData.children!.filter(child => child.id === 'features')[0].children!.map(feature => {
-			return {
-				name: feature.id.substring(9),
-				values: feature.settings!.map(setting => setting.toString().substring(0, setting.toString().length - 2))
-			};
-		});
 
 		if (!featureFilters || !featureFilters.size) {
 			return true;
 		}
 
-		const result = Array.from(featureFilters).map(filter => {
-			const foundFeature = features.find(item => item.name === filter);
-			if (foundFeature) {
-				if (foundFeature.values.length === 1) {
-					return Array.from(featureFilters).some((feature: string) => this.setting.key.toLowerCase().startsWith(feature) && !this.setting.extensionInfo);
-				} else {
-					return Array.from(featureFilters).some((feature: string) => (this.setting.key.toLowerCase().startsWith(feature) || this.setting.key.toLowerCase().startsWith(foundFeature.values[1])) && !this.setting.extensionInfo);
-				}
+		const features = tocData.children!.find(child => child.id === 'features')!.children;
+
+		return Array.from(featureFilters).some(filter => {
+			const feature = features!.find(feature => 'features/' + filter === feature.id);
+			if (feature) {
+				const patterns = feature.settings?.map(setting => createSettingMatchRegExp(setting.toString()));
+				return patterns && !this.setting.extensionInfo && (patterns[0].test(this.setting.key.toLowerCase()) || (patterns.length > 1 && patterns[1].test(this.setting.key.toLowerCase())));
 			} else {
 				return false;
 			}
 		});
-		return result.filter(r => r).length > 0;
 	}
 }
 

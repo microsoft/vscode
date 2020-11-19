@@ -333,7 +333,7 @@ function getMatchingSettings(allSettings: Set<ISetting>, pattern: string, logSer
 
 const settingPatternCache = new Map<string, RegExp>();
 
-function createSettingMatchRegExp(pattern: string): RegExp {
+export function createSettingMatchRegExp(pattern: string): RegExp {
 	pattern = escapeRegExpCharacters(pattern)
 		.replace(/\\\*/g, '.*');
 
