@@ -23,7 +23,7 @@ import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/
 import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellOutputKind, CellUri, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellOutputKind, CellUri, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RENDERER_NOT_AVAILABLE, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
@@ -67,7 +67,8 @@ class OutputElement extends Disposable {
 			const transformedDisplayOutput = this.output as ITransformedDisplayOutputDto;
 
 			const mimeTypes = this.notebookService.getMimeTypeInfo(this.notebookEditor.textModel!, this.output);
-			const pick = this.pickedMimeTypes.get(this.output) ?? 0;
+
+			const pick = this.pickedMimeTypes.get(this.output) ?? Math.max(mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE), 0);
 
 			if (mimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
