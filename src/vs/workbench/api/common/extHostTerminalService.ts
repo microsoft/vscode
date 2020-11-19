@@ -691,7 +691,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				timeout(EXT_HOST_CREATION_DELAY * 2).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
+				timeout(EXT_HOST_CREATION_DELAY * 8).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
 			}
 		});
 	}
