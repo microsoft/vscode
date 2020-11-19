@@ -96,24 +96,34 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		const languageIdentifier = languageIdentifierResolver.getLanguageIdentifier(languageId);
 		const language = languageIdentifier ? languageIdentifier.language : '';
-		const syntax = language.split('.').pop();
+		let syntax = language.split('.').pop();
 
 		if (!syntax) {
 			return null;
 		}
 
-		const checkParentMode = (): string => {
+		// map to something Emmet understands
+		if (['jsx-tags', 'javascriptreact', 'typescriptreact'].includes(syntax)) {
+			syntax = 'jsx';
+		}
+
+		const getParentMode = (syntax: string): string => {
+			if (syntax === 'jsx') {
+				// return otherwise getGrammar gives a string that Emmet doesn't understand
+				return syntax;
+			}
+
 			const languageGrammar = grammars.getGrammar(syntax);
 			if (!languageGrammar) {
 				return syntax;
 			}
 			const languages = languageGrammar.split('.');
-			if (languages.length < 2) {
+			if (languages.length <= 1) {
 				return syntax;
 			}
-			for (let i = 1; i < languages.length; i++) {
-				const language = languages[languages.length - i];
-				if (this.emmetSupportedModes.indexOf(language) !== -1) {
+			for (let i = 0; i < languages.length - 1; i++) {
+				const language = languages[languages.length - i - 1];
+				if (this.emmetSupportedModes.includes(language)) {
 					return language;
 				}
 			}
@@ -122,7 +132,7 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 
 		return {
 			language: syntax,
-			parentMode: checkParentMode()
+			parentMode: getParentMode(syntax)
 		};
 	}
 }

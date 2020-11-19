@@ -54,9 +54,22 @@ suite('Emmet expandAbbreviation command', () => {
 			testIsEnabled('nunjucks', 'text.html.nunjucks', 'nunjucks', 'html');
 			testIsEnabled('laravel-blade', 'text.html.php.laravel-blade', 'laravel-blade', 'html');
 
-			// languages that have different Language Id and scopeName
-			// testIsEnabled('razor', 'text.html.cshtml', 'razor', 'html');
-			// testIsEnabled('HTML (Eex)', 'text.html.elixir', 'boo', 'html');
+			// basic syntaxes
+			testIsEnabled('html', 'text.html.derivative', 'html', 'html');
+			testIsEnabled('css', 'source.css', 'css', 'css');
+			testIsEnabled('scss', 'source.css.scss', 'scss', 'scss');
+			testIsEnabled('xml', 'text.xml', 'xml', 'xml');
+			testIsEnabled('xsl', 'text.xml.xsl', 'xsl', 'xsl');
+
+			// syntaxes that combine HTML and TS/JS
+			// expanding inside of HTML tags within jsx/tsx
+			testIsEnabled('jsx-tags', 'source.js.jsx', 'jsx', 'jsx');
+			// expanding outside of HTML tags within jsx/tsx
+			testIsEnabled('javascriptreact', 'source.js.jsx', 'jsx', 'jsx');
+			testIsEnabled('typescriptreact', 'source.tsx', 'jsx', 'jsx');
+
+			// syntaxes that combine HTML and some other language
+			testIsEnabled('razor', 'text.html.cshtml', 'razor', 'html');
 		});
 	});
 });
