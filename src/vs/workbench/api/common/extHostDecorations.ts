@@ -37,7 +37,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
 
-	registerDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
+	registerFileDecorationProvider(provider: vscode.FileDecorationProvider, extensionId: ExtensionIdentifier): vscode.Disposable {
 		const handle = ExtHostDecorations._handlePool++;
 		this._provider.set(handle, { provider, extensionId });
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);

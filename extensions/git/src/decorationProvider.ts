@@ -26,7 +26,7 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 			model.onDidCloseRepository
 		));
 
-		this.disposables.push(window.registerDecorationProvider(this));
+		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
 	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
@@ -100,7 +100,7 @@ class GitDecorationProvider implements FileDecorationProvider {
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this),
+			window.registerFileDecorationProvider(this),
 			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
 		);
 	}

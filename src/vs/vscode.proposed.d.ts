@@ -801,7 +801,7 @@ declare module 'vscode' {
 	}
 
 	export namespace window {
-		export function registerDecorationProvider(provider: FileDecorationProvider): Disposable;
+		export function registerFileDecorationProvider(provider: FileDecorationProvider): Disposable;
 	}
 
 	//#endregion
