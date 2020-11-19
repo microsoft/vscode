@@ -258,7 +258,7 @@ function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem
 	});
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
+export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>, leftoverSettings: Set<ISetting> } {
 	const allSettings = getFlatSettings(coreSettingsGroups);
 	return {
 		tree: _resolveSettingsTree(tocData, allSettings, logService),
@@ -266,7 +266,7 @@ export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISet
 	};
 }
 
-export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
+export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
 	const settingsGroupToEntry = (group: ISettingsGroup) => {
 		const flatSettings = arrays.flatten(
 			group.sections.map(section => section.settings));
@@ -289,8 +289,8 @@ export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
 	};
 }
 
-function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry {
-	let children: ITOCEntry[] | undefined;
+function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry<ISetting> {
+	let children: ITOCEntry<ISetting>[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
 			.map(child => _resolveSettingsTree(child, allSettings, logService))
@@ -299,7 +299,7 @@ function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>, lo
 
 	let settings: ISetting[] | undefined;
 	if (tocData.settings) {
-		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern, logService)));
+		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern, logService)));
 	}
 
 	if (!children && !settings) {

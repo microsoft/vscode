@@ -302,7 +302,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			if (features && features.children) {
 				const feature = features.children.find(feature => 'features/' + filter === feature.id);
 				if (feature) {
-					const patterns = feature.settings?.map(setting => createSettingMatchRegExp(setting as string));
+					const patterns = feature.settings?.map(setting => createSettingMatchRegExp(setting));
 					return patterns && !this.setting.extensionInfo && patterns.some(pattern => pattern.test(this.setting.key.toLowerCase()));
 				} else {
 					return false;
@@ -317,7 +317,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 export class SettingsTreeModel {
 	protected _root!: SettingsTreeGroupElement;
 	private _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
-	private _tocRoot!: ITOCEntry;
+	private _tocRoot!: ITOCEntry<ISetting>;
 
 	constructor(
 		protected _viewState: ISettingsEditorViewState,
@@ -373,14 +373,14 @@ export class SettingsTreeModel {
 		});
 	}
 
-	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
+	private createSettingsTreeGroupElement(tocEntry: ITOCEntry<ISetting>, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
 
 		const depth = parent ? this.getDepth(parent) + 1 : 0;
 		const element = new SettingsTreeGroupElement(tocEntry.id, undefined, tocEntry.label, depth, false);
 
 		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
-			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
+			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
 			children.push(...settingChildren);
 		}
