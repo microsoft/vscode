@@ -30,7 +30,17 @@ suite('Windows Native Helpers', () => {
 	test('vscode-windows-ca-certs', async () => {
 		// @ts-ignore Windows only
 		const windowsCerts = await import('vscode-windows-ca-certs');
+		const store = new windowsCerts.Crypt32();
 		assert.ok(windowsCerts, 'Unable to load vscode-windows-ca-certs dependency.');
+		let certCount = 0;
+		try {
+			while (store.next()) {
+				certCount++;
+			}
+		} finally {
+			store.done();
+		}
+		assert(certCount > 0);
 	});
 
 	test('vscode-windows-registry', async () => {
