@@ -25,6 +25,7 @@ class BulkEdit {
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<IProgressStep>,
 		private readonly _edits: ResourceEdit[],
+		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -62,17 +63,15 @@ class BulkEdit {
 		this._progress.report({ total: this._edits.length });
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
-		const undoRedoGroup = new UndoRedoGroup();
-
 		let index = 0;
 		for (let range of ranges) {
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
+				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
 			} else if (group[0] instanceof ResourceTextEdit) {
-				await this._performTextEdits(<ResourceTextEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
+				await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
-				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
+				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
@@ -104,6 +103,8 @@ export class BulkEditService implements IBulkEditService {
 	declare readonly _serviceBrand: undefined;
 
 	private _previewHandler?: IBulkEditPreviewHandler;
+
+	private readonly _undoRedoGroups: UndoRedoGroup[] = [];
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -148,11 +149,22 @@ export class BulkEditService implements IBulkEditService {
 			codeEditor = undefined;
 		}
 
+		let undoRedoGroup: UndoRedoGroup;
+		let undoRedoGroupIsBorrowed = false;
+		if (options?.mergeWithActiveUndoRedoGroup && this._undoRedoGroups.length > 0) {
+			undoRedoGroup = this._undoRedoGroups[this._undoRedoGroups.length - 1];
+			undoRedoGroupIsBorrowed = true;
+		} else {
+			undoRedoGroup = new UndoRedoGroup();
+			this._undoRedoGroups.push(undoRedoGroup);
+		}
+
 		const bulkEdit = this._instaService.createInstance(
 			BulkEdit,
 			options?.quotableLabel || options?.label,
 			codeEditor, options?.progress ?? Progress.None,
 			edits,
+			undoRedoGroup,
 			options?.undoRedoSource
 		);
 
@@ -164,6 +176,13 @@ export class BulkEditService implements IBulkEditService {
 			// console.log(err);
 			this._logService.error(err);
 			throw err;
+		} finally {
+			if (!undoRedoGroupIsBorrowed) {
+				const idx = this._undoRedoGroups.indexOf(undoRedoGroup);
+				if (idx >= 0) {
+					this._undoRedoGroups.splice(idx, 1);
+				}
+			}
 		}
 	}
 }

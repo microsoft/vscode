@@ -70,6 +70,7 @@ export interface IBulkEditOptions {
 	label?: string;
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
+	mergeWithActiveUndoRedoGroup?: boolean;
 }
 
 export interface IBulkEditResult {

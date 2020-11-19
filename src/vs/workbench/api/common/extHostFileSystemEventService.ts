@@ -222,7 +222,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 				dto.edits = dto.edits.concat(edits);
 			}
-			return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
+			return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto, { mergeWithActiveUndoRedoGroup: true });
 		}
 	}
 }

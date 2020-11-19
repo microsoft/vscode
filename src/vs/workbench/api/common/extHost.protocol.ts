@@ -269,7 +269,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto, options?: { mergeWithActiveUndoRedoGroup?: boolean }): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
