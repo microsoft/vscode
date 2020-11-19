@@ -375,7 +375,13 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		const added: IAddedViewDescriptorRef[] = [];
 		const removed: IViewDescriptorRef[] = [];
 
-		for (const { visibleIndex, viewDescriptorItem, visible, size } of viewDescriptors.map(({ id, visible, size }) => ({ ...this.findAndIgnoreIfNotFound(id), visible, size }))) {
+		for (const { id, visible, size } of viewDescriptors) {
+			const foundViewDescriptor = this.findAndIgnoreIfNotFound(id);
+			if (!foundViewDescriptor) {
+				continue;
+			}
+
+			const { viewDescriptorItem, visibleIndex } = foundViewDescriptor;
 			const viewDescriptor = viewDescriptorItem.viewDescriptor;
 
 			if (!viewDescriptor.canToggleVisibility) {
