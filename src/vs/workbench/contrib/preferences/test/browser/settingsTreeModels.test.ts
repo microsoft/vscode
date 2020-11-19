@@ -147,6 +147,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: [],
+				featureFilters: [],
 				query: ''
 			});
 
@@ -155,6 +156,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
+				featureFilters: [],
 				query: ''
 			});
 
@@ -163,6 +165,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo'],
 				extensionFilters: [],
+				featureFilters: [],
 				query: ''
 			});
 
@@ -171,6 +174,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
+				featureFilters: [],
 				query: 'foo'
 			});
 
@@ -179,6 +183,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
 				extensionFilters: [],
+				featureFilters: [],
 				query: ''
 			});
 
@@ -187,6 +192,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
 				extensionFilters: [],
+				featureFilters: [],
 				query: 'my query'
 			});
 
@@ -195,6 +201,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
+				featureFilters: [],
 				query: 'test  query'
 			});
 
@@ -203,6 +210,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
+				featureFilters: [],
 				query: 'test'
 			});
 
@@ -211,7 +219,8 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: [],
-				query: 'query has @ for some reason'
+				query: 'query has @ for some reason',
+				featureFilters: [],
 			});
 
 		testParseQuery(
@@ -219,6 +228,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: ['github.vscode-pull-request-github'],
+				featureFilters: [],
 				query: ''
 			});
 
@@ -227,6 +237,24 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
+				featureFilters: [],
+				query: ''
+			});
+		testParseQuery(
+			'@feature:scm',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: ['scm'],
+				query: ''
+			});
+
+		testParseQuery(
+			'@feature:scm,terminal',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: ['scm', 'terminal'],
 				query: ''
 			});
 	});
