@@ -1903,7 +1903,7 @@ export const cellHoverBackground = registerColor('notebook.cellHoverBackground',
 export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
 	dark: notebookCellBorder,
 	light: notebookCellBorder,
-	hc: focusBorder
+	hc: contrastBorder
 }, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focusd."));
 
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
@@ -2035,17 +2035,20 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
-	collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-top:before,
+	collector.addRule(`
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-top:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused:after {
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
 				border-color: ${focusedCellBorderColor} !important;
 			}`);
 
 	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before {
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:after {
 				border-color: ${selectedCellBorderColor} !important;
 			}`);
 
