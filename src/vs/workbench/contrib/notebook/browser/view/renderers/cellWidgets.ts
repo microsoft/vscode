@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderCodicons } from 'vs/base/browser/codicons';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
@@ -18,11 +17,8 @@ import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserve
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ChangeCellLanguageAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -258,21 +254,6 @@ export class CellLanguageStatusBarItem extends Disposable {
 		const modeId = this.cell?.cellKind === CellKind.Markdown ? 'markdown' : this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
 		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
 		this.labelElement.title = localize('notebook.cell.status.language', "Select Cell Language Mode");
-	}
-}
-
-export class CodiconActionViewItem extends MenuEntryActionViewItem {
-	constructor(
-		readonly _action: MenuItemAction,
-		keybindingService: IKeybindingService,
-		notificationService: INotificationService,
-	) {
-		super(_action, keybindingService, notificationService);
-	}
-	updateLabel(): void {
-		if (this.options.label && this.label) {
-			DOM.reset(this.label, ...renderCodicons(this._commandAction.label ?? ''));
-		}
 	}
 }
 
