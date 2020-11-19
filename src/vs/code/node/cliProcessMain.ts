@@ -134,6 +134,20 @@ export class Main {
 		}
 
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const checkIfNotInstalled = (id: string, version?: string): boolean => {
+			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
+			if (installedExtension) {
+				if (!version && !force) {
+					console.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide '@<version>' to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
+					return false;
+				}
+				if (version && installedExtension.manifest.version === version) {
+					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", `${id}@${version}`));
+					return false;
+				}
+			}
+			return true;
+		};
 		const vsixs: string[] = [];
 		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
@@ -141,23 +155,16 @@ export class Main {
 				vsixs.push(extension);
 			} else {
 				const [id, version] = getIdAndVersion(extension);
-				const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
-				if (installedExtension) {
-					if (!version && !force) {
-						console.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide `@${version}` to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
-						continue;
-					}
-					if (version && installedExtension.manifest.version === version) {
-						console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", `${id}@${version}`));
-						continue;
-					}
+				if (checkIfNotInstalled(id, version)) {
+					installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
 				}
-				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
 			}
 		}
 		for (const extension of builtinExtensionIds) {
 			const [id, version] = getIdAndVersion(extension);
-			installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+			if (checkIfNotInstalled(id, version)) {
+				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+			}
 		}
 
 		if (vsixs.length) {
