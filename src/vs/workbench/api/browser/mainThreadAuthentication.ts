@@ -22,7 +22,7 @@ import { IEncryptionService } from 'vs/workbench/services/encryption/common/encr
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 
-const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser'];
+const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser', 'github.codespaces'];
 
 interface IAccountUsage {
 	extensionId: string;
