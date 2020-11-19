@@ -267,8 +267,8 @@
 /* top and bottom borders on cells */
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:before,
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:after {
 	content: "";
 	position: absolute;
 	width: 100%;
@@ -277,33 +277,27 @@
 
 /* top border */
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before {
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:before {
 	border-top: 1px solid transparent;
-}
-
-.monaco-workbench.hc-black .notebookOverlay .monaco-list .monaco-list-row.focused.cell-editor-focus .cell-focus-indicator-top:before,
-.monaco-workbench.hc-black .notebookOverlay .monaco-list .markdown-cell-row.focused.cell-editor-focus:before {
-	border-top-style: dashed;
 }
 
 /* bottom border */
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:after {
 	border-bottom: 1px solid transparent;
 }
 
-.monaco-workbench.hc-black .notebookOverlay .monaco-list .monaco-list-row.focused.cell-editor-focus .cell-focus-indicator-bottom:before,
-.monaco-workbench.hc-black .notebookOverlay .monaco-list .markdown-cell-row.focused.cell-editor-focus:after {
-	border-bottom-style: dashed;
-}
-
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before {
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:before {
 	top: 0;
 }
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:after {
 	bottom: 0px;
+}
+
+.monaco-workbench.hc-black .notebookOverlay .monaco-list-row .cell-editor-focus .cell-editor-part:before {
+	outline-style: dashed;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu.mouseover,
@@ -498,6 +492,7 @@
 	height: 2px;
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:focus-within > .monaco-scrollable-element > .monaco-list-rows:not(:hover) > .monaco-list-row.focused .cell-has-toolbar-actions .cell-title-toolbar,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-has-toolbar-actions .cell-title-toolbar,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions.cell-output-hover .cell-title-toolbar,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-has-toolbar-actions:hover .cell-title-toolbar {

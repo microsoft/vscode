@@ -124,11 +124,13 @@ class PropertyHeader extends Disposable {
 				return undefined;
 			}
 		});
+		this._register(this._toolbar);
 		this._toolbar.context = {
 			cell: this.cell
 		};
 
 		this._menu = this.menuService.createMenu(this.accessor.menuId, this.contextKeyService);
+		this._register(this._menu);
 
 		if (metadataChanged) {
 			const actions: IAction[] = [];
@@ -229,6 +231,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		outputHeight: number;
 		bodyMargin: number;
 	};
+	protected _isDisposed: boolean;
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
@@ -248,6 +251,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	) {
 		super();
 		// init
+		this._isDisposed = false;
 		this._layoutInfo = {
 			editorHeight: 0,
 			editorMargin: 0,
@@ -529,6 +533,7 @@ abstract class AbstractCellRenderer extends Disposable {
 				originalEditable: false,
 				ignoreTrimWhitespace: false
 			});
+			this._register(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
 
@@ -584,6 +589,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			readOnly: false
 		}, {});
+		this._register(this._metadataEditor);
 
 		const mode = this.modeService.create('jsonc');
 		const originalMetadataSource = this._getFormatedMetadataJSON(
@@ -633,6 +639,7 @@ abstract class AbstractCellRenderer extends Disposable {
 					readOnly: true,
 					ignoreTrimWhitespace: false
 				});
+				this._register(this._outputEditor);
 
 				this._outputEditorContainer?.classList.add('diff');
 
@@ -672,6 +679,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
+		this._register(this._outputEditor);
 
 		const mode = this.modeService.create('json');
 		const originaloutputSource = this._getFormatedOutputJSON(
@@ -705,6 +713,11 @@ abstract class AbstractCellRenderer extends Disposable {
 			+ this._layoutInfo.outputStatusHeight
 			+ this._layoutInfo.bodyMargin
 		);
+	}
+
+	dispose() {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	abstract initData(): void;
@@ -757,6 +770,8 @@ export class DeletedCell extends AbstractCellRenderer {
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
+		this._register(this._editor);
+
 		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
@@ -767,6 +782,10 @@ export class DeletedCell extends AbstractCellRenderer {
 		}));
 
 		originalCell.resolveTextModelRef().then(ref => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this._register(ref);
 
 			const textModel = ref.object.textEditorModel;
@@ -851,6 +870,7 @@ export class InsertCell extends AbstractCellRenderer {
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			readOnly: false
 		}, {});
+		this._register(this._editor);
 
 		this._layoutInfo.editorHeight = editorHeight;
 
@@ -862,6 +882,10 @@ export class InsertCell extends AbstractCellRenderer {
 		}));
 
 		modifiedCell.resolveTextModelRef().then(ref => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this._register(ref);
 
 			const textModel = ref.object.textEditorModel;
@@ -947,6 +971,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 			originalEditable: false,
 			ignoreTrimWhitespace: false
 		});
+		this._register(this._editor);
 		this._editorContainer.classList.add('diff');
 
 		this._editor.layout({
@@ -983,6 +1008,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		};
 
 		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, this.contextKeyService);
+		this._register(this._menu);
 		const actions: IAction[] = [];
 		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
 		this._toolbar.setActions(actions);
@@ -1008,6 +1034,11 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 		const originalRef = await originalCell.resolveTextModelRef();
 		const modifiedRef = await modifiedCell.resolveTextModelRef();
+
+		if (this._isDisposed) {
+			return;
+		}
+
 		const textModel = originalRef.object.textEditorModel;
 		const modifiedTextModel = modifiedRef.object.textEditorModel;
 		this._register(originalRef);

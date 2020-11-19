@@ -20,7 +20,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, basename, distinctParents } from 'vs/base/common/resources';
+import { dirname, joinPath, basename, distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -37,7 +37,6 @@ import { Schemas } from 'vs/base/common/network';
 import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
@@ -58,6 +57,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -809,11 +809,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkingCopyFileService private workingCopyFileService: IWorkingCopyFileService,
 		@IHostService private hostService: IHostService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService
 	) {
 		this.toDispose = [];
 
@@ -1074,7 +1074,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					continue;
 				}
 
-				await this.workingCopyFileService.delete([joinPath(target.resource, entry.name)], { recursive: true });
+				await this.bulkEditService.apply([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
+					undoRedoSource: this.explorerService.undoRedoSource,
+					label: localize('overwrite', "Overwrite {0}", entry.name)
+				});
 
 				if (token.isCancellationRequested) {
 					break;
@@ -1348,10 +1351,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 					progress.report({ message: sourceFileName });
 
-					const stat = (await this.workingCopyFileService.copy([{ source: sourceFile, target: targetFile }], { overwrite: true }))[0];
+					await this.bulkEditService.apply([new ResourceFileEdit(sourceFile, targetFile, { overwrite: true, copy: true })], {
+						undoRedoSource: this.explorerService.undoRedoSource,
+						label: localize('copyFile', "Copy {0}", sourceFileName)
+					});
 					// if we only add one file, just open it directly
-					if (resources.length === 1 && !stat.isDirectory) {
-						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+
+					const item = this.explorerService.findClosest(targetFile);
+					if (resources.length === 1 && item && !item.isDirectory) {
+						this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
 					}
 				});
 			}));
@@ -1440,9 +1448,16 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnCopy(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 		// Reuse duplicate action when user copies
 		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-		const sourceTargetPairs = sources.map(({ resource, isDirectory }) => ({ source: resource, target: findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming) }));
-		const stats = await this.workingCopyFileService.copy(sourceTargetPairs);
-		const editors = stats.filter(stat => !stat.isDirectory).map(({ resource }) => ({ resource, options: { pinned: true } }));
+		const resourceFileEdits = sources.map(({ resource, isDirectory }) => (new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming), { copy: true })));
+		await this.bulkEditService.apply(resourceFileEdits, {
+			undoRedoSource: this.explorerService.undoRedoSource,
+			label: resourceFileEdits.length > 1 ? localize('copy', "Copy {0} files", resourceFileEdits.length) : localize('copyOneFile', "Copy {0}", basenameOrAuthority(resourceFileEdits[0].newResource!))
+		});
+
+		const editors = resourceFileEdits.filter(edit => {
+			const item = edit.newResource ? this.explorerService.findClosest(edit.newResource) : undefined;
+			return item && !item.isDirectory;
+		}).map(edit => ({ resource: edit.newResource, options: { pinned: true } }));
 
 		await this.editorService.openEditors(editors);
 	}
@@ -1450,18 +1465,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
 		// Do not allow moving readonly items
-		const sourceTargetPairs = sources.filter(source => !source.isReadonly).map(source => ({ source: source.resource, target: joinPath(target.resource, source.name) }));
+		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
+		const label = sources.length > 1 ? localize('move', "Move {0} files", sources.length) : localize('moveOneFile', "Move {0}", sources[0].name);
 
 		try {
-			await this.workingCopyFileService.move(sourceTargetPairs);
+			await this.bulkEditService.apply(resourceFileEdits, { undoRedoSource: this.explorerService.undoRedoSource, label });
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
 
 				const overwrites: URI[] = [];
-				for (const { target } of sourceTargetPairs) {
-					if (await this.fileService.exists(target)) {
-						overwrites.push(target);
+				for (const edit of resourceFileEdits) {
+					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
+						overwrites.push(edit.newResource);
 					}
 				}
 
@@ -1470,7 +1486,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.workingCopyFileService.move(sourceTargetPairs, { overwrite: true });
+						await this.bulkEditService.apply(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), {
+							undoRedoSource: this.explorerService.undoRedoSource,
+							label
+						});
 					} catch (error) {
 						this.notificationService.error(error);
 					}
