@@ -27,6 +27,7 @@ export interface ISettingsEditorViewState {
 	tagFilters?: Set<string>;
 	extensionFilters?: Set<string>;
 	featureFilters?: Set<string>;
+	idFilters?: Set<string>;
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
@@ -311,6 +312,18 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				return false;
 			}
 		});
+	}
+
+	matchesAnyId(idFilters?: Set<string>): boolean {
+		if (!idFilters || !idFilters.size) {
+			return true;
+		}
+
+		if (!this.setting.key) {
+			return false;
+		}
+
+		return Array.from(idFilters).some(id => id === this.setting.key);
 	}
 }
 
@@ -634,7 +647,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		const isRemote = !!this.environmentService.remoteAuthority;
 
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && this.containsValidFeature() ? child.matchesAnyFeature(this._viewState.featureFilters) : true);
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && this.containsValidFeature() ? child.matchesAnyFeature(this._viewState.featureFilters) : true);
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
@@ -680,16 +693,19 @@ export interface IParsedQuery {
 	tags: string[];
 	query: string;
 	extensionFilters: string[];
+	idFilters: string[];
 	featureFilters: string[];
 }
 
 const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 const featureRegex = /(^|\s)@feature:("([^"]*)"|[^"]\S*)?/g;
+const idRegex = /(^|\s)@id:("([^"]*)"|[^"]\S*)?/g;
 export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
 	const extensions: string[] = [];
 	const features: string[] = [];
+	const ids: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -716,12 +732,21 @@ export function parseQuery(query: string): IParsedQuery {
 		return '';
 	});
 
+	query = query.replace(idRegex, (_, __, quotedId, id) => {
+		const idRegex: string = id || quotedId;
+		if (idRegex) {
+			ids.push(...idRegex.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
+		}
+		return '';
+	});
+
 	query = query.trim();
 
 	return {
 		tags,
 		extensionFilters: extensions,
 		featureFilters: features,
+		idFilters: ids,
 		query
 	};
 }

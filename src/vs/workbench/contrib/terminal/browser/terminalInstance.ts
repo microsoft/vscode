@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IShellLaunchConfig, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride, SHOW_TERMINAL_CONFIG_PROMPT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -46,6 +46,7 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -187,6 +188,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -541,14 +543,36 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				event.preventDefault();
 				return false;
 			}
+			const promptChoices: IPromptChoice[] = [
+				{
+					label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
+					run: () => {
+						this._commandService.executeCommand('workbench.action.openSettings', '@id:terminal.integrated.commandsToSkipShell,terminal.integrated.sendToShell,terminal.integrated.allowChords');
+						this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, false, StorageScope.GLOBAL, StorageTarget.USER);
+					}
+				} as IPromptChoice,
+				{
+					label: nls.localize('dontShowAgain', "Don't Show Again"),
+					run: () => this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, false, StorageScope.GLOBAL, StorageTarget.USER)
+				} as IPromptChoice
+			];
 
-			// Skip processing by xterm.js of keyboard events that resolve to commands described
-			// within commandsToSkipShell
-			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
+			// for keyboard events that resolve to commands described
+			// within commandsToSkipShell, either alert or skip processing by xterm.js
+			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendToShell) {
+				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT, StorageScope.GLOBAL, true)) {
+					this._notificationService.prompt(
+						Severity.Info,
+						nls.localize('configure terminal settings', "Some keybindings are dispatched to the workbench by default."),
+						promptChoices
+					);
+				}
 				event.preventDefault();
 				return false;
 			}
-
+			if (event.key === 'z') {
+				this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, true, StorageScope.GLOBAL, StorageTarget.USER);
+			}
 			// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
 			if (this._configHelper.config.allowMnemonics && !platform.isMacintosh && event.altKey) {
 				return false;
