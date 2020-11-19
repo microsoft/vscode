@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { DefaultCompletionItemProvider } from './defaultCompletionProvider';
-import { wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation, expandEmmetAbbreviation } from './abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from './abbreviationActions';
 import { removeTag } from './removeTag';
 import { updateTag } from './updateTag';
 import { matchTag } from './matchTag';
