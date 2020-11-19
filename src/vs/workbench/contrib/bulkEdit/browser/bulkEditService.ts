@@ -17,6 +17,7 @@ import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdi
 import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
 import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 class BulkEdit {
 
@@ -25,6 +26,7 @@ class BulkEdit {
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<IProgressStep>,
 		private readonly _edits: ResourceEdit[],
+		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -62,17 +64,15 @@ class BulkEdit {
 		this._progress.report({ total: this._edits.length });
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
-		const undoRedoGroup = new UndoRedoGroup();
-
 		let index = 0;
 		for (let range of ranges) {
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
+				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
 			} else if (group[0] instanceof ResourceTextEdit) {
-				await this._performTextEdits(<ResourceTextEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
+				await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
-				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, undoRedoGroup, this._undoRedoSource, progress);
+				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
@@ -103,6 +103,7 @@ export class BulkEditService implements IBulkEditService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _activeUndoRedoGroups = new LinkedList<UndoRedoGroup>();
 	private _previewHandler?: IBulkEditPreviewHandler;
 
 	constructor(
@@ -148,11 +149,30 @@ export class BulkEditService implements IBulkEditService {
 			codeEditor = undefined;
 		}
 
+		// undo-redo-group: if a group id is passed then try to find it
+		// in the list of active edits. otherwise (or when not found)
+		// create a separate undo-redo-group
+		let undoRedoGroup: UndoRedoGroup | undefined;
+		let undoRedoGroupRemove = () => { };
+		if (typeof options?.undoRedoGroupId === 'number') {
+			for (let candidate of this._activeUndoRedoGroups) {
+				if (candidate.id === options.undoRedoGroupId) {
+					undoRedoGroup = candidate;
+					break;
+				}
+			}
+		}
+		if (!undoRedoGroup) {
+			undoRedoGroup = new UndoRedoGroup();
+			undoRedoGroupRemove = this._activeUndoRedoGroups.push(undoRedoGroup);
+		}
+
 		const bulkEdit = this._instaService.createInstance(
 			BulkEdit,
 			options?.quotableLabel || options?.label,
 			codeEditor, options?.progress ?? Progress.None,
 			edits,
+			undoRedoGroup,
 			options?.undoRedoSource
 		);
 
@@ -164,6 +184,8 @@ export class BulkEditService implements IBulkEditService {
 			// console.log(err);
 			this._logService.error(err);
 			throw err;
+		} finally {
+			undoRedoGroupRemove();
 		}
 	}
 }
