@@ -11,11 +11,18 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Codicon } from 'vs/base/common/codicons';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
 export interface ThemeColor {
 	id: string;
+}
+
+export namespace ThemeColor {
+	export function isThemeColor(obj: any): obj is ThemeColor {
+		return obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
+	}
 }
 
 export function themeColorFromId(id: ColorIdentifier) {
@@ -29,8 +36,8 @@ export interface ThemeIcon {
 }
 
 export namespace ThemeIcon {
-	export function isThemeIcon(obj: any): obj is ThemeIcon | { id: string } {
-		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
+	export function isThemeIcon(obj: any): obj is ThemeIcon {
+		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
 	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
@@ -47,6 +54,15 @@ export namespace ThemeIcon {
 		return { id: owner + name };
 	}
 
+	export function fromCodicon(codicon: Codicon): ThemeIcon {
+		return { id: codicon.id };
+	}
+
+
+	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
+		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
+	}
+
 	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
 
 	export function asClassName(icon: ThemeIcon): string | undefined {
@@ -61,6 +77,13 @@ export namespace ThemeIcon {
 			className += ` ${modifier.substr(1)}`;
 		}
 		return className;
+	}
+
+	export function revive(icon: any): ThemeIcon | undefined {
+		if (ThemeIcon.isThemeIcon(icon)) {
+			return { id: icon.id, color: icon.color ? { id: icon.color.id } : undefined };
+		}
+		return undefined;
 	}
 }
 
