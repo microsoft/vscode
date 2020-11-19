@@ -184,25 +184,12 @@ export interface IOrderedMimeType {
 	rendererId: string;
 }
 
-export interface ITransformedDisplayOutputDto {
-	outputKind: CellOutputKind.Rich;
+export interface ITransformedDisplayOutputDto extends IDisplayOutput {
 	outputId: string;
-	data: { [key: string]: unknown; }
-	metadata?: NotebookCellOutputMetadata;
-
-	orderedMimeTypes?: IOrderedMimeType[];
-	pickedMimeTypeIndex?: number;
 }
 
 export function isTransformedDisplayOutput(thing: unknown): thing is ITransformedDisplayOutputDto {
 	return (thing as ITransformedDisplayOutputDto).outputKind === CellOutputKind.Rich && !!(thing as ITransformedDisplayOutputDto).outputId;
-}
-
-export interface IGenericOutput {
-	outputKind: CellOutputKind;
-	pickedMimeType?: string;
-	pickedRenderer?: number;
-	transformedOutput?: { [key: string]: IDisplayOutput };
 }
 
 

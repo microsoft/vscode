@@ -744,6 +744,9 @@ declare module 'vscode' {
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
 
+	/**
+	 * A file decoration represents metadata that can be rendered with a file.
+	 */
 	export class FileDecoration {
 
 		/**
@@ -784,7 +787,10 @@ declare module 'vscode' {
 	export interface FileDecorationProvider {
 
 		/**
-		 * An event to signal decorations for one or many files have changed.
+		 * An optional event to signal that decorations for one or many files have changed.
+		 *
+		 *
+		 * *Note* that this event should be used to propagate information about children.
 		 *
 		 * @see [EventEmitter](#EventEmitter)
 		 */
@@ -792,6 +798,10 @@ declare module 'vscode' {
 
 		/**
 		 * Provide decorations for a given uri.
+		 *
+		 * *Note* that this function is only called when a file gets rendered in the UI.
+		 * This means a decoration from a descendent that propagates upwards must be signaled
+		 * to the editor via the [onDidChangeFileDecorations](#FileDecorationProvider.onDidChangeFileDecorations)-event.
 		 *
 		 * @param uri The uri of the file to provide a decoration for.
 		 * @param token A cancellation token.
@@ -801,7 +811,14 @@ declare module 'vscode' {
 	}
 
 	export namespace window {
-		export function registerDecorationProvider(provider: FileDecorationProvider): Disposable;
+
+		/**
+		 * Register a file decoration provider.
+		 *
+		 * @param provider A [FileDecorationProvider](#FileDecorationProvider).
+		 * @return A [disposable](#Disposable) that unregisters the provider.
+		 */
+		export function registerFileDecorationProvider(provider: FileDecorationProvider): Disposable;
 	}
 
 	//#endregion

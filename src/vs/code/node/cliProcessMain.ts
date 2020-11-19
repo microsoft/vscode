@@ -126,13 +126,28 @@ export class Main {
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private async installExtensions(extensions: string[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean): Promise<void> {
+	async installExtensions(extensions: string[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
 			console.log(localize('installingExtensions', "Installing extensions..."));
 		}
 
+		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const checkIfNotInstalled = (id: string, version?: string): boolean => {
+			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
+			if (installedExtension) {
+				if (!version && !force) {
+					console.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide '@<version>' to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
+					return false;
+				}
+				if (version && installedExtension.manifest.version === version) {
+					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", `${id}@${version}`));
+					return false;
+				}
+			}
+			return true;
+		};
 		const vsixs: string[] = [];
 		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
@@ -140,12 +155,16 @@ export class Main {
 				vsixs.push(extension);
 			} else {
 				const [id, version] = getIdAndVersion(extension);
-				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
+				if (checkIfNotInstalled(id, version)) {
+					installExtensionInfos.push({ id, version, installOptions: { isBuiltin: false, isMachineScoped } });
+				}
 			}
 		}
 		for (const extension of builtinExtensionIds) {
 			const [id, version] = getIdAndVersion(extension);
-			installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+			if (checkIfNotInstalled(id, version)) {
+				installExtensionInfos.push({ id, version, installOptions: { isBuiltin: true, isMachineScoped: false } });
+			}
 		}
 
 		if (vsixs.length) {
@@ -164,10 +183,7 @@ export class Main {
 
 		if (installExtensionInfos.length) {
 
-			const [galleryExtensions, installed] = await Promise.all([
-				this.getGalleryExtensions(installExtensionInfos),
-				this.extensionManagementService.getInstalled(ExtensionType.User)
-			]);
+			const galleryExtensions = await this.getGalleryExtensions(installExtensionInfos);
 
 			await Promise.all(installExtensionInfos.map(async extensionInfo => {
 				const gallery = galleryExtensions.get(extensionInfo.id.toLowerCase());
@@ -246,10 +262,6 @@ export class Main {
 		if (installedExtension) {
 			if (galleryExtension.version === installedExtension.manifest.version) {
 				console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
-				return null;
-			}
-			if (!version && !force) {
-				console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, galleryExtension.version));
 				return null;
 			}
 			console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, galleryExtension.version));

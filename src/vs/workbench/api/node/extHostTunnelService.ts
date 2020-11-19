@@ -69,21 +69,25 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return this._proxy.$getTunnels();
 	}
 
-	registerCandidateFinder(): Promise<void> {
-		return this._proxy.$registerCandidateFinder();
-	}
-
-	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]> {
-		return Promise.all(candidates.map(candidate => {
-			return this._showCandidatePort(candidate.host, candidate.port, candidate.detail);
-		}));
+	registerCandidateFinder(): void {
+		// Every two seconds, scan to see if the candidate ports have changed;
+		if (isLinux) {
+			let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
+			setInterval(async () => {
+				const newPorts = await this.findCandidatePorts();
+				if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
+					oldPorts = newPorts;
+					this._proxy.$onFoundNewCandidates(oldPorts.filter(async (candidate) => await this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+					return;
+				}
+			}, 2000);
+		}
 	}
 
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
 		if (provider) {
 			if (provider.showCandidatePort) {
 				this._showCandidatePort = provider.showCandidatePort;
-				await this._proxy.$setCandidateFilter();
 			}
 			if (provider.tunnelFactory) {
 				this._forwardPortProvider = provider.tunnelFactory;
@@ -133,11 +137,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 
-	async $findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]> {
-		if (!isLinux) {
-			return [];
-		}
-
+	async findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]> {
 		const ports: { host: string, port: number, detail: string }[] = [];
 		let tcp: string = '';
 		let tcp6: string = '';
