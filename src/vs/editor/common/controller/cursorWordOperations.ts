@@ -438,7 +438,7 @@ export class WordOperations {
 		return new Range(lineNumber, column, position.lineNumber, position.column);
 	}
 
-	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range | null {
+	public static deleteInsideWord(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -453,42 +453,105 @@ export class WordOperations {
 		return this._deleteInsideWordDetermineDeleteRange(wordSeparators, model, position);
 	}
 
+	private static _charAtIsWhitespace(str: string, index: number): boolean {
+		const charCode = str.charCodeAt(index);
+		return (charCode === CharCode.Space || charCode === CharCode.Tab);
+	}
+
 	private static _deleteInsideWordWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
 		const lineContent = model.getLineContent(position.lineNumber);
-		const startIndex1 = position.column - 1; // deleteRight
-		const startIndex2 = position.column - 2; // deleteLeft
-		const firstNonWhitespace = this._findFirstNonWhitespaceChar(lineContent, startIndex1);
-		const lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex2);
-		if ((startIndex1 + 1 < firstNonWhitespace && lastNonWhitespace + 1 < startIndex2) || (startIndex1 + 1 >= firstNonWhitespace && lastNonWhitespace + 1 < startIndex2) || (startIndex1 + 1 <= firstNonWhitespace && lastNonWhitespace + 1 === startIndex2)) {
-			return new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, firstNonWhitespace + 1);
+		const lineContentLength = lineContent.length;
+
+		if (lineContentLength === 0) {
+			// empty line
+			return null;
 		}
-		return null;
+
+		let leftIndex = Math.max(position.column - 2, 0);
+		if (!this._charAtIsWhitespace(lineContent, leftIndex)) {
+			// touches a non-whitespace character to the left
+			return null;
+		}
+
+		let rightIndex = Math.min(position.column - 1, lineContentLength - 1);
+		if (!this._charAtIsWhitespace(lineContent, rightIndex)) {
+			// touches a non-whitespace character to the right
+			return null;
+		}
+
+		// walk over whitespace to the left
+		while (leftIndex > 0 && this._charAtIsWhitespace(lineContent, leftIndex - 1)) {
+			leftIndex--;
+		}
+
+		// walk over whitespace to the right
+		while (rightIndex + 1 < lineContentLength && this._charAtIsWhitespace(lineContent, rightIndex + 1)) {
+			rightIndex++;
+		}
+
+		return new Range(position.lineNumber, leftIndex + 1, position.lineNumber, rightIndex + 2);
 	}
 
 	private static _deleteInsideWordDetermineDeleteRange(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Range {
-		let lineNumber = position.lineNumber;
-		let column = position.column;
-		let columnEnd = position.column;
-		let lineContent = model.getLineContent(position.lineNumber);
-
-		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
-
-		if (prevWordOnLine) {
-			column = prevWordOnLine.start + 1;
-			columnEnd = prevWordOnLine.end + 1;
-			const chCode = lineContent.charCodeAt(columnEnd - 1);
-			if (chCode === CharCode.Space || chCode === CharCode.Tab) {
-				columnEnd++;
-			}
-		} else {
-			if (column > 1) {
-				column = 1;
+		const lineContent = model.getLineContent(position.lineNumber);
+		const lineLength = lineContent.length;
+		if (lineLength === 0) {
+			// empty line
+			if (position.lineNumber > 1) {
+				return new Range(position.lineNumber - 1, model.getLineMaxColumn(position.lineNumber - 1), position.lineNumber, 1);
 			} else {
-				lineNumber--;
-				column = model.getLineMaxColumn(lineNumber);
+				if (position.lineNumber < model.getLineCount()) {
+					return new Range(position.lineNumber, 1, position.lineNumber + 1, 1);
+				} else {
+					// empty model
+					return new Range(position.lineNumber, 1, position.lineNumber, 1);
+				}
 			}
 		}
-		return new Range(lineNumber, column, position.lineNumber, columnEnd);
+
+		const touchesWord = (word: IFindWordResult) => {
+			return (word.start + 1 <= position.column && position.column <= word.end + 1);
+		};
+		const createRangeWithPosition = (startColumn: number, endColumn: number) => {
+			startColumn = Math.min(startColumn, position.column);
+			endColumn = Math.max(endColumn, position.column);
+			return new Range(position.lineNumber, startColumn, position.lineNumber, endColumn);
+		};
+		const deleteWordAndAdjacentWhitespace = (word: IFindWordResult) => {
+			let startColumn = word.start + 1;
+			let endColumn = word.end + 1;
+			let expandedToTheRight = false;
+			while (endColumn - 1 < lineLength && this._charAtIsWhitespace(lineContent, endColumn - 1)) {
+				expandedToTheRight = true;
+				endColumn++;
+			}
+			if (!expandedToTheRight) {
+				while (startColumn > 1 && this._charAtIsWhitespace(lineContent, startColumn - 2)) {
+					startColumn--;
+				}
+			}
+			return createRangeWithPosition(startColumn, endColumn);
+		};
+
+		const prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
+		if (prevWordOnLine && touchesWord(prevWordOnLine)) {
+			return deleteWordAndAdjacentWhitespace(prevWordOnLine);
+		}
+		const nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, position);
+		if (nextWordOnLine && touchesWord(nextWordOnLine)) {
+			return deleteWordAndAdjacentWhitespace(nextWordOnLine);
+		}
+		if (prevWordOnLine && nextWordOnLine) {
+			return createRangeWithPosition(prevWordOnLine.end + 1, nextWordOnLine.start + 1);
+		}
+		if (prevWordOnLine) {
+			return createRangeWithPosition(prevWordOnLine.start + 1, prevWordOnLine.end + 1);
+		}
+		if (nextWordOnLine) {
+			return createRangeWithPosition(nextWordOnLine.start + 1, nextWordOnLine.end + 1);
+		}
+
+		return createRangeWithPosition(1, lineLength + 1);
 	}
 
 	public static _deleteWordPartLeft(model: ICursorSimpleModel, selection: Selection): Range {

@@ -498,23 +498,13 @@ export class DeleteInsideWord extends EditorCommand {
 		const selections = editor.getSelections();
 
 		const commands = selections.map((sel) => {
-			const deleteRange = this._delete(wordSeparators, model, sel);
+			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel);
 			return new ReplaceCommand(deleteRange, '');
 		});
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
-	}
-
-	private _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection): Range {
-		let r = WordOperations.deleteInsideWord(wordSeparators, model, selection);
-		if (r) {
-			return r;
-		}
-		const lineCount = model.getLineCount();
-		const maxColumn = model.getLineMaxColumn(lineCount);
-		return new Range(lineCount, maxColumn, lineCount, maxColumn);
 	}
 }
 
