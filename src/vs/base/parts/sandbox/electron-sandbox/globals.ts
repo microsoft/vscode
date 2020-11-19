@@ -12,45 +12,33 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * The process.platform property returns a string identifying the operating system platform
 	 * on which the Node.js process is running.
 	 */
-	platform: 'win32' | 'linux' | 'darwin';
+	readonly platform: 'win32' | 'linux' | 'darwin';
 
 	/**
 	 * The type will always be Electron renderer.
 	 */
-	type: 'renderer';
+	readonly type: 'renderer';
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.
 	 */
-	versions: { [key: string]: string | undefined };
+	readonly versions: { [key: string]: string | undefined };
 
 	/**
 	 * The process.env property returns an object containing the user environment.
 	 */
-	env: IProcessEnvironment;
+	readonly env: IProcessEnvironment;
 
 	/**
-	 * The current working directory.
+	 * The `execPath` will be the location of the executable of this application.
 	 */
-	cwd(): string;
-
-	/**
-	 * Returns the numeric user identity of the process.
-	 */
-	getuid(): number;
+	readonly execPath: string;
 
 	/**
 	 * Allows to await resolving the full process environment by checking for the shell environment
 	 * of the OS in certain cases (e.g. when the app is started from the Dock on macOS).
 	 */
 	whenEnvResolved(): Promise<void>;
-
-	/**
-	 * Adds callback to the "next tick queue". This queue is fully drained
-	 * after the current operation on the JavaScript stack runs to completion
-	 * and before the event loop is allowed to continue.
-	 */
-	nextTick(callback: (...args: any[]) => void, ...args: any[]): void;
 
 	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.
