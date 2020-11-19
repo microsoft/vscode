@@ -212,7 +212,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.enabled',
 				name: localize('enabledExtensions', "Enabled"),
-				ctorDescriptor: new SyncDescriptor(EnabledExtensionsView, []),
+				ctorDescriptor: new SyncDescriptor(EnabledExtensionsView, [{}]),
 				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
 				weight: 40,
@@ -227,7 +227,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.disabled',
 				name: localize('disabledExtensions', "Disabled"),
-				ctorDescriptor: new SyncDescriptor(DisabledExtensionsView, []),
+				ctorDescriptor: new SyncDescriptor(DisabledExtensionsView, [{}]),
 				when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
 				weight: 10,
