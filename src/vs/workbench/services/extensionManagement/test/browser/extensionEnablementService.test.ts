@@ -458,7 +458,7 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => Promise.resolve([extension, aLocalExtension('pub.b')]) } as IExtensionManagementService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(extension));
-		assert.deepEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironemt);
+		assert.deepEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironment);
 	});
 
 	test('test local workspace extension is disabled by kind', async () => {

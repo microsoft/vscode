@@ -487,7 +487,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			|| !this.extension.local
 			|| this.extension.state !== ExtensionState.Installed
 			|| this.extension.type !== ExtensionType.User
-			|| this.extension.enablementState === EnablementState.DisabledByEnvironemt
+			|| this.extension.enablementState === EnablementState.DisabledByEnvironment
 		) {
 			return false;
 		}
