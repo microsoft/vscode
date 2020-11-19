@@ -375,7 +375,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		const added: IAddedViewDescriptorRef[] = [];
 		const removed: IViewDescriptorRef[] = [];
 
-		for (const { visibleIndex, viewDescriptorItem, visible, size } of viewDescriptors.map(({ id, visible, size }) => ({ ...this.find(id), visible, size }))) {
+		for (const { visibleIndex, viewDescriptorItem, visible, size } of viewDescriptors.map(({ id, visible, size }) => ({ ...this.findAndIgnoreIfNotFound(id), visible, size }))) {
 			const viewDescriptor = viewDescriptorItem.viewDescriptor;
 
 			if (!viewDescriptor.canToggleVisibility) {
@@ -619,6 +619,14 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private find(id: string): { index: number, visibleIndex: number, viewDescriptorItem: IViewDescriptorItem; } {
+		const result = this.findAndIgnoreIfNotFound(id);
+		if (result) {
+			return result;
+		}
+		throw new Error(`view descriptor ${id} not found`);
+	}
+
+	private findAndIgnoreIfNotFound(id: string): { index: number, visibleIndex: number, viewDescriptorItem: IViewDescriptorItem; } | undefined {
 		for (let i = 0, visibleIndex = 0; i < this.viewDescriptorItems.length; i++) {
 			const viewDescriptorItem = this.viewDescriptorItems[i];
 			if (viewDescriptorItem.viewDescriptor.id === id) {
@@ -628,7 +636,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 				visibleIndex++;
 			}
 		}
-		throw new Error(`view descriptor ${id} not found`);
+		return undefined;
 	}
 
 	private compareViewDescriptors(a: IViewDescriptorItem, b: IViewDescriptorItem): number {
