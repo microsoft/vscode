@@ -90,7 +90,6 @@ export class TunnelModel extends Disposable {
 	private _onPortName: Emitter<{ host: string, port: number }> = new Emitter();
 	public onPortName: Event<{ host: string, port: number }> = this._onPortName.event;
 	private _candidates: { host: string, port: number, detail: string }[] = [];
-	private _candidateFinder: (() => Promise<{ host: string, port: number, detail: string }[]>) | undefined;
 	private _onCandidatesChanged: Emitter<void> = new Emitter();
 	public onCandidatesChanged: Event<void> = this._onCandidatesChanged.event;
 	private _candidateFilter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined;
@@ -217,40 +216,29 @@ export class TunnelModel extends Disposable {
 		this._onForwardPort.fire();
 	}
 
-	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void {
-		this._candidateFinder = finder;
-		this._onCandidatesChanged.fire();
-	}
-
 	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): void {
 		this._candidateFilter = filter;
 	}
 
-	get candidates(): Promise<{ host: string, port: number, detail: string }[]> {
-		return this.updateCandidates().then(() => this._candidates);
-	}
-
-	private async updateCandidates(): Promise<void> {
-		if (this._candidateFinder) {
-			let candidates = await this._candidateFinder();
-			if (this._candidateFilter && (candidates.length > 0)) {
-				candidates = await this._candidateFilter(candidates);
-			}
-			this._candidates = candidates.map(value => {
-				const nullIndex = value.detail.indexOf('\0');
-				const detail = value.detail.substr(0, nullIndex > 0 ? nullIndex : value.detail.length).trim();
-				return {
-					host: value.host,
-					port: value.port,
-					detail
-				};
-			});
+	async setCandidates(candidates: { host: string, port: number, detail: string }[]) {
+		let processedCandidates = candidates;
+		if (this._candidateFilter) {
+			processedCandidates = await this._candidateFilter(candidates);
 		}
+		this._candidates = processedCandidates.map(value => {
+			const nullIndex = value.detail.indexOf('\0');
+			const detail = value.detail.substr(0, nullIndex > 0 ? nullIndex : value.detail.length).trim();
+			return {
+				host: value.host,
+				port: value.port,
+				detail
+			};
+		});
+		this._onCandidatesChanged.fire();
 	}
 
-	async refresh(): Promise<void> {
-		await this.updateCandidates();
-		this._onCandidatesChanged.fire();
+	get candidates(): { host: string, port: number, detail: string }[] {
+		return this._candidates;
 	}
 }
 
@@ -265,9 +253,8 @@ export interface IRemoteExplorerService {
 	forward(remote: { host: string, port: number }, localPort?: number, name?: string): Promise<RemoteTunnel | void>;
 	close(remote: { host: string, port: number }): Promise<void>;
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
-	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void;
 	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): IDisposable;
-	refresh(): Promise<void>;
+	onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): void;
 	restore(): Promise<void>;
 }
 
@@ -340,10 +327,6 @@ class RemoteExplorerService implements IRemoteExplorerService {
 			this._editable.data : undefined;
 	}
 
-	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void {
-		this.tunnelModel.registerCandidateFinder(finder);
-	}
-
 	setCandidateFilter(filter: (candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>): IDisposable {
 		if (!filter) {
 			return {
@@ -358,8 +341,8 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		};
 	}
 
-	refresh(): Promise<void> {
-		return this.tunnelModel.refresh();
+	onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): void {
+		this.tunnelModel.setCandidates(candidates);
 	}
 
 	restore(): Promise<void> {
