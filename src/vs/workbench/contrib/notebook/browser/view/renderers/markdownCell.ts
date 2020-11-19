@@ -19,7 +19,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
 export class StatefulMarkdownCell extends Disposable {
 

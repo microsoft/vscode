@@ -10,11 +10,19 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { ITransformedDisplayOutputDto, IRenderOutput, IProcessedOutput, RENDERER_NOT_AVAILABLE, BUILTIN_RENDERER_ID, RenderOutputType, outputHasDynamicHeight, CellUri, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITransformedDisplayOutputDto, IRenderOutput, IProcessedOutput, RENDERER_NOT_AVAILABLE, BUILTIN_RENDERER_ID, RenderOutputType, outputHasDynamicHeight, CellUri, CellOutputKind, NotebookCellOutputsSplice, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
+
+const OUTPUT_COUNT_LIMIT = 500;
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -233,5 +241,280 @@ export class OutputElement extends Disposable {
 
 	relayoutCell() {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	}
+}
+
+export class OutputContainer extends Disposable {
+	private outputEntries = new Map<IProcessedOutput, OutputElement>();
+
+	constructor(
+		private notebookEditor: INotebookEditor,
+		private viewCell: CodeCellViewModel,
+		private templateData: CodeCellRenderTemplate,
+		@INotebookService private notebookService: INotebookService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IOpenerService readonly openerService: IOpenerService,
+		@ITextFileService readonly textFileService: ITextFileService,
+	) {
+		super();
+
+		this._register(viewCell.onDidChangeOutputs(splices => {
+			this._updateOutputs(splices);
+		}));
+
+		this._register(viewCell.onDidChangeLayout(() => {
+			this.outputEntries.forEach((value, key) => {
+				const index = viewCell.outputs.indexOf(key);
+				if (index >= 0) {
+					const top = this.viewCell.getOutputOffsetInContainer(index);
+					value.domNode.style.top = `${top}px`;
+				}
+			});
+		}));
+	}
+
+	render(editorHeight: number) {
+		if (this.viewCell.outputs.length > 0) {
+			let layoutCache = false;
+			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
+				layoutCache = true;
+				this._relayoutCell();
+			}
+
+			this.templateData.outputContainer!.style.display = 'block';
+			// there are outputs, we need to calcualte their sizes and trigger relayout
+			// @TODO@rebornix, if there is no resizable output, we should not check their height individually, which hurts the performance
+			const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
+			for (let index = 0; index < outputsToRender.length; index++) {
+				const currOutput = this.viewCell.outputs[index];
+
+				// always add to the end
+				this._renderOutput(currOutput, index, undefined);
+			}
+
+			this.viewCell.editorHeight = editorHeight;
+			if (this.viewCell.outputs.length > OUTPUT_COUNT_LIMIT) {
+				this.templateData.outputShowMoreContainer.style.display = 'block';
+				this.viewCell.updateOutputShowMoreContainerHeight(46);
+			}
+
+			if (layoutCache) {
+				this._relayoutCellDebounced();
+			} else {
+				this._relayoutCell();
+			}
+		} else {
+			// noop
+			this.viewCell.editorHeight = editorHeight;
+			this._relayoutCell();
+			this.templateData.outputContainer!.style.display = 'none';
+		}
+
+		this.templateData.outputShowMoreContainer.innerText = '';
+		this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+		// this.templateData.outputShowMoreContainer.style.top = `${this.viewCell.layoutInfo.outputShowMoreContainerOffset}px`;
+
+		if (this.viewCell.outputs.length < OUTPUT_COUNT_LIMIT) {
+			this.templateData.outputShowMoreContainer.style.display = 'none';
+			this.viewCell.updateOutputShowMoreContainerHeight(0);
+		}
+	}
+
+	viewUpdateShowOutputs(): void {
+		for (let index = 0; index < this.viewCell.outputs.length; index++) {
+			const currOutput = this.viewCell.outputs[index];
+
+			const renderedOutput = this.outputEntries.get(currOutput);
+			if (renderedOutput && renderedOutput.renderResult) {
+				if (renderedOutput.renderResult.type !== RenderOutputType.None) {
+					this.notebookEditor.createInset(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
+				} else {
+					// Anything else, just update the height
+					this.viewCell.updateOutputHeight(index, renderedOutput.domNode.clientHeight);
+				}
+			} else {
+				// Wasn't previously rendered, render it now
+				this._renderOutput(currOutput, index);
+			}
+		}
+
+		this._relayoutCell();
+	}
+
+	viewUpdateHideOuputs(): void {
+		for (const e of this.outputEntries.keys()) {
+			this.notebookEditor.hideInset(e);
+		}
+	}
+
+	onCellWidthChange(): void {
+		this.viewCell.outputs.forEach((o, i) => {
+			const renderedOutput = this.outputEntries.get(o);
+			if (renderedOutput && renderedOutput.renderResult && renderedOutput.renderResult.type === RenderOutputType.None && !renderedOutput.renderResult.hasDynamicHeight) {
+				this.viewCell.updateOutputHeight(i, renderedOutput.domNode.clientHeight);
+			}
+		});
+	}
+
+	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
+		if (!splices.length) {
+			return;
+		}
+
+		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
+
+		if (this.viewCell.outputs.length) {
+			this.templateData.outputContainer!.style.display = 'block';
+		} else {
+			this.templateData.outputContainer!.style.display = 'none';
+		}
+
+		const reversedSplices = splices.reverse();
+
+		reversedSplices.forEach(splice => {
+			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
+		});
+
+		const removedKeys: IProcessedOutput[] = [];
+
+		this.outputEntries.forEach((value, key) => {
+			if (this.viewCell.outputs.indexOf(key) < 0) {
+				// already removed
+				removedKeys.push(key);
+				// remove element from DOM
+				this.templateData?.outputContainer?.removeChild(value.domNode);
+				this.notebookEditor.removeInset(key);
+			}
+		});
+
+		removedKeys.forEach(key => {
+			this.outputEntries.get(key)?.dispose();
+			this.outputEntries.delete(key);
+		});
+
+		let prevElement: HTMLElement | undefined = undefined;
+		const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
+
+		outputsToRender.reverse().forEach(output => {
+			if (this.outputEntries.has(output)) {
+				// already exist
+				prevElement = this.outputEntries.get(output)!.domNode;
+				return;
+			}
+
+			// newly added element
+			const currIndex = this.viewCell.outputs.indexOf(output);
+			this._renderOutput(output, currIndex, prevElement);
+			prevElement = this.outputEntries.get(output)?.domNode;
+		});
+
+		if (this.viewCell.outputs.length > OUTPUT_COUNT_LIMIT) {
+			this.templateData.outputShowMoreContainer.style.display = 'block';
+			this.viewCell.updateOutputShowMoreContainerHeight(46);
+		} else {
+			this.templateData.outputShowMoreContainer.style.display = 'none';
+		}
+
+		const editorHeight = this.templateData.editor!.getContentHeight();
+		this.viewCell.editorHeight = editorHeight;
+
+		if (previousOutputHeight === 0 || this.viewCell.outputs.length === 0) {
+			// first execution or removing all outputs
+			this._relayoutCell();
+		} else {
+			this._relayoutCellDebounced();
+		}
+	}
+
+	private _renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {
+		if (!this.outputEntries.has(currOutput)) {
+			this.outputEntries.set(currOutput, new OutputElement(this.notebookEditor, this.notebookService, this.quickInputService, this.viewCell, this.templateData.outputContainer, currOutput));
+		}
+
+		this.outputEntries.get(currOutput)!.render(index, beforeElement);
+	}
+
+	private _generateShowMoreElement(): any {
+		const md: IMarkdownString = {
+			value: `There are more than ${OUTPUT_COUNT_LIMIT} outputs, [show more ...](command:workbench.action.openLargeOutput)`,
+			isTrusted: true,
+			supportThemeIcons: true
+		};
+
+		const element = renderMarkdown(md, {
+			actionHandler: {
+				callback: (content) => {
+					if (content === 'command:workbench.action.openLargeOutput') {
+						const content = JSON.stringify(this.viewCell.outputs.map(output => {
+							switch (output.outputKind) {
+								case CellOutputKind.Text:
+									return {
+										outputKind: 'text',
+										text: output.text
+									};
+								case CellOutputKind.Error:
+									return {
+										outputKind: 'error',
+										ename: output.ename,
+										evalue: output.evalue,
+										traceback: output.traceback
+									};
+								case CellOutputKind.Rich:
+									return {
+										data: output.data,
+										metadata: output.metadata
+									};
+							}
+						}));
+						const edits = format(content, undefined, {});
+						const metadataSource = applyEdits(content, edits);
+
+						return this.textFileService.untitled.resolve({
+							associatedResource: undefined,
+							mode: 'json',
+							initialValue: metadataSource
+						}).then(model => {
+							const resource = model.resource;
+							this.openerService.open(resource);
+						});
+					}
+
+					return;
+				},
+				disposeables: new DisposableStore()
+			}
+		});
+
+		element.classList.add('output-show-more');
+		return element;
+	}
+
+	private _relayoutCell() {
+		if (this._timer !== null) {
+			clearTimeout(this._timer);
+		}
+
+		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	}
+
+	private _timer: number | null = null;
+
+	private _relayoutCellDebounced() {
+		if (this._timer !== null) {
+			clearTimeout(this._timer);
+		}
+
+		this._timer = setTimeout(() => {
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+			this._timer = null;
+		}, 200) as unknown as number | null;
+	}
+
+	dispose() {
+		this.outputEntries.forEach((value) => {
+			value.dispose();
+		});
+
+		super.dispose();
 	}
 }
