@@ -949,10 +949,9 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
-	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
-	$setCandidateFilter(): Promise<void>;
 	$tunnelServiceReady(): Promise<void>;
+	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
 }
 
 export interface MainThreadTimelineShape extends IDisposable {
@@ -1742,8 +1741,6 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface ExtHostTunnelServiceShape {
-	$findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]>;
-	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]>;
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined;
 	$closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void>;
 	$onDidTunnelsChange(): Promise<void>;
