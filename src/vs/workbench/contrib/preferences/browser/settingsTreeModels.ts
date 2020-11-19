@@ -292,18 +292,21 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAnyFeature(featureFilters?: Set<string>): boolean {
-
 		if (!featureFilters || !featureFilters.size) {
 			return true;
 		}
 
-		const features = tocData.children!.find(child => child.id === 'features')!.children;
+		const features = tocData.children!.find(child => child.id === 'features');
 
 		return Array.from(featureFilters).some(filter => {
-			const feature = features!.find(feature => 'features/' + filter === feature.id);
-			if (feature) {
-				const patterns = feature.settings?.map(setting => createSettingMatchRegExp(setting.toString()));
-				return patterns && !this.setting.extensionInfo && (patterns[0].test(this.setting.key.toLowerCase()) || (patterns.length > 1 && patterns[1].test(this.setting.key.toLowerCase())));
+			if (features && features.children) {
+				const feature = features.children.find(feature => 'features/' + filter === feature.id);
+				if (feature) {
+					const patterns = feature.settings?.map(setting => createSettingMatchRegExp(setting as string));
+					return patterns && !this.setting.extensionInfo && patterns.some(pattern => pattern.test(this.setting.key.toLowerCase()));
+				} else {
+					return false;
+				}
 			} else {
 				return false;
 			}
@@ -629,8 +632,9 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
 		const isRemote = !!this.environmentService.remoteAuthority;
+
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyFeature(this._viewState.featureFilters));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && this.containsValidFeature() ? child.matchesAnyFeature(this._viewState.featureFilters) : true);
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
@@ -641,6 +645,22 @@ export class SearchResultModel extends SettingsTreeModel {
 			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', arrays.distinct(resultExtensionIds));
 			newExtElement.parent = this._root;
 			this._root.children.push(newExtElement);
+		}
+	}
+
+	private containsValidFeature(): boolean {
+		if (!this._viewState.featureFilters || !this._viewState.featureFilters.size || !tocData.children) {
+			return false;
+		}
+
+		const features = tocData.children.find(child => child.id === 'features');
+
+		if (features && features.children) {
+			return Array.from(this._viewState.featureFilters).some(filter => {
+				return features.children?.find(feature => 'features/' + filter === feature.id);
+			});
+		} else {
+			return false;
 		}
 	}
 
