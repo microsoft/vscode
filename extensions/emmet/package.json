@@ -436,12 +436,6 @@
         {
           "command": "editor.emmet.action.reflectCSSValue"
         }
-      ],
-      "editor/context": [
-        {
-          "command": "editor.emmet.action.expandAbbreviation",
-          "group": "2_emmet"
-        }
       ]
     }
   },

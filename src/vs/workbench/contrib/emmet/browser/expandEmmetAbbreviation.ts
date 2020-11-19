@@ -121,8 +121,8 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 			if (languages.length <= 1) {
 				return syntax;
 			}
-			for (let i = 0; i < languages.length - 1; i++) {
-				const language = languages[languages.length - i - 1];
+			for (let i = languages.length - 1; i >= 1; i--) {
+				const language = languages[i];
 				if (this.emmetSupportedModes.includes(language)) {
 					return language;
 				}
