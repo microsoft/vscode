@@ -185,9 +185,15 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => {
-			this.notificationService.info(message);
-		});
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
+		ipcRenderer.on('vscode:showShellEnvTimeoutWarningMessage', () => this.notificationService.prompt(
+			Severity.Warning,
+			nls.localize('shellEnvTimeoutWarning', "It took more than 10s to resolve your shell environment. Please review your shell configuration."),
+			[{
+				label: nls.localize('learnMode', "Learn More"),
+				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+			}]
+		));
 
 		// Display change events
 		ipcRenderer.on('vscode:displayChanged', () => {
