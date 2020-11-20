@@ -480,16 +480,15 @@ function registerOpenEditorAPICommands(): void {
 		}, viewColumnToEditorGroup(editorGroupService, column));
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, payload: [UriComponents, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined]) => {
+	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions: [EditorGroupColumn?, ITextEditorOptions?]) => {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const [resource, id, optionsArg, columnArg] = payload;
-
-		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
-		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
+		const [column, options] = columnAndOptions;
+		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, column)) ?? editorGroupsService.activeGroup;
+		const textOptions: ITextEditorOptions = options ? { ...options, override: false } : { override: false };
 
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
 		return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
