@@ -109,6 +109,33 @@ export interface IncrementalTestCollectionItem extends InternalTestItem {
 }
 
 /**
+ * The IncrementalChangeCollector is used in the IncrementalTestCollection
+ * and called with diff changes as they're applied. This is used in the
+ * ext host to create a cohesive change event from a diff.
+ */
+export class IncrementalChangeCollector<T> {
+	/**
+	 * A node was added.
+	 */
+	public add(node: T): void { }
+
+	/**
+	 * A node in the collection was updated.
+	 */
+	public update(node: T): void { }
+
+	/**
+	 * A node was removed.
+	 */
+	public remove(node: T): void { }
+
+	/**
+	 * Called when the diff has been applied.
+	 */
+	public complete(): void { }
+}
+
+/**
  * Maintains tests in this extension host sent from the main thread.
  */
 export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
@@ -126,19 +153,23 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * Applies the diff to the collection.
 	 */
 	public apply(diff: TestsDiff) {
+		const changes = this.createChangeCollector();
+
 		for (const op of diff) {
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
 					const item = op[1];
 					if (!item.parent) {
 						this.roots.add(item.id);
-						this.items.set(item.id, this.createItem(item));
-						this.onChange(null);
+						const created = this.createItem(item);
+						this.items.set(item.id, created);
+						changes.add(created);
 					} else if (this.items.has(item.parent)) {
 						const parent = this.items.get(item.parent)!;
 						parent.children.add(item.id);
-						this.items.set(item.id, this.createItem(item));
-						this.onChange(parent);
+						const created = this.createItem(item, parent);
+						this.items.set(item.id, created);
+						changes.add(created);
 					}
 					break;
 				}
@@ -148,7 +179,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 					const existing = this.items.get(item.id);
 					if (existing) {
 						Object.assign(existing.item, item.item);
-						this.onChange(existing);
+						changes.update(existing);
 					}
 					break;
 				}
@@ -160,7 +191,8 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 					}
 
 					if (toRemove.parent) {
-						this.items.get(toRemove.parent)!.children.delete(toRemove.id);
+						const parent = this.items.get(toRemove.parent)!;
+						parent.children.delete(toRemove.id);
 					} else {
 						this.roots.delete(toRemove.id);
 					}
@@ -172,26 +204,26 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 							if (existing) {
 								queue.push(existing.children);
 								this.items.delete(itemId);
+								changes.remove(existing);
 							}
 						}
 					}
-
-					this.onChange(toRemove);
 				}
 			}
 		}
+
+		changes.complete();
 	}
 
 	/**
-	 * Called when an item in the collection changes, with the same semantics
-	 * as `onDidChangeTests` in vscode.d.ts.
+	 * Called before a diff is applied to create a new change collector.
 	 */
-	protected onChange(item: T | null): void {
-		// no-op
+	protected createChangeCollector() {
+		return new IncrementalChangeCollector<T>();
 	}
 
 	/**
 	 * Creates a new item for the collection from the internal test item.
 	 */
-	protected abstract createItem(internal: InternalTestItem): T;
+	protected abstract createItem(internal: InternalTestItem, parent?: T): T;
 }
