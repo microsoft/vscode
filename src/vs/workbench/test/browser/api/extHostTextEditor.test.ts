@@ -20,7 +20,7 @@ suite('ExtHostTextEditor', () => {
 	], '\n', 1, 'text', false);
 
 	setup(() => {
-		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, atomicSoftTabs: false, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 	});
 
 	test('disposed editor', () => {
@@ -47,7 +47,7 @@ suite('ExtHostTextEditor', () => {
 					applyCount += 1;
 					return Promise.resolve(true);
 				}
-			}, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, atomicSoftTabs: false, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+			}, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 
 		await editor.edit(edit => { });
 		assert.equal(applyCount, 0);
@@ -91,7 +91,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		}, new NullLogService());
@@ -107,7 +106,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: opts.tabSize,
 			indentSize: opts.indentSize,
 			insertSpaces: opts.insertSpaces,
-			atomicSoftTabs: opts.atomicSoftTabs,
 			cursorStyle: opts.cursorStyle,
 			lineNumbers: opts.lineNumbers
 		};
@@ -120,7 +118,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -133,7 +130,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 1,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -146,7 +142,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 2,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -159,7 +154,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 2,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -172,7 +166,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -185,7 +178,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -198,7 +190,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -211,7 +202,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -224,7 +214,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -237,7 +226,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -250,7 +238,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 1,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -263,7 +250,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 2,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -276,7 +262,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 2,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -289,7 +274,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -302,7 +286,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -315,7 +298,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -328,7 +310,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -341,7 +322,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -354,7 +334,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -367,7 +346,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -380,7 +358,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: true,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -393,7 +370,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -406,7 +382,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: true,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -419,7 +394,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -432,7 +406,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -445,7 +418,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Block,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -458,7 +430,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -471,7 +442,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.Off
 		});
@@ -482,7 +452,6 @@ suite('ExtHostTextEditorOptions', () => {
 		opts.assign({
 			tabSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: TextEditorLineNumbersStyle.On
 		});
@@ -490,7 +459,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -506,7 +474,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: true,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -522,7 +489,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 3,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
@@ -538,7 +504,6 @@ suite('ExtHostTextEditorOptions', () => {
 			tabSize: 4,
 			indentSize: 4,
 			insertSpaces: false,
-			atomicSoftTabs: false,
 			cursorStyle: TextEditorCursorStyle.Block,
 			lineNumbers: RenderLineNumbersType.Relative
 		});

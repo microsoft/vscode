@@ -80,7 +80,6 @@ export class MainThreadTextEditorProperties {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
 			indentSize: modelOptions.indentSize,
-			atomicSoftTabs: modelOptions.atomicSoftTabs,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
@@ -149,7 +148,6 @@ export class MainThreadTextEditorProperties {
 			a.tabSize === b.tabSize
 			&& a.indentSize === b.indentSize
 			&& a.insertSpaces === b.insertSpaces
-			&& a.atomicSoftTabs === b.atomicSoftTabs
 			&& a.cursorStyle === b.cursorStyle
 			&& a.lineNumbers === b.lineNumbers
 		);
@@ -375,9 +373,6 @@ export class MainThreadTextEditor {
 		const newOpts: ITextModelUpdateOptions = {};
 		if (typeof newConfiguration.insertSpaces !== 'undefined') {
 			newOpts.insertSpaces = newConfiguration.insertSpaces;
-		}
-		if (typeof newConfiguration.atomicSoftTabs !== 'undefined') {
-			newOpts.atomicSoftTabs = newConfiguration.atomicSoftTabs;
 		}
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;

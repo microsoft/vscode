@@ -10,7 +10,6 @@ import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
 
-
 export class CursorPosition {
 	_cursorPositionBrand: void;
 

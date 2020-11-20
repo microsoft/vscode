@@ -100,7 +100,6 @@ interface IRawEditorConfig {
 	tabSize?: any;
 	indentSize?: any;
 	insertSpaces?: any;
-	atomicSoftTabs?: any;
 	detectIndentation?: any;
 	trimAutoWhitespace?: any;
 	creationOptions?: any;
@@ -214,11 +213,6 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 		}
 
-		let atomicSoftTabs = EDITOR_MODEL_DEFAULTS.atomicSoftTabs;
-		if (config.editor && typeof config.editor.atomicSoftTabs !== 'undefined') {
-			atomicSoftTabs = (config.editor.atomicSoftTabs === 'false' ? false : Boolean(config.editor.atomicSoftTabs));
-		}
-
 		let newDefaultEOL = DEFAULT_EOL;
 		const eol = config.eol;
 		if (eol === '\r\n') {
@@ -247,7 +241,6 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			tabSize: tabSize,
 			indentSize: indentSize,
 			insertSpaces: insertSpaces,
-			atomicSoftTabs: atomicSoftTabs,
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
@@ -310,7 +303,6 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (currentOptions
 			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
 			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
-			&& (currentOptions.atomicSoftTabs === newOptions.atomicSoftTabs)
 			&& (currentOptions.tabSize === newOptions.tabSize)
 			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
@@ -322,13 +314,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (newOptions.detectIndentation) {
 			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
 			model.updateOptions({
-				atomicSoftTabs: newOptions.atomicSoftTabs,
 				trimAutoWhitespace: newOptions.trimAutoWhitespace
 			});
 		} else {
 			model.updateOptions({
 				insertSpaces: newOptions.insertSpaces,
-				atomicSoftTabs: newOptions.atomicSoftTabs,
 				tabSize: newOptions.tabSize,
 				indentSize: newOptions.indentSize,
 				trimAutoWhitespace: newOptions.trimAutoWhitespace

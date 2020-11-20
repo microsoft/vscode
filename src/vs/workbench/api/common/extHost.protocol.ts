@@ -234,7 +234,6 @@ export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
 	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean | 'auto';
-	atomicSoftTabs?: boolean;
 	cursorStyle?: TextEditorCursorStyle;
 	lineNumbers?: RenderLineNumbersType;
 }
@@ -243,7 +242,6 @@ export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	indentSize: number;
 	insertSpaces: boolean;
-	atomicSoftTabs: boolean;
 	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: RenderLineNumbersType;
 }

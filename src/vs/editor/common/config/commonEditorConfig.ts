@@ -482,11 +482,6 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_MODEL_DEFAULTS.insertSpaces,
 			markdownDescription: nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
-		'editor.atomicSoftTabs': {
-			type: 'boolean',
-			default: EDITOR_MODEL_DEFAULTS.atomicSoftTabs,
-			markdownDescription: nls.localize('atomicSoftTabs', "Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation. This means selection will snap to indentation boundaries.")
-		},
 		'editor.detectIndentation': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.detectIndentation,

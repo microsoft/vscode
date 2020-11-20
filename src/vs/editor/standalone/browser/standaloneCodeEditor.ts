@@ -94,11 +94,6 @@ export interface IGlobalEditorOptions {
 	 */
 	insertSpaces?: boolean;
 	/**
-	 * Treat soft tabs like hard tabs.
-	 * Defaults to false.
-	 */
-	atomicSoftTabs?: boolean;
-	/**
 	 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
 	 * Defaults to true.
 	 */

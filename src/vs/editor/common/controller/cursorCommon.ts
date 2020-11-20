@@ -114,7 +114,7 @@ export class CursorConfiguration {
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
-		this.atomicSoftTabs = modelOptions.atomicSoftTabs;
+		this.atomicSoftTabs = options.get(EditorOption.atomicSoftTabs);
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
 		this.useTabStops = options.get(EditorOption.useTabStops);

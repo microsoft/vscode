@@ -240,6 +240,7 @@ export class HitTestContext {
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
 	public readonly lineHeight: number;
+	public readonly atomicSoftTabs: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
 	public readonly lastRenderData: PointerHandlerLastRenderData;
 
@@ -252,6 +253,7 @@ export class HitTestContext {
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
 		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.atomicSoftTabs = options.get(EditorOption.atomicSoftTabs);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this.lastRenderData = lastRenderData;
 		this._context = context;
@@ -1012,14 +1014,12 @@ export class MouseTargetFactory {
 	}
 
 	private static _snapToSoftTabBoundary(position: Position, viewModel: IViewModel): Position {
-		if (viewModel.getTextModelOptions().atomicSoftTabs) {
-			const minColumn = viewModel.getLineMinColumn(position.lineNumber);
-			const lineContent = viewModel.getLineContent(position.lineNumber);
-			const { tabSize } = viewModel.getTextModelOptions();
-			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - minColumn, tabSize, Direction.Nearest);
-			if (newPosition !== -1) {
-				return new Position(position.lineNumber, newPosition + minColumn);
-			}
+		const minColumn = viewModel.getLineMinColumn(position.lineNumber);
+		const lineContent = viewModel.getLineContent(position.lineNumber);
+		const { tabSize } = viewModel.getTextModelOptions();
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - minColumn, tabSize, Direction.Nearest);
+		if (newPosition !== -1) {
+			return new Position(position.lineNumber, newPosition + minColumn);
 		}
 		return position;
 	}
@@ -1056,7 +1056,7 @@ export class MouseTargetFactory {
 			};
 		}
 		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
-		if (result.position !== null && ctx.model.getTextModelOptions().atomicSoftTabs) {
+		if (result.position !== null && ctx.atomicSoftTabs) {
 			result.position = this._snapToSoftTabBoundary(result.position, ctx.model);
 		}
 		return result;

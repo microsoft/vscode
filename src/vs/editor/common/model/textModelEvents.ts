@@ -104,7 +104,6 @@ export interface IModelOptionsChangedEvent {
 	readonly tabSize: boolean;
 	readonly indentSize: boolean;
 	readonly insertSpaces: boolean;
-	readonly atomicSoftTabs: boolean;
 	readonly trimAutoWhitespace: boolean;
 }
 
