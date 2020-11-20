@@ -16,10 +16,9 @@ import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workb
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
+import { ClickTargetType, getExecuteCellPlaceholder } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellStatusbarAlignment } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class CodeCell extends Disposable {
@@ -35,7 +34,9 @@ export class CodeCell extends Disposable {
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@ITextFileService readonly textFileService: ITextFileService,
-		@IModeService private readonly _modeService: IModeService
+		@IModeService private readonly _modeService: IModeService,
+		// @IKeybindingService private readonly _keybindingService: IKeybindingService,
+
 	) {
 		super();
 
@@ -218,19 +219,14 @@ export class CodeCell extends Disposable {
 		updateForCollapseState();
 
 		const updatePlaceholder = () => {
-			if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.metadata.runState === undefined && viewCell.metadata.lastRunDuration === undefined) {
+			if (this.notebookEditor.getActiveCell() === this.viewCell
+				&& viewCell.metadata.runState === undefined
+				&& viewCell.metadata.lastRunDuration === undefined
+			) {
 				// active cell and no run status
 				if (this._activeCellRunPlaceholder === null) {
-					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry({
-						alignment: CellStatusbarAlignment.LEFT,
-						priority: -1,
-						cellResource: viewCell.uri,
-						command: undefined,
-						text: 'Ctrl + Enter to run',
-						tooltip: 'Ctrl + Enter to run',
-						visible: true,
-						opacity: '0.7'
-					});
+					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
+					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
 				}
 
 				return;
@@ -247,6 +243,8 @@ export class CodeCell extends Disposable {
 		this._register(this.viewCell.model.onDidChangeMetadata(() => {
 			updatePlaceholder();
 		}));
+
+		updatePlaceholder();
 	}
 
 	private viewUpdate(): void {

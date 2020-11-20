@@ -86,7 +86,7 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
-	trusted?: boolean;
+	trusted: boolean;
 }
 
 export enum NotebookCellRunState {
@@ -185,6 +185,7 @@ export enum MimeTypeRendererResolver {
 export interface IOrderedMimeType {
 	mimeType: string;
 	rendererId: string;
+	isTrusted: boolean;
 }
 
 export interface ITransformedDisplayOutputDto extends IDisplayOutput {
@@ -536,6 +537,19 @@ export namespace CellUri {
 			})
 		};
 	}
+}
+
+export function mimeTypeIsAlwaysSecure(mimeType: string) {
+	if ([
+		'application/json',
+		'text/markdown',
+		'image/png',
+		'text/plain'
+	].indexOf(mimeType) > -1) {
+		return true;
+	}
+
+	return false;
 }
 
 export function mimeTypeSupportedByCore(mimeType: string) {

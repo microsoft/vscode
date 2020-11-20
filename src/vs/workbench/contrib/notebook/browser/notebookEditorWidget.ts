@@ -873,7 +873,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _updateForMetadata(): void {
 		const notebookMetadata = this.viewModel!.metadata;
 		this._editorEditable?.set(!!notebookMetadata?.editable);
-		this._editorRunnable?.set(!!notebookMetadata?.runnable);
+		this._editorRunnable?.set(this.viewModel!.runnable);
 		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 
@@ -1621,7 +1621,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async executeNotebook(): Promise<void> {
-		if (!this._notebookViewModel!.metadata.runnable) {
+		if (!this._notebookViewModel!.runnable) {
 			return;
 		}
 

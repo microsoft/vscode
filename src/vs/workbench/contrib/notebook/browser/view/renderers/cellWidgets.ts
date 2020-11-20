@@ -23,6 +23,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ChangeCellLanguageAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarEntry } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -338,4 +339,19 @@ export function getResizesObserver(referenceDomElement: HTMLElement | null, dime
 	} else {
 		return new ElementSizeObserver(referenceDomElement, dimension, changeCallback);
 	}
+}
+
+export function getExecuteCellPlaceholder(viewCell: BaseCellViewModel) {
+	return {
+		alignment: CellStatusbarAlignment.LEFT,
+		priority: -1,
+		cellResource: viewCell.uri,
+		command: undefined,
+		// text: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
+		// tooltip: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
+		text: 'Ctrl + Enter to run',
+		tooltip: 'Ctrl + Enter to run',
+		visible: true,
+		opacity: '0.7'
+	};
 }

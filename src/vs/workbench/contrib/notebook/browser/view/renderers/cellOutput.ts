@@ -63,7 +63,8 @@ export class OutputElement extends Disposable {
 
 			const mimeTypes = this.notebookService.getMimeTypeInfo(this.notebookEditor.textModel!, this.output);
 
-			const pick = this.pickedMimeTypes.get(this.output) ?? Math.max(mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE), 0);
+			// there is at least one mimetype which is safe and can be rendered by the core
+			const pick = this.pickedMimeTypes.get(this.output) ?? Math.max(mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted), 0);
 
 			if (mimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
@@ -104,6 +105,8 @@ export class OutputElement extends Disposable {
 			} else {
 				result = this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
 			}
+
+			this.pickedMimeTypes.set(this.output, pick);
 		} else {
 			// for text and error, there is no mimetype
 			const innerContainer = DOM.$('.output-inner-container');
@@ -174,10 +177,10 @@ export class OutputElement extends Disposable {
 	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {
 
 		const mimeTypes = this.notebookService.getMimeTypeInfo(this.notebookEditor.textModel!, output);
-		const currIndex = this.pickedMimeTypes.get(output) ?? 0;
+		const currIndex = this.pickedMimeTypes.get(output);
 
 		// const currIndex = output.pickedMimeTypeIndex;
-		const items = mimeTypes.map((mimeType, index): IMimeTypeRenderer => ({
+		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
 			label: mimeType.mimeType,
 			id: mimeType.mimeType,
 			index: index,
@@ -189,7 +192,9 @@ export class OutputElement extends Disposable {
 		const picker = this.quickInputService.createQuickPick();
 		picker.items = items;
 		picker.activeItems = items.filter(item => !!item.picked);
-		picker.placeholder = nls.localize('promptChooseMimeType.placeHolder', "Select output mimetype to render for current output");
+		picker.placeholder = items.length !== mimeTypes.length
+			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output. Rich mimetypes are available only when the notebook is trusted")
+			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<number | undefined>(resolve => {
 			picker.onDidAccept(() => {
@@ -284,7 +289,7 @@ export class OutputContainer extends Disposable {
 			this.templateData.outputContainer!.style.display = 'block';
 			// there are outputs, we need to calcualte their sizes and trigger relayout
 			// @TODO@rebornix, if there is no resizable output, we should not check their height individually, which hurts the performance
-			const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
+			const outputsToRender = this._calcuateOutputsToRender();
 			for (let index = 0; index < outputsToRender.length; index++) {
 				const currOutput = this.viewCell.outputs[index];
 
@@ -356,6 +361,43 @@ export class OutputContainer extends Disposable {
 		});
 	}
 
+	private _calcuateOutputsToRender() {
+		const outputs = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
+		if (!this.notebookEditor.viewModel!.metadata.trusted) {
+			// not trusted
+			const secureOutput = outputs.filter(output => {
+				switch (output.outputKind) {
+					case CellOutputKind.Text:
+						return true;
+					case CellOutputKind.Error:
+						return true;
+					case CellOutputKind.Rich:
+						{
+							const mimeTypes = [];
+							for (const property in output.data) {
+								mimeTypes.push(property);
+							}
+
+							if (mimeTypes.indexOf('text/plain') >= 0
+								|| mimeTypes.indexOf('text/markdown') >= 0
+								|| mimeTypes.indexOf('application/json') >= 0
+								|| mimeTypes.includes('image/png')) {
+								return true;
+							}
+
+							return false;
+						}
+					default:
+						return false;
+				}
+			});
+
+			return secureOutput;
+		}
+
+		return outputs;
+	}
+
 	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
 		if (!splices.length) {
 			return;
@@ -393,7 +435,7 @@ export class OutputContainer extends Disposable {
 		});
 
 		let prevElement: HTMLElement | undefined = undefined;
-		const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
+		const outputsToRender = this._calcuateOutputsToRender();
 
 		outputsToRender.reverse().forEach(output => {
 			if (this.outputEntries.has(output)) {
