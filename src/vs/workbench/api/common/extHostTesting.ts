@@ -189,12 +189,30 @@ const keyMap: { [K in keyof Omit<Required<vscode.TestItem>, 'children'>]: null }
 
 const simpleProps = Object.keys(keyMap) as ReadonlyArray<keyof typeof keyMap>;
 
+const itemEqualityComparator = (a: vscode.TestItem) => {
+	const values: unknown[] = [];
+	for (const prop of simpleProps) {
+		values.push(a[prop]);
+	}
+
+	return (b: vscode.TestItem) => {
+		for (let i = 0; i < simpleProps.length; i++) {
+			if (values[i] !== b[simpleProps[i]]) {
+				return false;
+			}
+		}
+
+		return true;
+	};
+};
+
 /**
  * @private
  */
 export interface OwnedCollectionTestItem extends InternalTestItem {
 	actual: vscode.TestItem;
 	previousChildren: Set<string>;
+	previousEquals: (v: vscode.TestItem) => boolean;
 }
 
 export class OwnedTestCollection {
@@ -294,13 +312,15 @@ export class SingleUseTestCollection implements IDisposable {
 				item: TestItem.from(actual),
 				providerId,
 				previousChildren: new Set(),
+				previousEquals: itemEqualityComparator(actual),
 			};
 
 			this.testItemToInternal.set(actual, internal);
 			this.testIdToInternal.set(internal.id, internal);
 			this.diff.push([TestDiffOpType.Add, { id: internal.id, parent, providerId, item: internal.item }]);
-		} else if (simpleProps.some(key => actual[key] !== internal!.item[key])) {
+		} else if (!internal.previousEquals(actual)) {
 			internal.item = TestItem.from(actual);
+			internal.previousEquals = itemEqualityComparator(actual);
 			this.diff.push([TestDiffOpType.Update, { id: internal.id, parent, providerId, item: internal.item }]);
 		}
 
