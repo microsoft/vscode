@@ -287,8 +287,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			? setting
 			: Object.keys(setting).filter(x => setting[x]);
 
-		const codeActionsOnSave = settingItems
-			.map(x => new CodeActionKind(x));
+		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
 		if (!Array.isArray(setting)) {
 			codeActionsOnSave.sort((a, b) => {
@@ -317,6 +316,28 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
+	}
+
+	private createCodeActionsOnSave(settingItems: string[]): CodeActionKind[] {
+		const actionSeeds = new Set<string>();
+
+		// Remove subsets
+		const len = settingItems.length;
+		outer: for (let i = 0; i < len; i++) {
+			const s1 = settingItems[i];
+			for (let j = 0; j < len; j++) {
+				if (j === i) {
+					continue;
+				}
+				const s2 = settingItems[j];
+				if (s1.startsWith(s2) && s1.length > s2.length) {
+					continue outer;
+				}
+			}
+			actionSeeds.add(s1);
+		}
+
+		return Array.from(actionSeeds).map(x => new CodeActionKind(x));
 	}
 
 	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
