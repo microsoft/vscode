@@ -74,7 +74,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
 	runState: NotebookRunState.Idle,
-	trusted: false
+	trusted: true
 };
 
 export interface NotebookDocumentMetadata {

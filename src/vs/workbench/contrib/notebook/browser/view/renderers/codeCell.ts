@@ -12,19 +12,20 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor, TRUST_NOTEBOOK_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ClickTargetType, getExecuteCellPlaceholder } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellStatusbarAlignment, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: OutputContainer;
 	private _activeCellRunPlaceholder: IDisposable | null = null;
+	private _untrustedStatusItem: IDisposable | null = null;
 
 	constructor(
 		private notebookEditor: INotebookEditor,
@@ -247,13 +248,35 @@ export class CodeCell extends Disposable {
 			updatePlaceholder();
 		}));
 
+		const updateUntrustedStatus = () => {
+			if (this.notebookEditor.viewModel
+				&& this.notebookEditor.viewModel.metadata.trusted) {
+				this._untrustedStatusItem?.dispose();
+				this._untrustedStatusItem = null;
+			} else {
+				if (this._untrustedStatusItem === null) {
+					this._untrustedStatusItem = this.notebookCellStatusBarService.addEntry({
+						alignment: CellStatusbarAlignment.LEFT,
+						priority: -1,
+						cellResource: viewCell.uri,
+						command: TRUST_NOTEBOOK_COMMAND_ID,
+						text: 'Untrusted',
+						tooltip: 'Untrusted notebook',
+						visible: true,
+					});
+				}
+			}
+		};
+
 		this._register(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
 			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
 				updatePlaceholder();
+				updateUntrustedStatus();
 			}
 		}));
 
 		updatePlaceholder();
+		updateUntrustedStatus();
 	}
 
 	private viewUpdate(): void {
@@ -373,6 +396,7 @@ export class CodeCell extends Disposable {
 		this.viewCell.detachTextEditor();
 		this._outputContainerRenderer.dispose();
 		this._activeCellRunPlaceholder?.dispose();
+		this._untrustedStatusItem?.dispose();
 		this.templateData.focusIndicatorLeft!.style.height = 'initial';
 
 		super.dispose();
