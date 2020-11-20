@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, INotificationProperties, Severity } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -121,7 +121,7 @@ suite('Experimental Prompts', () => {
 
 		const stub = instantiationService.stub(ICommandService, 'executeCommand', () => undefined);
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options: INotificationProperties) => {
 				c[0].run();
 				return undefined!;
 			}
@@ -159,7 +159,7 @@ suite('Experimental Prompts', () => {
 		};
 
 		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], options: INotificationProperties) => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				options.onCancel!();

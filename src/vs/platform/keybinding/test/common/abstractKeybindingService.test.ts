@@ -13,7 +13,7 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { INotification, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationService, IPromptChoice, INotificationProperties, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -155,7 +155,7 @@ suite('AbstractKeybindingService', () => {
 					showMessageCalls.push({ sev: Severity.Error, message });
 					return new NoOpNotification();
 				},
-				prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
+				prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: INotificationProperties) {
 					throw new Error('not implemented');
 				},
 				status(message: string, options?: IStatusMessageOptions) {

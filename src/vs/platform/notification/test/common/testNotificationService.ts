@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationService, INotificationHandle, NoOpNotification, Severity, INotification, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle, NoOpNotification, Severity, INotification, IPromptChoice, INotificationProperties, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export class TestNotificationService implements INotificationService {
@@ -28,7 +28,7 @@ export class TestNotificationService implements INotificationService {
 		return TestNotificationService.NO_OP;
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
+	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: INotificationProperties): INotificationHandle {
 		return TestNotificationService.NO_OP;
 	}
 
