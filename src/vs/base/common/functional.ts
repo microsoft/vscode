@@ -19,27 +19,3 @@ export function once<T extends Function>(this: unknown, fn: T): T {
 		return result;
 	} as unknown as T;
 }
-
-const defaultMemoizeMap = (...args: unknown[]) => args[0] as object;
-
-/**
- * Returns a memoized version of the function using the mapFn (which by default
- * takes the first argument). The memoization token is stored in a WeakMap
- * and so must be an object.
- */
-export function memoizeFnWeak<Args extends unknown[], R>(
-	fn: (...args: Args) => R,
-	mapFn: (...args: Args) => object = defaultMemoizeMap,
-) {
-	const memoized = new WeakMap<object, R>();
-	return function(this: unknown, ...args: Args): R {
-		const memoizeKey = mapFn.apply(this, args);
-		if (memoized.has(memoizeKey)) {
-			return memoized.get(memoizeKey)!;
-		}
-
-		const r = fn.apply(this, args);
-		memoized.set(memoizeKey, r);
-		return r;
-	};
-}
