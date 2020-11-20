@@ -25,12 +25,12 @@
 	const preloadGlobals = globals();
 	const sandbox = preloadGlobals.context.sandbox;
 	const webFrame = preloadGlobals.webFrame;
-	const safeProcess = sandbox ? preloadGlobals.process : process;
+	const safeProcess = preloadGlobals.process;
 	const configuration = parseWindowConfiguration();
 
 	// Start to resolve process.env before anything gets load
 	// so that we can run loading and resolving in parallel
-	const whenEnvResolved = preloadGlobals.process.resolveEnv(configuration.userEnv);
+	const whenEnvResolved = safeProcess.resolveEnv(configuration.userEnv);
 
 	/**
 	 * @param {string[]} modulePaths
@@ -149,14 +149,12 @@
 
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
-				if (callbackResult && typeof callbackResult.then === 'function') {
-					callbackResult.then(() => {
-						if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-							developerToolsUnbind();
-						}
-					}, error => {
-						onUnexpectedError(error, enableDeveloperTools);
-					});
+				if (callbackResult instanceof Promise) {
+					await callbackResult;
+
+					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
+						developerToolsUnbind();
+					}
 				}
 			} catch (error) {
 				onUnexpectedError(error, enableDeveloperTools);
