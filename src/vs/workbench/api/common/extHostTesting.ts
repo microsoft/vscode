@@ -17,7 +17,7 @@ import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTes
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, RequiredTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
@@ -178,7 +178,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 }
 
-const keyMap: { [K in keyof Omit<Required<vscode.TestItem>, 'children'>]: null } = {
+const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
 	label: null,
 	location: null,
 	state: null,
@@ -215,6 +215,9 @@ export interface OwnedCollectionTestItem extends InternalTestItem {
 	previousEquals: (v: vscode.TestItem) => boolean;
 }
 
+/**
+ * @private
+ */
 export class OwnedTestCollection {
 	protected readonly testIdToInternal = new Map<string, OwnedCollectionTestItem>();
 
@@ -542,11 +545,16 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
-	public getAllAsTestItem(itemIds: ReadonlyArray<string>): vscode.TestItem[] {
-		return itemIds.map(itemId => {
+	public getAllAsTestItem(itemIds: Iterable<string>): vscode.TestItem[] {
+		let output: vscode.TestItem[] = [];
+		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
-			return item && this.getPublicTestItem(item);
-		}).filter(isDefined);
+			if (item) {
+				output.push(this.getPublicTestItem(item));
+			}
+		}
+
+		return output;
 	}
 
 	/**
@@ -584,7 +592,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 */
 	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.TestItem {
 		if (!item.wrapped) {
-			item.wrapped = createMirroredTestItem(item, this);
+			item.wrapped = new ExtHostTestItem(item, this);
 		}
 
 		return item.wrapped;
@@ -597,29 +605,41 @@ const getMirroredItemId = (item: vscode.TestItem) => {
 
 const MirroredItemId = Symbol('MirroredItemId');
 
-const createMirroredTestItem = (internal: MirroredCollectionTestItem, collection: MirroredTestCollection): vscode.TestItem => {
-	const obj = {};
+class ExtHostTestItem implements vscode.TestItem, RequiredTestItem {
+	readonly #internal: MirroredCollectionTestItem;
+	readonly #collection: MirroredTestCollection;
 
-	Object.defineProperty(obj, MirroredItemId, {
-		enumerable: false,
-		configurable: false,
-		value: internal.id,
-	});
+	public get label() { return this.#internal.revived.label; }
+	public get description() { return this.#internal.revived.description; }
+	public get state() { return this.#internal.revived.state; }
+	public get location() { return this.#internal.revived.location; }
+	public get runnable() { return this.#internal.revived.runnable ?? true; }
+	public get debuggable() { return this.#internal.revived.debuggable ?? false; }
+	public get children() {
+		return this.#collection.getAllAsTestItem(this.#internal.children);
+	}
 
-	Object.defineProperty(obj, 'children', {
-		enumerable: true,
-		configurable: false,
-		get: () => collection.getAllAsTestItem([...internal.children])
-	});
+	get [MirroredItemId]() { return this.#internal.id; }
 
-	simpleProps.forEach(prop => Object.defineProperty(obj, prop, {
-		enumerable: true,
-		configurable: false,
-		get: () => internal.revived[prop],
-	}));
+	constructor(internal: MirroredCollectionTestItem, collection: MirroredTestCollection) {
+		this.#internal = internal;
+		this.#collection = collection;
+	}
 
-	return obj as any;
-};
+	public toJSON() {
+		const serialized: RequiredTestItem = {
+			label: this.label,
+			description: this.description,
+			state: this.state,
+			location: this.location,
+			runnable: this.runnable,
+			debuggable: this.debuggable,
+			children: this.children.map(c => (c as ExtHostTestItem).toJSON()),
+		};
+
+		return serialized;
+	}
+}
 
 interface IObserverData {
 	observers: number;
