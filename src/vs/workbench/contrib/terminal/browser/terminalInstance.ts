@@ -570,9 +570,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				event.preventDefault();
 				return false;
 			}
-			if (event.key === 'z') {
-				this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, true, StorageScope.GLOBAL, StorageTarget.USER);
-			}
+
 			// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
 			if (this._configHelper.config.allowMnemonics && !platform.isMacintosh && event.altKey) {
 				return false;
