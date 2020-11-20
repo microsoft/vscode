@@ -856,6 +856,7 @@ export interface INotebookCellStatusBarEntry {
 	readonly command: string | Command | undefined;
 	readonly accessibilityInformation?: IAccessibilityInformation;
 	readonly visible: boolean;
+	readonly opacity?: string;
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';

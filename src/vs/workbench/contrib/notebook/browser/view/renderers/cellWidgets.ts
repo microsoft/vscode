@@ -160,6 +160,10 @@ class CellStatusBarItem extends Disposable {
 		super();
 		new CodiconLabel(this.container).text = this._itemModel.text;
 
+		if (this._itemModel.opacity) {
+			this.container.style.opacity = this._itemModel.opacity;
+		}
+
 		let ariaLabel: string;
 		let role: string | undefined;
 		if (this._itemModel.accessibilityInformation) {

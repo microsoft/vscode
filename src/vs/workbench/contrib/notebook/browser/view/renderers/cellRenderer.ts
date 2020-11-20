@@ -1001,6 +1001,7 @@ export class RunStateRenderer {
 	private pendingNewState: NotebookCellRunState | undefined;
 
 	constructor(private readonly element: HTMLElement, private readonly runToolbar: ToolBar, private readonly instantiationService: IInstantiationService) {
+		DOM.hide(element);
 	}
 
 	clear() {
@@ -1037,6 +1038,12 @@ export class RunStateRenderer {
 			}, RunStateRenderer.MIN_SPINNER_TIME);
 		} else {
 			this.element.innerText = '';
+		}
+
+		if (runState === NotebookCellRunState.Idle) {
+			DOM.hide(this.element);
+		} else {
+			this.element.style.display = 'flex';
 		}
 	}
 }
