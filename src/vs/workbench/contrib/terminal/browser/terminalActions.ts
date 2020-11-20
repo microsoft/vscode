@@ -41,6 +41,7 @@ import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewIte
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -295,6 +296,23 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 	}
 }
 
+export class ConfigureTerminalSettingsAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS;
+	public static readonly LABEL = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
+
+	constructor(
+		id: string, label: string,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		this._preferencesService.openSettings(false, '@feature:terminal');
+	}
+}
+
 const terminalIndexRe = /^([0-9]+): /;
 
 export class SwitchTerminalAction extends Action {
@@ -307,6 +325,7 @@ export class SwitchTerminalAction extends Action {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
 		@ICommandService private readonly _commands: ICommandService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label, 'terminal-action switch-terminal');
 	}
@@ -323,7 +342,11 @@ export class SwitchTerminalAction extends Action {
 			this._terminalService.refreshActiveTab();
 			return this._terminalService.selectDefaultShell();
 		}
-
+		if (item === ConfigureTerminalSettingsAction.LABEL) {
+			const settingsAction = new ConfigureTerminalSettingsAction(ConfigureTerminalSettingsAction.ID, ConfigureTerminalSettingsAction.LABEL, this.preferencesService);
+			settingsAction.run();
+			this._terminalService.refreshActiveTab();
+		}
 		const indexMatches = terminalIndexRe.exec(item);
 		if (indexMatches) {
 			this._terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
@@ -386,6 +409,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 	}
 
 	items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
+	items.push({ text: ConfigureTerminalSettingsAction.LABEL });
 	return items;
 }
 
