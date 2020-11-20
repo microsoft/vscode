@@ -19,6 +19,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ClickTargetType, getExecuteCellPlaceholder } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class CodeCell extends Disposable {
@@ -219,7 +220,9 @@ export class CodeCell extends Disposable {
 		updateForCollapseState();
 
 		const updatePlaceholder = () => {
-			if (this.notebookEditor.getActiveCell() === this.viewCell
+			if (this.notebookEditor.viewModel
+				&& this.notebookEditor.getActiveCell() === this.viewCell
+				&& viewCell.getEvaluatedMetadata(this.notebookEditor.viewModel.metadata).runnable
 				&& viewCell.metadata.runState === undefined
 				&& viewCell.metadata.lastRunDuration === undefined
 			) {
@@ -242,6 +245,12 @@ export class CodeCell extends Disposable {
 
 		this._register(this.viewCell.model.onDidChangeMetadata(() => {
 			updatePlaceholder();
+		}));
+
+		this._register(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
+				updatePlaceholder();
+			}
 		}));
 
 		updatePlaceholder();

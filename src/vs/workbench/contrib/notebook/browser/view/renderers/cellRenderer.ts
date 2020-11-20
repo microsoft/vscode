@@ -47,7 +47,7 @@ import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, NotebookCellsChangeType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
 
 const $ = DOM.$;
@@ -915,6 +915,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			if (e.outputIsHoveredChanged) {
 				this.updateForHover(element, templateData);
+			}
+		}));
+		elementDisposables.add(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
+				this.updateForMetadata(element, templateData);
 			}
 		}));
 

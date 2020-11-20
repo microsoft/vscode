@@ -21,6 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getExecuteCellPlaceholder, getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class StatefulMarkdownCell extends Disposable {
 
@@ -134,7 +135,11 @@ export class StatefulMarkdownCell extends Disposable {
 		this.viewUpdate();
 
 		const updatePlaceholder = () => {
-			if (this.notebookEditor.getActiveCell() === this.viewCell) {
+			if (
+				this.notebookEditor.viewModel
+				&& this.notebookEditor.getActiveCell() === this.viewCell
+				&& !!this.notebookEditor.viewModel.metadata.trusted
+			) {
 				// active cell and no run status
 				if (this._activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
@@ -154,6 +159,12 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this._register(this.viewCell.model.onDidChangeMetadata(() => {
 			updatePlaceholder();
+		}));
+
+		this._register(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
+				updatePlaceholder();
+			}
 		}));
 
 		updatePlaceholder();
