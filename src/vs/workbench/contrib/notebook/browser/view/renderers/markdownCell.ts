@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { renderCodicons } from 'vs/base/browser/codicons';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +19,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
+import { getExecuteCellPlaceholder, getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
+import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class StatefulMarkdownCell extends Disposable {
 
@@ -29,6 +31,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private localDisposables = new DisposableStore();
 	private foldingState: CellFoldingState;
+	private _activeCellRunPlaceholder: IDisposable | null = null;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -37,6 +40,7 @@ export class StatefulMarkdownCell extends Disposable {
 		private editorOptions: IEditorOptions,
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -129,6 +133,41 @@ export class StatefulMarkdownCell extends Disposable {
 		});
 
 		this.viewUpdate();
+
+		const updatePlaceholder = () => {
+			if (
+				this.notebookEditor.viewModel
+				&& this.notebookEditor.getActiveCell() === this.viewCell
+				&& !!this.notebookEditor.viewModel.metadata.trusted
+			) {
+				// active cell and no run status
+				if (this._activeCellRunPlaceholder === null) {
+					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
+					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
+				}
+
+				return;
+			}
+
+			this._activeCellRunPlaceholder?.dispose();
+			this._activeCellRunPlaceholder = null;
+		};
+
+		this._register(this.notebookEditor.onDidChangeActiveCell(() => {
+			updatePlaceholder();
+		}));
+
+		this._register(this.viewCell.model.onDidChangeMetadata(() => {
+			updatePlaceholder();
+		}));
+
+		this._register(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
+				updatePlaceholder();
+			}
+		}));
+
+		updatePlaceholder();
 	}
 
 	private viewUpdate(): void {
