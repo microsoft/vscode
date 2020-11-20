@@ -1754,15 +1754,25 @@ export interface ExtHostTimelineShape {
 	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
 }
 
+export const enum ExtHostTestingResource {
+	Workspace,
+	TextDocument
+}
+
 export interface ExtHostTestingShape {
 	$runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult>;
-	$acceptDiff(diff: TestsDiff): void;
+	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
+
+	$acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 }
 
 export interface MainThreadTestingShape {
-	$publishDiff(diff: TestsDiff): void;
 	$registerTestProvider(id: string): void;
 	$unregisterTestProvider(id: string): void;
+	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 	$runTests(req: RunTestsRequest): Promise<RunTestsResult>;
 }
 

@@ -2938,10 +2938,6 @@ export class TestState {
 		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
 		this.#duration = duration;
 	}
-
-	public toJSON() {
-		return { runState: this.#runState, duration: this.#duration, messages: this.#messages };
-	}
 }
 
 //#endregion

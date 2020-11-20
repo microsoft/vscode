@@ -2131,58 +2131,60 @@ declare module 'vscode' {
 			- `onTests:*` new activation event very simiular to `workspaceContains`,
 				but only fired when the user wants to run tests or opens the test explorer.
 	*/
-export namespace test {
-	/**
-	 * Registers a provider that discovers tests for the given document
-	 * selectors. It is activated when either tests need to be enumerated, or
-	 * a document matching the selector is opened.
-	 */
-	export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
+	export namespace test {
+		/**
+		 * Registers a provider that discovers tests for the given document
+		 * selectors. It is activated when either tests need to be enumerated, or
+		 * a document matching the selector is opened.
+		 */
+		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
 
-	/**
-	 * Runs tests with the given options. If no options are given, then
-	 * all tests are run. Returns the resulting test run.
-	 */
-	export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+		/**
+		 * Runs tests with the given options. If no options are given, then
+		 * all tests are run. Returns the resulting test run.
+		 */
+		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
 
-	/**
-	 * Returns an observer that retrieves tests in the given workspace folder.
-	 */
-	export function createWorkspaceTestObserver(workspaceFolder: WorkspaceFolder): TestObserver;
+		/**
+		 * Returns an observer that retrieves tests in the given workspace folder.
+		 */
+		export function createWorkspaceTestObserver(workspaceFolder: WorkspaceFolder): TestObserver;
 
-	/**
-	 * Returns an observer that retrieves tests in the given text document.
-	 */
-	export function createDocumentTestObserver(document: TextDocument): TestObserver;
-}
+		/**
+		 * Returns an observer that retrieves tests in the given text document.
+		 */
+		export function createDocumentTestObserver(document: TextDocument): TestObserver;
+	}
 
-export interface TestObserver {
-	/**
-	 * List of tests returned by test provider for files in the workspace.
-	 */
-	readonly tests: ReadonlyArray<TestItem>;
+	export interface TestObserver {
+		/**
+		 * List of tests returned by test provider for files in the workspace.
+		 */
+		readonly tests: ReadonlyArray<TestItem>;
 
-	/**
-	 * An event that fires when an existing test in the collection changes, or
-	 * null if a top-level test was added or removed. When fired, the consumer
-	 * should check the test item and all its children for changes.
-	 */
-	readonly onDidChangeTest: Event<TestItem | null>;
+		/**
+		 * An event that fires when an existing test in the collection changes, or
+		 * null if a top-level test was added or removed. When fired, the consumer
+		 * should check the test item and all its children for changes.
+		 */
+		readonly onDidChangeTest: Event<TestItem | null>;
 
-	/**
-	 * An event the fires when all test providers have signalled that the tests
-	 * the observer references have been discovered. Providers may continue to
-	 * watch for changes and cause {@link onDidChangeTest} to fire as files
-	 * change, until the observer is disposed.
-	 */
-	readonly onDidDiscoverInitialTests: Event<void>;
+		/**
+		 * An event the fires when all test providers have signalled that the tests
+		 * the observer references have been discovered. Providers may continue to
+		 * watch for changes and cause {@link onDidChangeTest} to fire as files
+		 * change, until the observer is disposed.
+		 *
+		 * @todo as below
+		 */
+		readonly onDidDiscoverInitialTests: Event<void>;
 
-	/**
-	 * Dispose of the observer, allowing VS Code to eventually tell test
-	 * providers that they no longer need to update tests.
-	 */
-	dispose(): void;
-}
+		/**
+		 * Dispose of the observer, allowing VS Code to eventually tell test
+		 * providers that they no longer need to update tests.
+		 */
+		dispose(): void;
+	}
 
 	/**
 	 * Tree of tests returned from the provide methods in the {@link TestProvider}.
@@ -2211,6 +2213,8 @@ export interface TestObserver {
 		 * An event that should be fired when all tests that are currently defined
 		 * have been discovered. The provider should continue to watch for changes
 		 * and fire `onDidChangeTest` until the hierarchy is disposed.
+		 *
+		 * @todo can this be covered by existing progress apis? Or return a promise
 		 */
 		readonly onDidDiscoverInitialTests: Event<void>;
 
@@ -2229,9 +2233,10 @@ export interface TestObserver {
 	 *
 	 * Additionally, the UI may request it to discover tests for the workspace
 	 * via `addWorkspaceTests`.
+	 *
+	 * @todo rename from provider
 	 */
 	export interface TestProvider<T extends TestItem = TestItem> {
-
 		/**
 		 * Requests that tests be provided for the given workspace. This will
 		 * generally be called when tests need to be enumerated for the
@@ -2240,14 +2245,14 @@ export interface TestObserver {
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
-		provideWorkspaceTests?(workspace: WorkspaceFolder): TestHierarchy<T>;
+		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
 
 		/**
 		 * Requests that tests be provided for the given document. This will
 		 * be called when tests need to be enumerated for a single open file,
 		 * for instance by code lens UI.
 		 */
-		provideDocumentTests?(document: TextDocument): TestHierarchy<T>;
+		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to

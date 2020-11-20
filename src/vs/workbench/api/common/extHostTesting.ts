@@ -3,33 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapFind } from 'vs/base/common/arrays';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
-import { memoizeFnWeak } from 'vs/base/common/functional';
+import { Emitter } from 'vs/base/common/event';
+import { once } from 'vs/base/common/functional';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Disposable, TestState } from 'vs/workbench/api/common/extHostTypes';
+import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
+import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
+const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
+
 export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly providers = new Map<string, vscode.TestProvider>();
-	private readonly mirroredTests = new MirroredTestCollection();
 	private readonly proxy: MainThreadTestingShape;
 	private readonly ownedTests = new OwnedTestCollection();
+	private readonly testSubscriptions = new Map<string, { collection: SingleUseTestCollection, store: IDisposable }>();
 
-	constructor(@IExtHostRpcService rpc: IExtHostRpcService, private readonly _documents: ExtHostDocuments) {
+	private workspaceObservers: WorkspaceFolderTestObserverFactory;
+	private textDocumentObservers: TextDocumentTestObserverFactory;
+
+	constructor(@IExtHostRpcService rpc: IExtHostRpcService, @IExtHostDocumentsAndEditors private readonly documents: IExtHostDocumentsAndEditors, @IExtHostWorkspace private readonly workspace: IExtHostWorkspace) {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
-	}
-
-	/**
-	 * Gets a list of tests items (mirrored to this ext host.)
-	 */
-	public get rootTestItems() {
-		return this.mirroredTests.rootTestItems;
+		this.workspaceObservers = new WorkspaceFolderTestObserverFactory(this.proxy);
+		this.textDocumentObservers = new TextDocumentTestObserverFactory(this.proxy, documents);
 	}
 
 	/**
@@ -38,20 +45,26 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public registerTestProvider<T extends vscode.TestItem>(provider: vscode.TestProvider<T>): vscode.Disposable {
 		const providerId = generateUuid();
 		this.providers.set(providerId, provider);
-
-		this.ownedTests.addRoot(provider.testRoot, providerId);
 		this.proxy.$registerTestProvider(providerId);
-		provider.onDidChangeTest(test => {
-			this.ownedTests.onItemChange(test, providerId);
-			this.throttleSendDiff();
-		});
 
 		return new Disposable(() => {
 			this.providers.delete(providerId);
 			this.proxy.$unregisterTestProvider(providerId);
-			this.ownedTests.removeRoot(provider.testRoot);
-			this.throttleSendDiff();
 		});
+	}
+
+	/**
+	 * Implements vscode.test.createTextDocumentTestObserver
+	 */
+	public createTextDocumentTestObserver(document: vscode.TextDocument) {
+		return this.textDocumentObservers.checkout(document.uri);
+	}
+
+	/**
+	 * Implements vscode.test.createWorkspaceTestObserver
+	 */
+	public createWorkspaceTestObserver(workspaceFolder: vscode.WorkspaceFolder) {
+		return this.workspaceObservers.checkout(workspaceFolder.uri);
 	}
 
 	/**
@@ -60,7 +73,12 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>) {
 		await this.proxy.$runTests({
 			tests: req.tests
-				.map(test => this.mirroredTests.getMirroredTestItemId(test) ?? this.ownedTests.getTestByReference(test))
+				// Find workspace items first, then owned tests, then document tests.
+				// If a test instance exists in both the workspace and document, prefer
+				// the workspace because it's less ephemeral.
+				.map(test => this.workspaceObservers.getMirroredTestDataByReference(test)
+					?? mapFind(this.testSubscriptions.values(), c => c.collection.getTestByReference(test))
+					?? this.textDocumentObservers.getMirroredTestDataByReference(test))
 				.filter(isDefined)
 				.map(item => ({ providerId: item.providerId, testId: item.id })),
 			debug: req.debug
@@ -68,12 +86,75 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 
 	/**
+	 * Handles a request to read tests for a file, or workspace.
+	 * @override
+	 */
+	public $subscribeToTests(resource: ExtHostTestingResource, uriComponents: UriComponents) {
+		const uri = URI.revive(uriComponents);
+		const subscriptionKey = getTestSubscriptionKey(resource, uri);
+		if (this.testSubscriptions.has(subscriptionKey)) {
+			return;
+		}
+
+		let method: undefined | ((p: vscode.TestProvider) => vscode.TestHierarchy<vscode.TestItem> | undefined);
+		if (resource === ExtHostTestingResource.TextDocument) {
+			const document = this.documents.getDocument(uri);
+			if (document) {
+				method = p => p.createDocumentTestHierarchy?.(document.document);
+			}
+		} else {
+			const folder = this.workspace.getWorkspaceFolder(uri, false);
+			if (folder) {
+				method = p => p.createWorkspaceTestHierarchy?.(folder);
+			}
+		}
+
+		if (!method) {
+			return;
+		}
+
+		const disposable = new DisposableStore();
+		const collection = disposable.add(this.ownedTests.createForHierarchy(diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
+		for (const [id, provider] of this.providers) {
+			try {
+				const hierarchy = method(provider);
+				if (!hierarchy) {
+					continue;
+				}
+
+				disposable.add(hierarchy);
+				collection.addRoot(hierarchy.root, id);
+				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
+			} catch (e) {
+				console.error(e);
+			}
+		}
+
+		this.testSubscriptions.set(subscriptionKey, { store: disposable, collection });
+	}
+
+	/**
+	 * Disposes of a previous subscription to tests.
+	 * @override
+	 */
+	public $unsubscribeFromTests(resource: ExtHostTestingResource, uriComponents: UriComponents) {
+		const uri = URI.revive(uriComponents);
+		const subscriptionKey = getTestSubscriptionKey(resource, uri);
+		this.testSubscriptions.get(subscriptionKey)?.store.dispose();
+		this.testSubscriptions.delete(subscriptionKey);
+	}
+
+	/**
 	 * Receives a test update from the main thread. Called (eventually) whenever
 	 * tests change.
 	 * @override
 	 */
-	public $acceptDiff(diff: TestsDiff): void {
-		this.mirroredTests.apply(diff);
+	public $acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void {
+		if (resource === ExtHostTestingResource.TextDocument) {
+			this.textDocumentObservers.acceptDiff(URI.revive(uri), diff);
+		} else {
+			this.workspaceObservers.acceptDiff(URI.revive(uri), diff);
+		}
 	}
 
 	/**
@@ -95,11 +176,6 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		await provider.runTests({ tests, debug: req.debug }, CancellationToken.None);
 		return EMPTY_TEST_RESULT;
 	}
-
-	@throttle(200)
-	private throttleSendDiff() {
-		this.proxy.$publishDiff(this.ownedTests.collectDiff());
-	}
 }
 
 const keyMap: { [K in keyof Omit<Required<vscode.TestItem>, 'children'>]: null } = {
@@ -113,15 +189,6 @@ const keyMap: { [K in keyof Omit<Required<vscode.TestItem>, 'children'>]: null }
 
 const simpleProps = Object.keys(keyMap) as ReadonlyArray<keyof typeof keyMap>;
 
-const serializeTestItem = (item: vscode.TestItem): Omit<vscode.TestItem, 'children'> => {
-	const obj: any = {};
-	for (const key of simpleProps) {
-		obj[key] = item[key];
-	}
-
-	return obj;
-};
-
 /**
  * @private
  */
@@ -130,21 +197,8 @@ export interface OwnedCollectionTestItem extends InternalTestItem {
 	previousChildren: Set<string>;
 }
 
-/**
- * Maintains tests created and registered in this extension host.
- * @private
- */
 export class OwnedTestCollection {
-	protected readonly testItemToInternal = new Map<vscode.TestItem, OwnedCollectionTestItem>();
 	protected readonly testIdToInternal = new Map<string, OwnedCollectionTestItem>();
-	protected diff: TestsDiff = [];
-
-	/**
-	 * Adds a new root node to the collection.
-	 */
-	public addRoot(item: vscode.TestItem, providerId: string) {
-		this.addItem(item, providerId, null);
-	}
 
 	/**
 	 * Gets test information by ID, if it was defined and still exists in this
@@ -152,6 +206,35 @@ export class OwnedTestCollection {
 	 */
 	public getTestById(id: string) {
 		return this.testIdToInternal.get(id);
+	}
+
+	/**
+	 * Creates a new test collection for a specific hierarchy for a workspace
+	 * or document observation.
+	 */
+	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
+		return new SingleUseTestCollection(this.testIdToInternal, publishDiff);
+	}
+}
+
+/**
+ * Maintains tests created and registered for a single set of hierarchies
+ * for a workspace or document.
+ * @private
+ */
+export class SingleUseTestCollection implements IDisposable {
+	protected readonly testItemToInternal = new Map<vscode.TestItem, OwnedCollectionTestItem>();
+	protected diff: TestsDiff = [];
+	private disposed = false;
+
+	constructor(private readonly testIdToInternal: Map<string, OwnedCollectionTestItem>, private readonly publishDiff: (diff: TestsDiff) => void) { }
+
+	/**
+	 * Adds a new root node to the collection.
+	 */
+	public addRoot(item: vscode.TestItem, providerId: string) {
+		this.addItem(item, providerId, null);
+		this.throttleSendDiff();
 	}
 
 	/**
@@ -163,29 +246,19 @@ export class OwnedTestCollection {
 	}
 
 	/**
-	 * Removes a test root from the collection.
-	 */
-	public removeRoot(item: vscode.TestItem) {
-		const internal = this.testItemToInternal.get(item);
-		if (!internal) {
-			console.warn(`Unregistered a test root that did not exist. You should not change the TestProvider.testRoot after instantiation.`);
-			return;
-		}
-
-		this.removeItembyId(internal.id);
-	}
-
-	/**
 	 * Should be called when an item change is fired on the test provider.
 	 */
 	public onItemChange(item: vscode.TestItem, providerId: string) {
 		const existing = this.testItemToInternal.get(item);
 		if (!existing) {
-			console.warn(`Received a TestProvider.onDidChangeTest for a test that wasn't seen before as a child.`);
+			if (!this.disposed) {
+				console.warn(`Received a TestProvider.onDidChangeTest for a test that wasn't seen before as a child.`);
+			}
 			return;
 		}
 
 		this.addItem(item, providerId, existing.parent);
+		this.throttleSendDiff();
 	}
 
 	/**
@@ -195,6 +268,16 @@ export class OwnedTestCollection {
 		const diff = this.diff;
 		this.diff = [];
 		return diff;
+	}
+
+	public dispose() {
+		for (const item of this.testItemToInternal.values()) {
+			this.testIdToInternal.delete(item.id);
+		}
+
+		this.testIdToInternal.clear();
+		this.diff = [];
+		this.disposed = true;
 	}
 
 	protected getId(): string {
@@ -208,7 +291,7 @@ export class OwnedTestCollection {
 				actual,
 				id: this.getId(),
 				parent,
-				item: serializeTestItem(actual),
+				item: TestItem.from(actual),
 				providerId,
 				previousChildren: new Set(),
 			};
@@ -217,7 +300,7 @@ export class OwnedTestCollection {
 			this.testIdToInternal.set(internal.id, internal);
 			this.diff.push([TestDiffOpType.Add, { id: internal.id, parent, providerId, item: internal.item }]);
 		} else if (simpleProps.some(key => actual[key] !== internal!.item[key])) {
-			internal.item = serializeTestItem(actual);
+			internal.item = TestItem.from(actual);
 			this.diff.push([TestDiffOpType.Update, { id: internal.id, parent, providerId, item: internal.item }]);
 		}
 
@@ -260,12 +343,21 @@ export class OwnedTestCollection {
 			}
 		}
 	}
+
+	@throttle(200)
+	protected throttleSendDiff() {
+		const diff = this.collectDiff();
+		if (diff.length) {
+			this.publishDiff(diff);
+		}
+	}
 }
 
 /**
  * @private
  */
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
+	revived: vscode.TestItem;
 	wrapped?: vscode.TestItem;
 }
 
@@ -274,6 +366,13 @@ interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
  * @private
  */
 export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
+	private changeEmitter = new Emitter<vscode.TestItem | null>();
+
+	/**
+	 * Change emitter that fires with the same sematics as `TestObserver.onDidChangeTests`.
+	 */
+	public readonly onDidChangeTests = this.changeEmitter.event;
+
 	/**
 	 * Mapping of mirrored test items to their underlying ID. Given here to avoid
 	 * exposing them to extensions.
@@ -300,7 +399,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * If the test item is a mirrored test item, returns its underlying ID.
 	 */
-	public getMirroredTestItemId(item: vscode.TestItem) {
+	public getMirroredTestDataByReference(item: vscode.TestItem) {
 		const itemId = this.mirroredTestIds.get(item);
 		return itemId ? this.items.get(itemId) : undefined;
 	}
@@ -309,7 +408,18 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 * @override
 	 */
 	protected createItem(item: InternalTestItem): MirroredCollectionTestItem {
-		return { ...item, children: new Set() };
+		return { ...item, revived: TestItem.to(item.item), children: new Set() };
+	}
+
+	/**
+	 * @override
+	 */
+	protected onChange(item: MirroredCollectionTestItem | null) {
+		if (item) {
+			Object.assign(item.revived, TestItem.to(item.item));
+		}
+
+		this.changeEmitter.fire(item ? this.createCollectionItemWrapper(item) : null);
 	}
 
 	private createCollectionItemWrapper(item: MirroredCollectionTestItem): vscode.TestItem {
@@ -324,7 +434,6 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 
 const createMirroredTestItem = (internal: MirroredCollectionTestItem, collection: MirroredTestCollection): vscode.TestItem => {
 	const obj = {};
-	const buildState = memoizeFnWeak((value: any) => new TestState(value.runState, value.messages, value.duration));
 
 	Object.defineProperty(obj, 'children', {
 		enumerable: true,
@@ -335,11 +444,160 @@ const createMirroredTestItem = (internal: MirroredCollectionTestItem, collection
 	simpleProps.forEach(prop => Object.defineProperty(obj, prop, {
 		enumerable: true,
 		configurable: false,
-		get: () => {
-			const value = internal.item[prop];
-			return prop === 'state' ? buildState(value) : value;
-		},
+		get: () => internal.revived[prop],
 	}));
 
 	return obj as any;
 };
+
+interface IObserverData {
+	observers: number;
+	tests: MirroredTestCollection;
+	listener: IDisposable;
+	pendingDeletion?: IDisposable;
+}
+
+abstract class AbstractTestObserverFactory {
+	private readonly resources = new Map<string /* uri */, IObserverData>();
+
+	public checkout(resourceUri: URI): vscode.TestObserver {
+		const resourceKey = resourceUri.toString();
+		const resource = this.resources.get(resourceKey) ?? this.createObserverData(resourceUri);
+
+		resource.observers++;
+
+		return {
+			onDidChangeTest: resource.tests.onDidChangeTests,
+			onDidDiscoverInitialTests: new Emitter<void>().event, // todo@connor4312
+			get tests() {
+				return resource.tests.rootTestItems;
+			},
+			dispose: once(() => {
+				if (!--resource.observers) {
+					resource.pendingDeletion = this.eventuallyDispose(resourceUri);
+				}
+			}),
+		};
+	}
+
+	/**
+	 * Gets the internal test data by its reference, in any observer.
+	 */
+	public getMirroredTestDataByReference(ref: vscode.TestItem) {
+		for (const { tests } of this.resources.values()) {
+			const v = tests.getMirroredTestDataByReference(ref);
+			if (v) {
+				return v;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Called when no observers are listening for the resource any more. Should
+	 * defer unlistening on the resource, and return a disposiable
+	 * to halt the process in case new listeners come in.
+	 */
+	protected eventuallyDispose(resourceUri: URI) {
+		return disposableTimeout(() => this.unlisten(resourceUri), 10 * 1000);
+	}
+
+	/**
+	 * Starts listening to test information for the given resource.
+	 */
+	protected abstract listen(resourceUri: URI, onDiff: (diff: TestsDiff) => void): Disposable;
+
+	private createObserverData(resourceUri: URI): IObserverData {
+		const tests = new MirroredTestCollection();
+		const listener = this.listen(resourceUri, diff => tests.apply(diff));
+		const data: IObserverData = { observers: 0, tests, listener };
+		this.resources.set(resourceUri.toString(), data);
+		return data;
+	}
+
+	/**
+	 * Called when a resource is no longer in use.
+	 */
+	protected unlisten(resourceUri: URI) {
+		const key = resourceUri.toString();
+		const resource = this.resources.get(key);
+		if (resource) {
+			resource.observers = -1;
+			resource.pendingDeletion?.dispose();
+			resource.listener.dispose();
+			this.resources.delete(key);
+		}
+	}
+}
+
+class WorkspaceFolderTestObserverFactory extends AbstractTestObserverFactory {
+	private diffListeners = new Map<string, (diff: TestsDiff) => void>();
+
+	constructor(private readonly proxy: MainThreadTestingShape) {
+		super();
+	}
+
+	/**
+	 * Publishees the diff for the workspace folder with the given uri.
+	 */
+	public acceptDiff(resourceUri: URI, diff: TestsDiff) {
+		this.diffListeners.get(resourceUri.toString())?.(diff);
+	}
+
+	/**
+	 * @override
+	 */
+	public listen(resourceUri: URI, onDiff: (diff: TestsDiff) => void) {
+		this.proxy.$subscribeToDiffs(ExtHostTestingResource.Workspace, resourceUri);
+
+		const uriString = resourceUri.toString();
+		this.diffListeners.set(uriString, onDiff);
+
+		return new Disposable(() => {
+			this.proxy.$unsubscribeFromDiffs(ExtHostTestingResource.Workspace, resourceUri);
+			this.diffListeners.delete(uriString);
+		});
+	}
+}
+
+class TextDocumentTestObserverFactory extends AbstractTestObserverFactory {
+	private diffListeners = new Map<string, (diff: TestsDiff) => void>();
+
+	constructor(private readonly proxy: MainThreadTestingShape, private documents: IExtHostDocumentsAndEditors) {
+		super();
+	}
+
+	/**
+	 * Publishees the diff for the document with the given uri.
+	 */
+	public acceptDiff(resourceUri: URI, diff: TestsDiff) {
+		this.diffListeners.get(resourceUri.toString())?.(diff);
+	}
+
+	/**
+	 * @override
+	 */
+	public listen(resourceUri: URI, onDiff: (diff: TestsDiff) => void) {
+		const document = this.documents.getDocument(resourceUri);
+		if (!document) {
+			return new Disposable(() => undefined);
+		}
+
+		const uriString = resourceUri.toString();
+		this.diffListeners.set(uriString, onDiff);
+
+		const disposeListener = this.documents.onDidRemoveDocuments(evt => {
+			if (evt.some(delta => delta.document.uri.toString() === uriString)) {
+				this.unlisten(resourceUri);
+			}
+		});
+
+		this.proxy.$subscribeToDiffs(ExtHostTestingResource.TextDocument, resourceUri);
+		return new Disposable(() => {
+			this.proxy.$unsubscribeFromDiffs(ExtHostTestingResource.TextDocument, resourceUri);
+			disposeListener.dispose();
+			this.diffListeners.delete(uriString);
+		});
+	}
+}

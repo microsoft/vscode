@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { URI } from 'vs/base/common/uri';
+import { Location as ModeLocation } from 'vs/editor/common/modes';
+import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
+import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
+
 /**
  * Request to them main thread to run a set of tests.
  */
@@ -33,14 +39,31 @@ export const collectTestResults = (results: ReadonlyArray<RunTestsResult>) => {
 	return results[0] || {}; // todo
 };
 
+export interface ITestMessage {
+	message: string | IMarkdownString;
+	severity: TestMessageSeverity | undefined;
+	expectedOutput: string | undefined;
+	actualOutput: string | undefined;
+	location: ModeLocation | undefined;
+}
+
+export interface ITestState {
+	runState: TestRunState;
+	duration: number | undefined;
+	messages: ITestMessage[];
+}
+
 /**
- * The TestItem from .d.ts, without and children.
+ * The TestItem from .d.ts, as a plain object without children.
  */
-export interface TestItemWithoutChildren {
+export interface ITestItem {
 	label: string;
 	children?: never;
-	// contains other properties of the test item, excluding children which are references now
-	[key: string]: any;
+	location: ModeLocation | undefined;
+	description: string | undefined;
+	runnable: boolean | undefined;
+	debuggable: boolean | undefined;
+	state: ITestState;
 }
 
 /**
@@ -50,7 +73,7 @@ export interface InternalTestItem {
 	id: string;
 	providerId: string;
 	parent: string | null;
-	item: TestItemWithoutChildren
+	item: ITestItem;
 }
 
 export const enum TestDiffOpType {
@@ -63,6 +86,12 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.Add, item: InternalTestItem]
 	| [op: TestDiffOpType.Update, item: InternalTestItem]
 	| [op: TestDiffOpType.Remove, itemId: string];
+
+/**
+ * Utility function to get a unique string for a subscription to a resource,
+ * useful to keep maps of document or workspace folder subscription info.
+ */
+export const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
 
 /**
  * Request from the ext host or main thread to indicate that tests have
@@ -104,9 +133,12 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 					if (!item.parent) {
 						this.roots.add(item.id);
 						this.items.set(item.id, this.createItem(item));
+						this.onChange(null);
 					} else if (this.items.has(item.parent)) {
-						this.items.get(item.parent)!.children.add(item.id);
+						const parent = this.items.get(item.parent)!;
+						parent.children.add(item.id);
 						this.items.set(item.id, this.createItem(item));
+						this.onChange(parent);
 					}
 					break;
 				}
@@ -116,6 +148,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 					const existing = this.items.get(item.id);
 					if (existing) {
 						Object.assign(existing.item, item.item);
+						this.onChange(existing);
 					}
 					break;
 				}
@@ -142,9 +175,19 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 							}
 						}
 					}
+
+					this.onChange(toRemove);
 				}
 			}
 		}
+	}
+
+	/**
+	 * Called when an item in the collection changes, with the same semantics
+	 * as `onDidChangeTests` in vscode.d.ts.
+	 */
+	protected onChange(item: T | null): void {
+		// no-op
 	}
 
 	/**

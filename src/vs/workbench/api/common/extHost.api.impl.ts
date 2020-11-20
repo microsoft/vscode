@@ -153,7 +153,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
-	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol));
+	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostDocumentsAndEditors, extHostWorkspace));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -339,6 +339,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTestProvider(provider) {
 				checkProposedApiEnabled(extension);
 				return extHostTesting.registerTestProvider(provider);
+			},
+			createDocumentTestObserver(document) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.createTextDocumentTestObserver(document);
+			},
+			createWorkspaceTestObserver(workspaceFolder) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.createWorkspaceTestObserver(workspaceFolder);
 			},
 			runTests(provider) {
 				checkProposedApiEnabled(extension);

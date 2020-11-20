@@ -4,18 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
-import { MirroredTestCollection, OwnedTestCollection } from 'vs/workbench/api/common/extHostTesting';
-import { TestItem, TestProvider } from 'vscode';
+import { MirroredTestCollection, OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/api/common/extHostTesting';
+import { TestState } from 'vs/workbench/api/common/extHostTypes';
+import { TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestItem, TestRunState } from 'vscode';
 
 suite('ExtHost Testing', () => {
+	let single: TestSingleUseCollection;
+	let owned: TestOwnedTestCollection;
+	setup(() => {
+		owned = new TestOwnedTestCollection();
+		single = owned.createForHierarchy(d => single.setDiff(d /* don't clear during testing */));
+	});
+
+	teardown(() => {
+		single.dispose();
+		assert.deepEqual(owned.idToInternal.size, 0, 'expected owned ids to be empty after dispose');
+	});
+
 	suite('OwnedTestCollection', () => {
 		test('adds a root recursively', () => {
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			assert.deepStrictEqual(c.collectDiff(), [
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, { id: '0', providerId: 'pid', parent: null, item: stubTest('root') }],
 				[TestDiffOpType.Add, { id: '1', providerId: 'pid', parent: '0', item: stubTest('a') }],
 				[TestDiffOpType.Add, { id: '2', providerId: 'pid', parent: '1', item: stubTest('aa') }],
@@ -25,133 +36,102 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('no-ops if items not changed', () => {
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			c.collectDiff();
-			assert.deepStrictEqual(c.collectDiff(), []);
-		});
-
-		test('removes root', () => {
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			c.collectDiff();
-			c.removeRoot(p.testRoot);
-			assert.deepStrictEqual(c.collectDiff(), [[TestDiffOpType.Remove, '0']]);
-			assert.strictEqual(c.idToInternal.size, 0);
-			assert.strictEqual(c.itemToInternal.size, 0);
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			single.collectDiff();
+			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
 		test('watches property mutations', () => {
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			c.collectDiff();
-			p.testRoot.children![0].description = 'Hello world'; /* item a */
-			c.onItemChange(p.testRoot, 'pid');
-			assert.deepStrictEqual(c.collectDiff(), [
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			single.collectDiff();
+			tests.children![0].description = 'Hello world'; /* item a */
+			single.onItemChange(tests, 'pid');
+			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Update, { id: '1', parent: '0', providerId: 'pid', item: { ...stubTest('a'), description: 'Hello world' } }],
 			]);
 
-			c.onItemChange(p.testRoot, 'pid');
-			assert.deepStrictEqual(c.collectDiff(), []);
+			single.onItemChange(tests, 'pid');
+			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
 		test('removes children', () => {
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			c.collectDiff();
-			p.testRoot.children!.splice(0, 1);
-			c.onItemChange(p.testRoot, 'pid');
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			single.collectDiff();
+			tests.children!.splice(0, 1);
+			single.onItemChange(tests, 'pid');
 
-			assert.deepStrictEqual(c.collectDiff(), [
+			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Remove, '1'],
 			]);
-			assert.deepStrictEqual([...c.idToInternal.keys()].sort(), ['0', '4']);
-			assert.strictEqual(c.itemToInternal.size, 2);
+			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['0', '4']);
+			assert.strictEqual(single.itemToInternal.size, 2);
 		});
 
 		test('adds new children', () => {
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			c.collectDiff();
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			single.collectDiff();
 			const child = stubTest('ac');
-			p.testRoot.children![0].children!.push(child);
-			c.onItemChange(p.testRoot, 'pid');
+			tests.children![0].children!.push(child);
+			single.onItemChange(tests, 'pid');
 
-			assert.deepStrictEqual(c.collectDiff(), [
+			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, { id: '5', providerId: 'pid', parent: '1', item: child }],
 			]);
-			assert.deepStrictEqual([...c.idToInternal.keys()].sort(), ['0', '1', '2', '3', '4', '5']);
-			assert.strictEqual(c.itemToInternal.size, 6);
+			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['0', '1', '2', '3', '4', '5']);
+			assert.strictEqual(single.itemToInternal.size, 6);
 		});
 	});
 
 	suite('MirroredTestCollection', () => {
 		test('mirrors creation of the root', () => {
 			const m = new TestMirroredCollection();
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
-			assertTreesEqual(m.rootTestItems[0], c.getTestById('0')!.actual);
-			assert.strictEqual(m.length, c.itemToInternal.size);
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			m.apply(single.collectDiff());
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
 		test('mirrors node deletion', () => {
 			const m = new TestMirroredCollection();
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
-			p.testRoot.children!.splice(0, 1);
-			c.onItemChange(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			m.apply(single.collectDiff());
+			tests.children!.splice(0, 1);
+			single.onItemChange(tests, 'pid');
+			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], c.getTestById('0')!.actual);
-			assert.strictEqual(m.length, c.itemToInternal.size);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
 		test('mirrors node addition', () => {
 			const m = new TestMirroredCollection();
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
-			p.testRoot.children![0].children!.push(stubTest('ac'));
-			c.onItemChange(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			m.apply(single.collectDiff());
+			tests.children![0].children!.push(stubTest('ac'));
+			single.onItemChange(tests, 'pid');
+			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], c.getTestById('0')!.actual);
-			assert.strictEqual(m.length, c.itemToInternal.size);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
 		test('mirrors node update', () => {
 			const m = new TestMirroredCollection();
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
-			p.testRoot.children![0].description = 'Hello world'; /* item a */
-			c.onItemChange(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
+			const tests = stubNestedTests();
+			single.addRoot(tests, 'pid');
+			m.apply(single.collectDiff());
+			tests.children![0].description = 'Hello world'; /* item a */
+			single.onItemChange(tests, 'pid');
+			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], c.getTestById('0')!.actual);
-		});
-
-		test('mirrors root delete', () => {
-			const m = new TestMirroredCollection();
-			const c = new TestOwnedCollection();
-			const p = new StubProvider(stubNestedTests());
-			c.addRoot(p.testRoot, 'pid');
-			m.apply(c.collectDiff());
-			c.removeRoot(p.testRoot);
-			m.apply(c.collectDiff());
-
-			assert.strictEqual(m.rootTestItems.length, 0);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
 		});
 	});
 });
@@ -159,11 +139,11 @@ suite('ExtHost Testing', () => {
 const stubTest = (label: string): TestItem => ({
 	label,
 	location: undefined,
-	runState: undefined,
+	state: new TestState(TestRunState.Unset),
 	debuggable: true,
 	runnable: true,
 	description: ''
-} as any);
+});
 
 const assertTreesEqual = (a: TestItem, b: TestItem) => {
 	assert.deepStrictEqual({ ...a, children: undefined }, { ...b, children: undefined });
@@ -182,23 +162,21 @@ const stubNestedTests = () => ({
 	]
 });
 
-class StubProvider implements TestProvider {
-	public readonly changeEmitter = new Emitter<TestItem>();
+class TestOwnedTestCollection extends OwnedTestCollection {
+	public get idToInternal() {
+		return this.testIdToInternal;
+	}
 
-	public readonly onDidChangeTest = this.changeEmitter.event;
-
-	constructor(public readonly testRoot: TestItem) { }
+	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
+		return new TestSingleUseCollection(this.testIdToInternal, publishDiff);
+	}
 }
 
-class TestOwnedCollection extends OwnedTestCollection {
+class TestSingleUseCollection extends SingleUseTestCollection {
 	private idCounter = 0;
 
 	public get itemToInternal() {
 		return this.testItemToInternal;
-	}
-
-	public get idToInternal() {
-		return this.testIdToInternal;
 	}
 
 	public get currentDiff() {
@@ -207,6 +185,10 @@ class TestOwnedCollection extends OwnedTestCollection {
 
 	protected getId() {
 		return String(this.idCounter++);
+	}
+
+	public setDiff(diff: TestsDiff) {
+		this.diff = diff;
 	}
 }
 
