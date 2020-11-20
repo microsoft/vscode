@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -18,7 +18,6 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { createSettingMatchRegExp } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -312,6 +311,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		});
 	}
+}
+
+
+function createSettingMatchRegExp(pattern: string): RegExp {
+	pattern = escapeRegExpCharacters(pattern)
+		.replace(/\\\*/g, '.*');
+
+	return new RegExp(`^${pattern}$`, 'i');
 }
 
 export class SettingsTreeModel {
