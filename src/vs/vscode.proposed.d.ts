@@ -239,7 +239,7 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions, elevate?: boolean) => Thenable<Tunnel> | undefined;
 
 		/**
 		 * Provides filtering for candidate ports.
@@ -744,6 +744,9 @@ declare module 'vscode' {
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
 
+	/**
+	 * A file decoration represents metadata that can be rendered with a file.
+	 */
 	export class FileDecoration {
 
 		/**
@@ -784,14 +787,21 @@ declare module 'vscode' {
 	export interface FileDecorationProvider {
 
 		/**
-		 * An event to signal decorations for one or many files have changed.
+		 * An optional event to signal that decorations for one or many files have changed.
 		 *
-		 * @see [EventEmitter](#EventEmitter
+		 *
+		 * *Note* that this event should be used to propagate information about children.
+		 *
+		 * @see [EventEmitter](#EventEmitter)
 		 */
-		onDidChange: Event<undefined | Uri | Uri[]>;
+		onDidChangeFileDecorations?: Event<undefined | Uri | Uri[]>;
 
 		/**
 		 * Provide decorations for a given uri.
+		 *
+		 * *Note* that this function is only called when a file gets rendered in the UI.
+		 * This means a decoration from a descendent that propagates upwards must be signaled
+		 * to the editor via the [onDidChangeFileDecorations](#FileDecorationProvider.onDidChangeFileDecorations)-event.
 		 *
 		 * @param uri The uri of the file to provide a decoration for.
 		 * @param token A cancellation token.
@@ -801,7 +811,14 @@ declare module 'vscode' {
 	}
 
 	export namespace window {
-		export function registerDecorationProvider(provider: FileDecorationProvider): Disposable;
+
+		/**
+		 * Register a file decoration provider.
+		 *
+		 * @param provider A [FileDecorationProvider](#FileDecorationProvider).
+		 * @return A [disposable](#Disposable) that unregisters the provider.
+		 */
+		export function registerFileDecorationProvider(provider: FileDecorationProvider): Disposable;
 	}
 
 	//#endregion
@@ -1001,6 +1018,16 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/100741
 	export interface TreeDataProvider<T> {
+		/**
+		 * Called only on hover to resolve the TreeItem2#tooltip property if it is undefined.
+		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
+		 * Will only ever be called once per TreeItem.
+		 * Functionality may be expanded later to include being called to resolve other missing
+		 * properties on selection and/or on open.
+		 *
+		 * @param element
+		 * @param item Undefined properties of `item` should be set then `item` should be returned.
+		 */
 		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
 	}
 

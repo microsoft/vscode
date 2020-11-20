@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $ } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -48,6 +48,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -73,8 +74,10 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 	}
 }
 
-export interface ExtensionsListViewOptions extends IViewletViewOptions {
+export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
+	fixedHeight?: boolean;
+	onDidChangeTitle?: Event<string>;
 }
 
 class ExtensionListViewWarning extends Error { }
@@ -87,7 +90,6 @@ interface IQueryResult {
 
 export class ExtensionsListView extends ViewPane {
 
-	protected readonly server: IExtensionManagementServer | undefined;
 	private bodyTemplate: {
 		messageContainer: HTMLElement;
 		messageSeverityIcon: HTMLElement;
@@ -100,7 +102,8 @@ export class ExtensionsListView extends ViewPane {
 	private queryResult: IQueryResult | undefined;
 
 	constructor(
-		options: ExtensionsListViewOptions,
+		protected readonly options: ExtensionsListViewOptions,
+		viewletViewOptions: IViewletViewOptions,
 		@INotificationService protected notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -120,9 +123,16 @@ export class ExtensionsListView extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
-		super({ ...(options as IViewPaneOptions), showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.server = options.server;
+		super({
+			...(viewletViewOptions as IViewPaneOptions),
+			showActionsAlways: true,
+			maximumBodySize: options.fixedHeight ? storageService.getNumber(viewletViewOptions.id, StorageScope.GLOBAL, 0) : undefined
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		if (this.options.onDidChangeTitle) {
+			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
+		}
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -309,7 +319,7 @@ export class ExtensionsListView extends ViewPane {
 
 	private async queryByIds(ids: string[], options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const idsSet: Set<string> = ids.reduce((result, id) => { result.add(id.toLowerCase()); return result; }, new Set<string>());
-		const result = (await this.extensionsWorkbenchService.queryLocal(this.server))
+		const result = (await this.extensionsWorkbenchService.queryLocal(this.options.server))
 			.filter(e => idsSet.has(e.identifier.id.toLowerCase()));
 
 		if (result.length) {
@@ -321,7 +331,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
-		const local = await this.extensionsWorkbenchService.queryLocal(this.server);
+		const local = await this.extensionsWorkbenchService.queryLocal(this.options.server);
 		const runningExtensions = await this.extensionService.getExtensions();
 		let { extensions, canIncludeInstalledExtensions } = this.filterLocal(local, runningExtensions, query, options);
 		const disposables = new DisposableStore();
@@ -334,7 +344,7 @@ export class ExtensionsListView extends ViewPane {
 				Event.filter(this.extensionsWorkbenchService.onChange, e => e?.state === ExtensionState.Installed),
 				this.extensionService.onDidChangeExtensions
 			), () => undefined)(async () => {
-				const local = this.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.server) : this.extensionsWorkbenchService.local;
+				const local = this.options.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.options.server) : this.extensionsWorkbenchService.local;
 				const runningExtensions = await this.extensionService.getExtensions();
 				const { extensions: newExtensions } = this.filterLocal(local, runningExtensions, query, options);
 				if (!isDisposed) {
@@ -746,7 +756,7 @@ export class ExtensionsListView extends ViewPane {
 	private async getOtherRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
-		const local = (await this.extensionsWorkbenchService.queryLocal(this.server))
+		const local = (await this.extensionsWorkbenchService.queryLocal(this.options.server))
 			.map(e => e.identifier.id.toLowerCase());
 		const workspaceRecommendations = (await this.getWorkspaceRecommendations())
 			.map(extensionId => extensionId.toLowerCase());
@@ -769,7 +779,7 @@ export class ExtensionsListView extends ViewPane {
 
 	// Get All types of recommendations, trimmed to show a max of 8 at any given time
 	private async getAllRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const local = (await this.extensionsWorkbenchService.queryLocal(this.server)).map(e => e.identifier.id.toLowerCase());
+		const local = (await this.extensionsWorkbenchService.queryLocal(this.options.server)).map(e => e.identifier.id.toLowerCase());
 
 		const allRecommendations = distinct(
 			flatten(await Promise.all([
@@ -825,6 +835,16 @@ export class ExtensionsListView extends ViewPane {
 				}
 				alert(this.bodyTemplate.messageBox.textContent);
 			}
+		}
+		this.updateSize();
+	}
+
+	protected updateSize() {
+		if (this.options.fixedHeight) {
+			const length = this.list?.model.length || 0;
+			this.minimumBodySize = Math.min(length, 3) * EXTENSION_LIST_ELEMENT_HEIGHT;
+			this.maximumBodySize = length * EXTENSION_LIST_ELEMENT_HEIGHT;
+			this.storageService.store(this.id, this.maximumBodySize, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	}
 
@@ -958,38 +978,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 }
 
-export class ServerExtensionsView extends ExtensionsListView {
-
-	constructor(
-		server: IExtensionManagementServer,
-		onDidChangeTitle: Event<string>,
-		options: ExtensionsListViewOptions,
-		@INotificationService notificationService: INotificationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService extensionService: IExtensionService,
-		@IExtensionRecommendationsService tipsService: IExtensionRecommendationsService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IExperimentService experimentService: IExperimentService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
-		@IWorkbenchExtensioManagementService extensionManagementService: IWorkbenchExtensioManagementService,
-		@IProductService productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@IPreferencesService preferencesService: IPreferencesService,
-	) {
-		options.server = server;
-		super(options, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService, extensionsWorkbenchService, tipsService,
-			telemetryService, configurationService, contextService, experimentService, extensionManagementServerService, extensionManagementService, productService,
-			contextKeyService, viewDescriptorService, openerService, preferencesService);
-		this._register(onDidChangeTitle(title => this.updateTitle(title)));
-	}
+export class ServerInstalledExtensionsView extends ExtensionsListView {
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
@@ -1000,7 +989,7 @@ export class ServerExtensionsView extends ExtensionsListView {
 	}
 
 	getActions(): IAction[] {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === this.server) {
+		if (this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === this.options.server) {
 			const installLocalExtensionsInRemoteAction = this._register(this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction));
 			installLocalExtensionsInRemoteAction.class = 'codicon codicon-cloud-download';
 			return [installLocalExtensionsInRemoteAction];
@@ -1022,28 +1011,6 @@ export class DisabledExtensionsView extends ExtensionsListView {
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@disabled';
 		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
-	}
-}
-
-export class OutdatedExtensionsView extends ExtensionsListView {
-
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		query = query || '@outdated';
-		return ExtensionsListView.isOutdatedExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
-	}
-}
-
-export class InstalledExtensionsView extends ExtensionsListView {
-
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		query = query || '@installed';
-		return ExtensionsListView.isInstalledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
-	}
-}
-
-export class SearchBuiltInExtensionsView extends ExtensionsListView {
-	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return ExtensionsListView.isSearchBuiltInExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
 	}
 }
 

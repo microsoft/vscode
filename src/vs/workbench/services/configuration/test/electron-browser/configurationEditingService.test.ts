@@ -42,6 +42,7 @@ import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workben
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -61,6 +62,8 @@ suite('ConfigurationEditingService', () => {
 	let globalSettingsFile: string;
 	let globalTasksFile: string;
 	let workspaceSettingsDir;
+
+	const disposables = new DisposableStore();
 
 	suiteSetup(() => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -84,9 +87,9 @@ suite('ConfigurationEditingService', () => {
 		});
 	});
 
-	setup(() => {
-		return setUpWorkspace()
-			.then(() => setUpServices());
+	setup(async () => {
+		await setUpWorkspace();
+		await setUpServices();
 	});
 
 	async function setUpWorkspace(): Promise<void> {
@@ -100,49 +103,35 @@ suite('ConfigurationEditingService', () => {
 		return await mkdirp(workspaceSettingsDir, 493);
 	}
 
-	function setUpServices(noWorkspace: boolean = false): Promise<void> {
-		// Clear services if they are already created
-		clearServices();
-
+	async function setUpServices(noWorkspace: boolean = false): Promise<void> {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new TestWorkbenchEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
-		const fileService = new FileService(new NullLogService());
-		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(new NullLogService()));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, undefined, diskFileSystemProvider, environmentService, new NullLogService()));
+		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, new NullLogService())));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService());
+		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
-			instantiationService.stub(IConfigurationService, workspaceService);
-			instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
-			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-			instantiationService.stub(ICommandService, CommandService);
-			testObject = instantiationService.createInstance(ConfigurationEditingService);
-		});
+		await workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') });
+		instantiationService.stub(IConfigurationService, workspaceService);
+		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
+		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
+		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(ICommandService, CommandService);
+		testObject = instantiationService.createInstance(ConfigurationEditingService);
 	}
 
 	teardown(() => {
-		clearServices();
+		disposables.clear();
 		if (workspaceDir) {
 			return rimraf(workspaceDir, RimRafMode.MOVE);
 		}
 		return undefined;
 	});
-
-	function clearServices(): void {
-		if (instantiationService) {
-			const configuraitonService = <WorkspaceService>instantiationService.get(IConfigurationService);
-			if (configuraitonService) {
-				configuraitonService.dispose();
-			}
-			instantiationService = null!;
-		}
-	}
 
 	test('errors cases - invalid key', () => {
 		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' })

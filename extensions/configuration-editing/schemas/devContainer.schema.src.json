@@ -3,7 +3,6 @@
 	"description": "Defines a dev container",
 	"allowComments": true,
 	"allowTrailingCommas": true,
-	"type": "object",
 	"definitions": {
 		"devContainerCommon": {
 			"type": "object",
@@ -104,6 +103,7 @@
 				},
 				"codespaces": {
 					"type": "object",
+					"additionalProperties": true,
 					"description": "Codespaces-specific configuration."
 				}
 			}

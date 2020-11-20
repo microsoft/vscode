@@ -30,6 +30,25 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	const local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> } = { added: {}, removed: [], updated: {} };
 	const remote: IStringDictionary<IStorageValue> = objects.deepClone(remoteStorage);
 
+	// Added in local
+	for (const key of baseToLocal.added.values()) {
+		remote[key] = localStorage[key];
+	}
+
+	// Updated in local
+	for (const key of baseToLocal.updated.values()) {
+		remote[key] = localStorage[key];
+	}
+
+	// Removed in local
+	for (const key of baseToLocal.removed.values()) {
+		// Do not remove from remote if key is not registered.
+		if (storageKeys.unregistered.includes(key)) {
+			continue;
+		}
+		delete remote[key];
+	}
+
 	// Added in remote
 	for (const key of baseToRemote.added.values()) {
 		const remoteValue = remoteStorage[key];
@@ -37,15 +56,11 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 			logService.info(`GlobalState: Skipped adding ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
-		const localValue = localStorage[key];
-		if (localValue && localValue.value === remoteValue.value) {
+		// Skip if the value is also added in local
+		if (baseToLocal.added.has(key)) {
 			continue;
 		}
-		if (localValue) {
-			local.updated[key] = remoteValue;
-		} else {
-			local.added[key] = remoteValue;
-		}
+		local.added[key] = remoteValue;
 	}
 
 	// Updated in Remote
@@ -55,15 +70,15 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 			logService.info(`GlobalState: Skipped updating ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
+		// Skip if the value is also updated or removed in local
+		if (baseToLocal.updated.has(key) || baseToLocal.removed.has(key)) {
+			continue;
+		}
 		const localValue = localStorage[key];
 		if (localValue && localValue.value === remoteValue.value) {
 			continue;
 		}
-		if (localValue) {
-			local.updated[key] = remoteValue;
-		} else {
-			local.added[key] = remoteValue;
-		}
+		local.updated[key] = remoteValue;
 	}
 
 	// Removed in remote
@@ -72,36 +87,11 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 			logService.trace(`GlobalState: Skipped removing ${key} in local storage because it is declared as machine scoped.`);
 			continue;
 		}
+		// Skip if the value is also updated or removed in local
+		if (baseToLocal.updated.has(key) || baseToLocal.removed.has(key)) {
+			continue;
+		}
 		local.removed.push(key);
-	}
-
-	// Added in local
-	for (const key of baseToLocal.added.values()) {
-		if (baseToRemote.added.has(key)) {
-			continue;
-		}
-		remote[key] = localStorage[key];
-	}
-
-	// Updated in local
-	for (const key of baseToLocal.updated.values()) {
-		if (baseToRemote.updated.has(key) || baseToRemote.removed.has(key)) {
-			continue;
-		}
-		remote[key] = localStorage[key];
-	}
-
-	// Removed in local
-	for (const key of baseToLocal.removed.values()) {
-		// Do not remove from remote if key not registered.
-		if (storageKeys.unregistered.includes(key)) {
-			continue;
-		}
-		// do not remove from remote if it is updated in remote
-		if (baseToRemote.updated.has(key)) {
-			continue;
-		}
-		delete remote[key];
 	}
 
 	return { local, remote: areSame(remote, remoteStorage) ? null : remote };

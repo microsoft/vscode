@@ -25,7 +25,7 @@ import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backu
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
-import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -53,7 +53,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
-import { BrowserKeymapService } from 'vs/workbench/services/keybinding/browser/keymapService';
+import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -82,9 +82,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
-
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
-	updateBackupPath(newPath: string | undefined): void { }
 
 	sessionId = this.configuration.sessionId;
 	machineId = this.configuration.machineId;
@@ -430,6 +427,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
 	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
+	async whenExtensionsReady(): Promise<void> { }
 }
 
 //#endregion
@@ -498,9 +496,9 @@ registerSingleton(ITelemetryService, SimpleTelemetryService);
 
 //#region Keymap Service (borrowed from browser for now to enable keyboard access)
 
-class SimpleKeymapService extends BrowserKeymapService { }
+class SimpleKeyboardLayoutService extends BrowserKeyboardLayoutService { }
 
-registerSingleton(IKeymapService, SimpleKeymapService);
+registerSingleton(IKeyboardLayoutService, SimpleKeyboardLayoutService);
 
 //#endregion
 

@@ -469,13 +469,7 @@ function registerOpenEditorAPICommands(): void {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		let [columnArg, optionsArg] = columnAndOptions ?? [];
-		if (!optionsArg || typeof optionsArg !== 'object') {
-			optionsArg = {
-				preserveFocus: false
-			};
-		}
-
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
 		const [options, column] = mixinContext(context, optionsArg, columnArg);
 
 		await editorService.openEditor({

@@ -1046,12 +1046,19 @@ export class ChangeModeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(actionId, actionLabel);
 	}
 
 	async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+		if (activeEditorPane?.isNotebookEditor) {
+			// it's inside notebook editor
+			return this.commandService.executeCommand('notebook.cell.changeLanguage');
+		}
+
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);

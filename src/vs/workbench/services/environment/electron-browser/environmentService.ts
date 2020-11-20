@@ -31,20 +31,6 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
-	// Do NOT! memoize as `backupPath` can change in configuration
-	// via the `updateBackupPath` method below
-	get backupWorkspaceHome(): URI | undefined {
-		if (this.configuration.backupPath) {
-			return URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme });
-		}
-
-		return undefined;
-	}
-
-	updateBackupPath(newBackupPath: string | undefined): void {
-		this.configuration.backupPath = newBackupPath;
-	}
-
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
 

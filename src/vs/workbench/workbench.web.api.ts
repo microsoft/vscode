@@ -52,7 +52,7 @@ interface ITunnelProvider {
 }
 
 interface ITunnelFactory {
-	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
+	(tunnelOptions: ITunnelOptions, elevate?: boolean): Promise<ITunnel> | undefined;
 }
 
 interface ITunnelOptions {

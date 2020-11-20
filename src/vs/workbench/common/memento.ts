@@ -22,13 +22,6 @@ export class Memento {
 		this.id = Memento.COMMON_PREFIX + id;
 	}
 
-	/**
-	 * @deprecated use `getMemento(scope, target)`
-	 */
-	legacygetMemento(scope: StorageScope): MementoObject {
-		return this.getMemento(scope, StorageTarget.MACHINE);
-	}
-
 	getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
 
 		// Scope by Workspace

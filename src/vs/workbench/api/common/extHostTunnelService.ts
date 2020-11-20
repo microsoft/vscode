@@ -57,12 +57,6 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	async getTunnels(): Promise<vscode.TunnelDescription[]> {
 		return [];
 	}
-	async $findCandidatePorts(): Promise<{ host: string, port: number; detail: string; }[]> {
-		return [];
-	}
-	async $filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]> {
-		return candidates.map(() => true);
-	}
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
 		await this._proxy.$tunnelServiceReady();
 		return { dispose: () => { } };

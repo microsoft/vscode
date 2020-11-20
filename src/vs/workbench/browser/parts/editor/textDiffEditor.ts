@@ -31,6 +31,7 @@ import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/edit
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { IFileService } from 'vs/platform/files/common/files';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -61,9 +62,28 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
+	}
+
+	private onDidFileSystemProviderChange(scheme: string): void {
+		const control = this.getControl();
+		const input = this.input;
+
+		if (control && input instanceof DiffEditorInput) {
+			if (input.originalInput.resource?.scheme === scheme || input.modifiedInput.resource?.scheme === scheme) {
+				control.updateOptions({
+					readOnly: input.modifiedInput.isReadonly(),
+					originalEditable: !input.originalInput.isReadonly()
+				});
+			}
+		}
 	}
 
 	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
@@ -216,16 +236,13 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		// Handle diff editor specially by merging in diffEditor configuration
 		if (isObject(configuration.diffEditor)) {
-			// User settings defines `diffEditor.codeLens`, but there is also `editor.codeLens`.
-			// Due to the mixin, the two settings cannot be distinguished anymore.
-			//
-			// So we map `diffEditor.codeLens` to `diffEditor.originalCodeLens` and `diffEditor.modifiedCodeLens`.
 			const diffEditorConfiguration = <IDiffEditorOptions>objects.deepClone(configuration.diffEditor);
-			diffEditorConfiguration.originalCodeLens = diffEditorConfiguration.codeLens;
-			diffEditorConfiguration.modifiedCodeLens = diffEditorConfiguration.codeLens;
+
+			// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
+			diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;
 			delete diffEditorConfiguration.codeLens;
 
-			// User settings defines `diffEditor.wordWrap`, but here we rename that to `diffEditor.diffWordWrap`.
+			// User settings defines `diffEditor.wordWrap`, but here we rename that to `diffEditor.diffWordWrap` to avoid collisions with `editor.wordWrap`.
 			diffEditorConfiguration.diffWordWrap = <'off' | 'on' | 'inherit' | undefined>diffEditorConfiguration.wordWrap;
 			delete diffEditorConfiguration.wordWrap;
 

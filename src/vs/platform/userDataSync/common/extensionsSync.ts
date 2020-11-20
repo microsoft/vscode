@@ -490,6 +490,11 @@ export class ExtensionsInitializer extends AbstractInitializer {
 			return;
 		}
 
+		await this.initializeRemoteExtensions(remoteExtensions);
+	}
+
+	protected async initializeRemoteExtensions(remoteExtensions: ISyncExtension[]): Promise<ILocalExtension[]> {
+		const newlyEnabledExtensions: ILocalExtension[] = [];
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const newExtensionsToSync = new Map<string, ISyncExtension>();
 		const installedExtensionsToSync: ISyncExtension[] = [];
@@ -522,7 +527,10 @@ export class ExtensionsInitializer extends AbstractInitializer {
 						this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionToSync.state), StorageScope.GLOBAL, StorageTarget.MACHINE);
 					}
 					this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
-					await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false } /* pass options to prevent install and sync dialog in web */);
+					const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false } /* pass options to prevent install and sync dialog in web */);
+					if (!toDisable.some(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
+						newlyEnabledExtensions.push(local);
+					}
 					this.logService.info(`Installed extension.`, galleryExtension.identifier.id);
 				} catch (error) {
 					this.logService.error(error);
@@ -545,6 +553,8 @@ export class ExtensionsInitializer extends AbstractInitializer {
 				this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
+
+		return newlyEnabledExtensions;
 	}
 
 }
