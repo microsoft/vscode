@@ -265,9 +265,6 @@ export class CodeApplication extends Disposable {
 		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
 			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
-			if (!window) {
-				return;
-			}
 
 			let replied = false;
 
@@ -281,7 +278,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			const shellEnvTimeoutWarningHandle = setTimeout(function () {
-				window.sendWhenReady('vscode:showShellEnvTimeoutWarning');
+				window?.sendWhenReady('vscode:showShellEnvTimeoutWarning'); // notify inside window if we have one
 				acceptShellEnv({});
 			}, 10000);
 
@@ -289,7 +286,7 @@ export class CodeApplication extends Disposable {
 				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
 				acceptShellEnv(shellEnv);
 			} catch (error) {
-				window.sendWhenReady('vscode:showShellEnvError', toErrorMessage(error));
+				window?.sendWhenReady('vscode:showShellEnvError', toErrorMessage(error)); // notify inside window if we have one
 				acceptShellEnv({});
 
 				this.logService.error('Error fetching shell env', error);
