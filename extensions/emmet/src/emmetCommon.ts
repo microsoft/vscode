@@ -31,8 +31,12 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		wrapIndividualLinesWithAbbreviation(args);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.expandAbbreviationInternal', (args) => {
 		expandEmmetAbbreviation(args);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.expandAbbreviation', () => {
+		vscode.commands.executeCommand('workbench.action.expandEmmetAbbreviation');
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.removeTag', () => {

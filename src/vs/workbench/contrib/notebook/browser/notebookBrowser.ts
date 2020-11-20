@@ -60,6 +60,7 @@ export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebo
 
 // Shared commands
 export const EXPAND_CELL_CONTENT_COMMAND_ID = 'notebook.cell.expandCellContent';
+export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 
 // Kernels
 

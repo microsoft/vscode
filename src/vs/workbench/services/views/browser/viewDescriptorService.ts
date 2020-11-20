@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState } from 'vs/workbench/common/views';
+import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState, defaultViewIcon } from 'vs/workbench/common/views';
 import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -19,6 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 interface ICachedViewContainerInfo {
 	containerId: string;
@@ -460,7 +461,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 			name: 'Custom Views', // we don't want to see this, so no need to localize
-			icon: location === ViewContainerLocation.Sidebar ? 'codicon-window' : undefined,
+			icon: location === ViewContainerLocation.Sidebar ? ThemeIcon.fromCodicon(defaultViewIcon) : undefined,
 			storageId: getViewContainerStorageId(id),
 			hideIfEmpty: true
 		}, location);

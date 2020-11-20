@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/wo
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -59,7 +59,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
-import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -185,14 +184,25 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => {
-			this.notificationService.info(message);
-		});
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
-		// Display change events
-		ipcRenderer.on('vscode:displayChanged', () => {
-			clearAllFontInfos();
-		});
+		// Shell Environment Issue Notifications
+		const choices: IPromptChoice[] = [{
+			label: nls.localize('learnMode', "Learn More"),
+			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+		}];
+
+		ipcRenderer.on('vscode:showShellEnvError', (event: unknown, error: string) => this.notificationService.prompt(
+			Severity.Error,
+			nls.localize('shellEnvError', "Unable to resolve your shell environment: {0}", error),
+			choices
+		));
+
+		ipcRenderer.on('vscode:showShellEnvTimeoutWarning', () => this.notificationService.prompt(
+			Severity.Warning,
+			nls.localize('shellEnvTimeoutWarning', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
+			choices
+		));
 
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => {

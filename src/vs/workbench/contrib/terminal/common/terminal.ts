@@ -489,6 +489,7 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
+	CONFIGURE_TERMINAL_SETTINGS = 'workbench.action.terminal.openSettings',
 	COPY_SELECTION = 'workbench.action.terminal.copySelection',
 	SELECT_ALL = 'workbench.action.terminal.selectAll',
 	DELETE_WORD_LEFT = 'workbench.action.terminal.deleteWordLeft',

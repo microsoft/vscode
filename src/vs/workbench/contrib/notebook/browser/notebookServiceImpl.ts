@@ -28,7 +28,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellOutputsSplice, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellKind, CellOutputKind, DisplayOrderKey, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -718,8 +718,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		this._models.set(uri, modelData);
 		this._onDidAddNotebookDocument.fire(notebookModel);
-		// after the document is added to the store and sent to ext host, we transform the ouputs
-		await this.transformTextModelOutputs(notebookModel);
 
 		return modelData.model;
 	}
@@ -732,68 +730,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return Iterable.map(this._models.values(), data => data.model);
 	}
 
-	private async transformTextModelOutputs(textModel: NotebookTextModel) {
-		for (let i = 0; i < textModel.cells.length; i++) {
-			const cell = textModel.cells[i];
-
-			cell.outputs.forEach((output) => {
-				if (output.outputKind === CellOutputKind.Rich) {
-					// TODO@rebornix no string[] casting
-					const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
-					const orderedMimeTypes = ret.orderedMimeTypes!;
-					const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
-					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
-					output.orderedMimeTypes = orderedMimeTypes;
-				}
-			});
-		}
+	getMimeTypeInfo(textModel: NotebookTextModel, output: ITransformedDisplayOutputDto): readonly IOrderedMimeType[] {
+		// TODO@rebornix no string[] casting
+		return this._getOrderedMimeTypes(textModel, output, textModel.metadata.displayOrder as string[] ?? []);
 	}
 
-	transformEditsOutputs(textModel: NotebookTextModel, edits: ICellEditOperation[]) {
-		edits.forEach((edit) => {
-			if (edit.editType === CellEditType.Replace) {
-				edit.cells.forEach((cell) => {
-					const outputs = cell.outputs;
-					outputs.map((output) => {
-						if (output.outputKind === CellOutputKind.Rich) {
-							const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
-							const orderedMimeTypes = ret.orderedMimeTypes!;
-							const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
-							output.pickedMimeTypeIndex = pickedMimeTypeIndex;
-							output.orderedMimeTypes = orderedMimeTypes;
-						}
-					});
-				});
-			} else if (edit.editType === CellEditType.Output) {
-				edit.outputs.map((output) => {
-					if (output.outputKind === CellOutputKind.Rich) {
-						const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
-						const orderedMimeTypes = ret.orderedMimeTypes!;
-						const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
-						output.pickedMimeTypeIndex = pickedMimeTypeIndex;
-						output.orderedMimeTypes = orderedMimeTypes;
-					}
-				});
-			}
-		});
-	}
-
-	transformSpliceOutputs(textModel: NotebookTextModel, splices: NotebookCellOutputsSplice[]) {
-		splices.forEach((splice) => {
-			const outputs = splice[2];
-			outputs.map((output) => {
-				if (output.outputKind === CellOutputKind.Rich) {
-					const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
-					const orderedMimeTypes = ret.orderedMimeTypes!;
-					const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
-					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
-					output.orderedMimeTypes = orderedMimeTypes;
-				}
-			});
-		});
-	}
-
-	private _transformMimeTypes(output: IDisplayOutput, outputId: string, documentDisplayOrder: string[]): ITransformedDisplayOutputDto {
+	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IDisplayOutput, documentDisplayOrder: string[]): IOrderedMimeType[] {
 		const mimeTypes = Object.keys(output.data);
 		const coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
@@ -809,36 +751,42 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				orderMimeTypes.push({
 					mimeType: mimeType,
 					rendererId: handler.id,
+					isTrusted: textModel.metadata.trusted
 				});
 
 				for (let i = 1; i < handlers.length; i++) {
 					orderMimeTypes.push({
 						mimeType: mimeType,
-						rendererId: handlers[i].id
+						rendererId: handlers[i].id,
+						isTrusted: textModel.metadata.trusted
 					});
 				}
 
 				if (mimeTypeSupportedByCore(mimeType)) {
 					orderMimeTypes.push({
 						mimeType: mimeType,
-						rendererId: BUILTIN_RENDERER_ID
+						rendererId: BUILTIN_RENDERER_ID,
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || textModel.metadata.trusted
 					});
 				}
 			} else {
-				orderMimeTypes.push({
-					mimeType: mimeType,
-					rendererId: BUILTIN_RENDERER_ID
-				});
+				if (mimeTypeSupportedByCore(mimeType)) {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						rendererId: BUILTIN_RENDERER_ID,
+						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || textModel.metadata.trusted
+					});
+				} else {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						rendererId: RENDERER_NOT_AVAILABLE,
+						isTrusted: textModel.metadata.trusted
+					});
+				}
 			}
 		});
 
-		return {
-			outputKind: output.outputKind,
-			outputId,
-			data: output.data,
-			orderedMimeTypes: orderMimeTypes,
-			pickedMimeTypeIndex: 0
-		};
+		return orderMimeTypes;
 	}
 
 	private _findBestMatchedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {

@@ -31,6 +31,7 @@ import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/edit
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
+import { IFileService } from 'vs/platform/files/common/files';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -61,9 +62,28 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
+	}
+
+	private onDidFileSystemProviderChange(scheme: string): void {
+		const control = this.getControl();
+		const input = this.input;
+
+		if (control && input instanceof DiffEditorInput) {
+			if (input.originalInput.resource?.scheme === scheme || input.modifiedInput.resource?.scheme === scheme) {
+				control.updateOptions({
+					readOnly: input.modifiedInput.isReadonly(),
+					originalEditable: !input.originalInput.isReadonly()
+				});
+			}
+		}
 	}
 
 	protected onWillCloseEditorInGroup(editor: IEditorInput): void {

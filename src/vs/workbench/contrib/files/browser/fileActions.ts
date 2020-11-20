@@ -226,7 +226,7 @@ async function deleteFiles(explorerService: IExplorerService, bulkEditService: I
 
 	// Call function
 	try {
-		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true }));
+		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory }));
 		// TODO@Isidor respect the useTrash parameter
 		await bulkEditService.apply(resourceFileEdits, {
 			undoRedoSource: explorerService.undoRedoSource,
