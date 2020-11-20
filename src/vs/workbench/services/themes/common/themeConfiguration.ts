@@ -327,7 +327,7 @@ export class ThemeConfiguration {
 
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === 'auto') {
-			settingsTarget = this.findAutoConfigurationTarget(key);
+			return this.configurationService.updateValue(key, value);
 		}
 
 		if (settingsTarget === ConfigurationTarget.USER) {

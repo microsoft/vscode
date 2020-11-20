@@ -728,6 +728,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		if (this.item) {
 			this.item.classList.add('monaco-submenu-item');
+			this.item.tabIndex = 0;
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
 			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
@@ -775,6 +776,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.parentData.parent.focus(false);
 			this.cleanupExistingSubmenu(false);
 		}));
+	}
+
+	updateEnabled(): void {
+		// override on submenu entry
+		// native menus do not observe enablement on sumbenus
+		// we mimic that behavior
 	}
 
 	open(selectFirst?: boolean): void {
@@ -1189,6 +1196,7 @@ ${formatRule(menuSubmenuIcon)}
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
+	-webkit-app-region: no-drag;
 }
 
 .context-view.monaco-menu-container :focus,

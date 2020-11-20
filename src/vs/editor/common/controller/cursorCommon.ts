@@ -14,7 +14,7 @@ import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
@@ -75,8 +75,7 @@ export class CursorConfiguration {
 	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: EditorAutoIndentStrategy;
-	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
-	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
+	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
@@ -136,9 +135,7 @@ export class CursorConfiguration {
 			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
 		};
 
-		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
-		this.autoClosingPairsOpen2 = autoClosingPairs.autoClosingPairsOpen;
-		this.autoClosingPairsClose2 = autoClosingPairs.autoClosingPairsClose;
+		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 
 		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
 		if (surroundingPairs) {

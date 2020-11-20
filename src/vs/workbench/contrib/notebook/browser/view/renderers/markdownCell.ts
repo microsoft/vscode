@@ -255,7 +255,7 @@ export class StatefulMarkdownCell extends Disposable {
 			this.relayoutCell();
 		} else {
 			// first time, readonly mode
-			this.localDisposables.add(markdownRenderer.onDidRenderCodeBlock(() => {
+			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
 				this.viewCell.renderedMarkdownHeight = this.templateData.container.clientHeight;
 				this.relayoutCell();
 			}));
@@ -360,7 +360,16 @@ export class StatefulMarkdownCell extends Disposable {
 		}));
 
 		this.localDisposables.add(this.editor!.onDidBlurEditorWidget(() => {
-			updateFocusMode();
+			// this is for a special case:
+			// users click the status bar empty space, which we will then focus the editor
+			// so we don't want to update the focus state too eagerly
+			if (document.activeElement?.contains(this.templateData.container)) {
+				setTimeout(() => {
+					updateFocusMode();
+				}, 300);
+			} else {
+				updateFocusMode();
+			}
 		}));
 
 		updateFocusMode();

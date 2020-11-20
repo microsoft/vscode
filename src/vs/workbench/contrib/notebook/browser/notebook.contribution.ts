@@ -304,6 +304,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
+		if (originalInput instanceof NotebookDiffEditorInput) {
+			return undefined;
+		}
+
 		let notebookUri: URI = originalInput.resource;
 		let cellOptions: IResourceEditorInput | undefined;
 
@@ -319,7 +323,12 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		if (id === undefined) {
-			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
+			const existingEditors = group.editors.filter(editor =>
+				editor.resource
+				&& isEqual(editor.resource, notebookUri)
+				&& !(editor instanceof NotebookEditorInput)
+				&& !(editor instanceof NotebookDiffEditorInput)
+			);
 
 			if (existingEditors.length) {
 				return undefined;

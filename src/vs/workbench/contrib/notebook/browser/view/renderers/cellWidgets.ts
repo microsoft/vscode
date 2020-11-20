@@ -9,6 +9,7 @@ import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { stripCodicons } from 'vs/base/common/codicons';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { extUri } from 'vs/base/common/resources';
@@ -25,6 +26,17 @@ import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarEntry } from 'v
 
 const $ = DOM.$;
 
+export interface IClickTarget {
+	type: ClickTargetType;
+	event: MouseEvent;
+}
+
+export const enum ClickTargetType {
+	Container = 0,
+	CellStatus = 1,
+	ContributedItem = 2
+}
+
 export class CellEditorStatusBar extends Disposable {
 	readonly cellStatusMessageContainer: HTMLElement;
 	readonly cellRunStatusContainer: HTMLElement;
@@ -37,6 +49,8 @@ export class CellEditorStatusBar extends Disposable {
 	private readonly itemsDisposable: DisposableStore;
 
 	private currentContext: INotebookCellActionContext | undefined;
+	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
+	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
 
 	constructor(
 		container: HTMLElement,
@@ -58,6 +72,30 @@ export class CellEditorStatusBar extends Disposable {
 		this._register(this.notebookCellStatusBarService.onDidChangeEntriesForCell(e => {
 			if (this.currentContext && extUri.isEqual(e, this.currentContext.cell.uri)) {
 				this.updateStatusBarItems();
+			}
+		}));
+
+		this._register(DOM.addDisposableListener(this.statusBarContainer, DOM.EventType.CLICK, e => {
+			if (e.target === leftItemsContainer || e.target === rightItemsContainer || e.target === this.statusBarContainer) {
+				// hit on empty space
+				this._onDidClick.fire({
+					type: ClickTargetType.Container,
+					event: e
+				});
+			} else if (e.target && (
+				this.cellStatusMessageContainer.contains(e.target as Node)
+				|| this.cellRunStatusContainer.contains(e.target as Node)
+				|| this.durationContainer.contains(e.target as Node)
+			)) {
+				this._onDidClick.fire({
+					type: ClickTargetType.CellStatus,
+					event: e
+				});
+			} else {
+				this._onDidClick.fire({
+					type: ClickTargetType.ContributedItem,
+					event: e
+				});
 			}
 		}));
 	}
@@ -185,7 +223,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
 			this.run();
 		}));
-		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.KEY_UP, e => {
+		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 				this.run();

@@ -819,17 +819,32 @@ export interface DocumentHighlightProvider {
 }
 
 /**
- * The rename provider interface defines the contract between extensions and
+ * The rename range provider interface defines the contract between extensions and
  * the live-rename feature.
  */
-export interface OnTypeRenameProvider {
-
-	wordPattern?: RegExp;
+export interface OnTypeRenameRangeProvider {
 
 	/**
 	 * Provide a list of ranges that can be live-renamed together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<{ ranges: IRange[]; wordPattern?: RegExp; }>;
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
+}
+
+/**
+ * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
+ */
+export interface OnTypeRenameRanges {
+	/**
+	 * A list of ranges that can be renamed together. The ranges must have
+	 * identical length and contain identical text content. The ranges cannot overlap
+	 */
+	ranges: IRange[];
+
+	/**
+	 * An optional word pattern that describes valid contents for the given ranges.
+	 * If no pattern is provided, the language configuration's word pattern will be used.
+	 */
+	wordPattern?: RegExp;
 }
 
 /**
@@ -1370,6 +1385,8 @@ export interface WorkspaceFileEditOptions {
 	ignoreIfNotExists?: boolean;
 	ignoreIfExists?: boolean;
 	recursive?: boolean;
+	copy?: boolean;
+	folder?: boolean;
 }
 
 export interface WorkspaceFileEdit {
@@ -1718,7 +1735,7 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
 /**
  * @internal
  */
-export const OnTypeRenameProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameProvider>();
+export const OnTypeRenameRangeProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameRangeProvider>();
 
 /**
  * @internal

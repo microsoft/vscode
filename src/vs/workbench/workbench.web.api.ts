@@ -52,7 +52,7 @@ interface ITunnelProvider {
 }
 
 interface ITunnelFactory {
-	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
+	(tunnelOptions: ITunnelOptions, elevate?: boolean): Promise<ITunnel> | undefined;
 }
 
 interface ITunnelOptions {
@@ -217,10 +217,6 @@ interface IDefaultEditor {
 }
 
 interface IDefaultLayout {
-	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
-	readonly sidebar?: IDefaultSideBarLayout;
-	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
-	readonly panel?: IDefaultPanelLayout;
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 }

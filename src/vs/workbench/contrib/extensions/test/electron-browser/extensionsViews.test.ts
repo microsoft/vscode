@@ -19,7 +19,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -165,7 +165,8 @@ suite('ExtensionsListView Tests', () => {
 			}
 		});
 
-		instantiationService.stub(IExtensionService, {
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			onDidChangeExtensions: Event.None,
 			getExtensions: (): Promise<IExtensionDescription[]> => {
 				return Promise.resolve([
 					toExtensionDescription(localEnabledTheme),

@@ -132,7 +132,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	async run(): Promise<boolean> {
-		let { launch, name, config } = this.debugService.getConfigurationManager().selectedConfiguration;
+		let { launch, name, getConfig } = this.debugService.getConfigurationManager().selectedConfiguration;
+		const config = await getConfig();
 		const clonedConfig = deepClone(config);
 		return this.debugService.startDebugging(launch, clonedConfig || name, { noDebug: this.isNoDebug() });
 	}
@@ -147,10 +148,10 @@ export class StartAction extends AbstractDebugAction {
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		let { name, config } = debugService.getConfigurationManager().selectedConfiguration;
-		let nameToStart = name || config?.name;
+		let { name, launch } = debugService.getConfigurationManager().selectedConfiguration;
+		let nameToStart = name;
 
-		if (sessions.some(s => s.configuration.name === nameToStart)) {
+		if (sessions.some(s => s.configuration.name === nameToStart && s.root === launch?.workspace)) {
 			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}

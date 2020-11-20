@@ -66,10 +66,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 							tunnelRemoteHost: tunnel.remoteAddress.host,
 							localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : MakeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 							tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
-							dispose: (silent: boolean) => {
-								if (!silent) {
-									this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port });
-								}
+							dispose: (silent?: boolean) => {
+								this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
 							}
 						};
 					});

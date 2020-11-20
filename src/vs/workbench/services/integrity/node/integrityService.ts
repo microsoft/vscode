@@ -12,7 +12,7 @@ import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workben
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { FileAccess } from 'vs/base/common/network';
@@ -51,7 +51,7 @@ class IntegrityStorage {
 
 	set(data: IStorageData | null): void {
 		this.value = data;
-		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL);
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 

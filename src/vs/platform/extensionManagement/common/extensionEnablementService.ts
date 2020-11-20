@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionIdentifier, IGlobalExtensionEnablementService, DISABLED_EXTENSIONS_STORAGE_PATH } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export class GlobalExtensionEnablementService extends Disposable implements IGlobalExtensionEnablementService {
@@ -96,7 +96,7 @@ export class StorageManager extends Disposable {
 
 	constructor(private storageService: IStorageService) {
 		super();
-		this._register(storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
 	}
 
 	get(key: string, scope: StorageScope): IExtensionIdentifier[] {
@@ -127,7 +127,7 @@ export class StorageManager extends Disposable {
 		}
 	}
 
-	private onDidStorageChange(storageChangeEvent: IStorageChangeEvent): void {
+	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
 		if (storageChangeEvent.scope === StorageScope.GLOBAL) {
 			if (!isUndefinedOrNull(this.storage[storageChangeEvent.key])) {
 				const newValue = this._get(storageChangeEvent.key, storageChangeEvent.scope);
@@ -151,7 +151,8 @@ export class StorageManager extends Disposable {
 
 	private _set(key: string, value: string | undefined, scope: StorageScope): void {
 		if (value) {
-			this.storageService.store(key, value, scope);
+			// Enablement state is synced separately through extensions
+			this.storageService.store(key, value, scope, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(key, scope);
 		}

@@ -61,14 +61,20 @@ suite('FindController', async () => {
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
-		onDidChangeStorage: Event.None,
+		onDidChangeTarget: Event.None,
+		onDidChangeValue: Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined,
+		getNumber: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: () => undefined
-	} as any);
+		remove: () => undefined,
+		isNew: () => false,
+		flush: () => { return Promise.resolve(); },
+		keys: () => [],
+		logStorage: () => { },
+		migrate: () => { throw new Error(); }
+	} as IStorageService);
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
@@ -491,14 +497,20 @@ suite('FindController query options persistence', async () => {
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
-		onDidChangeStorage: Event.None,
+		onDidChangeTarget: Event.None,
+		onDidChangeValue: Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined,
+		getNumber: (key: string) => undefined!,
 		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: () => undefined
-	} as any);
+		remove: () => undefined,
+		isNew: () => false,
+		flush: () => { return Promise.resolve(); },
+		keys: () => [],
+		logStorage: () => { },
+		migrate: () => { throw new Error(); }
+	} as IStorageService);
 
 	test('matchCase', async () => {
 		await withAsyncTestCodeEditor([

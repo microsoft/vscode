@@ -392,10 +392,10 @@ export function registerDocumentHighlightProvider(languageId: string, provider: 
 }
 
 /**
- * Register an on type rename provider.
+ * Register an on type rename range provider.
  */
-export function registerOnTypeRenameProvider(languageId: string, provider: modes.OnTypeRenameProvider): IDisposable {
-	return modes.OnTypeRenameProviderRegistry.register(languageId, provider);
+export function registerOnTypeRenameRangeProvider(languageId: string, provider: modes.OnTypeRenameRangeProvider): IDisposable {
+	return modes.OnTypeRenameRangeProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -566,7 +566,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerHoverProvider: <any>registerHoverProvider,
 		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,
 		registerDocumentHighlightProvider: <any>registerDocumentHighlightProvider,
-		registerOnTypeRenameProvider: <any>registerOnTypeRenameProvider,
+		registerOnTypeRenameRangeProvider: <any>registerOnTypeRenameRangeProvider,
 		registerDefinitionProvider: <any>registerDefinitionProvider,
 		registerImplementationProvider: <any>registerImplementationProvider,
 		registerTypeDefinitionProvider: <any>registerTypeDefinitionProvider,

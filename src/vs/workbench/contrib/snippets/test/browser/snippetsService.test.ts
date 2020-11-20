@@ -16,8 +16,7 @@ import { CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
-	constructor(readonly snippets: Snippet[]) {
-	}
+	constructor(readonly snippets: Snippet[]) { }
 	getSnippets() {
 		return Promise.resolve(this.getSnippetsSync());
 	}
@@ -25,6 +24,12 @@ class SimpleSnippetService implements ISnippetsService {
 		return this.snippets;
 	}
 	getSnippetFiles(): any {
+		throw new Error();
+	}
+	isEnabled(): boolean {
+		throw new Error();
+	}
+	updateEnablement(): void {
 		throw new Error();
 	}
 }

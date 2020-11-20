@@ -15,7 +15,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -323,7 +323,7 @@ class WelcomePage extends Disposable {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile', ConfigurationTarget.USER);
+			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile');
 		});
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
@@ -331,12 +331,14 @@ class WelcomePage extends Disposable {
 			prodName.textContent = this.productService.nameLong;
 		}
 
+		const pageElement = container.querySelector('.welcomePage') as HTMLElement;
+		pageElement.classList.add(this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? 'empty-window' : 'none-empty-window');
+
 		recentlyOpened.then(({ workspaces }) => {
 			// Filter out the current workspace
 			workspaces = workspaces.filter(recent => !this.contextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri));
 			if (!workspaces.length) {
-				const recent = container.querySelector('.welcomePage') as HTMLElement;
-				recent.classList.add('emptyRecent');
+				pageElement.classList.add('emptyRecent');
 				return;
 			}
 			const ul = container.querySelector('.recent ul');

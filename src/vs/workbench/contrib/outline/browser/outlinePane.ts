@@ -29,7 +29,7 @@ import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -211,7 +211,7 @@ class OutlineViewState {
 			followCursor: this.followCursor,
 			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
-		}), StorageScope.WORKSPACE);
+		}), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	restore(storageService: IStorageService): void {

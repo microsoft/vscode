@@ -5,14 +5,19 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IDimension } from 'vs/editor/common/editorCommon';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -20,7 +25,10 @@ import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/r
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { BUILTIN_RENDERER_ID, CellOutputKind, CellUri, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
+const OUTPUT_COUNT_LIMIT = 500;
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
 }
@@ -236,6 +244,8 @@ export class CodeCell extends Disposable {
 		private templateData: CodeCellRenderTemplate,
 		@INotebookService private notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IOpenerService readonly openerService: IOpenerService,
+		@ITextFileService readonly textFileService: ITextFileService,
 		@IModeService private readonly _modeService: IModeService
 	) {
 		super();
@@ -378,8 +388,9 @@ export class CodeCell extends Disposable {
 			});
 
 			let prevElement: HTMLElement | undefined = undefined;
+			const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
 
-			[...this.viewCell.outputs].reverse().forEach(output => {
+			outputsToRender.reverse().forEach(output => {
 				if (this.outputEntries.has(output)) {
 					// already exist
 					prevElement = this.outputEntries.get(output)!.domNode;
@@ -391,6 +402,13 @@ export class CodeCell extends Disposable {
 				this.renderOutput(output, currIndex, prevElement);
 				prevElement = this.outputEntries.get(output)?.domNode;
 			});
+
+			if (this.viewCell.outputs.length > OUTPUT_COUNT_LIMIT) {
+				this.templateData.outputShowMoreContainer.style.display = 'block';
+				this.viewCell.updateOutputShowMoreContainerHeight(46);
+			} else {
+				this.templateData.outputShowMoreContainer.style.display = 'none';
+			}
 
 			const editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
@@ -447,6 +465,16 @@ export class CodeCell extends Disposable {
 			}
 		});
 
+		this._register(templateData.statusBar.onDidClick(e => {
+			if (e.type !== ClickTargetType.ContributedItem) {
+				const target = templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - viewCell.getEditorStatusbarHeight());
+				if (target?.position) {
+					templateData.editor.setPosition(target.position);
+					templateData.editor.focus();
+				}
+			}
+		}));
+
 		this._register(templateData.editor!.onMouseDown(e => {
 			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
 			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.
@@ -461,7 +489,16 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(templateData.editor!.onDidBlurEditorWidget(() => {
-			updateFocusMode();
+			// this is for a special case:
+			// users click the status bar empty space, which we will then focus the editor
+			// so we don't want to update the focus state too eagerly
+			if (document.activeElement?.contains(this.templateData.container)) {
+				setTimeout(() => {
+					updateFocusMode();
+				}, 300);
+			} else {
+				updateFocusMode();
+			}
 		}));
 
 		updateFocusMode();
@@ -476,7 +513,8 @@ export class CodeCell extends Disposable {
 			this.templateData.outputContainer!.style.display = 'block';
 			// there are outputs, we need to calcualte their sizes and trigger relayout
 			// @TODO@rebornix, if there is no resizable output, we should not check their height individually, which hurts the performance
-			for (let index = 0; index < this.viewCell.outputs.length; index++) {
+			const outputsToRender = this.viewCell.outputs.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputs.length));
+			for (let index = 0; index < outputsToRender.length; index++) {
 				const currOutput = this.viewCell.outputs[index];
 
 				// always add to the end
@@ -484,6 +522,11 @@ export class CodeCell extends Disposable {
 			}
 
 			viewCell.editorHeight = editorHeight;
+			if (this.viewCell.outputs.length > OUTPUT_COUNT_LIMIT) {
+				this.templateData.outputShowMoreContainer.style.display = 'block';
+				this.viewCell.updateOutputShowMoreContainerHeight(46);
+			}
+
 			if (layoutCache) {
 				this.relayoutCellDebounced();
 			} else {
@@ -496,8 +539,72 @@ export class CodeCell extends Disposable {
 			this.templateData.outputContainer!.style.display = 'none';
 		}
 
+		this.templateData.outputShowMoreContainer.innerText = '';
+		this.templateData.outputShowMoreContainer.appendChild(this.generateShowMoreElement());
+		// this.templateData.outputShowMoreContainer.style.top = `${this.viewCell.layoutInfo.outputShowMoreContainerOffset}px`;
+
+		if (this.viewCell.outputs.length < OUTPUT_COUNT_LIMIT) {
+			this.templateData.outputShowMoreContainer.style.display = 'none';
+			this.viewCell.updateOutputShowMoreContainerHeight(0);
+		}
+
 		// Need to do this after the intial renderOutput
 		updateForCollapseState();
+	}
+
+	generateShowMoreElement(): any {
+		const md: IMarkdownString = {
+			value: `There are more than ${OUTPUT_COUNT_LIMIT} outputs, [show more ...](command:workbench.action.openLargeOutput)`,
+			isTrusted: true,
+			supportThemeIcons: true
+		};
+
+		const element = renderMarkdown(md, {
+			actionHandler: {
+				callback: (content) => {
+					if (content === 'command:workbench.action.openLargeOutput') {
+						const content = JSON.stringify(this.viewCell.outputs.map(output => {
+							switch (output.outputKind) {
+								case CellOutputKind.Text:
+									return {
+										outputKind: 'text',
+										text: output.text
+									};
+								case CellOutputKind.Error:
+									return {
+										outputKind: 'error',
+										ename: output.ename,
+										evalue: output.evalue,
+										traceback: output.traceback
+									};
+								case CellOutputKind.Rich:
+									return {
+										data: output.data,
+										metadata: output.metadata
+									};
+							}
+						}));
+						const edits = format(content, undefined, {});
+						const metadataSource = applyEdits(content, edits);
+
+						return this.textFileService.untitled.resolve({
+							associatedResource: undefined,
+							mode: 'json',
+							initialValue: metadataSource
+						}).then(model => {
+							const resource = model.resource;
+							this.openerService.open(resource);
+						});
+					}
+
+					return;
+				},
+				disposeables: new DisposableStore()
+			}
+		});
+
+		element.classList.add('output-show-more');
+		return element;
 	}
 
 	private viewUpdate(): void {

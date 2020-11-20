@@ -19,7 +19,7 @@ import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editor
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -40,6 +40,8 @@ import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWat
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 import { isEqual } from 'vs/base/common/resources';
+import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -102,8 +104,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileEditorInputFactory({
-	createFileEditorInput: (resource, preferredResource, encoding, mode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, encoding, mode);
+
+	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);
 	},
 
 	isFileEditorInput: (obj): obj is IFileEditorInput => {
@@ -114,6 +117,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 interface ISerializedFileEditorInput {
 	resourceJSON: UriComponents;
 	preferredResourceJSON?: UriComponents;
+	name?: string;
+	description?: string;
 	encoding?: string;
 	modeId?: string;
 }
@@ -132,6 +137,8 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		const serializedFileEditorInput: ISerializedFileEditorInput = {
 			resourceJSON: resource.toJSON(),
 			preferredResourceJSON: isEqual(resource, preferredResource) ? undefined : preferredResource, // only storing preferredResource if it differs from the resource
+			name: fileEditorInput.getPreferredName(),
+			description: fileEditorInput.getPreferredDescription(),
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};
@@ -144,10 +151,12 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
 			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
 			const preferredResource = URI.revive(serializedFileEditorInput.preferredResourceJSON);
+			const name = serializedFileEditorInput.name;
+			const description = serializedFileEditorInput.description;
 			const encoding = serializedFileEditorInput.encoding;
 			const mode = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
+			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, label: name, description, encoding, mode, forceFile: true }) as FileEditorInput;
 			if (preferredResource) {
 				fileEditorInput.setPreferredResource(preferredResource);
 			}
@@ -393,6 +402,16 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
 			'default': 9
 		},
+		'explorer.openEditors.sortOrder': {
+			'type': 'string',
+			'enum': ['editorOrder', 'alphabetical'],
+			'description': nls.localize({ key: 'openEditorsSortOrder', comment: ['Open is an adjective'] }, "Controls the sorting order of editors in the Open Editors pane."),
+			'enumDescriptions': [
+				nls.localize('sortOrder.editorOrder', 'Editors are ordered in the same order editor tabs are shown.'),
+				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetical order inside each editor group.')
+			],
+			'default': 'editorOrder'
+		},
 		'explorer.autoReveal': {
 			'type': ['boolean', 'string'],
 			'enum': [true, false, 'focusNoScroll'],
@@ -406,7 +425,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop."),
+			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the explorer."),
 			'default': true
 		},
 		'explorer.confirmDragAndDrop': {
@@ -467,4 +486,26 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer")
 	},
 	order: 1
+});
+
+UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
+	const undoRedoService = accessor.get(IUndoRedoService);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerService.hasViewFocus()) {
+		undoRedoService.undo(explorerService.undoRedoSource);
+		return true;
+	}
+
+	return false;
+});
+
+RedoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
+	const undoRedoService = accessor.get(IUndoRedoService);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerService.hasViewFocus()) {
+		undoRedoService.redo(explorerService.undoRedoSource);
+		return true;
+	}
+
+	return false;
 });

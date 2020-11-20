@@ -16,6 +16,7 @@ import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ITextModel } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -28,6 +29,11 @@ interface TestEditor {
 	undo(): void;
 	redo(): void;
 }
+
+const languageIdentifier = new modes.LanguageIdentifier('onTypeRenameTestLangage', 74);
+LanguageConfigurationRegistry.register(languageIdentifier, {
+	wordPattern: /[a-zA-Z]+/
+});
 
 suite('On type rename', () => {
 	const disposables = new DisposableStore();
@@ -42,8 +48,8 @@ suite('On type rename', () => {
 
 	function createMockEditor(text: string | string[]): ITestCodeEditor {
 		const model = typeof text === 'string'
-			? createTextModel(text, undefined, undefined, mockFile)
-			: createTextModel(text.join('\n'), undefined, undefined, mockFile);
+			? createTextModel(text, undefined, languageIdentifier, mockFile)
+			: createTextModel(text.join('\n'), undefined, languageIdentifier, mockFile);
 
 		const editor = createTestCodeEditor({ model });
 		disposables.add(model);
@@ -55,18 +61,16 @@ suite('On type rename', () => {
 
 	function testCase(
 		name: string,
-		initialState: { text: string | string[], responseWordPattern?: RegExp, providerWordPattern?: RegExp },
+		initialState: { text: string | string[], responseWordPattern?: RegExp },
 		operations: (editor: TestEditor) => Promise<void>,
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
-			disposables.add(modes.OnTypeRenameProviderRegistry.register(mockFileSelector, {
-				wordPattern: initialState.providerWordPattern,
+			disposables.add(modes.OnTypeRenameRangeProviderRegistry.register(mockFileSelector, {
 				provideOnTypeRenameRanges(model: ITextModel, pos: IPosition) {
 					const wordAtPos = model.getWordAtPosition(pos);
 					if (wordAtPos) {
 						const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
-						assert.ok(matches.length > 0);
 						return { ranges: matches.map(m => m.range), wordPattern: initialState.responseWordPattern };
 					}
 					return { ranges: [], wordPattern: initialState.responseWordPattern };
@@ -299,7 +303,7 @@ suite('On type rename', () => {
 
 	const state3 = {
 		...state,
-		providerWordPattern: /[a-yA-Y]+/
+		responseWordPattern: /[a-yA-Y]+/
 	};
 
 	testCase('Breakout with stop pattern - insert', state3, async (editor) => {
@@ -334,7 +338,6 @@ suite('On type rename', () => {
 
 	const state4 = {
 		...state,
-		providerWordPattern: /[a-yA-Y]+/,
 		responseWordPattern: /[a-eA-E]+/
 	};
 

@@ -22,11 +22,10 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -83,6 +82,10 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	protected readonly _storageService: IStorageService;
 	private readonly _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
+
+	get editor() {
+		return this._editor;
+	}
 
 	public static get(editor: ICodeEditor): CommonFindController {
 		return editor.getContribution<CommonFindController>(CommonFindController.ID);
@@ -165,16 +168,16 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	private saveQueryState(e: FindReplaceStateChangedEvent) {
 		if (e.isRegex) {
-			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE);
+			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 		if (e.wholeWord) {
-			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE);
+			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 		if (e.matchCase) {
-			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
+			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 		if (e.preserveCase) {
-			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE);
+			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 	}
 
@@ -264,7 +267,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._state.change({ searchString: searchString }, false);
 	}
 
-	public highlightFindOptions(): void {
+	public highlightFindOptions(ignoreWhenVisible: boolean = false): void {
 		// overwritten in subclass
 	}
 
@@ -411,7 +414,6 @@ export class FindController extends CommonFindController implements IFindControl
 		@IThemeService private readonly _themeService: IThemeService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
-		@IStorageKeysSyncRegistryService private readonly _storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IClipboardService clipboardService: IClipboardService,
 	) {
 		super(editor, _contextKeyService, _storageService, clipboardService);
@@ -456,11 +458,11 @@ export class FindController extends CommonFindController implements IFindControl
 		}
 	}
 
-	public highlightFindOptions(): void {
+	public highlightFindOptions(ignoreWhenVisible: boolean = false): void {
 		if (!this._widget) {
 			this._createFindWidget();
 		}
-		if (this._state.isRevealed) {
+		if (this._state.isRevealed && !ignoreWhenVisible) {
 			this._widget!.highlightFindOptions();
 		} else {
 			this._findOptionsWidget!.highlightFindOptions();
@@ -468,8 +470,16 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._storageKeysSyncRegistryService));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
+	}
+
+	saveViewState(): any {
+		return this._widget?.getViewState();
+	}
+
+	restoreViewState(state: any): void {
+		this._widget?.setViewState(state);
 	}
 }
 
@@ -585,7 +595,13 @@ export class NextMatchFindAction extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToNextMatch();
+		const result = controller.moveToNextMatch();
+		if (result) {
+			controller.editor.pushUndoStop();
+			return true;
+		}
+
+		return false;
 	}
 }
 
@@ -606,7 +622,13 @@ export class NextMatchFindAction2 extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToNextMatch();
+		const result = controller.moveToNextMatch();
+		if (result) {
+			controller.editor.pushUndoStop();
+			return true;
+		}
+
+		return false;
 	}
 }
 
