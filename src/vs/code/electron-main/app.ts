@@ -9,7 +9,7 @@ import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMai
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { getShellEnvironment } from 'vs/code/node/shellEnv';
+import { resolveShellEnv } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
@@ -84,6 +84,7 @@ import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encry
 import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -283,7 +284,24 @@ export class CodeApplication extends Disposable {
 			}, 10000);
 
 			try {
-				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
+
+				// Prefer to use the args and env from the target window
+				// when resolving the shell env. It is possible that
+				// a first window was opened from the UI but a second
+				// from the CLI and that has implications for wether to
+				// resolve the shell environment or not.
+				let args: NativeParsedArgs;
+				let env: NodeJS.ProcessEnv;
+				if (window?.config) {
+					args = window.config;
+					env = { ...process.env, ...window.config.userEnv };
+				} else {
+					args = this.environmentService.args;
+					env = process.env;
+				}
+
+				// Resolve shell env
+				const shellEnv = await resolveShellEnv(this.logService, args, env);
 				acceptShellEnv(shellEnv);
 			} catch (error) {
 				window?.sendWhenReady('vscode:showShellEnvError', toErrorMessage(error)); // notify inside window if we have one
@@ -368,7 +386,7 @@ export class CodeApplication extends Disposable {
 		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				sharedProcess.spawn(await getShellEnvironment(this.logService, this.environmentService));
+				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentService.args, process.env));
 			}, 3000)).schedule();
 		});
 
@@ -825,8 +843,8 @@ export class CodeApplication extends Disposable {
 			updateService.initialize();
 		}
 
-		// Start to fetch shell environment after window has opened
-		getShellEnvironment(this.logService, this.environmentService);
+		// Start to fetch shell environment (if needed) after window has opened
+		resolveShellEnv(this.logService, this.environmentService.args, process.env);
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
