@@ -3349,10 +3349,10 @@ typescript@^3.0.1:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.5.3.tgz#c830f657f93f1ea846819e929092f5fe5983e977"
   integrity sha512-ACzBtm/PhXBDId6a6sDJfroT2pOWt/oOnk4/dElG5G33ZL776N3Y6/6bKZJBFpd+b05F3Ct9qDjMeJmRWtE2/g==
 
-typescript@^4.2.0-dev.20201104:
-  version "4.2.0-dev.20201104"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201104.tgz#9dca362fd423ac9391ef4a67bdc6f18537e9593c"
-  integrity sha512-MEnAcd0iwQySO+8F19KXGsX8WaHMda48j66I4qqUO8bknueGJUH/FdG9MakpApXd2Lzd9tlUMlOyT07dxeNsSQ==
+typescript@^4.2.0-dev.20201119:
+  version "4.2.0-dev.20201119"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201119.tgz#d4a43511cd9931adac05e1a47b6425f6b0e76cc3"
+  integrity sha512-HIgv+D/0VpVYRTbcVVf9oac/0GtLKMqaufTcPgohNaFWlCOh4lq8syefANgENXTG5Q4VEC6xwDGzHW6EJAVr3A==
 
 typical@^4.0.0:
   version "4.0.0"
