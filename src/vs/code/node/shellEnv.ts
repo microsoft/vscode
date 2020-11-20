@@ -91,17 +91,21 @@ let shellEnvPromise: Promise<typeof process.env> | undefined = undefined;
  */
 export function getShellEnvironment(logService: ILogService, environmentService: INativeEnvironmentService): Promise<typeof process.env> {
 	if (!shellEnvPromise) {
-		if (environmentService.args['disable-user-env-probe']) {
-			logService.trace('getShellEnvironment: disable-user-env-probe set, skipping');
+		if (environmentService.args['force-disable-user-env']) {
+			logService.trace('getShellEnvironment(): skipped (--force-disable-user-env)');
 			shellEnvPromise = Promise.resolve({});
 		} else if (isWindows) {
-			logService.trace('getShellEnvironment: running on Windows, skipping');
+			logService.trace('getShellEnvironment(): skipped (Windows)');
 			shellEnvPromise = Promise.resolve({});
-		} else if (process.env['VSCODE_CLI'] === '1' && process.env['VSCODE_FORCE_USER_ENV'] !== '1') {
-			logService.trace('getShellEnvironment: running on CLI, skipping');
+		} else if (process.env['VSCODE_CLI'] === '1' && !environmentService.args['force-user-env']) {
+			logService.trace('getShellEnvironment(): skipped (VSCODE_CLI is set)');
 			shellEnvPromise = Promise.resolve({});
 		} else {
-			logService.trace('getShellEnvironment: running on Unix');
+			if (process.env['VSCODE_CLI'] === '1') {
+				logService.trace('getShellEnvironment(): running (--force-user-env)');
+			} else {
+				logService.trace('getShellEnvironment(): running (macOS/Linux)');
+			}
 			shellEnvPromise = getUnixShellEnvironment(logService);
 		}
 	}

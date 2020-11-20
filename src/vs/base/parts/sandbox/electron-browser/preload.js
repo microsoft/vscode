@@ -203,15 +203,7 @@
 	 */
 	function resolveEnv() {
 		return new Promise(function (resolve) {
-			const handle = setTimeout(function () {
-				console.warn('Preload: Unable to resolve shell environment in a reasonable time');
-
-				// It took too long to fetch the shell environment, return
-				resolve();
-			}, 3000);
-
 			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
-				clearTimeout(handle);
 
 				// Assign all keys of the shell environment to our process environment
 				Object.assign(process.env, shellEnv);
