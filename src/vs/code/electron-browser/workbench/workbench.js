@@ -34,7 +34,9 @@
 			performance.mark('workbench-start');
 
 			// Wait for process environment being fully resolved
+			perf.mark('willWaitForShellEnv');
 			await whenEnvResolved;
+			perf.mark('didWaitForShellEnv');
 
 			perf.mark('main/startup');
 
