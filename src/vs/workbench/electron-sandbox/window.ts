@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/wo
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -186,13 +186,23 @@ export class NativeWindow extends Disposable {
 
 		// Message support
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
-		ipcRenderer.on('vscode:showShellEnvTimeoutWarningMessage', () => this.notificationService.prompt(
+
+		// Shell Environment Issue Notifications
+		const choices: IPromptChoice[] = [{
+			label: nls.localize('learnMode', "Learn More"),
+			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+		}];
+
+		ipcRenderer.on('vscode:showShellEnvError', (event: unknown, error: string) => this.notificationService.prompt(
+			Severity.Error,
+			nls.localize('shellEnvError', "Unable to resolve your shell environment: {0}", error),
+			choices
+		));
+
+		ipcRenderer.on('vscode:showShellEnvTimeoutWarning', () => this.notificationService.prompt(
 			Severity.Warning,
-			nls.localize('shellEnvTimeoutWarning', "It took more than 10s to resolve your shell environment. Please review your shell configuration."),
-			[{
-				label: nls.localize('learnMode', "Learn More"),
-				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
-			}]
+			nls.localize('shellEnvTimeoutWarning', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
+			choices
 		));
 
 		// Display change events

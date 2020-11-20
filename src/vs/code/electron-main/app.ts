@@ -83,6 +83,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -280,7 +281,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			const shellEnvTimeoutWarningHandle = setTimeout(function () {
-				window.sendWhenReady('vscode:showShellEnvTimeoutWarningMessage');
+				window.sendWhenReady('vscode:showShellEnvTimeoutWarning');
 				acceptShellEnv({});
 			}, 10000);
 
@@ -288,6 +289,7 @@ export class CodeApplication extends Disposable {
 				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
 				acceptShellEnv(shellEnv);
 			} catch (error) {
+				window.sendWhenReady('vscode:showShellEnvError', toErrorMessage(error));
 				acceptShellEnv({});
 
 				this.logService.error('Error fetching shell env', error);
@@ -826,6 +828,9 @@ export class CodeApplication extends Disposable {
 			updateService.initialize();
 		}
 
+		// Start to fetch shell environment after window has opened
+		getShellEnvironment(this.logService, this.environmentService);
+
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
 		// will be used as crash reporter id and also update the json file.
@@ -853,9 +858,6 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
-
-		// Start to fetch shell environment after window has opened
-		getShellEnvironment(this.logService, this.environmentService);
 	}
 
 	private handleRemoteAuthorities(): void {
