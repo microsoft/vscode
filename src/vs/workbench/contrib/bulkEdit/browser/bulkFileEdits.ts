@@ -164,7 +164,7 @@ class DeleteOperation implements IFileOperation {
 		}
 
 		let contents: VSBuffer | undefined;
-		if (!this._undoesCreateOperation) {
+		if (!this._undoesCreateOperation && !this.options.folder) {
 			try {
 				contents = (await this._fileService.readFile(this.oldUri)).value;
 			} catch (err) {
