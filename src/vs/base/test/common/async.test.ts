@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 suite('Async', () => {
 
@@ -718,5 +718,64 @@ suite('Async', () => {
 		assert.equal(counter.increment(), 1);
 		assert.equal(counter.increment(), 2);
 		assert.equal(counter.increment(), 3);
+	});
+
+	test('firstParallel - simple', async () => {
+		const a = await async.firstParallel([
+			Promise.resolve(1),
+			Promise.resolve(2),
+			Promise.resolve(3),
+		], v => v === 2);
+		assert.equal(a, 2);
+	});
+
+	test('firstParallel - uses null default', async () => {
+		assert.equal(await async.firstParallel([Promise.resolve(1)], v => v === 2), null);
+	});
+
+	test('firstParallel - uses value default', async () => {
+		assert.equal(await async.firstParallel([Promise.resolve(1)], v => v === 2, 4), 4);
+	});
+
+	test('firstParallel - empty', async () => {
+		assert.equal(await async.firstParallel([], v => v === 2, 4), 4);
+	});
+
+	test('firstParallel - cancels', async () => {
+		let ct1: CancellationToken;
+		const p1 = async.createCancelablePromise(async (ct) => {
+			ct1 = ct;
+			await async.timeout(200, ct);
+			return 1;
+		});
+		let ct2: CancellationToken;
+		const p2 = async.createCancelablePromise(async (ct) => {
+			ct2 = ct;
+			await async.timeout(2, ct);
+			return 2;
+		});
+
+		assert.equal(await async.firstParallel([p1, p2], v => v === 2, 4), 2);
+		assert.equal(ct1!.isCancellationRequested, true, 'should cancel a');
+		assert.equal(ct2!.isCancellationRequested, true, 'should cancel b');
+	});
+
+	test('firstParallel - rejection handling', async () => {
+		let ct1: CancellationToken;
+		const p1 = async.createCancelablePromise(async (ct) => {
+			ct1 = ct;
+			await async.timeout(200, ct);
+			return 1;
+		});
+		let ct2: CancellationToken;
+		const p2 = async.createCancelablePromise(async (ct) => {
+			ct2 = ct;
+			await async.timeout(2, ct);
+			throw new Error('oh no');
+		});
+
+		assert.equal(await async.firstParallel([p1, p2], v => v === 2, 4).catch(() => 'ok'), 'ok');
+		assert.equal(ct1!.isCancellationRequested, true, 'should cancel a');
+		assert.equal(ct2!.isCancellationRequested, true, 'should cancel b');
 	});
 });

@@ -131,7 +131,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 	}
 
-	protected getEditorStatusbarHeight() {
+	getEditorStatusbarHeight() {
 		const showCellStatusBar = this._configurationService.getValue<boolean>(ShowCellStatusBarKey);
 		return showCellStatusBar ? CELL_STATUSBAR_HEIGHT : 0;
 	}
@@ -352,6 +352,34 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForPosition(line, column) + EDITOR_TOP_PADDING;
 	}
 
+	cursorAtBeginEnd(): boolean {
+		if (!this._textEditor) {
+			return false;
+		}
+
+		if (!this.textModel) {
+			return false;
+		}
+
+		// only validate primary cursor
+		const selection = this._textEditor.getSelection();
+
+		// only validate empty cursor
+		if (!selection || !selection.isEmpty()) {
+			return false;
+		}
+
+		if (selection.startLineNumber === 1 && selection.startColumn === 1) {
+			return true;
+		}
+
+		if (selection.startLineNumber === this._textModel?.getLineCount() && selection.startColumn === this._textModel?.getLineMaxColumn(selection.startLineNumber)) {
+			return true;
+		}
+
+		return false;
+	}
+
 	cursorAtBoundary(): CursorAtBoundary {
 		if (!this._textEditor) {
 			return CursorAtBoundary.None;
@@ -425,8 +453,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
-		const runnable = this.metadata?.runnable ??
-			documentMetadata.cellRunnable;
+		const runnable = (this.metadata?.runnable ??
+			documentMetadata.cellRunnable) && !!documentMetadata.trusted;
 
 		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
 			documentMetadata.cellHasExecutionOrder;

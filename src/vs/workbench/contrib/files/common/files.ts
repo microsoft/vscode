@@ -22,6 +22,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 
 /**
  * Explorer viewlet id.
@@ -37,8 +38,10 @@ export interface IExplorerService {
 	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
+	undoRedoSource: UndoRedoSource;
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
+	hasViewFocus(): boolean;
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
 	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
@@ -66,6 +69,8 @@ export interface IExplorerView {
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
 	focusNeighbourIfItemFocused(item: ExplorerItem): void;
+	isItemVisible(item: ExplorerItem): boolean;
+	hasFocus(): boolean;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
@@ -116,6 +121,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 	explorer: {
 		openEditors: {
 			visible: number;
+			sortOrder: 'editorOrder' | 'alphabetical';
 		};
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
@@ -230,16 +236,15 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 export class OpenEditor implements IEditorIdentifier {
 
+	private id: number;
+	private static COUNTER = 0;
+
 	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
-		// noop
+		this.id = OpenEditor.COUNTER++;
 	}
 
 	get editor() {
 		return this._editor;
-	}
-
-	get editorIndex() {
-		return this._group.getIndexOfEditor(this.editor);
 	}
 
 	get group() {
@@ -251,7 +256,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	getId(): string {
-		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.groupId}:${this.id}`;
 	}
 
 	isPreview(): boolean {

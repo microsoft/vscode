@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -64,7 +64,7 @@ suite('Experimental Prompts', () => {
 		storageData = {};
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
 			get: (a: string, b: StorageScope, c?: string) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
-			store: (a, b, c) => {
+			store: (a, b, c, d) => {
 				if (a === 'experiments.experiment1') {
 					storageData = JSON.parse(b + '');
 				}

@@ -59,7 +59,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.viewModel.notebookDocument;
-		const dispoables = new DisposableStore();
+		const disposable = new DisposableStore();
 		try {
 
 			const edits: ResourceTextEdit[] = [];
@@ -67,7 +67,7 @@ registerAction2(class extends Action2 {
 			for (const cell of notebook.cells) {
 
 				const ref = await textModelService.createModelReference(cell.uri);
-				dispoables.add(ref);
+				disposable.add(ref);
 
 				const model = ref.object.textEditorModel;
 
@@ -86,7 +86,7 @@ registerAction2(class extends Action2 {
 			await bulkEditService.apply(edits, { label: localize('label', "Format Notebook") });
 
 		} finally {
-			dispoables.dispose();
+			disposable.dispose();
 		}
 	}
 });

@@ -13,7 +13,7 @@ import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } 
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -517,7 +517,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private preferResourceEditorInput(input: IEditorInput): IEditorInput | IResourceEditorInput {
 		const resource = EditorResourceAccessor.getOriginalUri(input);
-		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData || resource.scheme === this.pathService.defaultUriScheme)) {
+		if (resource?.scheme === Schemas.file || resource?.scheme === Schemas.vscodeRemote || resource?.scheme === Schemas.userData || resource?.scheme === this.pathService.defaultUriScheme) {
 			// for now, only prefer well known schemes that we control to prevent
 			// issues such as https://github.com/microsoft/vscode/issues/85204
 			return { resource };
@@ -962,7 +962,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return undefined;
 		}));
 
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
+		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion

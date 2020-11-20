@@ -11,7 +11,7 @@ import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -40,7 +40,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { homedir } from 'os';
+import { homedir, release } from 'os';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
@@ -54,6 +54,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	execPath: process.execPath,
 	perfEntries: [],
 	colorScheme: { dark: true, highContrast: false },
+	os: { release: release() },
 	...parseArgs(process.argv, OPTIONS)
 };
 
@@ -76,7 +77,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IPathService athService: IPathService,
+		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -96,11 +97,12 @@ export class TestTextFileService extends NativeTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			athService,
+			pathService,
 			workingCopyFileService,
 			uriIdentityService,
 			modeService,
-			nativeHostService
+			nativeHostService,
+			logService
 		);
 	}
 

@@ -10,7 +10,7 @@ import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isRootUser, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -37,9 +37,6 @@ interface ChunkedPassword {
 	content: string;
 	hasNextChunk: boolean;
 }
-
-const MAX_PASSWORD_LENGTH = 2500;
-const PASSWORD_CHUNK_SIZE = MAX_PASSWORD_LENGTH - 100;
 
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
@@ -337,9 +334,25 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		shell.openExternal(url);
+		if (isLinux && process.env.SNAP && process.env.SNAP_REVISION) {
+			NativeHostMainService._safeSnapOpenExternal(url);
+		} else {
+			shell.openExternal(url);
+		}
 
 		return true;
+	}
+
+	private static _safeSnapOpenExternal(url: string): void {
+		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
+		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
+		delete process.env['GDK_PIXBUF_MODULE_FILE'];
+		delete process.env['GDK_PIXBUF_MODULEDIR'];
+
+		shell.openExternal(url);
+
+		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
+		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
 
 	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
@@ -351,7 +364,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (isWindows) {
 			isAdmin = (await import('native-is-elevated'))();
 		} else {
-			isAdmin = isRootUser();
+			isAdmin = process.getuid() === 0;
 		}
 
 		return isAdmin;
@@ -537,7 +550,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			return this.lifecycleMainService.reload(window, options?.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
+			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options?.disableExtensions } : undefined);
 		}
 	}
 
@@ -638,6 +651,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Credentials
 
+	private static readonly MAX_PASSWORD_LENGTH = 2500;
+	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
+
 	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
 		const keytar = await import('keytar');
 
@@ -645,6 +661,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (password) {
 			try {
 				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+				if (!content || !hasNextChunk) {
+					return password;
+				}
+
 				let index = 1;
 				while (hasNextChunk) {
 					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
@@ -665,14 +685,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
 		const keytar = await import('keytar');
 
-		if (isWindows && password.length > MAX_PASSWORD_LENGTH) {
+		if (isWindows && password.length > NativeHostMainService.MAX_PASSWORD_LENGTH) {
 			let index = 0;
 			let chunk = 0;
 			let hasNextChunk = true;
 			while (hasNextChunk) {
-				const passwordChunk = password.substring(index, index + PASSWORD_CHUNK_SIZE);
-				index += PASSWORD_CHUNK_SIZE;
+				const passwordChunk = password.substring(index, index + NativeHostMainService.PASSWORD_CHUNK_SIZE);
+				index += NativeHostMainService.PASSWORD_CHUNK_SIZE;
 				hasNextChunk = password.length - index > 0;
+
 				const content: ChunkedPassword = {
 					content: passwordChunk,
 					hasNextChunk: hasNextChunk

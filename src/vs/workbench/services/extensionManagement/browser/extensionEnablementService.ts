@@ -20,9 +20,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -44,11 +46,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
-		// @IHostService private readonly hostService: IHostService,
+		@IHostService hostService: IHostService,
+		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -58,11 +61,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
-					label: localize('Reload', "Reload"),
-					run: () => {
-						//this.hostService.reload();
-					}
+				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
+					label: localize('Reload', "Reload and Enable Extensions"),
+					run: () => hostService.reload({ disableExtensions: false })
 				}]);
 			});
 		}
@@ -77,6 +78,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	getEnablementState(extension: IExtension): EnablementState {
+		if (this.extensionBisectService.isDisabledByBisect(extension)) {
+			return EnablementState.DisabledByEnvironemt;
+		}
 		if (this._isDisabledInEnv(extension)) {
 			return EnablementState.DisabledByEnvironemt;
 		}
@@ -104,7 +108,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			throw new Error(localize('cannot disable language pack extension', "Cannot change enablement of {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
 		}
 
-		if (this.userDataAutoSyncService.isEnabled() && this.userDataSyncAccountService.account &&
+		if (this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
 			isAuthenticaionProviderExtension(extension.manifest) && extension.manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
 			throw new Error(localize('cannot disable auth extension', "Cannot change enablement {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}

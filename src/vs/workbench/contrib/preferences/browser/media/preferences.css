@@ -213,9 +213,3 @@
 .monaco-editor .dim-configuration {
 	color: #b1b1b1;
 }
-
-.monaco-editor .floating-click-widget {
-	padding: 10px;
-	border-radius: 5px;
-	cursor: pointer;
-}

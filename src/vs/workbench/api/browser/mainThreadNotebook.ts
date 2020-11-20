@@ -171,7 +171,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		if (!textModel) {
 			return false;
 		}
-		this._notebookService.transformEditsOutputs(textModel, cellEdits);
 		return textModel.applyEdits(modelVersionId, cellEdits, true, undefined, () => undefined, undefined);
 	}
 
@@ -479,8 +478,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				const edits: ICellEditOperation[] = [
 					{ editType: CellEditType.Replace, index: 0, count: mainthreadTextModel.cells.length, cells: data.cells }
 				];
-
-				this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);
 				await new Promise(resolve => {
 					DOM.scheduleAtNextAnimationFrame(() => {
 						const ret = mainthreadTextModel!.applyEdits(mainthreadTextModel!.versionId, edits, true, undefined, () => undefined, undefined);
@@ -606,7 +603,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			return;
 		}
 
-		this._notebookService.transformSpliceOutputs(textModel, splices);
 		const cell = textModel.cells.find(cell => cell.handle === cellHandle);
 
 		if (!cell) {

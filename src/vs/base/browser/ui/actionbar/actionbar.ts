@@ -21,7 +21,7 @@ export const enum ActionsOrientation {
 }
 
 export interface ActionTrigger {
-	keys: KeyCode[];
+	keys?: KeyCode[];
 	keyDown: boolean;
 }
 
@@ -49,13 +49,19 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _actionRunner: IActionRunner;
 	private _context: unknown;
 	private readonly _orientation: ActionsOrientation;
-	private readonly _triggerKeys: ActionTrigger;
+	private readonly _triggerKeys: {
+		keys: KeyCode[];
+		keyDown: boolean;
+	};
 	private _actionIds: string[];
 
 	// View Items
 	viewItems: IActionViewItem[];
 	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
+
+	// Trigger Key Tracking
+	private triggerKeyDown: boolean = false;
 
 	// Elements
 	domNode: HTMLElement;
@@ -71,8 +77,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
 
-	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidBeforeRun = this._onDidBeforeRun.event;
+	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
+	readonly onBeforeRun = this._onBeforeRun.event;
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -80,9 +86,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.options = options;
 		this._context = options.context ?? null;
 		this._orientation = this.options.orientation ?? ActionsOrientation.HORIZONTAL;
-		this._triggerKeys = this.options.triggerKeys ?? {
-			keys: [KeyCode.Enter, KeyCode.Space],
-			keyDown: false
+		this._triggerKeys = {
+			keyDown: this.options.triggerKeys?.keyDown ?? false,
+			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
 		};
 
 		if (this.options.actionRunner) {
@@ -93,7 +99,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
-		this._register(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
+		this._register(this._actionRunner.onBeforeRun(e => this._onBeforeRun.fire(e)));
 
 		this._actionIds = [];
 		this.viewItems = [];
@@ -145,6 +151,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
 					this.doTrigger(event);
+				} else {
+					this.triggerKeyDown = true;
 				}
 			} else {
 				eventHandled = false;
@@ -161,7 +169,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
-				if (!this._triggerKeys.keyDown) {
+				if (!this._triggerKeys.keyDown && this.triggerKeyDown) {
+					this.triggerKeyDown = false;
 					this.doTrigger(event);
 				}
 
@@ -180,6 +189,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (DOM.getActiveElement() === this.domNode || !DOM.isAncestor(DOM.getActiveElement(), this.domNode)) {
 				this._onDidBlur.fire();
 				this.focusedItem = undefined;
+				this.triggerKeyDown = false;
 			}
 		}));
 
@@ -360,9 +370,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
+			const firstEnabled = this.viewItems.findIndex(item => item.isEnabled());
 			// Focus the first enabled item
-			this.focusedItem = -1;
-			this.focusNext();
+			this.focusedItem = firstEnabled === -1 ? undefined : firstEnabled;
+			this.updateFocus();
 		} else {
 			if (index !== undefined) {
 				this.focusedItem = index;

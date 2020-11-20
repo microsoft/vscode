@@ -175,6 +175,10 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
+	test('disallows nested keys (#77289)', () => {
+		assert.strictEqual(configurationResolverService!.resolve(workspace, '${env:key1} ${env:key1${env:key2}}'), 'Value for key1 ${env:key1${env:key2}}');
+	});
+
 	// test('substitute keys and values in object', () => {
 	// 	const myObject = {
 	// 		'${workspaceRootFolderName}': '${lineNumber}',
@@ -209,6 +213,17 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
+	});
+
+	test('substitute configuration variable with undefined workspace folder', () => {
+		let configurationService: IConfigurationService = new TestConfigurationService({
+			editor: {
+				fontFamily: 'foo'
+			}
+		});
+
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
+		assert.strictEqual(service.resolve(undefined, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
 	test('substitute many configuration variables', () => {
@@ -448,6 +463,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(1, mockCommandService.callCount);
 		});
 	});
+
 	test('a single prompt input variable', () => {
 
 		const configuration = {
@@ -475,6 +491,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(0, mockCommandService.callCount);
 		});
 	});
+
 	test('a single pick input variable', () => {
 
 		const configuration = {
@@ -502,6 +519,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(0, mockCommandService.callCount);
 		});
 	});
+
 	test('a single command input variable', () => {
 
 		const configuration = {
@@ -529,6 +547,7 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(1, mockCommandService.callCount);
 		});
 	});
+
 	test('several input variables and command', () => {
 
 		const configuration = {
@@ -558,6 +577,35 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(2, mockCommandService.callCount);
 		});
 	});
+
+	test('input variable with undefined workspace folder', () => {
+
+		const configuration = {
+			'name': 'Attach to Process',
+			'type': 'node',
+			'request': 'attach',
+			'processId': '${input:input1}',
+			'port': 5858,
+			'sourceMaps': false,
+			'outDir': null
+		};
+
+		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, 'tasks').then(result => {
+
+			assert.deepEqual(result, {
+				'name': 'Attach to Process',
+				'type': 'node',
+				'request': 'attach',
+				'processId': 'resolvedEnterinput1',
+				'port': 5858,
+				'sourceMaps': false,
+				'outDir': null
+			});
+
+			assert.equal(0, mockCommandService.callCount);
+		});
+	});
+
 	test('contributed variable', () => {
 		const buildTask = 'npm: compile';
 		const variable = 'defaultBuildTask';

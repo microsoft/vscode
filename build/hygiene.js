@@ -49,9 +49,11 @@ const indentationFilter = [
 	'!src/vs/loader.js',
 	'!src/vs/base/common/insane/insane.js',
 	'!src/vs/base/common/marked/marked.js',
+	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
+	'!resources/linux/snap/electron-launch',
 
 	// except specific folders
 	'!test/automation/out/**',
@@ -114,10 +116,10 @@ const copyrightFilter = [
 	'!**/*.js.map',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
-	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
 	'!resources/web/code-web.js',
 	'!resources/completions/**',
+	'!extensions/configuration-editing/build/inline-allOf.ts',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
@@ -134,6 +136,7 @@ const jsHygieneFilter = [
 	'!src/vs/nls.build.js',
 	'!src/**/insane.js',
 	'!src/**/marked.js',
+	'!src/**/semver.js',
 	'!**/test/**',
 ];
 module.exports.jsHygieneFilter = jsHygieneFilter;

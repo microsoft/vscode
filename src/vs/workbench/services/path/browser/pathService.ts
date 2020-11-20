@@ -30,11 +30,16 @@ function defaultUriScheme(environmentService: IWorkbenchEnvironmentService, cont
 	}
 
 	const firstFolder = contextService.getWorkspace().folders[0];
-	if (!firstFolder) {
-		throw new Error('Empty workspace is not supported in browser when there is no remote connection.');
+	if (firstFolder) {
+		return firstFolder.uri.scheme;
 	}
 
-	return firstFolder.uri.scheme;
+	const configuration = contextService.getWorkspace().configuration;
+	if (configuration) {
+		return configuration.scheme;
+	}
+
+	throw new Error('Empty workspace is not supported in browser when there is no remote connection.');
 }
 
 registerSingleton(IPathService, BrowserPathService, true);

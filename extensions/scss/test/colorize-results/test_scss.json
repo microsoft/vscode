@@ -16206,11 +16206,11 @@
 		"c": "rel",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.attribute-selector.scss entity.other.attribute-name.attribute.scss",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.attribute.scss: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.attribute.scss: #800000",
-			"dark_vs": "entity.other.attribute-name.attribute.scss: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.attribute.scss: #800000",
-			"hc_black": "entity.other.attribute-name.attribute.scss: #D7BA7D"
+			"dark_plus": "entity.other.attribute-name: #9CDCFE",
+			"light_plus": "entity.other.attribute-name: #FF0000",
+			"dark_vs": "entity.other.attribute-name: #9CDCFE",
+			"light_vs": "entity.other.attribute-name: #FF0000",
+			"hc_black": "entity.other.attribute-name: #9CDCFE"
 		}
 	},
 	{
@@ -20606,11 +20606,11 @@
 		"c": "data-icon",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.attribute-selector.scss entity.other.attribute-name.attribute.scss",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.attribute.scss: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.attribute.scss: #800000",
-			"dark_vs": "entity.other.attribute-name.attribute.scss: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.attribute.scss: #800000",
-			"hc_black": "entity.other.attribute-name.attribute.scss: #D7BA7D"
+			"dark_plus": "entity.other.attribute-name: #9CDCFE",
+			"light_plus": "entity.other.attribute-name: #FF0000",
+			"dark_vs": "entity.other.attribute-name: #9CDCFE",
+			"light_vs": "entity.other.attribute-name: #FF0000",
+			"hc_black": "entity.other.attribute-name: #9CDCFE"
 		}
 	},
 	{

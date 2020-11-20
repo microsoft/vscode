@@ -5,7 +5,8 @@
 
 import * as glob from 'vs/base/common/glob';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
+import * as platform from 'vs/base/common/platform';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -20,9 +21,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXPAND_CELL_CONTENT_COMMAND_ID, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellRange, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -63,7 +64,6 @@ const SPLIT_CELL_COMMAND_ID = 'notebook.cell.split';
 const JOIN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.joinAbove';
 const JOIN_CELL_BELOW_COMMAND_ID = 'notebook.cell.joinBelow';
 
-const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
 const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
@@ -865,7 +865,9 @@ registerAction2(class extends NotebookCellAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						InputFocusedContext,
 						EditorContextKeys.hoverVisible.toNegated(),
-						EditorContextKeys.hasNonEmptySelection.toNegated()),
+						EditorContextKeys.hasNonEmptySelection.toNegated(),
+						EditorContextKeys.hasMultipleSelections.toNegated()
+					),
 					primary: KeyCode.Escape,
 					weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
 				},
@@ -987,6 +989,12 @@ registerAction2(class extends NotebookCellAction {
 					id: MenuId.NotebookCellTitle,
 					when: NOTEBOOK_EDITOR_FOCUSED,
 					group: CellOverflowToolbarGroups.Copy,
+				},
+				keybinding: platform.isNative ? undefined : {
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
 	}
@@ -994,6 +1002,11 @@ registerAction2(class extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 		const notebookService = accessor.get<INotebookService>(INotebookService);
+		if (context.notebookEditor.hasOutputTextSelection()) {
+			document.execCommand('copy');
+			return;
+		}
+
 		clipboardService.writeText(context.cell.getText());
 		notebookService.setToCopy([context.cell.model], true);
 	}
@@ -1009,6 +1022,12 @@ registerAction2(class extends NotebookCellAction {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					group: CellOverflowToolbarGroups.Copy,
+				},
+				keybinding: platform.isNative ? undefined : {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
+					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
 	}
@@ -1038,6 +1057,13 @@ registerAction2(class extends NotebookAction {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE),
 					group: CellOverflowToolbarGroups.Copy,
+				},
+				keybinding: platform.isNative ? undefined : {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+					linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+					weight: KeybindingWeight.EditorContrib
 				}
 			});
 	}
@@ -1584,7 +1610,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.splitCell', "Split Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
 					order: CellToolbarOrder.SplitCell,
 					group: CELL_TITLE_CELL_GROUP_ID,
 					// alt: {
@@ -1594,7 +1620,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				icon: { id: 'codicon/split-vertical' },
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1837,6 +1863,19 @@ registerAction2(class extends Action2 {
 			}
 
 		}
+	}
+});
+
+// Revisit once we have a story for trusted workspace
+CommandsRegistry.registerCommand('notebook.trust', (accessor, args) => {
+	const uri = URI.revive(args as UriComponents);
+	const notebookService = accessor.get<INotebookService>(INotebookService);
+
+
+	const document = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
+
+	if (document) {
+		document.applyEdits(document.versionId, [{ editType: CellEditType.DocumentMetadata, metadata: { ...document.metadata, ...{ trusted: true } } }], true, undefined, () => undefined, undefined, false);
 	}
 });
 

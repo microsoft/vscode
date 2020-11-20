@@ -255,6 +255,7 @@ steps:
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_ARCH="$(VSCODE_ARCH)" \
     ./build/azure-pipelines/darwin/publish.sh
   displayName: Publish
 

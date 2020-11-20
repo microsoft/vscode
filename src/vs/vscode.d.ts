@@ -815,10 +815,21 @@ declare module 'vscode' {
 		static readonly Folder: ThemeIcon;
 
 		/**
+		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 */
+		readonly id: string;
+
+		/**
+		 * The optional ThemeColor of the icon. The color is currently only used in [TreeItem](#TreeItem).
+		 */
+		readonly color?: ThemeColor;
+
+		/**
 		 * Creates a reference to a theme icon.
 		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param color optional `ThemeColor` for the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
-		constructor(id: string);
+		constructor(id: string, color?: ThemeColor);
 	}
 
 	/**
@@ -1938,18 +1949,18 @@ declare module 'vscode' {
 		/**
 		 * A language id, like `typescript`.
 		 */
-		language?: string;
+		readonly language?: string;
 
 		/**
 		 * A Uri [scheme](#Uri.scheme), like `file` or `untitled`.
 		 */
-		scheme?: string;
+		readonly scheme?: string;
 
 		/**
 		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document. Use a [relative pattern](#RelativePattern)
 		 * to filter documents to a [workspace folder](#WorkspaceFolder).
 		 */
-		pattern?: GlobPattern;
+		readonly pattern?: GlobPattern;
 	}
 
 	/**
@@ -1964,7 +1975,7 @@ declare module 'vscode' {
 	 * @example
 	 * let sel:DocumentSelector = { scheme: 'file', language: 'typescript' };
 	 */
-	export type DocumentSelector = DocumentFilter | string | Array<DocumentFilter | string>;
+	export type DocumentSelector = DocumentFilter | string | ReadonlyArray<DocumentFilter | string>;
 
 	/**
 	 * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
@@ -4320,6 +4331,12 @@ declare module 'vscode' {
 	 * [Folding](https://code.visualstudio.com/docs/editor/codebasics#_folding) in the editor.
 	 */
 	export interface FoldingRangeProvider {
+
+		/**
+		 * An optional event to signal that the folding ranges from this provider have changed.
+		 */
+		onDidChangeFoldingRanges?: Event<void>;
+
 		/**
 		 * Returns a list of folding ranges or null and undefined if the provider
 		 * does not want to participate or was cancelled.
@@ -5487,7 +5504,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of terminal links for the given line.
 		 */
-		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Handle an activated terminal link.
@@ -5642,7 +5659,22 @@ declare module 'vscode' {
 		 * A memento object that stores state independent
 		 * of the current opened [workspace](#workspace.workspaceFolders).
 		 */
-		readonly globalState: Memento;
+		readonly globalState: Memento & {
+			/**
+			 * Set the keys whose values should be synchronized across devices when synchronizing user-data
+			 * like configuration, extensions, and mementos.
+			 *
+			 * Note that this function defines the whole set of keys whose values are synchronized:
+			 *  - calling it with an empty array stops synchronization for this memento
+			 *  - calling it with a non-empty array replaces all keys whose values are synchronized
+			 *
+			 * For any given set of keys this function needs to be called only once but there is no harm in
+			 * repeatedly calling it.
+			 *
+			 * @param keys The set of keys whose values are synced.
+			 */
+			setKeysForSync(keys: string[]): void;
+		};
 
 		/**
 		 * The uri of the directory containing the extension.
@@ -5665,7 +5697,7 @@ declare module 'vscode' {
 		 * Get the absolute path of a resource contained in the extension.
 		 *
 		 * *Note* that an absolute uri can be constructed via [`Uri.joinPath`](#Uri.joinPath) and
-		 * [`extensionUri`](#ExtensionContent.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+		 * [`extensionUri`](#ExtensionContext.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
 		 *
 		 * @param relativePath A relative path to a resource contained in the extension.
 		 * @return The absolute path of the resource.
@@ -5694,7 +5726,7 @@ declare module 'vscode' {
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 * @deprecated Use [storageUri](#ExtensionContext.storageUri) instead.
 		 */
 		readonly storagePath: string | undefined;
 
@@ -5717,7 +5749,7 @@ declare module 'vscode' {
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 *
-		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 * @deprecated Use [globalStorageUri](#ExtensionContext.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
 
@@ -6160,14 +6192,13 @@ declare module 'vscode' {
 	 */
 	export class CustomExecution {
 		/**
-		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * Constructs a CustomExecution task object. The callback will be executed when the task is run, at which point the
 		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
 		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
 		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user. Any ${} style variables that
-		 * were in the task definition will be resolved and passed into the callback.
+		 * were in the task definition will be resolved and passed into the callback as `resolvedDefinition`.
 		 */
 		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
@@ -6393,9 +6424,9 @@ declare module 'vscode' {
 		readonly execution: TaskExecution;
 
 		/**
-		 * The process's exit code.
+		 * The process's exit code. Will be `undefined` when the task is terminated.
 		 */
-		readonly exitCode: number;
+		readonly exitCode: number | undefined;
 	}
 
 	export interface TaskFilter {
@@ -6840,6 +6871,21 @@ declare module 'vscode' {
 		 * @param options Defines if existing files should be overwritten.
 		 */
 		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
+
+		/**
+		 * Check if a given file system supports writing files.
+		 *
+		 * Keep in mind that just because a file system supports writing, that does
+		 * not mean that writes will always succeed. There may be permissions issues
+		 * or other errors that prevent writing a file.
+		 *
+		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
+		 *
+		 * @return `true` if the file system supports writing, `false` if it does not
+		 * support writing (i.e. it is readonly), and `undefined` if VS Code does not
+		 * know about the filesystem.
+		 */
+		isWritableFileSystem(scheme: string): boolean | undefined;
 	}
 
 	/**
@@ -7811,7 +7857,8 @@ declare module 'vscode' {
 		 * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
 		 * they only execute when there is an active editor when the command is called. Also, the
 		 * command handler of an editor command has access to the active editor and to an
-		 * [edit](#TextEditorEdit)-builder.
+		 * [edit](#TextEditorEdit)-builder. Note that the edit-builder is only valid while the
+		 * callback executes.
 		 *
 		 * @param command A unique identifier for the command.
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
@@ -8685,7 +8732,7 @@ declare module 'vscode' {
 		/**
 		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
-		label?: string;
+		label?: string | TreeItemLabel;
 
 		/**
 		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
@@ -8722,6 +8769,10 @@ declare module 'vscode' {
 
 		/**
 		 * The [command](#Command) that should be executed when the tree item is selected.
+		 *
+		 * Please use `vscode.open` or `vscode.diff` as command IDs when the tree item is opening
+		 * something in the editor. Using these commands ensures that the resulting editor will
+		 * appear consistent with how other built-in trees open editors.
 		 */
 		command?: Command;
 
@@ -8761,7 +8812,7 @@ declare module 'vscode' {
 		 * @param label A human-readable string describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
-		constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
+		constructor(label: string | TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 
 		/**
 		 * @param resourceUri The [uri](#Uri) of the resource representing this item.
@@ -8786,6 +8837,23 @@ declare module 'vscode' {
 		 * Determines an item is expanded
 		 */
 		Expanded = 2
+	}
+
+	/**
+	 * Label describing the [Tree item](#TreeItem)
+	 */
+	export interface TreeItemLabel {
+
+		/**
+		 * A human-readable string describing the [Tree item](#TreeItem).
+		 */
+		label: string;
+
+		/**
+		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index
+		 */
+		highlights?: [number, number][];
 	}
 
 	/**
@@ -9903,6 +9971,8 @@ declare module 'vscode' {
 		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
+		 * *Note* that when watching for file changes such as '**​/*.js', notifications will not be sent when a parent folder is
+		 * moved or deleted (this is a known limitation of the current implementation and may change in the future).
 		 *
 		 * @param globPattern A [glob pattern](#GlobPattern) that is applied to the absolute paths of created, changed,
 		 * and deleted files. Use a [relative pattern](#RelativePattern) to limit events to a certain [workspace folder](#WorkspaceFolder).
@@ -11690,6 +11760,12 @@ declare module 'vscode' {
 		 * Defaults to Collapsed.
 		 */
 		collapsibleState: CommentThreadCollapsibleState;
+
+		/**
+		 * Whether the thread supports reply.
+		 * Defaults to true.
+		 */
+		canReply: boolean;
 
 		/**
 		 * Context value of the comment thread. This can be used to contribute thread specific actions.

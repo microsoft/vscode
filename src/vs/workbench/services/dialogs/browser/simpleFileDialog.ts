@@ -212,7 +212,12 @@ export class SimpleFileDialog {
 			path = path.replace(/\\/g, '/');
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority, this.pathService.defaultUriScheme);
+		return resources.toLocalResource(uri,
+			// If the default scheme is file, then we don't care about the remote authority
+			uri.scheme === Schemas.file ? undefined : this.remoteAuthority,
+			// If there is a remote authority, then we should use the system's default URI as the local scheme.
+			// If there is *no* remote authority, then we should use the default scheme for this dialog as that is already local.
+			this.remoteAuthority ? this.pathService.defaultUriScheme : uri.scheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
@@ -221,6 +226,8 @@ export class SimpleFileDialog {
 				return defaultUri.scheme;
 			}
 			return available[0];
+		} else if (defaultUri) {
+			return defaultUri.scheme;
 		}
 		return Schemas.file;
 	}
@@ -917,7 +924,8 @@ export class SimpleFileDialog {
 			const ext = resources.extname(file);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
-					if (ext === ('.' + this.options.filters[i].extensions[j])) {
+					const testExt = this.options.filters[i].extensions[j];
+					if ((testExt === '*') || (ext === ('.' + testExt))) {
 						return true;
 					}
 				}

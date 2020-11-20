@@ -20,7 +20,7 @@ import { IEditorOptions, ITextEditorOptions, IResourceEditorInput } from 'vs/pla
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -304,6 +304,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
+		if (originalInput instanceof NotebookDiffEditorInput) {
+			return undefined;
+		}
+
 		let notebookUri: URI = originalInput.resource;
 		let cellOptions: IResourceEditorInput | undefined;
 
@@ -319,7 +323,12 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		if (id === undefined) {
-			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
+			const existingEditors = group.editors.filter(editor =>
+				editor.resource
+				&& isEqual(editor.resource, notebookUri)
+				&& !(editor instanceof NotebookEditorInput)
+				&& !(editor instanceof NotebookDiffEditorInput)
+			);
 
 			if (existingEditors.length) {
 				return undefined;

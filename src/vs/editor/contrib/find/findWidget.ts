@@ -34,9 +34,8 @@ import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatch
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection);
@@ -164,7 +163,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
-		storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -176,7 +174,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._storageService = storageService;
 		this._notificationService = notificationService;
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: ctrlEnterReplaceAllWarningPromptedKey, version: 1 });
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
 
 		this._isVisible = false;
@@ -228,7 +225,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			if (this._isVisible) {
 				let globalBufferTerm = await this._controller.getGlobalBufferTerm();
 				if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
-					this._state.change({ searchString: globalBufferTerm }, true);
+					this._state.change({ searchString: globalBufferTerm }, false);
 					this._findInput.select();
 				}
 			}
@@ -487,7 +484,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
 	}
 
+	private _revealTimeouts: any[] = [];
+
 	private _reveal(): void {
+		this._revealTimeouts.forEach(e => {
+			clearTimeout(e);
+		});
+
+		this._revealTimeouts = [];
+
 		if (!this._isVisible) {
 			this._isVisible = true;
 
@@ -512,15 +517,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._tryUpdateWidgetWidth();
 			this._updateButtons();
 
-			setTimeout(() => {
+			this._revealTimeouts.push(setTimeout(() => {
 				this._domNode.classList.add('visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
-			}, 0);
+			}, 0));
 
 			// validate query again as it's being dismissed when we hide the find widget.
-			setTimeout(() => {
+			this._revealTimeouts.push(setTimeout(() => {
 				this._findInput.validate();
-			}, 200);
+			}, 200));
 
 			this._codeEditor.layoutOverlayWidget(this);
 
@@ -555,6 +560,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	}
 
 	private _hide(focusTheEditor: boolean): void {
+		this._revealTimeouts.forEach(e => {
+			clearTimeout(e);
+		});
+
+		this._revealTimeouts = [];
+
 		if (this._isVisible) {
 			this._isVisible = false;
 
@@ -571,7 +582,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 	}
 
-	private _layoutViewZone() {
+	private _layoutViewZone(targetScrollTop?: number) {
 		const addExtraSpaceOnTop = this._codeEditor.getOption(EditorOption.find).addExtraSpaceOnTop;
 
 		if (!addExtraSpaceOnTop) {
@@ -591,7 +602,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			viewZone.heightInPx = this._getHeight();
 			this._viewZoneId = accessor.addZone(viewZone);
 			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
-			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + viewZone.heightInPx);
+			this._codeEditor.setScrollTop(targetScrollTop || this._codeEditor.getScrollTop() + viewZone.heightInPx);
 		});
 	}
 
@@ -880,7 +891,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				);
 
 				this._ctrlEnterReplaceAllWarningPrompted = true;
-				this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL);
+				this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 			}
 
@@ -1255,6 +1266,29 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const value = this._codeEditor.getOption(EditorOption.accessibilitySupport);
 		this._findInput.setFocusInputOnOptionClick(value !== AccessibilitySupport.Enabled);
 	}
+
+	getViewState() {
+		let widgetViewZoneVisible = false;
+		if (this._viewZone && this._viewZoneId) {
+			widgetViewZoneVisible = this._viewZone.heightInPx > this._codeEditor.getScrollTop();
+		}
+
+		return {
+			widgetViewZoneVisible,
+			scrollTop: this._codeEditor.getScrollTop()
+		};
+	}
+
+	setViewState(state?: { widgetViewZoneVisible: boolean; scrollTop: number }) {
+		if (!state) {
+			return;
+		}
+
+		if (state.widgetViewZoneVisible) {
+			// we should add the view zone
+			this._layoutViewZone(state.scrollTop);
+		}
+	}
 }
 
 export interface ISimpleButtonOpts {
@@ -1345,7 +1379,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 
 	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);

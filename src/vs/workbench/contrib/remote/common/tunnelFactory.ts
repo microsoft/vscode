@@ -7,11 +7,14 @@ import { ITunnelService, TunnelOptions, RemoteTunnel } from 'vs/platform/remote/
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
@@ -23,11 +26,14 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 						return undefined;
 					}
 					return new Promise(resolve => {
-						tunnelPromise.then(tunnel => {
+						tunnelPromise.then(async (tunnel) => {
+							const localAddress = tunnel.localAddress.startsWith('http') ? tunnel.localAddress : `http://${tunnel.localAddress}`;
 							const remoteTunnel: RemoteTunnel = {
 								tunnelRemotePort: tunnel.remoteAddress.port,
 								tunnelRemoteHost: tunnel.remoteAddress.host,
-								localAddress: tunnel.localAddress,
+								// The tunnel factory may give us an inaccessible local address.
+								// To make sure this doesn't happen, resolve the uri immediately.
+								localAddress: (await openerService.resolveExternalUri(URI.parse(localAddress))).resolved.toString(),
 								dispose: tunnel.dispose
 							};
 							resolve(remoteTunnel);

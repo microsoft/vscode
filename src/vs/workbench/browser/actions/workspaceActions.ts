@@ -141,7 +141,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	async run(): Promise<void> {
 		const configuration = this.workspaceContextService.getWorkspace().configuration;
 		if (configuration) {
-			await this.editorService.openEditor({ resource: configuration });
+			await this.editorService.openEditor({ resource: configuration, options: { pinned: true } });
 		}
 	}
 }

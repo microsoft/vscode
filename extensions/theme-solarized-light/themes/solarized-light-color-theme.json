@@ -213,7 +213,9 @@
 		{
 			"name": "Invalid",
 			"scope": "invalid",
-			"settings": {}
+			"settings": {
+				"foreground": "#cd3131"
+			}
 		},
 		{
 			"name": "diff: header",

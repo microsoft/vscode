@@ -36,7 +36,7 @@ function getFocus(listService: IListService): unknown | undefined {
 	return undefined;
 }
 
-// Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
+// Commands can get executed from a command palette, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
 export function getResourceForCommand(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): URI | undefined {
 	if (URI.isUri(resource)) {

@@ -11,7 +11,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -72,6 +72,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			);
 		}
 		return this._environment;
+	}
+
+	whenExtensionsReady(): Promise<void> {
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.whenExtensionsReady(channel),
+			undefined
+		);
 	}
 
 	scanExtensions(skipExtensions: ExtensionIdentifier[] = []): Promise<IExtensionDescription[]> {
@@ -183,7 +190,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 						this._onReconnecting.fire(undefined);
 					}
 					const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,
