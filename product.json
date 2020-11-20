@@ -122,7 +122,7 @@
 		},
 		{
 			"name": "ms-vscode-remote.remote-wsl",
-			"version": "0.51.3",
+			"version": "0.51.4",
 			"repo": "https://github.com/microsoft/vscode-remote-release",
 			"metadata": {
 				"id": "f0c5397b-d357-4197-99f0-cb4202f22818",
