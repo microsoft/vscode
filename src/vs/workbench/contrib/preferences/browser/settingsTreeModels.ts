@@ -322,7 +322,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return false;
 		}
 
-		return Array.from(idFilters).some(id => id === this.setting.key);
+		return idFilters.has(this.setting.key);
 	}
 }
 

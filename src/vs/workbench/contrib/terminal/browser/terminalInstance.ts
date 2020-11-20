@@ -46,7 +46,7 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -188,7 +188,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -543,23 +543,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				event.preventDefault();
 				return false;
 			}
-			const promptChoices: IPromptChoice[] = [
-				{
-					label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
-					run: () => {
-						this._commandService.executeCommand('workbench.action.openSettings', '@id:terminal.integrated.commandsToSkipShell,terminal.integrated.sendToShell,terminal.integrated.allowChords');
-						this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, false, StorageScope.GLOBAL, StorageTarget.USER);
-					}
-				} as IPromptChoice,
-				{
-					label: nls.localize('dontShowAgain', "Don't Show Again"),
-					run: () => this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, false, StorageScope.GLOBAL, StorageTarget.USER)
-				} as IPromptChoice
-			];
 
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendToShell) {
+			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+				const promptChoices: IPromptChoice[] = [
+					{
+						label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
+						run: () => {
+							this._preferencesService.openSettings(false, '@id:terminal.integrated.commandsToSkipShell,terminal.integrated.sendKeybindingsToShell,terminal.integrated.allowChords');
+							this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, false, StorageScope.GLOBAL, StorageTarget.USER);
+						}
+					} as IPromptChoice,
+					{
+						label: nls.localize('dontShowAgain', "Don't Show Again"),
+						run: () => this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT, false, StorageScope.GLOBAL, StorageTarget.USER)
+					} as IPromptChoice
+				];
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT, StorageScope.GLOBAL, true)) {
 					this._notificationService.prompt(
 						Severity.Info,
