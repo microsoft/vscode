@@ -37,7 +37,8 @@ export interface IClickTarget {
 export const enum ClickTargetType {
 	Container = 0,
 	CellStatus = 1,
-	ContributedItem = 2
+	ContributedTextItem = 2,
+	ContributedCommandItem = 3
 }
 
 export class CellEditorStatusBar extends Disposable {
@@ -95,10 +96,18 @@ export class CellEditorStatusBar extends Disposable {
 					event: e
 				});
 			} else {
-				this._onDidClick.fire({
-					type: ClickTargetType.ContributedItem,
-					event: e
-				});
+				if ((e.target as HTMLElement).classList.contains('cell-status-item-has-command')) {
+					this._onDidClick.fire({
+						type: ClickTargetType.ContributedCommandItem,
+						event: e
+					});
+				} else {
+					// text
+					this._onDidClick.fire({
+						type: ClickTargetType.ContributedTextItem,
+						event: e
+					});
+				}
 			}
 		}));
 	}
@@ -222,6 +231,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 		super();
 		this.labelElement = DOM.append(container, $('.cell-language-picker.cell-status-item'));
 		this.labelElement.tabIndex = 0;
+		this.labelElement.classList.add('cell-status-item-has-command');
 
 		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
 			this.run();

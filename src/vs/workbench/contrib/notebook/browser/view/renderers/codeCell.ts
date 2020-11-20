@@ -175,7 +175,7 @@ export class CodeCell extends Disposable {
 
 		// Mouse click handlers
 		this._register(templateData.statusBar.onDidClick(e => {
-			if (e.type !== ClickTargetType.ContributedItem) {
+			if (e.type !== ClickTargetType.ContributedCommandItem) {
 				const target = templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - viewCell.getEditorStatusbarHeight());
 				if (target?.position) {
 					templateData.editor.setPosition(target.position);
