@@ -34,22 +34,8 @@ export class LineDecoration {
 		if (aLen !== bLen) {
 			return false;
 		}
-		if (aLen === 0) {
-			return true;
-		}
-		if (aLen === 1) {
-			return LineDecoration._equals(a[0], b[0]);
-		}
-		const bSeen: (undefined | true)[] = new Array(bLen);
-		for (let i = 0; i < aLen; ++i) {
-			let j = 0;
-			for (; j < bLen; ++j) {
-				if (bSeen[j] !== true && LineDecoration._equals(a[i], b[j])) {
-					bSeen[j] = true;
-					break;
-				}
-			}
-			if (j === bLen) {
+		for (let i = 0; i < aLen; i++) {
+			if (!LineDecoration._equals(a[i], b[i])) {
 				return false;
 			}
 		}
