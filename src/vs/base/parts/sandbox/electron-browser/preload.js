@@ -108,17 +108,18 @@
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
 
-			_whenEnvResolved: undefined,
-			whenEnvResolved:
+			_resolveEnv: undefined,
+			resolveEnv:
 				/**
-				 * @returns when the shell environment has been resolved.
+				 * @param userEnv {{[key: string]: string}}
+				 * @returns {Promise<void>}
 				 */
-				function () {
-					if (!this._whenEnvResolved) {
-						this._whenEnvResolved = resolveEnv();
+				function (userEnv) {
+					if (!this._resolveEnv) {
+						this._resolveEnv = resolveEnv(userEnv);
 					}
 
-					return this._whenEnvResolved;
+					return this._resolveEnv;
 				},
 
 			getProcessMemoryInfo:
@@ -199,22 +200,21 @@
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
 	 *
+	 * @param userEnv {{[key: string]: string}}
 	 * @returns {Promise<void>}
 	 */
-	function resolveEnv() {
+	function resolveEnv(userEnv) {
+
+		// Apply `userEnv` directly
+		Object.assign(process.env, userEnv);
+
+		// Resolve `shellEnv` from the main side
 		return new Promise(function (resolve) {
-			const handle = setTimeout(function () {
-				console.warn('Preload: Unable to resolve shell environment in a reasonable time');
-
-				// It took too long to fetch the shell environment, return
-				resolve();
-			}, 3000);
-
 			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
-				clearTimeout(handle);
 
 				// Assign all keys of the shell environment to our process environment
-				Object.assign(process.env, shellEnv);
+				// But make sure that the user environment wins in the end
+				Object.assign(process.env, shellEnv, userEnv);
 
 				resolve();
 			});

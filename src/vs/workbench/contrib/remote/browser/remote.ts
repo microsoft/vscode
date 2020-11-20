@@ -154,6 +154,7 @@ const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.
 const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter);
 const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues);
 const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment);
+const remoteExplorerViewIcon = registerIcon('remote-explorer-view-icon', Codicon.remoteExplorer, nls.localize('remoteExplorerViewIcon', 'View icon of the remote explorer view.'));
 
 interface IHelpItem {
 	icon: Codicon,
@@ -551,8 +552,6 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 	}
 
 }
-
-const remoteExplorerViewIcon = registerIcon('remote-explorer-view-icon', Codicon.remoteExplorer, nls.localize('remoteExplorerViewIcon', 'View icon of the remote explorer view.'));
 
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{

@@ -35,10 +35,18 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	readonly execPath: string;
 
 	/**
-	 * Allows to await resolving the full process environment by checking for the shell environment
-	 * of the OS in certain cases (e.g. when the app is started from the Dock on macOS).
+	 * Resolve the true process environment to use. There are different layers of environment
+	 * that will apply:
+	 * - `process.env`: this is the actual environment of the process
+	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
+	 *                  variables to get the same experience as if the program was started from
+	 *                  a terminal (Linux, macOS)
+	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
+	 *                  from a terminal and changed certain variables
+	 *
+	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
 	 */
-	whenEnvResolved(): Promise<void>;
+	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
 
 	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.

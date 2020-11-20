@@ -2149,4 +2149,293 @@ declare module 'vscode' {
 		notebook: NotebookDocument | undefined;
 	}
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/107467
+	/*
+		General activation events:
+			- `onLanguage:*` most test extensions will want to activate when their
+				language is opened to provide code lenses.
+			- `onTests:*` new activation event very simiular to `workspaceContains`,
+				but only fired when the user wants to run tests or opens the test explorer.
+	*/
+	export namespace test {
+		/**
+		 * Registers a provider that discovers tests for the given document
+		 * selectors. It is activated when either tests need to be enumerated, or
+		 * a document matching the selector is opened.
+		 */
+		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
+
+		/**
+		 * Runs tests with the given options. If no options are given, then
+		 * all tests are run. Returns the resulting test run.
+		 */
+		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+
+		/**
+		 * Returns an observer that retrieves tests in the given workspace folder.
+		 */
+		export function createWorkspaceTestObserver(workspaceFolder: WorkspaceFolder): TestObserver;
+
+		/**
+		 * Returns an observer that retrieves tests in the given text document.
+		 */
+		export function createDocumentTestObserver(document: TextDocument): TestObserver;
+	}
+
+	export interface TestObserver {
+		/**
+		 * List of tests returned by test provider for files in the workspace.
+		 */
+		readonly tests: ReadonlyArray<TestItem>;
+
+		/**
+		 * An event that fires when an existing test in the collection changes, or
+		 * null if a top-level test was added or removed. When fired, the consumer
+		 * should check the test item and all its children for changes.
+		 */
+		readonly onDidChangeTest: Event<TestItem | null>;
+
+		/**
+		 * An event the fires when all test providers have signalled that the tests
+		 * the observer references have been discovered. Providers may continue to
+		 * watch for changes and cause {@link onDidChangeTest} to fire as files
+		 * change, until the observer is disposed.
+		 *
+		 * @todo as below
+		 */
+		readonly onDidDiscoverInitialTests: Event<void>;
+
+		/**
+		 * Dispose of the observer, allowing VS Code to eventually tell test
+		 * providers that they no longer need to update tests.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Tree of tests returned from the provide methods in the {@link TestProvider}.
+	 */
+	export interface TestHierarchy<T extends TestItem> {
+		/**
+		 * Root node for tests. The `testRoot` instance must not be replaced over
+		 * the lifespan of the TestHierarchy, since you will need to reference it
+		 * in `onDidChangeTest` when a test is added or removed.
+		 */
+		readonly root: T;
+
+		/**
+		 * An event that fires when an existing test under the `root` changes.
+		 * This can be a result of a state change in a test run, a property update,
+		 * or an update to its children. Changes made to tests will not be visible
+		 * to {@link TestObserver} instances until this event is fired.
+		 *
+		 * This will signal a change recursively to all children of the given node.
+		 * For example, firing the event with the {@link testRoot} will refresh
+		 * all tests.
+		 */
+		readonly onDidChangeTest: Event<T>;
+
+		/**
+		 * An event that should be fired when all tests that are currently defined
+		 * have been discovered. The provider should continue to watch for changes
+		 * and fire `onDidChangeTest` until the hierarchy is disposed.
+		 *
+		 * @todo can this be covered by existing progress apis? Or return a promise
+		 */
+		readonly onDidDiscoverInitialTests: Event<void>;
+
+		/**
+		 * Dispose will be called when there are no longer observers interested
+		 * in the hierarchy.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Discovers and provides tests. It's expected that the TestProvider will
+	 * ambiently listen to {@link vscode.window.onDidChangeVisibleTextEditors} to
+	 * provide test information about the open files for use in code lenses and
+	 * other file-specific UI.
+	 *
+	 * Additionally, the UI may request it to discover tests for the workspace
+	 * via `addWorkspaceTests`.
+	 *
+	 * @todo rename from provider
+	 */
+	export interface TestProvider<T extends TestItem = TestItem> {
+		/**
+		 * Requests that tests be provided for the given workspace. This will
+		 * generally be called when tests need to be enumerated for the
+		 * workspace.
+		 *
+		 * It's guaranteed that this method will not be called again while
+		 * there is a previous undisposed watcher for the given workspace folder.
+		 */
+		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
+
+		/**
+		 * Requests that tests be provided for the given document. This will
+		 * be called when tests need to be enumerated for a single open file,
+		 * for instance by code lens UI.
+		 */
+		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
+
+		/**
+		 * Starts a test run. This should cause {@link onDidChangeTest} to
+		 * fire with update test states during the run.
+		 * @todo this will eventually need to be able to return a summary report, coverage for example.
+		 */
+		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
+	}
+
+	/**
+	 * Options given to `TestProvider.runTests`
+	 */
+	export interface TestRunOptions<T extends TestItem = TestItem> {
+		/**
+		 * Array of specific tests to run. The {@link TestProvider.testRoot} may
+		 * be provided as an indication to run all tests.
+		 */
+		tests: T[];
+
+		/**
+		 * Whether or not tests in this run should be debugged.
+		 */
+		debug: boolean;
+	}
+
+	/**
+	 * A test item is an item shown in the "test explorer" view. It encompasses
+	 * both a suite and a test, since they have almost or identical capabilities.
+	 */
+	export interface TestItem {
+		/**
+		 * Display name describing the test case.
+		 */
+		label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		description?: string;
+
+		/**
+		 * Whether this test item can be run individually, defaults to `true`
+		 * if not provided.
+		 *
+		 * In some cases, like Go's tests, test can have children but these
+		 * children cannot be run independently.
+		 */
+		runnable?: boolean;
+
+		/**
+		 * Whether this test item can be debugged.
+		 */
+		debuggable?: boolean;
+
+		/**
+		 * VS Code location.
+		 */
+		location?: Location;
+
+		/**
+		 * Optional list of nested tests for this item.
+		 */
+		children?: TestItem[];
+
+		/**
+		 * Test run state. Will generally be {@link TestRunState.Unset} by
+		 * default.
+		 */
+		state: TestState;
+	}
+
+	export enum TestRunState {
+		// Initial state
+		Unset = 0,
+		// Test is currently running
+		Running = 1,
+		// Test run has passed
+		Passed = 2,
+		// Test run has failed (on an assertion)
+		Failed = 3,
+		// Test run has been skipped
+		Skipped = 4,
+		// Test run failed for some other reason (compilation error, timeout, etc)
+		Errored = 5
+	}
+
+	/**
+	 * TestState includes a test and its run state. This is included in the
+	 * {@link TestItem} and is immutable; it should be replaced in th TestItem
+	 * in order to update it. This allows consumers to quickly and easily check
+	 * for changes via object identity.
+	 */
+	export class TestState {
+		/**
+		 * Current state of the test.
+		 */
+		readonly runState: TestRunState;
+
+		/**
+		 * Optional duration of the test run, in milliseconds.
+		 */
+		readonly duration?: number;
+
+		/**
+		 * Associated test run message. Can, for example, contain assertion
+		 * failure information if the test fails.
+		 */
+		readonly messages: ReadonlyArray<Readonly<TestMessage>>;
+
+		/**
+		 * @param state Run state to hold in the test state
+		 * @param messages List of associated messages for the test
+		 * @param duration Length of time the test run took, if appropriate.
+		 */
+		constructor(runState: TestRunState, messages?: TestMessage[], duration?: number);
+	}
+
+	/**
+	 * Represents the severity of test messages.
+	 */
+	export enum TestMessageSeverity {
+		Error = 0,
+		Warning = 1,
+		Information = 2,
+		Hint = 3
+	}
+
+	/**
+	 * Message associated with the test state. Can be linked to a specific
+	 * source range -- useful for assertion failures, for example.
+	 */
+	export interface TestMessage {
+		/**
+		 * Human-readable message text to display.
+		 */
+		message: string | MarkdownString;
+
+		/**
+		 * Message severity. Defaults to "Error", if not provided.
+		 */
+		severity?: TestMessageSeverity;
+
+		/**
+		 * Expected test output. If given with `actual`, a diff view will be shown.
+		 */
+		expectedOutput?: string;
+
+		/**
+		 * Actual test output. If given with `actual`, a diff view will be shown.
+		 */
+		actualOutput?: string;
+
+		/**
+		 * Associated file location.
+		 */
+		location?: Location;
+	}
+	//#endregion
 }

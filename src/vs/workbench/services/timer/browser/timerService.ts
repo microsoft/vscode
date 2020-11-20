@@ -187,6 +187,15 @@ export interface IStartupMetrics {
 		readonly ellapsedWindowLoadToRequire: number;
 
 		/**
+		 * The time it took to wait for resolving the shell environment. This time the workbench
+		 * will not continue to load and be blocked entirely.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willWaitForShellEnv` and `didWaitForShellEnv` performance marks.
+		 */
+		readonly ellapsedWaitForShellEnv?: number;
+
+		/**
 		 * The time it took to require the workspace storage DB, connect to it
 		 * and load the initial set of values.
 		 *
@@ -388,6 +397,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
 				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedWaitForShellEnv: perf.getDuration('willWaitForShellEnv', 'didWaitForShellEnv'),
 				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
