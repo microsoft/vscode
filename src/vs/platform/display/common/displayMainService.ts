@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './displayChangeRemeasureFonts';
-import './inputClipboardActions';
-import './selectionClipboard';
-import './sleepResumeRepaintMinimap';
+import { Event } from 'vs/base/common/event';
+
+export interface IDisplayMainService {
+	readonly _serviceBrand: undefined;
+	readonly onDidDisplayChanged: Event<void>;
+}

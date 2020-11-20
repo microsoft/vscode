@@ -468,9 +468,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					return; // disposed
 				}
 
-				// Notify renderers about displays changed
-				this.sendWhenReady('vscode:displayChanged');
-
 				// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
 				// we need to detect when display metrics change or displays are added/removed and toggle the
 				// fullscreen manually.

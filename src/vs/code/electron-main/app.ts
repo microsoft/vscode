@@ -85,6 +85,7 @@ import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -464,6 +465,7 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
+		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
@@ -557,6 +559,10 @@ export class CodeApplication extends Disposable {
 		const keyboardLayoutMainService = accessor.get(IKeyboardLayoutMainService);
 		const keyboardLayoutChannel = createChannelReceiver(keyboardLayoutMainService);
 		electronIpcServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
+
+		const displayMainService = accessor.get(IDisplayMainService);
+		const displayChannel = createChannelReceiver(displayMainService);
+		electronIpcServer.registerChannel('display', displayChannel);
 
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);

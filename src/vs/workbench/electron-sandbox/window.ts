@@ -59,7 +59,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
-import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -204,11 +203,6 @@ export class NativeWindow extends Disposable {
 			nls.localize('shellEnvTimeoutWarning', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
 			choices
 		));
-
-		// Display change events
-		ipcRenderer.on('vscode:displayChanged', () => {
-			clearAllFontInfos();
-		});
 
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => {
