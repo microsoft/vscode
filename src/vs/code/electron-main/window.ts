@@ -5,7 +5,6 @@
 
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
@@ -110,8 +109,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private documentEdited: boolean | undefined;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
-
-	private pendingLoadConfig?: INativeWindowConfiguration;
 
 	private marketplaceHeadersPromise: Promise<object>;
 
@@ -286,6 +283,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.registerListeners();
 	}
 
+	private pendingLoadConfig: INativeWindowConfiguration | undefined;
+
 	private currentConfig: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
 
@@ -297,11 +296,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
-	get isExtensionDevelopmentHost(): boolean { return !!(this.config && this.config.extensionDevelopmentPath); }
+	get isExtensionDevelopmentHost(): boolean { return !!(this.currentConfig?.extensionDevelopmentPath); }
 
-	get isExtensionTestHost(): boolean { return !!(this.config && this.config.extensionTestsPath); }
+	get isExtensionTestHost(): boolean { return !!(this.currentConfig?.extensionTestsPath); }
 
-	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.config?.debugId; }
+	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.currentConfig?.debugId; }
 
 	setRepresentedFilename(filename: string): void {
 		if (isMacintosh) {
@@ -739,10 +738,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._onLoad.fire();
 	}
 
-	reload(configurationIn?: INativeWindowConfiguration, cli?: NativeParsedArgs): void {
+	reload(cli?: NativeParsedArgs): void {
 
-		// If config is not provided, copy our current one
-		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
+		// Copy our current config for reuse
+		const configuration = Object.assign({}, this.currentConfig);
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
@@ -820,10 +819,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// large depending on user configuration, so we can only remove it in that case.
 		let configUrl = this.doGetUrl(config);
 		if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
-			delete config.userEnv;
 			this.logService.warn('Application URL exceeds maximum of 2MB and was shortened.');
 
-			configUrl = this.doGetUrl(config);
+			configUrl = this.doGetUrl({ ...config, userEnv: undefined });
 
 			if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
 				this.logService.error('Application URL exceeds maximum of 2MB and cannot be loaded.');
@@ -1139,7 +1137,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.config?.extensionDevelopmentPath);
+		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.currentConfig?.extensionDevelopmentPath);
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
 			menuBarVisibility = 'default';
 		}

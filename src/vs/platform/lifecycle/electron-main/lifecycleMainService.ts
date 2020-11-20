@@ -371,7 +371,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// Only reload when the window has not vetoed this
 		const veto = await this.unload(window, UnloadReason.RELOAD);
 		if (!veto) {
-			window.reload(undefined, cli);
+			window.reload(cli);
 		}
 	}
 
