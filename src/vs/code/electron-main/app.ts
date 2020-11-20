@@ -86,6 +86,7 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -703,7 +704,7 @@ export class CodeApplication extends Disposable {
 		// Open our first window
 		const args = this.environmentService.args;
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
-		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
+		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];

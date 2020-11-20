@@ -8,6 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 
 /**
  * We need to get the environment from a user's shell.
@@ -31,7 +32,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 	}
 
 	// Skip if running from CLI already
-	else if (env['VSCODE_CLI'] === '1' && !args['force-user-env']) {
+	else if (isLaunchedFromCli(env) && !args['force-user-env']) {
 		logService.trace('resolveShellEnv(): skipped (VSCODE_CLI is set)');
 
 		return {};
@@ -39,7 +40,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 
 	// Otherwise resolve (macOS, Linux)
 	else {
-		if (env['VSCODE_CLI'] === '1') {
+		if (isLaunchedFromCli(env)) {
 			logService.trace('resolveShellEnv(): running (--force-user-env)');
 		} else {
 			logService.trace('resolveShellEnv(): running (macOS/Linux)');

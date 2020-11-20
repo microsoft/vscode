@@ -35,6 +35,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -676,6 +677,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	load(config: INativeWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
+
+		// If this window was loaded before from the command line
+		// (as indicated by VSCODE_CLI environment), make sure to
+		// preserve that user environment in subsequent loads,
+		// unless the new configuration context was also a CLI
+		// (for https://github.com/microsoft/vscode/issues/108571)
+		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
+		if (currentUserEnv && isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(config.userEnv)) {
+			config.userEnv = currentUserEnv;
+		}
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
