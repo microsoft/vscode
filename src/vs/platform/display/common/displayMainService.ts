@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .on-type-rename-decoration {
-	border-left: 1px solid transparent;
-	/* So border can be transparent */
-	background-clip: padding-box;
+import { Event } from 'vs/base/common/event';
+
+export interface IDisplayMainService {
+	readonly _serviceBrand: undefined;
+	readonly onDidDisplayChanged: Event<void>;
 }

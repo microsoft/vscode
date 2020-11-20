@@ -427,6 +427,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
 	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
+	async whenExtensionsReady(): Promise<void> { }
 }
 
 //#endregion

@@ -47,8 +47,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		});
 	}
 
-	async $registerCandidateFinder(): Promise<void> {
-		this.remoteExplorerService.registerCandidateFinder(() => this._proxy.$findCandidatePorts());
+	async $onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void> {
+		this.remoteExplorerService.onFoundNewCandidates(candidates);
 	}
 
 	async $tunnelServiceReady(): Promise<void> {
@@ -76,22 +76,6 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			}
 		};
 		this.tunnelService.setTunnelProvider(tunnelProvider);
-	}
-
-	async $setCandidateFilter(): Promise<void> {
-		this._register(this.remoteExplorerService.setCandidateFilter(async (candidates: { host: string, port: number, detail: string }[]): Promise<{ host: string, port: number, detail: string }[]> => {
-			const filters: boolean[] = await this._proxy.$filterCandidates(candidates);
-			const filteredCandidates: { host: string, port: number, detail: string }[] = [];
-			if (filters.length !== candidates.length) {
-				return candidates;
-			}
-			for (let i = 0; i < candidates.length; i++) {
-				if (filters[i]) {
-					filteredCandidates.push(candidates[i]);
-				}
-			}
-			return filteredCandidates;
-		}));
 	}
 
 	dispose(): void {

@@ -14,7 +14,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleMenuBarAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
@@ -25,7 +25,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IViewDescriptorService, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewContainerModel, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { isUndefinedOrNull, assertIsDefined, isString } from 'vs/base/common/types';
+import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
@@ -47,7 +47,7 @@ interface IPlaceholderViewContainer {
 	id: string;
 	name?: string;
 	iconUrl?: UriComponents;
-	iconCSS?: string;
+	themeIcon?: ThemeIcon;
 	views?: { when?: string }[];
 }
 
@@ -61,7 +61,7 @@ interface IPinnedViewContainer {
 interface ICachedViewContainer {
 	id: string;
 	name?: string;
-	icon?: URI | string;
+	icon?: URI | ThemeIcon;
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
@@ -717,7 +717,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return ActivitybarPart.toActivity(id, name, icon, focusCommand?.id || id);
 	}
 
-	private static toActivity(id: string, name: string, icon: URI | string | undefined, keybindingId: string | undefined): IActivity {
+	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
 		let cssClass: string | undefined = undefined;
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
@@ -730,8 +730,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
 				-webkit-mask-size: 24px;
 			`);
-		} else if (isString(icon)) {
-			cssClass = icon;
+		} else if (ThemeIcon.isThemeIcon(icon)) {
+			cssClass = ThemeIcon.asClassName(icon);
 		}
 		return { id, name, cssClass, iconUrl, keybindingId };
 	}
@@ -911,7 +911,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				const cachedViewContainer = this._cachedViewContainers.filter(cached => cached.id === placeholderViewContainer.id)[0];
 				if (cachedViewContainer) {
 					cachedViewContainer.name = placeholderViewContainer.name;
-					cachedViewContainer.icon = placeholderViewContainer.iconCSS ? placeholderViewContainer.iconCSS :
+					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? ThemeIcon.revive(placeholderViewContainer.themeIcon) :
 						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
 					cachedViewContainer.views = placeholderViewContainer.views;
 				}
@@ -930,7 +930,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views }) => (<IPlaceholderViewContainer>{
 			id,
 			iconUrl: URI.isUri(icon) ? icon : undefined,
-			iconCSS: isString(icon) ? icon : undefined,
+			themeIcon: ThemeIcon.isThemeIcon(icon) ? icon : undefined,
 			name,
 			views
 		})));

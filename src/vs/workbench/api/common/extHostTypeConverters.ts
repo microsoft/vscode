@@ -32,6 +32,7 @@ import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { CellOutputKind, IDisplayOutput, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -1393,6 +1394,67 @@ export namespace NotebookDecorationRenderOptions {
 			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
 			borderColor: <string | types.ThemeColor>options.borderColor,
 			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+		};
+	}
+}
+
+export namespace TestState {
+	export function from(item: vscode.TestState): ITestState {
+		return {
+			runState: item.runState,
+			duration: item.duration,
+			messages: item.messages.map(message => ({
+				message: MarkdownString.fromStrict(message.message) || '',
+				severity: message.severity,
+				expectedOutput: message.expectedOutput,
+				actualOutput: message.actualOutput,
+				location: message.location ? location.from(message.location) : undefined,
+			})),
+		};
+	}
+
+	export function to(item: ITestState): vscode.TestState {
+		return new types.TestState(
+			item.runState,
+			item.messages.map(message => ({
+				message: typeof message.message === 'string' ? message.message : MarkdownString.to(message.message),
+				severity: message.severity,
+				expectedOutput: message.expectedOutput,
+				actualOutput: message.actualOutput,
+				location: message.location && location.to({
+					range: message.location.range,
+					uri: URI.revive(message.location.uri)
+				}),
+			})),
+			item.duration,
+		);
+	}
+}
+
+
+export namespace TestItem {
+	export function from(item: vscode.TestItem): ITestItem {
+		return {
+			label: item.label,
+			location: item.location ? location.from(item.location) : undefined,
+			debuggable: item.debuggable,
+			description: item.description,
+			runnable: item.runnable,
+			state: TestState.from(item.state),
+		};
+	}
+
+	export function to(item: ITestItem): vscode.TestItem {
+		return {
+			label: item.label,
+			location: item.location && location.to({
+				range: item.location.range,
+				uri: URI.revive(item.location.uri)
+			}),
+			debuggable: item.debuggable,
+			description: item.description,
+			runnable: item.runnable,
+			state: TestState.to(item.state),
 		};
 	}
 }

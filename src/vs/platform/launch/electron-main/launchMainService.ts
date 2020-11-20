@@ -19,6 +19,7 @@ import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -112,7 +113,7 @@ export class LaunchMainService implements ILaunchMainService {
 	}
 
 	private startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
-		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
+		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;

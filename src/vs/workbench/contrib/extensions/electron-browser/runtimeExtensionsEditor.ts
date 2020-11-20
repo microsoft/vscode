@@ -104,9 +104,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 
 	private _list: WorkbenchList<IRuntimeExtension> | null;
 	private _profileInfo: IExtensionHostProfile | null;
-
 	private _elements: IRuntimeExtension[] | null;
-	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
 	private _profileSessionState: IContextKey<string>;
 	private _extensionsHostRecorded: IContextKey<boolean>;
@@ -133,6 +131,11 @@ export class RuntimeExtensionsEditor extends EditorPane {
 
 		this._list = null;
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
+		this._elements = null;
+		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
+		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
+		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
+
 		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
 			this._profileInfo = this._extensionHostProfileService.lastProfile;
 			this._extensionsHostRecorded.set(!!this._profileInfo);
@@ -142,25 +145,9 @@ export class RuntimeExtensionsEditor extends EditorPane {
 			const state = this._extensionHostProfileService.state;
 			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
 		}));
-
-		this._elements = null;
-
-		this._extensionsDescriptions = [];
-		this._updateExtensions();
-
-		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
-		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
-
-		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
-
-		this._extensionService.getExtensions().then((extensions) => {
-			// We only deal with extensions with source code!
-			this._extensionsDescriptions = extensions.filter((extension) => {
-				return Boolean(extension.main) || Boolean(extension.browser);
-			});
-			this._updateExtensions();
-		});
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
+
+		this._updateExtensions();
 	}
 
 	private async _updateExtensions(): Promise<void> {
@@ -171,6 +158,10 @@ export class RuntimeExtensionsEditor extends EditorPane {
 	}
 
 	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
+		// We only deal with extensions with source code!
+		const extensionsDescriptions = (await this._extensionService.getExtensions()).filter((extension) => {
+			return Boolean(extension.main) || Boolean(extension.browser);
+		});
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
 		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
 		for (let extension of marketPlaceExtensions) {
@@ -201,8 +192,8 @@ export class RuntimeExtensionsEditor extends EditorPane {
 		}
 
 		let result: IRuntimeExtension[] = [];
-		for (let i = 0, len = this._extensionsDescriptions.length; i < len; i++) {
-			const extensionDescription = this._extensionsDescriptions[i];
+		for (let i = 0, len = extensionsDescriptions.length; i < len; i++) {
+			const extensionDescription = extensionsDescriptions[i];
 
 			let profileInfo: IExtensionProfileInformation | null = null;
 			if (this._profileInfo) {

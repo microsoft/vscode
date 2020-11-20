@@ -9,7 +9,7 @@ import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMai
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { getShellEnvironment } from 'vs/code/node/shellEnv';
+import { resolveShellEnv } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
@@ -83,6 +83,10 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -263,17 +267,47 @@ export class CodeApplication extends Disposable {
 
 		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
 			const webContents = event.sender;
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
+
+			let replied = false;
+
+			function acceptShellEnv(env: NodeJS.ProcessEnv): void {
+				clearTimeout(shellEnvTimeoutWarningHandle);
+
+				if (!replied) {
+					webContents.send('vscode:acceptShellEnv', env);
+					replied = true;
+				}
+			}
+
+			const shellEnvTimeoutWarningHandle = setTimeout(function () {
+				window?.sendWhenReady('vscode:showShellEnvTimeoutWarning'); // notify inside window if we have one
+				acceptShellEnv({});
+			}, 10000);
 
 			try {
-				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
 
-				if (!webContents.isDestroyed()) {
-					webContents.send('vscode:acceptShellEnv', shellEnv);
+				// Prefer to use the args and env from the target window
+				// when resolving the shell env. It is possible that
+				// a first window was opened from the UI but a second
+				// from the CLI and that has implications for wether to
+				// resolve the shell environment or not.
+				let args: NativeParsedArgs;
+				let env: NodeJS.ProcessEnv;
+				if (window?.config) {
+					args = window.config;
+					env = { ...process.env, ...window.config.userEnv };
+				} else {
+					args = this.environmentService.args;
+					env = process.env;
 				}
+
+				// Resolve shell env
+				const shellEnv = await resolveShellEnv(this.logService, args, env);
+				acceptShellEnv(shellEnv);
 			} catch (error) {
-				if (!webContents.isDestroyed()) {
-					webContents.send('vscode:acceptShellEnv', {});
-				}
+				window?.sendWhenReady('vscode:showShellEnvError', toErrorMessage(error)); // notify inside window if we have one
+				acceptShellEnv({});
 
 				this.logService.error('Error fetching shell env', error);
 			}
@@ -354,7 +388,7 @@ export class CodeApplication extends Disposable {
 		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				sharedProcess.spawn(await getShellEnvironment(this.logService, this.environmentService));
+				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentService.args, process.env));
 			}, 3000)).schedule();
 		});
 
@@ -432,6 +466,7 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
+		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
@@ -525,6 +560,10 @@ export class CodeApplication extends Disposable {
 		const keyboardLayoutMainService = accessor.get(IKeyboardLayoutMainService);
 		const keyboardLayoutChannel = createChannelReceiver(keyboardLayoutMainService);
 		electronIpcServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
+
+		const displayMainService = accessor.get(IDisplayMainService);
+		const displayChannel = createChannelReceiver(displayMainService);
+		electronIpcServer.registerChannel('display', displayChannel);
 
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);
@@ -665,7 +704,7 @@ export class CodeApplication extends Disposable {
 		// Open our first window
 		const args = this.environmentService.args;
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
-		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
+		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];
@@ -811,6 +850,9 @@ export class CodeApplication extends Disposable {
 			updateService.initialize();
 		}
 
+		// Start to fetch shell environment (if needed) after window has opened
+		resolveShellEnv(this.logService, this.environmentService.args, process.env);
+
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
 		// will be used as crash reporter id and also update the json file.
@@ -838,9 +880,6 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
-
-		// Start to fetch shell environment after window has opened
-		getShellEnvironment(this.logService, this.environmentService);
 	}
 
 	private handleRemoteAuthorities(): void {

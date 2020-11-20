@@ -57,6 +57,7 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -269,7 +270,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto, undoRedoGroupId?: number): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
@@ -949,10 +950,9 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
-	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
-	$setCandidateFilter(): Promise<void>;
 	$tunnelServiceReady(): Promise<void>;
+	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
 }
 
 export interface MainThreadTimelineShape extends IDisposable {
@@ -1139,7 +1139,7 @@ export interface SourceTargetPair {
 
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<any>;
+	$onWillRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[], undoRedoGroupId: number | undefined, timeout: number, token: CancellationToken): Promise<any>;
 	$onDidRunFileOperation(operation: files.FileOperation, files: SourceTargetPair[]): void;
 }
 
@@ -1742,8 +1742,6 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface ExtHostTunnelServiceShape {
-	$findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]>;
-	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]>;
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined;
 	$closeTunnel(remote: { host: string, port: number }, silent?: boolean): Promise<void>;
 	$onDidTunnelsChange(): Promise<void>;
@@ -1751,6 +1749,28 @@ export interface ExtHostTunnelServiceShape {
 
 export interface ExtHostTimelineShape {
 	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+}
+
+export const enum ExtHostTestingResource {
+	Workspace,
+	TextDocument
+}
+
+export interface ExtHostTestingShape {
+	$runTestsForProvider(req: RunTestForProviderRequest): Promise<RunTestsResult>;
+	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
+
+	$acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
+}
+
+export interface MainThreadTestingShape {
+	$registerTestProvider(id: string): void;
+	$unregisterTestProvider(id: string): void;
+	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
+	$runTests(req: RunTestsRequest): Promise<RunTestsResult>;
 }
 
 // --- proxy identifiers
@@ -1802,7 +1822,8 @@ export const MainContext = {
 	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
-	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline')
+	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
+	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
 };
 
 export const ExtHostContext = {
@@ -1845,5 +1866,6 @@ export const ExtHostContext = {
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
-	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline')
+	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
+	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
 };

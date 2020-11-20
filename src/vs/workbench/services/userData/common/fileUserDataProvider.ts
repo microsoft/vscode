@@ -36,7 +36,6 @@ export class FileUserDataProvider extends Disposable implements
 	) {
 		super();
 
-
 		this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
 		// update extUri as capabilites might change.
 		this._register(this.onDidChangeCapabilities(() => this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase));

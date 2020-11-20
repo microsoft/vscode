@@ -2488,6 +2488,9 @@ function createFakeLinesDiv(): HTMLElement {
 }
 
 function getViewRange(model: ITextModel, viewModel: IViewModel, startLineNumber: number, endLineNumber: number): Range {
+	const lineCount = model.getLineCount();
+	startLineNumber = Math.min(lineCount, Math.max(1, startLineNumber));
+	endLineNumber = Math.min(lineCount, Math.max(1, endLineNumber));
 	return viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(
 		startLineNumber, model.getLineMinColumn(startLineNumber),
 		endLineNumber, model.getLineMaxColumn(endLineNumber)
