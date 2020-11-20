@@ -27,14 +27,17 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -128,6 +131,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -140,7 +144,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
+			this.showContextMenu(e);
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -192,7 +196,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 			if (sessionInfo.sessions) {
 				Object.keys(sessionInfo.sessions).forEach(accountName => {
-					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id || this.environmentService.options?.authenticationSessionId));
+					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id));
 					const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
 						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
 					});
@@ -231,23 +235,25 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		}
 
 		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
-			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL);
+			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
 			return Promise.resolve();
 		}));
 
 		return menus;
 	}
 
-	private async showContextMenu(): Promise<void> {
+	private async showContextMenu(e?: MouseEvent): Promise<void> {
 		const accountsActions: IAction[] = [];
 		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
+		const customMenus = isWeb || (getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' && !isMacintosh); // see #40262
+		const position = this.configurationService.getValue('workbench.sideBar.location');
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
 		const actions = await this.getActions(accountsMenu);
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
+			getAnchor: () => customMenus ? this.container : e || this.container,
+			anchorAlignment: customMenus ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
+			anchorAxisAlignment: customMenus ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
 			getActions: () => actions,
 			onHide: () => {
 				accountsMenu.dispose();
@@ -265,7 +271,9 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -278,7 +286,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
+			this.showContextMenu(e);
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
@@ -295,15 +303,17 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	private showContextMenu(): void {
+	private showContextMenu(e?: MouseEvent): void {
 		const globalActivityActions: IAction[] = [];
 		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
+		const customMenus = isWeb || (getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' && !isMacintosh); // see #40262
+		const position = this.configurationService.getValue('workbench.sideBar.location');
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
+			getAnchor: () => customMenus ? this.container : e || this.container,
+			anchorAlignment: customMenus ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
+			anchorAxisAlignment: customMenus ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
 			getActions: () => globalActivityActions,
 			onHide: () => {
 				globalActivityMenu.dispose();

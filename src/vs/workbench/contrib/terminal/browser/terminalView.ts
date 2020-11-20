@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -41,6 +41,7 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
 	private _splitTerminalAction: IAction | undefined;
+	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 
 	constructor(
@@ -75,11 +76,11 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		this._parentDomElement = container;
-		dom.addClass(this._parentDomElement, 'integrated-terminal');
+		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
 
 		this._terminalContainer = document.createElement('div');
-		dom.addClass(this._terminalContainer, 'terminal-outer-container');
+		this._terminalContainer.classList.add('terminal-outer-container');
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
@@ -109,18 +110,28 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
-				const hadTerminals = this._terminalService.terminalInstances.length > 0;
-				if (!hadTerminals) {
-					this._terminalService.createTerminal();
+				const hadTerminals = !!this._terminalService.terminalTabs.length;
+				if (this._terminalsInitialized) {
+					if (!hadTerminals) {
+						this._terminalService.createTerminal();
+					}
+				} else {
+					this._terminalsInitialized = true;
+					this._terminalService.initializeTerminals();
 				}
+
 				this._updateTheme();
 				if (hadTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
 				} else {
+					// TODO@Tyriar - this call seems unnecessary
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 			} else {
 				this._terminalService.getActiveTab()?.setVisible(false);
+				this._terminalService.terminalInstances.forEach(instance => {
+					instance.notifyFindWidgetFocusChanged(false);
+				});
 			}
 		}));
 
@@ -204,8 +215,26 @@ export class TerminalViewPane extends ViewPane {
 		return super.getActionViewItem(action);
 	}
 
-	public focus(): void {
-		this._terminalService.getActiveInstance()?.focusWhenReady(true);
+	public focus() {
+		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
+			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+			// be focused. So wait for connection to finish, then focus.
+			const activeElement = document.activeElement;
+			this._register(this._terminalService.onDidChangeConnectionState(() => {
+				// Only focus the terminal if the activeElement has not changed since focus() was called
+				// TODO hack
+				if (document.activeElement === activeElement) {
+					this._focus();
+				}
+			}));
+
+			return;
+		}
+		this._focus();
+	}
+
+	private _focus() {
+		this._terminalService.getActiveInstance()?.focusWhenReady();
 	}
 
 	public focusFindWidget() {

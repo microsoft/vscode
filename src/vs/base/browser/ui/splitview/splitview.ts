@@ -12,7 +12,9 @@ import { range, pushToStart, pushToEnd } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { domEvent } from 'vs/base/browser/event';
-import { $, append } from 'vs/base/browser/dom';
+import { $, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface ISplitViewStyles {
@@ -213,6 +215,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	readonly el: HTMLElement;
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
+	private scrollable: Scrollable;
+	private scrollableElement: SmoothScrollableElement;
 	private size = 0;
 	private layoutContext: TLayoutContext | undefined;
 	private contentSize = 0;
@@ -301,7 +305,20 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		container.appendChild(this.el);
 
 		this.sashContainer = append(this.el, $('.sash-container'));
-		this.viewContainer = append(this.el, $('.split-view-container'));
+		this.viewContainer = $('.split-view-container');
+
+		this.scrollable = new Scrollable(125, scheduleAtNextAnimationFrame);
+		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
+			vertical: this.orientation === Orientation.VERTICAL ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden,
+			horizontal: this.orientation === Orientation.HORIZONTAL ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden
+		}, this.scrollable));
+
+		this._register(this.scrollableElement.onScroll(e => {
+			this.viewContainer.scrollTop = e.scrollTop;
+			this.viewContainer.scrollLeft = e.scrollLeft;
+		}));
+
+		append(this.el, this.scrollableElement.getDomNode());
 
 		this.style(options.styles || defaultStyles);
 
@@ -897,6 +914,21 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());
 		this.updateSashEnablement();
+		this.updateScrollableElement();
+	}
+
+	private updateScrollableElement(): void {
+		if (this.orientation === Orientation.VERTICAL) {
+			this.scrollableElement.setScrollDimensions({
+				height: this.size,
+				scrollHeight: this.contentSize
+			});
+		} else {
+			this.scrollableElement.setScrollDimensions({
+				width: this.size,
+				scrollWidth: this.contentSize
+			});
+		}
 	}
 
 	private updateSashEnablement(): void {

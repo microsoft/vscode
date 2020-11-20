@@ -18,7 +18,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService, ViewContentGroups } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -37,7 +37,9 @@ import { WorkbenchStateContext, RemoteNameContext } from 'vs/workbench/browser/c
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh } from 'vs/base/common/platform';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+
+const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -108,7 +110,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
 			ctorDescriptor: new SyncDescriptor(OpenEditorsView),
-			containerIcon: 'codicon-files',
+			containerIcon: ThemeIcon.fromCodicon(explorerViewIcon),
 			order: 0,
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
@@ -125,7 +127,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			containerIcon: Codicon.files.classNames,
+			containerIcon: ThemeIcon.fromCodicon(explorerViewIcon),
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
 			canToggleVisibility: true,
@@ -139,7 +141,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: VIEW_ID,
 			name: localize('folders', "Folders"),
-			containerIcon: Codicon.files.classNames,
+			containerIcon: ThemeIcon.fromCodicon(explorerViewIcon),
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
 			canToggleVisibility: false,
@@ -246,6 +248,9 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
 	focus(): void {
 		const explorerView = this.getView(VIEW_ID);
+		if (explorerView && this.panes.every(p => !p.isExpanded())) {
+			explorerView.setExpanded(true);
+		}
 		if (explorerView?.isExpanded()) {
 			explorerView.focus();
 		} else {
@@ -264,7 +269,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	name: localize('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
-	icon: Codicon.files.classNames,
+	icon: ThemeIcon.fromCodicon(explorerViewIcon),
 	alwaysUseContainerInfo: true,
 	order: 0
 }, ViewContainerLocation.Sidebar, true);

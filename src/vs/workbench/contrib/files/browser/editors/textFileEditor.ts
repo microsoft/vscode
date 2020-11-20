@@ -60,18 +60,30 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Move view state for moved files
 		this._register(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted?.length) {
-			this.clearTextEditorViewState(deleted.map(d => d.resource));
+			this.clearTextEditorViewState(deleted.map(({ resource }) => resource));
 		}
 	}
 
 	private onDidRunOperation(e: FileOperationEvent): void {
 		if (e.operation === FileOperation.MOVE && e.target) {
 			this.moveTextEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
+		}
+	}
+
+	private onDidFileSystemProviderChange(scheme: string): void {
+		const control = this.getControl();
+		const input = this.input;
+		if (control && input?.resource.scheme === scheme) {
+			control.updateOptions({ readOnly: input.isReadonly() });
 		}
 	}
 

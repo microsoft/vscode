@@ -24,6 +24,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
+import * as semver from 'vs/base/common/semver/semver';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
@@ -272,7 +273,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async scanUserExtensions(): Promise<IScannedExtension[]> {
-		const semver = await import('semver-umd');
 		let userExtensions = await this.readUserExtensions();
 		const byExtension: IUserExtension[][] = groupByExtension(userExtensions, e => e.identifier);
 		userExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);

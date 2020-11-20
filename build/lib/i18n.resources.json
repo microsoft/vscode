@@ -63,6 +63,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/dialogs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
@@ -208,6 +212,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/webviewPanel",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/workspaces",
 			"project": "vscode-workbench"
 		},
 		{
@@ -360,6 +368,10 @@
 		},
 		{
 			"name": "vs/workbench/services/authentication",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/extensionRecommendations",
 			"project": "vscode-workbench"
 		}
 	]

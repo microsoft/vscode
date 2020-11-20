@@ -76,6 +76,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/references').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description.id, this.client, cachedResponse))),
 			import('./languageFeatures/rename').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/renameOnType').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),

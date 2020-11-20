@@ -4,7 +4,14 @@
 # Excluding: *.test.ts, **/test/**
 # ContextLines: 3
 
-15 results - 11 files
+12 results - 9 files
+
+src/vs/base/browser/dom.ts:
+  1359  	);
+  1360  
+  1361  	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
+  1362: 	node.innerHTML = html as unknown as string;
+  1363  }
 
 src/vs/base/browser/markdownRenderer.ts:
   272  	};
@@ -16,24 +23,6 @@ src/vs/base/browser/markdownRenderer.ts:
   278  	}
   279  
   280  	// signal that async code blocks can be now be inserted
-
-src/vs/base/browser/ui/contextview/contextview.ts:
-  157  				this.shadowRootHostElement = DOM.$('.shadow-root-host');
-  158  				this.container.appendChild(this.shadowRootHostElement);
-  159  				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
-  160: 				this.shadowRoot.innerHTML = `
-  161  					<style>
-  162  						${SHADOW_ROOT_CSS}
-  163  					</style>
-
-src/vs/code/electron-sandbox/issue/issueReporterMain.ts:
-  58  	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
-  59  	document.body.classList.add(platformClass); // used by our fonts
-  60  
-  61: 	document.body.innerHTML = BaseHtml();
-  62  	const issueReporter = new IssueReporter(configuration);
-  63  	issueReporter.render();
-  64  	document.body.style.display = 'block';
 
 src/vs/editor/browser/core/markdownRenderer.ts:
   88  
@@ -110,20 +99,3 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   379  						cellOutputContainer.appendChild(outputNode);
   380  						domEval(outputNode);
   381  					} else if (preloadErrs.some(e => !!e)) {
-
-src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
-  280  
-  281  				const content = model.main;
-  282  				if (!input.resource.path.endsWith('.md')) {
-  283: 					this.content.innerHTML = content;
-  284  					this.updateSizeClasses();
-  285  					this.decorateContent();
-  286  					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
-
-  302  				const innerContent = document.createElement('div');
-  303  				innerContent.classList.add('walkThroughContent'); // only for markdown files
-  304  				const markdown = this.expandMacros(content);
-  305: 				innerContent.innerHTML = marked(markdown, { renderer });
-  306  				this.content.appendChild(innerContent);
-  307  
-  308  				model.snippets.forEach((snippet, i) => {

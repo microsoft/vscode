@@ -77,6 +77,7 @@ export interface ITaskService {
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
 	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
+	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
@@ -96,7 +97,6 @@ export interface ITaskService {
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
 	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void;
-	setJsonTasksSupported(areSuppored: Promise<boolean>): void;
 
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 }

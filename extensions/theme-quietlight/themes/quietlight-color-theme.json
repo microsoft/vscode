@@ -46,6 +46,13 @@
 			}
 		},
 		{
+			"name": "Invalid",
+			"scope": "invalid",
+			"settings": {
+				"foreground": "#cd3131"
+			}
+		},
+		{
 			"name": "Invalid - Illegal",
 			"scope": "invalid.illegal",
 			"settings": {

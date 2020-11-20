@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { BrowserWindow, ipcMain, WebContents, Event as ElectronEvent } from 'electron';
 import { ISharedProcess } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
@@ -26,7 +26,7 @@ export class SharedProcess implements ISharedProcess {
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
@@ -115,7 +115,9 @@ export class SharedProcess implements ISharedProcess {
 				sender.send('vscode:electron-main->shared-process=payload', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
 					args: this.environmentService.args,
-					logLevel: this.logService.getLevel()
+					logLevel: this.logService.getLevel(),
+					backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
+					nodeCachedDataDir: this.environmentService.nodeCachedDataDir
 				});
 
 				// signal exit to shared process when we get disposed

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import { createRotatingLogger } from 'vs/platform/log/node/spdlogService';
 import { RotatingLogger } from 'spdlog';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 export class OutputAppender {
 
 	private appender: RotatingLogger;
 
 	constructor(name: string, readonly file: string) {
-		this.appender = createRotatingLogger(name, file, 1024 * 1024 * 30, 1);
+		this.appender = createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
 		this.appender.clearFormatters();
 	}
 

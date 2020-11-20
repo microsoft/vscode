@@ -5,13 +5,14 @@
 
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ShutdownReason, StartupKind, handleVetos, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
+import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import Severity from 'vs/base/common/severity';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -94,7 +95,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		// Save shutdown reason to retrieve on next startup
 		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE);
+				this.storageService.store(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		});
 	}
@@ -155,6 +156,10 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		});
 
 		onUnexpectedError(error);
+	}
+
+	shutdown(): void {
+		this.nativeHostService.closeWindow();
 	}
 }
 

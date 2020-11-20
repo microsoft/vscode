@@ -11,7 +11,7 @@ import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, IS
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMStatusController } from './activity';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -22,10 +22,13 @@ import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewConta
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -36,12 +39,14 @@ ModesRegistry.registerLanguage({
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
+const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the source control view.'));
+
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
-	icon: Codicon.sourceControl.classNames,
+	icon: ThemeIcon.fromCodicon(sourceControlViewIcon),
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true
@@ -63,7 +68,7 @@ viewsRegistry.registerViews([{
 	canMoveView: true,
 	weight: 80,
 	order: -999,
-	containerIcon: Codicon.sourceControl.classNames
+	containerIcon: ThemeIcon.fromCodicon(sourceControlViewIcon)
 }], viewContainer);
 
 viewsRegistry.registerViews([{
@@ -78,7 +83,7 @@ viewsRegistry.registerViews([{
 	order: -1000,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
-	containerIcon: Codicon.sourceControl.classNames
+	containerIcon: ThemeIcon.fromCodicon(sourceControlViewIcon)
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
@@ -135,6 +140,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
 			default: 'always'
+		},
+		'scm.diffDecorationsGutterAction': {
+			type: 'string',
+			enum: ['diff', 'none'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff peek view on click."),
+				localize('scm.diffDecorationsGutterAction.none', "Do nothing.")
+			],
+			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
+			default: 'diff'
 		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
@@ -221,13 +236,62 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!repository || !repository.provider.acceptInputCommand) {
 			return Promise.resolve(null);
 		}
-
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
 
 		const commandService = accessor.get(ICommandService);
 		return commandService.executeCommand(id, ...(args || []));
 	}
+});
+
+const viewNextCommitCommand = {
+	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: (accessor: ServicesAccessor) => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showNextHistoryValue();
+	}
+};
+
+const viewPreviousCommitCommand = {
+	description: { description: localize('scm view previous commit', "SCM: View Previous Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: (accessor: ServicesAccessor) => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.showPreviousHistoryValue();
+	}
+};
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewNextCommitCommand,
+	id: 'scm.viewNextCommit',
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.DownArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewPreviousCommitCommand,
+	id: 'scm.viewPreviousCommit',
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.UpArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewNextCommitCommand,
+	id: 'scm.forceViewNextCommit',
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.DownArrow
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	...viewPreviousCommitCommand,
+	id: 'scm.forceViewPreviousCommit',
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
 CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {

@@ -20,7 +20,7 @@ import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/browser/markers';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
@@ -32,7 +32,8 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -124,11 +125,13 @@ class ToggleMarkersPanelAction extends ToggleViewAction {
 	}
 }
 
+const markersViewIcon = registerIcon('markers-view-icon', Codicon.warning, localize('markersViewIcon', 'View icon of the markers view.'));
+
 // markers view container
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Constants.MARKERS_CONTAINER_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	icon: Codicon.warning.classNames,
+	icon: ThemeIcon.fromCodicon(markersViewIcon),
 	hideIfEmpty: true,
 	order: 0,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
@@ -142,7 +145,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Constants.MARKERS_VIEW_ID,
-	containerIcon: Codicon.warning.classNames,
+	containerIcon: ThemeIcon.fromCodicon(markersViewIcon),
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	canToggleVisibility: false,
 	canMoveView: true,

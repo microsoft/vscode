@@ -11,7 +11,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, DidInstallExtensionEvent, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -19,14 +19,12 @@ import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -45,12 +43,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'langugage.update.donotask', version: 1 });
 		this.checkAndInstall();
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
@@ -176,7 +171,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.GLOBAL
+											StorageScope.GLOBAL,
+											StorageTarget.USER
 										);
 										logUserReaction('neverShowAgain');
 									}
@@ -195,7 +191,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private isLanguageInstalled(language: string | undefined): Promise<boolean> {
-		return this.extensionManagementService.getInstalled(ExtensionType.User)
+		return this.extensionManagementService.getInstalled()
 			.then(installed => installed.some(i =>
 				!!(i.manifest
 					&& i.manifest.contributes

@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
+import { StorageScope, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -16,15 +16,7 @@ import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
-export class BrowserStorageService extends Disposable implements IStorageService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	readonly onDidChangeStorage = this._onDidChangeStorage.event;
-
-	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState = this._onWillSaveState.event;
+export class BrowserStorageService extends AbstractStorageService {
 
 	private globalStorage: IStorage | undefined;
 	private workspaceStorage: IStorage | undefined;
@@ -39,6 +31,10 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 5000 /* every 5s */));
 	private runWhenIdleDisposable: IDisposable | undefined = undefined;
+
+	get hasPendingUpdate(): boolean {
+		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
+	}
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -66,13 +62,13 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
-		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
+		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 
 		// Global Storage
 		this.globalStorageFile = joinPath(stateRoot, 'global.json');
 		this.globalStorageDatabase = this._register(new FileStorageDatabase(this.globalStorageFile, true /* watch for external changes */, this.fileService));
 		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
-		this._register(this.globalStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL })));
+		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
 		// Init both
 		await Promise.all([
@@ -122,11 +118,11 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		return this.getStorage(scope).getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
+	protected doStore(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
 		this.getStorage(scope).set(key, value);
 	}
 
-	remove(key: string, scope: StorageScope): void {
+	protected doRemove(key: string, scope: StorageScope): void {
 		this.getStorage(scope).delete(key);
 	}
 
@@ -147,6 +143,13 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
+	}
+
+	protected async doFlush(): Promise<void> {
+		await Promise.all([
+			this.getStorage(StorageScope.GLOBAL).whenFlushed(),
+			this.getStorage(StorageScope.WORKSPACE).whenFlushed()
+		]);
 	}
 
 	private doFlushWhenIdle(): void {
@@ -175,14 +178,6 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		});
 	}
 
-	get hasPendingUpdate(): boolean {
-		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
-	}
-
-	flush(): void {
-		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
-	}
-
 	close(): void {
 		// We explicitly do not close our DBs because writing data onBeforeUnload()
 		// can result in unexpected results. Namely, it seems that - even though this
@@ -193,10 +188,6 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		// Instead we trigger dispose() to ensure that no timeouts or callbacks
 		// get triggered in this phase.
 		this.dispose();
-	}
-
-	isNew(scope: StorageScope): boolean {
-		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
 	dispose(): void {

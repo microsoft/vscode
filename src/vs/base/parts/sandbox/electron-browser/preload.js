@@ -97,53 +97,29 @@
 
 		/**
 		 * Support for a subset of access to node.js global `process`.
+		 *
+		 * Note: when `sandbox` is enabled, the only properties available
+		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
 		 */
 		process: {
 			get platform() { return process.platform; },
 			get env() { return process.env; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
+			get execPath() { return process.execPath; },
 
-			_whenEnvResolved: undefined,
-			whenEnvResolved:
+			_resolveEnv: undefined,
+			resolveEnv:
 				/**
-				 * @returns when the shell environment has been resolved.
+				 * @param userEnv {{[key: string]: string}}
+				 * @returns {Promise<void>}
 				 */
-				function () {
-					if (!this._whenEnvResolved) {
-						this._whenEnvResolved = resolveEnv();
+				function (userEnv) {
+					if (!this._resolveEnv) {
+						this._resolveEnv = resolveEnv(userEnv);
 					}
 
-					return this._whenEnvResolved;
-				},
-
-			nextTick:
-				/**
-				 * Adds callback to the "next tick queue". This queue is fully drained
-				 * after the current operation on the JavaScript stack runs to completion
-				 * and before the event loop is allowed to continue.
-				 *
-				 * @param {Function} callback
-				 * @param {any[]} args
-				 */
-				function nextTick(callback, ...args) {
-					return process.nextTick(callback, ...args);
-				},
-
-			cwd:
-				/**
-				 * @returns the current working directory.
-				 */
-				function () {
-					return process.cwd();
-				},
-
-			getuid:
-				/**
-				 * @returns the numeric user identity of the process
-				 */
-				function () {
-					return process.getuid();
+					return this._resolveEnv;
 				},
 
 			getProcessMemoryInfo:
@@ -170,7 +146,7 @@
 		 * Some information about the context we are running in.
 		 */
 		context: {
-			get sandbox() { return process.argv.includes('--enable-sandbox'); }
+			get sandbox() { return process.sandboxed; }
 		}
 	};
 
@@ -223,21 +199,22 @@
 	 * shell specific environment from the OS shell to ensure we are seeing
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
+	 *
+	 * @param userEnv {{[key: string]: string}}
+	 * @returns {Promise<void>}
 	 */
-	function resolveEnv() {
+	function resolveEnv(userEnv) {
+
+		// Apply `userEnv` directly
+		Object.assign(process.env, userEnv);
+
+		// Resolve `shellEnv` from the main side
 		return new Promise(function (resolve) {
-			const handle = setTimeout(function () {
-				console.warn('Preload: Unable to resolve shell environment in a reasonable time');
-
-				// It took too long to fetch the shell environment, return
-				resolve();
-			}, 3000);
-
 			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
-				clearTimeout(handle);
 
 				// Assign all keys of the shell environment to our process environment
-				Object.assign(process.env, shellEnv);
+				// But make sure that the user environment wins in the end
+				Object.assign(process.env, shellEnv, userEnv);
 
 				resolve();
 			});

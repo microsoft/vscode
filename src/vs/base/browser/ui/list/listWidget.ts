@@ -1460,6 +1460,8 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
+				this.setFocus([]);
+
 				// Let the scroll event listener run
 				setTimeout(() => this.focusNextPage(browserEvent, filter), 0);
 			}
@@ -1492,6 +1494,8 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			this.view.setScrollTop(scrollTop - this.view.renderHeight);
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
+				this.setFocus([]);
+
 				// Let the scroll event listener run
 				setTimeout(() => this.focusPreviousPage(browserEvent, filter), 0);
 			}

@@ -22,12 +22,12 @@ import { hash } from 'vs/base/common/hash';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -62,7 +62,8 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	glyphMargin: true,
 	enableSplitViewResizing: false,
 	renderIndicators: false,
-	readOnly: false
+	readOnly: false,
+	isInEmbeddedEditor: true
 };
 
 
@@ -116,18 +117,20 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					return item;
 				}
 
 				return undefined;
 			}
 		});
+		this._register(this._toolbar);
 		this._toolbar.context = {
 			cell: this.cell
 		};
 
 		this._menu = this.menuService.createMenu(this.accessor.menuId, this.contextKeyService);
+		this._register(this._menu);
 
 		if (metadataChanged) {
 			const actions: IAction[] = [];
@@ -228,6 +231,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		outputHeight: number;
 		bodyMargin: number;
 	};
+	protected _isDisposed: boolean;
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
@@ -237,10 +241,17 @@ abstract class AbstractCellRenderer extends Disposable {
 		protected readonly instantiationService: IInstantiationService,
 		protected readonly modeService: IModeService,
 		protected readonly modelService: IModelService,
+		protected readonly contextMenuService: IContextMenuService,
+		protected readonly keybindingService: IKeybindingService,
+		protected readonly notificationService: INotificationService,
+		protected readonly menuService: IMenuService,
+		protected readonly contextKeyService: IContextKeyService
+
 
 	) {
 		super();
 		// init
+		this._isDisposed = false;
 		this._layoutInfo = {
 			editorHeight: 0,
 			editorMargin: 0,
@@ -522,6 +533,7 @@ abstract class AbstractCellRenderer extends Disposable {
 				originalEditable: false,
 				ignoreTrimWhitespace: false
 			});
+			this._register(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
 
@@ -577,6 +589,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			readOnly: false
 		}, {});
+		this._register(this._metadataEditor);
 
 		const mode = this.modeService.create('jsonc');
 		const originalMetadataSource = this._getFormatedMetadataJSON(
@@ -626,6 +639,7 @@ abstract class AbstractCellRenderer extends Disposable {
 					readOnly: true,
 					ignoreTrimWhitespace: false
 				});
+				this._register(this._outputEditor);
 
 				this._outputEditorContainer?.classList.add('diff');
 
@@ -665,10 +679,11 @@ abstract class AbstractCellRenderer extends Disposable {
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
+		this._register(this._outputEditor);
 
 		const mode = this.modeService.create('json');
 		const originaloutputSource = this._getFormatedOutputJSON(
-			this.notebookEditor.textModel!.transientOptions
+			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
 				: this.cell.type === 'insert'
 					? this.cell.modified!.outputs || []
@@ -700,6 +715,11 @@ abstract class AbstractCellRenderer extends Disposable {
 		);
 	}
 
+	dispose() {
+		this._isDisposed = true;
+		super.dispose();
+	}
+
 	abstract initData(): void;
 	abstract styleContainer(container: HTMLElement): void;
 	abstract buildSourceEditor(sourceContainer: HTMLElement): void;
@@ -716,8 +736,15 @@ export class DeletedCell extends AbstractCellRenderer {
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@INotificationService protected readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+
+
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	initData(): void {
@@ -743,6 +770,8 @@ export class DeletedCell extends AbstractCellRenderer {
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
+		this._register(this._editor);
+
 		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
@@ -753,6 +782,10 @@ export class DeletedCell extends AbstractCellRenderer {
 		}));
 
 		originalCell.resolveTextModelRef().then(ref => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this._register(ref);
 
 			const textModel = ref.object.textEditorModel;
@@ -805,8 +838,13 @@ export class InsertCell extends AbstractCellRenderer {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@INotificationService protected readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	initData(): void {
@@ -832,6 +870,7 @@ export class InsertCell extends AbstractCellRenderer {
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			readOnly: false
 		}, {});
+		this._register(this._editor);
 
 		this._layoutInfo.editorHeight = editorHeight;
 
@@ -843,6 +882,10 @@ export class InsertCell extends AbstractCellRenderer {
 		}));
 
 		modifiedCell.resolveTextModelRef().then(ref => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this._register(ref);
 
 			const textModel = ref.object.textEditorModel;
@@ -889,6 +932,10 @@ export class InsertCell extends AbstractCellRenderer {
 export class ModifiedCell extends AbstractCellRenderer {
 	private _editor?: DiffEditorWidget;
 	private _editorContainer!: HTMLElement;
+	private _inputToolbarContainer!: HTMLElement;
+	protected _toolbar!: ToolBar;
+	protected _menu!: IMenu;
+
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
@@ -896,8 +943,13 @@ export class ModifiedCell extends AbstractCellRenderer {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@INotificationService protected readonly notificationService: INotificationService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
 	}
 
 	initData(): void {
@@ -919,6 +971,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 			originalEditable: false,
 			ignoreTrimWhitespace: false
 		});
+		this._register(this._editor);
 		this._editorContainer.classList.add('diff');
 
 		this._editor.layout({
@@ -936,6 +989,43 @@ export class ModifiedCell extends AbstractCellRenderer {
 		}));
 
 		this._initializeSourceDiffEditor();
+
+		this._inputToolbarContainer = DOM.append(sourceContainer, DOM.$('.editor-input-toolbar-container'));
+		const cellToolbarContainer = DOM.append(this._inputToolbarContainer, DOM.$('div.property-toolbar'));
+		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					return item;
+				}
+
+				return undefined;
+			}
+		});
+
+		this._toolbar.context = {
+			cell: this.cell
+		};
+
+		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, this.contextKeyService);
+		this._register(this._menu);
+		const actions: IAction[] = [];
+		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+		this._toolbar.setActions(actions);
+
+		if (this.cell.modified!.getValue() !== this.cell.original!.getValue()) {
+			this._inputToolbarContainer.style.display = 'block';
+		} else {
+			this._inputToolbarContainer.style.display = 'none';
+		}
+
+		this._register(this.cell.modified!.onDidChangeContent(() => {
+			if (this.cell.modified!.getValue() !== this.cell.original!.getValue()) {
+				this._inputToolbarContainer.style.display = 'block';
+			} else {
+				this._inputToolbarContainer.style.display = 'none';
+			}
+		}));
 	}
 
 	private async _initializeSourceDiffEditor() {
@@ -944,6 +1034,11 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 		const originalRef = await originalCell.resolveTextModelRef();
 		const modifiedRef = await modifiedCell.resolveTextModelRef();
+
+		if (this._isDisposed) {
+			return;
+		}
+
 		const textModel = originalRef.object.textEditorModel;
 		const modifiedTextModel = modifiedRef.object.textEditorModel;
 		this._register(originalRef);
