@@ -2359,7 +2359,7 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
-		 * Whether this test item can be debugged.
+		 * Whether this test item can be debugged. Defaults to `false` if not provided.
 		 */
 		debuggable?: boolean;
 

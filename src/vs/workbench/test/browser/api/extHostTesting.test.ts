@@ -19,8 +19,16 @@ const stubTest = (label: string): TestItem => ({
 	description: ''
 });
 
+const simplify = (item: TestItem) => {
+	if ('toJSON' in item) {
+		item = (item as any).toJSON();
+	}
+
+	return { ...item, children: undefined };
+};
+
 const assertTreesEqual = (a: Readonly<TestItem>, b: Readonly<TestItem>) => {
-	assert.deepStrictEqual({ ...a, children: undefined }, { ...b, children: undefined });
+	assert.deepStrictEqual(simplify(a), simplify(b));
 
 	const aChildren = (a.children ?? []).sort();
 	const bChildren = (b.children ?? []).sort();
@@ -274,10 +282,28 @@ suite('ExtHost Testing', () => {
 				single.onItemChange(tests, 'pid');
 				m.apply(single.collectDiff());
 
-				assert.deepStrictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
+				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
 				assertTreeListEqual(m.changeEvent.added, [child]);
 				assertTreeListEqual(m.changeEvent.removed, []);
 				assertTreeListEqual(m.changeEvent.updated, []);
+			});
+
+			test('gets the common ancestor (1)', () => {
+				tests.children![0].children![0].label = 'za';
+				tests.children![0].children![1].label = 'zb';
+				single.onItemChange(tests, 'pid');
+				m.apply(single.collectDiff());
+
+				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'a');
+			});
+
+			test('gets the common ancestor (2)', () => {
+				tests.children![0].children![0].label = 'za';
+				tests.children![1].label = 'ab';
+				single.onItemChange(tests, 'pid');
+				m.apply(single.collectDiff());
+
+				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
 			});
 		});
 	});
