@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -18,10 +18,13 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
+import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { CellStatusbarAlignment } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: OutputContainer;
+	private _activeCellRunPlaceholder: IDisposable | null = null;
 
 	constructor(
 		private notebookEditor: INotebookEditor,
@@ -29,6 +32,7 @@ export class CodeCell extends Disposable {
 		private templateData: CodeCellRenderTemplate,
 		@INotebookService notebookService: INotebookService,
 		@IQuickInputService quickInputService: IQuickInputService,
+		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@ITextFileService readonly textFileService: ITextFileService,
 		@IModeService private readonly _modeService: IModeService
@@ -212,6 +216,37 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
 		updateForCollapseState();
+
+		const updatePlaceholder = () => {
+			if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.metadata.runState === undefined && viewCell.metadata.lastRunDuration === undefined) {
+				// active cell and no run status
+				if (this._activeCellRunPlaceholder === null) {
+					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry({
+						alignment: CellStatusbarAlignment.LEFT,
+						priority: -1,
+						cellResource: viewCell.uri,
+						command: undefined,
+						text: 'Ctrl + Enter to run',
+						tooltip: 'Ctrl + Enter to run',
+						visible: true,
+						opacity: '0.7'
+					});
+				}
+
+				return;
+			}
+
+			this._activeCellRunPlaceholder?.dispose();
+			this._activeCellRunPlaceholder = null;
+		};
+
+		this._register(this.notebookEditor.onDidChangeActiveCell(() => {
+			updatePlaceholder();
+		}));
+
+		this._register(this.viewCell.model.onDidChangeMetadata(() => {
+			updatePlaceholder();
+		}));
 	}
 
 	private viewUpdate(): void {
@@ -330,6 +365,7 @@ export class CodeCell extends Disposable {
 	dispose() {
 		this.viewCell.detachTextEditor();
 		this._outputContainerRenderer.dispose();
+		this._activeCellRunPlaceholder?.dispose();
 		this.templateData.focusIndicatorLeft!.style.height = 'initial';
 
 		super.dispose();
