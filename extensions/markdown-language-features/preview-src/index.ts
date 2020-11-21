@@ -37,19 +37,48 @@ window.onload = () => {
 	updateImageSizes();
 };
 
+
+function doAfterImagesLoaded(cb: () => void) {
+	const imgElements = document.getElementsByTagName('img');
+	if (imgElements.length > 0) {
+		const ps = Array.from(imgElements).map(e => {
+			if (e.complete) {
+				return Promise.resolve();
+			} else {
+				return new Promise<void>((resolve) => {
+					e.addEventListener('load', () => resolve());
+				});
+			}
+		});
+		Promise.all(ps).then(() => cb());
+	} else {
+		setImmediate(cb);
+	}
+}
+
+function disableScrollWhileDoing(cb: () => void) {
+	scrollDisabled = true;
+	try {
+		cb();
+	} finally {
+		setTimeout(() => {
+			scrollDisabled = false;
+		}, 100);
+	}
+}
+
 onceDocumentLoaded(() => {
 	const scrollProgress = state.scrollProgress;
 
 	if (typeof scrollProgress === 'number' && !settings.fragment) {
-		setImmediate(() => {
-			scrollDisabled = true;
-			window.scrollTo(0, scrollProgress * document.body.clientHeight);
+		doAfterImagesLoaded(() => {
+			disableScrollWhileDoing(() => window.scrollTo(0, scrollProgress * document.body.clientHeight));
 		});
 		return;
 	}
 
 	if (settings.scrollPreviewWithEditor) {
-		setImmediate(() => {
+		doAfterImagesLoaded(() => {
 			// Try to scroll to fragment if available
 			if (settings.fragment) {
 				state.fragment = undefined;
@@ -57,13 +86,11 @@ onceDocumentLoaded(() => {
 
 				const element = getLineElementForFragment(settings.fragment);
 				if (element) {
-					scrollDisabled = true;
-					scrollToRevealSourceLine(element.line);
+					disableScrollWhileDoing(() => scrollToRevealSourceLine(element.line));
 				}
 			} else {
 				if (!isNaN(settings.line!)) {
-					scrollDisabled = true;
-					scrollToRevealSourceLine(settings.line!);
+					disableScrollWhileDoing(() => scrollToRevealSourceLine(settings.line!));
 				}
 			}
 		});
@@ -72,8 +99,7 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabled = true;
-		scrollToRevealSourceLine(line);
+		disableScrollWhileDoing(() => doAfterImagesLoaded(() => scrollToRevealSourceLine(line)));
 	}, 50);
 
 	return (line: number) => {
@@ -109,9 +135,10 @@ let updateImageSizes = throttle(() => {
 }, 50);
 
 window.addEventListener('resize', () => {
-	scrollDisabled = true;
-	updateScrollProgress();
-	updateImageSizes();
+	disableScrollWhileDoing(() => {
+		updateScrollProgress();
+		updateImageSizes();
+	});
 }, true);
 
 window.addEventListener('message', event => {
@@ -189,9 +216,7 @@ document.addEventListener('click', event => {
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
-	if (scrollDisabled) {
-		scrollDisabled = false;
-	} else {
+	if (!scrollDisabled) {
 		const line = getEditorLineNumberForPageOffset(window.scrollY);
 		if (typeof line === 'number' && !isNaN(line)) {
 			messaging.postMessage('revealLine', { line });
