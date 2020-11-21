@@ -58,7 +58,6 @@ function doAfterImagesLoaded(cb: () => void) {
 
 onceDocumentLoaded(() => {
 	const scrollProgress = state.scrollProgress;
-	scrollDisabledCount = 0;
 
 	if (typeof scrollProgress === 'number' && !settings.fragment) {
 		doAfterImagesLoaded(() => {
