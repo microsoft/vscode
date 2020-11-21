@@ -12,7 +12,7 @@ import throttle = require('lodash.throttle');
 
 declare let acquireVsCodeApi: any;
 
-let scrollDisabled = true;
+let scrollDisabledCount = 0;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
 
@@ -50,29 +50,20 @@ function doAfterImagesLoaded(cb: () => void) {
 				});
 			}
 		});
-		Promise.all(ps).then(() => cb());
+		Promise.all(ps).then(() => setImmediate(cb));
 	} else {
 		setImmediate(cb);
 	}
 }
 
-function disableScrollWhileDoing(cb: () => void) {
-	scrollDisabled = true;
-	try {
-		cb();
-	} finally {
-		setTimeout(() => {
-			scrollDisabled = false;
-		}, 100);
-	}
-}
-
 onceDocumentLoaded(() => {
 	const scrollProgress = state.scrollProgress;
+	scrollDisabledCount = 0;
 
 	if (typeof scrollProgress === 'number' && !settings.fragment) {
 		doAfterImagesLoaded(() => {
-			disableScrollWhileDoing(() => window.scrollTo(0, scrollProgress * document.body.clientHeight));
+			scrollDisabledCount += 1;
+			window.scrollTo(0, scrollProgress * document.body.clientHeight);
 		});
 		return;
 	}
@@ -86,11 +77,13 @@ onceDocumentLoaded(() => {
 
 				const element = getLineElementForFragment(settings.fragment);
 				if (element) {
-					disableScrollWhileDoing(() => scrollToRevealSourceLine(element.line));
+					scrollDisabledCount += 1;
+					scrollToRevealSourceLine(element.line);
 				}
 			} else {
 				if (!isNaN(settings.line!)) {
-					disableScrollWhileDoing(() => scrollToRevealSourceLine(settings.line!));
+					scrollDisabledCount += 1;
+					scrollToRevealSourceLine(settings.line!);
 				}
 			}
 		});
@@ -99,7 +92,8 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		disableScrollWhileDoing(() => doAfterImagesLoaded(() => scrollToRevealSourceLine(line)));
+		scrollDisabledCount += 1;
+		doAfterImagesLoaded(() => scrollToRevealSourceLine(line));
 	}, 50);
 
 	return (line: number) => {
@@ -135,10 +129,9 @@ let updateImageSizes = throttle(() => {
 }, 50);
 
 window.addEventListener('resize', () => {
-	disableScrollWhileDoing(() => {
-		updateScrollProgress();
-		updateImageSizes();
-	});
+	scrollDisabledCount += 1;
+	updateScrollProgress();
+	updateImageSizes();
 }, true);
 
 window.addEventListener('message', event => {
@@ -216,7 +209,9 @@ document.addEventListener('click', event => {
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
-	if (!scrollDisabled) {
+	if (scrollDisabledCount > 0) {
+		scrollDisabledCount -= 1;
+	} else {
 		const line = getEditorLineNumberForPageOffset(window.scrollY);
 		if (typeof line === 'number' && !isNaN(line)) {
 			messaging.postMessage('revealLine', { line });
