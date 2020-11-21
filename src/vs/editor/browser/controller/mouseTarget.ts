@@ -1050,13 +1050,13 @@ export class MouseTargetFactory {
 		} else if ((<any>document.body).createTextRange) {
 			result = this._doHitTestWithMoveToPoint(ctx, request.pos.toClientCoordinates());
 		} else {
-			return {
+			result = {
 				position: null,
 				hitTarget: null
 			};
 		}
 		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
-		if (result.position !== null && ctx.atomicSoftTabs) {
+		if (result.position && ctx.atomicSoftTabs) {
 			result.position = this._snapToSoftTabBoundary(result.position, ctx.model);
 		}
 		return result;

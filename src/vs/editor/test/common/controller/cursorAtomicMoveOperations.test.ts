@@ -13,48 +13,72 @@ suite('Cursor move command test', () => {
 			{
 				lineContent: '        ',
 				tabSize: 4,
-				expected: [0, 1, 2, 3, 4, 5, 6, 7, 8, -1],
+				expectedPrevTabStopPosition: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
+				expectedPrevTabStopVisibleColumn: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
+				expectedVisibleColumn: [0, 1, 2, 3, 4, 5, 6, 7, 8, -1],
 			},
 			{
 				lineContent: '  ',
 				tabSize: 4,
-				expected: [0, 1, 2, -1],
+				expectedPrevTabStopPosition: [-1, 0, 0, -1],
+				expectedPrevTabStopVisibleColumn: [-1, 0, 0, -1],
+				expectedVisibleColumn: [0, 1, 2, -1],
 			},
 			{
 				lineContent: '\t',
 				tabSize: 4,
-				expected: [0, 4, -1],
+				expectedPrevTabStopPosition: [-1, 0, -1],
+				expectedPrevTabStopVisibleColumn: [-1, 0, -1],
+				expectedVisibleColumn: [0, 4, -1],
 			},
 			{
 				lineContent: '\t ',
 				tabSize: 4,
-				expected: [0, 4, 5, -1],
+				expectedPrevTabStopPosition: [-1, 0, 1, -1],
+				expectedPrevTabStopVisibleColumn: [-1, 0, 4, -1],
+				expectedVisibleColumn: [0, 4, 5, -1],
 			},
 			{
 				lineContent: ' \t\t ',
 				tabSize: 4,
-				expected: [0, 1, 4, 8, 9, -1],
+				expectedPrevTabStopPosition: [-1, 0, 0, 2, 3, -1],
+				expectedPrevTabStopVisibleColumn: [-1, 0, 0, 4, 8, -1],
+				expectedVisibleColumn: [0, 1, 4, 8, 9, -1],
 			},
 			{
 				lineContent: ' \tA',
 				tabSize: 4,
-				expected: [0, 1, 4, -1, -1],
+				expectedPrevTabStopPosition: [-1, 0, 0, -1, -1],
+				expectedPrevTabStopVisibleColumn: [-1, 0, 0, -1, -1],
+				expectedVisibleColumn: [0, 1, 4, -1, -1],
 			},
 			{
 				lineContent: 'A',
 				tabSize: 4,
-				expected: [0, -1, -1],
+				expectedPrevTabStopPosition: [-1, -1, -1],
+				expectedPrevTabStopVisibleColumn: [-1, -1, -1],
+				expectedVisibleColumn: [0, -1, -1],
 			},
 			{
 				lineContent: '',
 				tabSize: 4,
-				expected: [0, -1],
+				expectedPrevTabStopPosition: [-1, -1],
+				expectedPrevTabStopVisibleColumn: [-1, -1],
+				expectedVisibleColumn: [0, -1],
 			},
 		];
 
 		for (const testCase of testCases) {
-			const actual = testCase.expected.map((_, i) => AtomicTabMoveOperations.whitespaceVisibleColumn(testCase.lineContent, i, testCase.tabSize));
-			assert.deepStrictEqual(actual, testCase.expected);
+			const maxPosition = testCase.expectedVisibleColumn.length;
+			for (let position = 0; position < maxPosition; position++) {
+				const actual = AtomicTabMoveOperations.whitespaceVisibleColumn(testCase.lineContent, position, testCase.tabSize);
+				const expected = [
+					testCase.expectedPrevTabStopPosition[position],
+					testCase.expectedPrevTabStopVisibleColumn[position],
+					testCase.expectedVisibleColumn[position]
+				];
+				assert.deepStrictEqual(actual, expected);
+			}
 		}
 	});
 
