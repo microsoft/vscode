@@ -1644,10 +1644,10 @@
           "default": true
         },
         "git.autofetch": {
-          "type": "boolean",
+          "type": "string",
           "scope": "resource",
           "description": "%config.autofetch%",
-          "default": false,
+          "default": "off",
           "tags": [
             "usesOnlineServices"
           ]

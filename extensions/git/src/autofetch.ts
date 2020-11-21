@@ -23,6 +23,7 @@ export class AutoFetcher {
 	private onDidChange = this._onDidChange.event;
 
 	private _enabled: boolean = false;
+	private _fetchAll: boolean = false;
 	get enabled(): boolean { return this._enabled; }
 	set enabled(enabled: boolean) { this._enabled = enabled; this._onDidChange.fire(enabled); }
 
@@ -61,7 +62,7 @@ export class AutoFetcher {
 
 		if (result === yes) {
 			const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			gitConfig.update('autofetch', true, ConfigurationTarget.Global);
+			gitConfig.update('autofetch', 'all', ConfigurationTarget.Global);
 		}
 
 		this.globalState.update(AutoFetcher.DidInformUser, true);
@@ -70,10 +71,16 @@ export class AutoFetcher {
 	private onConfiguration(): void {
 		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
-		if (gitConfig.get<boolean>('autofetch') === false) {
-			this.disable();
-		} else {
-			this.enable();
+		switch (gitConfig.get<string>('autofetch')) {
+			case 'current':
+				this.enable();
+			case 'all':
+				this.enable();
+				this._fetchAll = true;
+			case 'off':
+			default:
+				this.disable();
+				break;
 		}
 	}
 
@@ -99,7 +106,8 @@ export class AutoFetcher {
 			}
 
 			try {
-				await this.repository.fetchDefault({ silent: true });
+				const fetchAction = this._fetchAll ? this.repository.fetchDefault({ silent: true }) : this.repository.fetchAll();
+				await fetchAction;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();
