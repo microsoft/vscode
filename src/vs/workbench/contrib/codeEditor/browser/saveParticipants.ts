@@ -318,26 +318,13 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
 	}
 
-	private createCodeActionsOnSave(settingItems: string[]): CodeActionKind[] {
-		const actionSeeds = new Set<string>();
+	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
+		const kinds = settingItems.map(x => new CodeActionKind(x));
 
 		// Remove subsets
-		const len = settingItems.length;
-		outer: for (let i = 0; i < len; i++) {
-			const s1 = settingItems[i];
-			for (let j = 0; j < len; j++) {
-				if (j === i) {
-					continue;
-				}
-				const s2 = settingItems[j];
-				if (s1.startsWith(s2) && s1.length > s2.length) {
-					continue outer;
-				}
-			}
-			actionSeeds.add(s1);
-		}
-
-		return Array.from(actionSeeds).map(x => new CodeActionKind(x));
+		return kinds.filter(kind => {
+			return kinds.every(otherKind => otherKind.equals(kind) || !otherKind.contains(kind));
+		});
 	}
 
 	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
