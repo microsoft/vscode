@@ -543,7 +543,7 @@ suite('Editor Contrib - Line Operations', () => {
 				'iD',
 				'tEST',
 				'öçşÖÇŞğüĞÜ',
-				'myObject.doSomethingV2();',
+				'audioConverter.convertM4AToMP3();',
 				'snake_case',
 				'Capital_Snake_Case',
 				`function helloWorld() {
@@ -637,10 +637,10 @@ suite('Editor Contrib - Line Operations', () => {
 				assert.equal(model.getLineContent(10), 'öçş_öç_şğü_ğü');
 				assertSelection(editor, new Selection(10, 1, 10, 14));
 
-				editor.setSelection(new Selection(11, 1, 11, 26));
+				editor.setSelection(new Selection(11, 1, 11, 34));
 				executeAction(snakecaseAction, editor);
-				assert.equal(model.getLineContent(11), 'my_object.do_something_v2();');
-				assertSelection(editor, new Selection(11, 1, 11, 29));
+				assert.equal(model.getLineContent(11), 'audio_converter.convert_m4a_to_mp3();');
+				assertSelection(editor, new Selection(11, 1, 11, 38));
 
 				editor.setSelection(new Selection(12, 1, 12, 11));
 				executeAction(snakecaseAction, editor);

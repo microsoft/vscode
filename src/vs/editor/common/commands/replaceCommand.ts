@@ -164,26 +164,31 @@ export class ReplaceCommandThatModifiesSelection implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let start = 0;
-		let end = 0;
-		let modifiedLines = this._text.split('\n');
-		let initialLines = this._initialText.split('\n');
+		let startColumn = 0;
+		let endColumn = 0;
+		const modifiedLines = this._text.split('\n');
+		const initialLines = this._initialText.split('\n');
+		const {
+			selectionStartLineNumber,
+			positionLineNumber,
+			selectionStartColumn,
+			positionColumn
+		} = this._initialSelection;
 
-		if (this._initialSelection.selectionStartLineNumber < this._initialSelection.positionLineNumber ||
-			(this._initialSelection.selectionStartLineNumber === this._initialSelection.positionLineNumber &&
-				this._initialSelection.selectionStartColumn < this._initialSelection.positionColumn)) {
-			start = this._initialSelection.selectionStartColumn;
-			end = this._initialSelection.positionColumn + (modifiedLines[modifiedLines.length - 1].length - initialLines[initialLines.length - 1].length);
-		} else if (this._initialSelection.selectionStartLineNumber > this._initialSelection.positionLineNumber ||
-			(this._initialSelection.selectionStartLineNumber === this._initialSelection.positionLineNumber &&
-				this._initialSelection.selectionStartColumn > this._initialSelection.positionColumn)) {
-			end = this._initialSelection.positionColumn;
-			start = this._initialSelection.selectionStartColumn + (modifiedLines[modifiedLines.length - 1].length - initialLines[initialLines.length - 1].length);
+		const lastInitialLineLength = initialLines[initialLines.length - 1].length;
+		const lastModifiedLineLength = modifiedLines[modifiedLines.length - 1].length;
+
+		if (selectionStartLineNumber < positionLineNumber || (selectionStartLineNumber === positionLineNumber && selectionStartColumn < positionColumn)) {
+			startColumn = selectionStartColumn;
+			endColumn = positionColumn + (lastModifiedLineLength - lastInitialLineLength);
+		} else if (selectionStartLineNumber > positionLineNumber || (selectionStartLineNumber === positionLineNumber && selectionStartColumn > positionColumn)) {
+			endColumn = positionColumn;
+			startColumn = selectionStartColumn + (lastModifiedLineLength - lastInitialLineLength);
 		} else {
-			start = this._initialSelection.selectionStartColumn;
-			end = this._initialSelection.positionColumn;
+			startColumn = selectionStartColumn;
+			endColumn = positionColumn;
 		}
 
-		return new Selection(this._initialSelection.selectionStartLineNumber, start, this._initialSelection.positionLineNumber, end);
+		return new Selection(selectionStartLineNumber, startColumn, positionLineNumber, endColumn);
 	}
 }

@@ -1060,37 +1060,35 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
+		const selections = editor.getSelections();
 		if (selections === null) {
 			return;
 		}
 
-		let model = editor.getModel();
+		const model = editor.getModel();
 		if (model === null) {
 			return;
 		}
 
-		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const commands: ICommand[] = [];
 
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+		for (const selection of selections) {
 			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
+				const cursor = selection.getStartPosition();
 				const word = editor.getConfiguredWordAtPosition(cursor);
 
 				if (!word) {
 					continue;
 				}
 
-				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				let text = model.getValueInRange(wordRange);
+				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				const text = model.getValueInRange(wordRange);
 				commands.push(new ReplaceCommandThatModifiesSelection(wordRange, this._modifyText(text, wordSeparators),
 					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column), text));
 
 			} else {
-				let text = model.getValueInRange(selection);
+				const text = model.getValueInRange(selection);
 				commands.push(new ReplaceCommandThatModifiesSelection(selection, this._modifyText(text, wordSeparators), selection, text));
 			}
 		}
