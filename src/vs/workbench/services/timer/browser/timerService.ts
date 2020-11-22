@@ -193,7 +193,7 @@ export interface IStartupMetrics {
 		 * * Happens in the renderer-process
 		 * * Measured with the `willWaitForShellEnv` and `didWaitForShellEnv` performance marks.
 		 */
-		readonly ellapsedWaitForShellEnv?: number;
+		readonly ellapsedWaitForShellEnv: number;
 
 		/**
 		 * The time it took to require the workspace storage DB, connect to it

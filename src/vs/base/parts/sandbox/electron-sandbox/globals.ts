@@ -35,9 +35,10 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	readonly execPath: string;
 
 	/**
-	 * Resolve the true process environment to use. There are different layers of environment
-	 * that will apply:
-	 * - `process.env`: this is the actual environment of the process
+	 * Resolve the true process environment to use and apply it to `process.env`.
+	 *
+	 * There are different layers of environment that will apply:
+	 * - `process.env`: this is the actual environment of the process before this method
 	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
 	 *                  variables to get the same experience as if the program was started from
 	 *                  a terminal (Linux, macOS)
@@ -45,6 +46,9 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 *                  from a terminal and changed certain variables
 	 *
 	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
+	 *
+	 * It is critical that every process awaits this method early on startup to get the right
+	 * set of environment in `process.env`. 
 	 */
 	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
 

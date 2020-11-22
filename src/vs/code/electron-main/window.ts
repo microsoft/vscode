@@ -685,7 +685,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// (for https://github.com/microsoft/vscode/issues/108571)
 		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
 		if (currentUserEnv && isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(config.userEnv)) {
-			config.userEnv = currentUserEnv;
+			config.userEnv = { ...currentUserEnv, ...config.userEnv }; // still allow to override certain environment as passed in
 		}
 
 		// If this is the first time the window is loaded, we associate the paths

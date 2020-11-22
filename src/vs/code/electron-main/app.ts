@@ -83,7 +83,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
@@ -272,45 +271,45 @@ export class CodeApplication extends Disposable {
 			let replied = false;
 
 			function acceptShellEnv(env: NodeJS.ProcessEnv): void {
-				clearTimeout(shellEnvTimeoutWarningHandle);
+				clearTimeout(shellEnvSlowWarningHandle);
+				clearTimeout(shellEnvTimeoutErrorHandle);
 
 				if (!replied) {
-					webContents.send('vscode:acceptShellEnv', env);
 					replied = true;
+
+					if (!webContents.isDestroyed()) {
+						webContents.send('vscode:acceptShellEnv', env);
+					}
 				}
 			}
 
-			const shellEnvTimeoutWarningHandle = setTimeout(function () {
-				window?.sendWhenReady('vscode:showShellEnvTimeoutWarning'); // notify inside window if we have one
+			// Handle slow shell environment resolve calls:
+			// - a warning after 3s but continue to resolve
+			// - an error after 10s and stop trying to resolve
+			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning'), 3000);
+			const shellEnvTimeoutErrorHandle = setTimeout(function () {
+				window?.sendWhenReady('vscode:showShellEnvTimeoutError');
 				acceptShellEnv({});
 			}, 10000);
 
-			try {
-
-				// Prefer to use the args and env from the target window
-				// when resolving the shell env. It is possible that
-				// a first window was opened from the UI but a second
-				// from the CLI and that has implications for wether to
-				// resolve the shell environment or not.
-				let args: NativeParsedArgs;
-				let env: NodeJS.ProcessEnv;
-				if (window?.config) {
-					args = window.config;
-					env = { ...process.env, ...window.config.userEnv };
-				} else {
-					args = this.environmentService.args;
-					env = process.env;
-				}
-
-				// Resolve shell env
-				const shellEnv = await resolveShellEnv(this.logService, args, env);
-				acceptShellEnv(shellEnv);
-			} catch (error) {
-				window?.sendWhenReady('vscode:showShellEnvError', toErrorMessage(error)); // notify inside window if we have one
-				acceptShellEnv({});
-
-				this.logService.error('Error fetching shell env', error);
+			// Prefer to use the args and env from the target window
+			// when resolving the shell env. It is possible that
+			// a first window was opened from the UI but a second
+			// from the CLI and that has implications for wether to
+			// resolve the shell environment or not.
+			let args: NativeParsedArgs;
+			let env: NodeJS.ProcessEnv;
+			if (window?.config) {
+				args = window.config;
+				env = { ...process.env, ...window.config.userEnv };
+			} else {
+				args = this.environmentService.args;
+				env = process.env;
 			}
+
+			// Resolve shell env
+			const shellEnv = await resolveShellEnv(this.logService, args, env);
+			acceptShellEnv(shellEnv);
 		});
 
 		ipc.on('vscode:toggleDevTools', (event: IpcMainEvent) => event.sender.toggleDevTools());
