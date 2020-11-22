@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import { basename, normalize, join, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -1369,7 +1368,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
 
 		// Build INativeWindowConfiguration from config and options
-		const configuration: INativeWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
+		const configuration = { ...options.cli } as INativeWindowConfiguration;
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.machineId = this.machineId;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
