@@ -871,7 +871,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Native DND
 		if (isNative) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
 			}
 		}
@@ -975,7 +975,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
-			const fileResources = items.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
+			const fileResources = items.filter(s => s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
 			if (fileResources.length) {
 				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
 			}
@@ -1278,9 +1278,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Pass focus to window
 		this.hostService.focus();
 
-		// Handle folders by adding to workspace if we are in workspace context
+		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
 		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
-		if (folders.length > 0) {
+		if (folders.length > 0 && target.isRoot) {
 			const buttons = [
 				folders.length > 1 ? localize('copyFolders', "&&Copy Folders") : localize('copyFolder', "&&Copy Folder"),
 				localize('cancel', "Cancel")
