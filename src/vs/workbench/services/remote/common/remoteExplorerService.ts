@@ -100,8 +100,9 @@ export class TunnelModel extends Disposable {
 	private _onPortName: Emitter<{ host: string, port: number }> = new Emitter();
 	public onPortName: Event<{ host: string, port: number }> = this._onPortName.event;
 	private _candidates: Map<string, { host: string, port: number, detail: string }>;
-	private _onCandidatesChanged: Emitter<void> = new Emitter();
-	public onCandidatesChanged: Event<void> = this._onCandidatesChanged.event;
+	private _onCandidatesChanged: Emitter<Map<string, { host: string, port: number }>> = new Emitter();
+	// onCandidateChanged returns the removed candidates
+	public onCandidatesChanged: Event<Map<string, { host: string, port: number }>> = this._onCandidatesChanged.event;
 	private _candidateFilter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined;
 
 	constructor(
@@ -242,11 +243,12 @@ export class TunnelModel extends Disposable {
 			// However, when the filter doesn't come from an extension we filter here.
 			processedCandidates = await this._candidateFilter(candidates);
 		}
-		this.updateInResponseToCandidates(processedCandidates);
-		this._onCandidatesChanged.fire();
+		const removedCandidates = this.updateInResponseToCandidates(processedCandidates);
+		this._onCandidatesChanged.fire(removedCandidates);
 	}
 
-	private updateInResponseToCandidates(candidates: { host: string, port: number, detail: string }[]) {
+	// Returns removed candidates
+	private updateInResponseToCandidates(candidates: { host: string, port: number, detail: string }[]): Map<string, { host: string, port: number }> {
 		const removedCandidates = this._candidates;
 		this._candidates = new Map();
 		candidates.forEach(value => {
@@ -276,6 +278,7 @@ export class TunnelModel extends Disposable {
 				detectedValue.runningProcess = undefined;
 			}
 		});
+		return removedCandidates;
 	}
 
 	get candidates(): { host: string, port: number, detail: string }[] {
