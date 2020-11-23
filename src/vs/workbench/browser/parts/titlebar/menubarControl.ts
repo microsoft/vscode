@@ -660,25 +660,7 @@ export class CustomMenubarControl extends MenubarControl {
 			visibility: this.currentMenubarVisibility,
 			getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			alwaysOnMnemonics: this.alwaysOnMnemonics,
-			compactMode: this.currentCompactMenuMode,
-			getCompactMenuActions: () => {
-				if (!isWeb) {
-					return []; // only for web
-				}
-
-				const webNavigationActions: IAction[] = [];
-				const webNavigationMenu = this.menuService.createMenu(MenuId.MenubarWebNavigationMenu, this.contextKeyService);
-				for (const groups of webNavigationMenu.getActions()) {
-					const [, actions] = groups;
-					for (const action of actions) {
-						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
-						webNavigationActions.push(action);
-					}
-				}
-				webNavigationMenu.dispose();
-
-				return webNavigationActions;
-			}
+			compactMode: this.currentCompactMenuMode
 		};
 	}
 
