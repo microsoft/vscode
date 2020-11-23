@@ -14,6 +14,7 @@ import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToK
 import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IFileService } from 'vs/platform/files/common/files';
+import { isWindows } from 'vs/base/common/platform';
 
 export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
@@ -282,7 +283,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		let existingMarker;
 		if (!markersPerResource.has(key)) {
 			markersPerResource.set(key, marker);
-		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && existingMarker.message.length < marker.message.length) {
+		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && (existingMarker.message.length < marker.message.length) && isWindows) {
 			// Most likely https://github.com/microsoft/vscode/issues/77475
 			// Heuristic dictates that when the key is the same and message is smaller, we have hit this limitation.
 			markersPerResource.set(key, marker);
@@ -311,7 +312,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markersPerResource, deliveredMarkersPerOwner);
 	}
 
-	private deliverMarkersPerOwnerAndResourceResolved(owner: string, resource: string, markers: Map<string, IMarkerData>, reported: Map<string, number>): void {
+	private deliverMarkersPerOwnerAndResourceResolved(owner: string, resource: string, markers: Map<string, IMarkerData>, reported: Map<string, number>): Promise<void> {
 		if (markers.size !== reported.get(resource)) {
 			let toSet: IMarkerData[] = [];
 			markers.forEach(value => toSet.push(value));
