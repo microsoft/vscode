@@ -1703,7 +1703,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						return;
 					}
 
-					if (contributed.length === 0) {
+					if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 						result.add(key, ...folderTasks.set.tasks);
 					} else {
 						let configurations = folderTasks.configurations;
