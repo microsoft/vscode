@@ -547,7 +547,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
 			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
-				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT, StorageScope.GLOBAL, true)) {
+				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT, StorageScope.GLOBAL, true) &&
+					resolveResult.commandId !== 'workbench.action.terminal.toggleTerminal' &&
+					resolveResult.commandId !== 'workbench.action.terminal.new' &&
+					resolveResult.commandId !== 'workbench.action.togglePanel') {
 					this._notificationService.prompt(
 						Severity.Info,
 						nls.localize('configure terminal settings', "Some keybindings are dispatched to the workbench by default."),
