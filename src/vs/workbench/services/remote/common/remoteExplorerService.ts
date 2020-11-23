@@ -93,6 +93,7 @@ export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, ho
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<string, Tunnel>;
 	readonly detected: Map<string, Tunnel>;
+	private remoteTunnels: Map<string, RemoteTunnel>;
 	private _onForwardPort: Emitter<Tunnel | void> = new Emitter();
 	public onForwardPort: Event<Tunnel | void> = this._onForwardPort.event;
 	private _onClosePort: Emitter<{ host: string, port: number }> = new Emitter();
@@ -115,16 +116,19 @@ export class TunnelModel extends Disposable {
 		super();
 		this._candidates = new Map();
 		this.forwarded = new Map();
+		this.remoteTunnels = new Map();
 		this.tunnelService.tunnels.then(tunnels => {
 			tunnels.forEach(tunnel => {
 				if (tunnel.localAddress) {
-					this.forwarded.set(makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort), {
+					const key = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
+					this.forwarded.set(key, {
 						remotePort: tunnel.tunnelRemotePort,
 						remoteHost: tunnel.tunnelRemoteHost,
 						localAddress: tunnel.localAddress,
 						localPort: tunnel.tunnelLocalPort,
 						runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)?.detail
 					});
+					this.remoteTunnels.set(key, tunnel);
 				}
 			});
 		});
@@ -143,6 +147,7 @@ export class TunnelModel extends Disposable {
 				});
 				this.storeForwarded();
 			}
+			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
@@ -173,8 +178,8 @@ export class TunnelModel extends Disposable {
 	}
 
 	async forward(remote: { host: string, port: number }, local?: number, name?: string): Promise<RemoteTunnel | void> {
-		const key = makeAddress(remote.host, remote.port);
-		if (!this.forwarded.has(key)) {
+		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
+		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
@@ -191,13 +196,16 @@ export class TunnelModel extends Disposable {
 					localAddress: tunnel.localAddress,
 					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates, remote.host, remote.port)?.detail
 				};
+				const key = makeAddress(remote.host, remote.port);
 				this.forwarded.set(key, newForward);
+				this.remoteTunnels.set(key, tunnel);
 				this._onForwardPort.fire(newForward);
 				return tunnel;
 			}
 		} else {
-			this.forwarded.get(key)!.name = name;
+			existingTunnel.name = name;
 			this._onForwardPort.fire();
+			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
 		}
 	}
 
@@ -265,6 +273,10 @@ export class TunnelModel extends Disposable {
 			});
 			if (removedCandidates.has(addressKey)) {
 				removedCandidates.delete(addressKey);
+			}
+			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
+			if (forwardedValue) {
+				forwardedValue.runningProcess = value.detail;
 			}
 		});
 		removedCandidates.forEach((_value, key) => {
