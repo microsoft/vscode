@@ -302,7 +302,7 @@ class GenerateColorThemeAction extends Action {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
-		let resultingColors: { [key: string]: string } = {};
+		let resultingColors: { [key: string]: string | null } = {};
 		let inherited: string[] = [];
 		for (let colorId of colorIds) {
 			const color = theme.getColor(colorId, false);
@@ -312,11 +312,17 @@ class GenerateColorThemeAction extends Action {
 				inherited.push(colorId);
 			}
 		}
+		const nullDefaults = [];
 		for (let id of inherited) {
 			const color = theme.getColor(id);
 			if (color) {
 				resultingColors['__' + id] = Color.Format.CSS.formatHexA(color, true);
+			} else {
+				nullDefaults.push(id);
 			}
+		}
+		for (let id of nullDefaults) {
+			resultingColors['__' + id] = null;
 		}
 		let contents = JSON.stringify({
 			'$schema': colorThemeSchemaId,
@@ -326,7 +332,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, mode: 'jsonc' });
+		return this.editorService.openEditor({ contents, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 

@@ -136,6 +136,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 		]);
 

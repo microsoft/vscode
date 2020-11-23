@@ -18,7 +18,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
@@ -33,7 +33,7 @@ import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keyb
 import { ConfigureLanguageBasedSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
 import { PreferencesEditor } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { SettingsEditor2, SettingsFocusContext } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
-import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesContribution } from 'vs/workbench/contrib/preferences/common/preferencesContribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -95,7 +95,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 // Register Preferences Editor Input Factory
 class PreferencesEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
 		return new PreferencesEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
@@ -480,7 +480,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 		this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
-				const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+				const remoteAuthority = this.environmentService.remoteAuthority;
 				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
 				const label = nls.localize('openRemoteSettings', "Open Remote Settings ({0})", hostLabel);
 				registerAction2(class extends Action2 {
@@ -832,8 +832,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false);
+			run(accessor: ServicesAccessor, args: string | undefined) {
+				const query = typeof args === 'string' ? args : undefined;
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
@@ -960,7 +961,20 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!);
+					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, false);
+				}
+			}
+		});
+
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: KEYBINDINGS_EDITOR_COMMAND_ADD,
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_A),
+			handler: (accessor, args: any) => {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof KeybindingsEditor) {
+					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, true);
 				}
 			}
 		});

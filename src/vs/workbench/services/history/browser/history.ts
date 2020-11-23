@@ -13,7 +13,7 @@ import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } 
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -517,7 +517,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private preferResourceEditorInput(input: IEditorInput): IEditorInput | IResourceEditorInput {
 		const resource = EditorResourceAccessor.getOriginalUri(input);
-		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData || resource.scheme === this.pathService.defaultUriScheme)) {
+		if (resource?.scheme === Schemas.file || resource?.scheme === Schemas.vscodeRemote || resource?.scheme === Schemas.userData || resource?.scheme === this.pathService.defaultUriScheme) {
 			// for now, only prefer well known schemes that we control to prevent
 			// issues such as https://github.com/microsoft/vscode/issues/85204
 			return { resource };
@@ -615,8 +615,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private recentlyClosedEditors: IRecentlyClosedEditor[] = [];
+	private ignoreEditorCloseEvent = false;
 
 	private onEditorClosed(event: IEditorCloseEvent): void {
+		if (this.ignoreEditorCloseEvent) {
+			return; // blocked
+		}
+
 		const { editor, replaced } = event;
 		if (replaced) {
 			return; // ignore if editor was replaced
@@ -695,7 +700,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const restoredEditor = this.editorInputFactory.getEditorInputFactory(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
 		let editorPane: IEditorPane | undefined = undefined;
 		if (restoredEditor && !this.editorGroupService.activeGroup.isOpened(restoredEditor)) {
-			editorPane = await this.editorService.openEditor(restoredEditor, options);
+			// Fix for https://github.com/microsoft/vscode/issues/107850
+			// If opening an editor fails, it is possible that we get
+			// another editor-close event as a result. But we really do
+			// want to ignore that in our list of recently closed editors
+			//  to prevent endless loops.
+			this.ignoreEditorCloseEvent = true;
+			try {
+				editorPane = await this.editorService.openEditor(restoredEditor, options);
+			} finally {
+				this.ignoreEditorCloseEvent = false;
+			}
 		}
 
 		// If no editor was opened, try with the next one
@@ -705,6 +720,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// but make sure to remove this one from the list to prevent
 			// endless loops.
 			remove(this.recentlyClosedEditors, lastClosedEditor);
+
+			// Try with next one
 			this.reopenLastClosedEditor();
 		}
 	}
@@ -945,7 +962,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return undefined;
 		}));
 
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
+		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion

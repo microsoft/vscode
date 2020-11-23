@@ -69,10 +69,10 @@ buffer-crc32@~0.2.3:
   resolved "https://registry.yarnpkg.com/buffer-crc32/-/buffer-crc32-0.2.13.tgz#0d333e3f00eac50aa1454abd30ef8c2a5d9a7242"
   integrity sha1-DTM+PwDqxQqhRUq9MO+MKl2ackI=
 
-chokidar@3.4.2:
-  version "3.4.2"
-  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.4.2.tgz#38dc8e658dec3809741eb3ef7bb0a47fe424232d"
-  integrity sha512-IZHaDeBeI+sZJRX7lGcXsdzgvZqKv6sECqsbErJA4mHWfpRrD8B97kSFN4cQz6nGBGiuFia1MKR4d6c1o8Cv7A==
+chokidar@3.4.3:
+  version "3.4.3"
+  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.4.3.tgz#c1df38231448e45ca4ac588e6c79573ba6a57d5b"
+  integrity sha512-DtM3g7juCXQxFVSNPNByEC2+NImtBuxQQvWlHunpJIS5Ocr0lG306cC7FCi7cEA0fzmybPUIl4txBIobk1gGOQ==
   dependencies:
     anymatch "~3.1.1"
     braces "~3.0.2"
@@ -80,7 +80,7 @@ chokidar@3.4.2:
     is-binary-path "~2.1.0"
     is-glob "~4.0.1"
     normalize-path "~3.0.0"
-    readdirp "~3.4.0"
+    readdirp "~3.5.0"
   optionalDependencies:
     fsevents "~2.1.2"
 
@@ -326,17 +326,12 @@ proxy-from-env@^1.1.0:
   resolved "https://registry.yarnpkg.com/proxy-from-env/-/proxy-from-env-1.1.0.tgz#e102f16ca355424865755d2c9e8ea4f24d58c3e2"
   integrity sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==
 
-readdirp@~3.4.0:
-  version "3.4.0"
-  resolved "https://registry.yarnpkg.com/readdirp/-/readdirp-3.4.0.tgz#9fdccdf9e9155805449221ac645e8303ab5b9ada"
-  integrity sha512-0xe001vZBnJEK+uKcj8qOhyAKPzIT+gStxWr3LCB0DwcXR5NZJ3IaC+yGnHCYzB/S7ov3m3EEbZI2zeNvX+hGQ==
+readdirp@~3.5.0:
+  version "3.5.0"
+  resolved "https://registry.yarnpkg.com/readdirp/-/readdirp-3.5.0.tgz#9ba74c019b15d365278d2e91bb8c48d7b4d42c9e"
+  integrity sha512-cMhu7c/8rdhkHXWsY+osBhfSy0JikwpHK/5+imo+LpeasTF8ouErHrlYkwT0++njiyuDvc7OFY5T3ukvZ8qmFQ==
   dependencies:
     picomatch "^2.2.1"
-
-semver-umd@^5.5.7:
-  version "5.5.7"
-  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.7.tgz#966beb5e96c7da6fbf09c3da14c2872d6836c528"
-  integrity sha512-XgjPNlD0J6aIc8xoTN6GQGwWc2Xg0kq8NzrqMVuKG/4Arl6ab1F8+Am5Y/XKKCR+FceFr2yN/Uv5ZJBhRyRqKg==
 
 semver@^5.3.0:
   version "5.6.0"
@@ -373,6 +368,11 @@ spdlog@^0.11.1:
     mkdirp "^0.5.1"
     nan "^2.14.0"
 
+tas-client-umd@0.1.2:
+  version "0.1.2"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.2.tgz#fe93ae085f65424292ac79feff4f1add3e50e624"
+  integrity sha512-rT9BdDCejckqOTQL2ShX67QtTiAUGbmPm5ZTC8giXobBvZC6JuvBVy5G32hoGZ3Q0dpTvMfgpf3iVFNN2F7wzg==
+
 to-regex-range@^5.0.1:
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/to-regex-range/-/to-regex-range-5.0.1.tgz#1648c44aae7c8d988a326018ed72f5b4dd0392e4"
@@ -385,10 +385,10 @@ universalify@^0.1.0:
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
   integrity sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
 
-vscode-nsfw@1.2.8:
-  version "1.2.8"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.2.8.tgz#1bf452e72ff1304934de63692870d039a2d972af"
-  integrity sha512-yRLFDk2nwV0Fp+NWJkIbeXkHYIWoTuWC2siz6JfHc21FkRUjDmuI/1rVL6B+MXW15AsSbXnH5dw4Fo9kUyYclw==
+vscode-nsfw@1.2.9:
+  version "1.2.9"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.2.9.tgz#87def7c538ae713d08c88592a8a043d2b2009951"
+  integrity sha512-VwaB8H1fS0ngl9eAHgFqtF/q3N3J/ZWfI17zvC8Gfj33cL4UrIW/XxdoFYptBZR/MIA6Qj8FZyYu9D/JvlKWXg==
   dependencies:
     fs-extra "^7.0.0"
     lodash.isinteger "^4.0.4"
@@ -410,10 +410,15 @@ vscode-proxy-agent@^0.5.2:
     https-proxy-agent "^2.2.3"
     socks-proxy-agent "^4.0.1"
 
-vscode-ripgrep@^1.9.0:
-  version "1.9.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.9.0.tgz#d6cdea4d290f3c2919472cdcfe2440d5fb1f99db"
-  integrity sha512-7jyAC/NNfvMPZgCVkyqIn0STYJ7wIk3PF2qA2cX1sEutx1g/e2VtgKAodXnfpreJq4993JT/BSIigOv/0lBSzg==
+vscode-regexpp@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
+  integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
+
+vscode-ripgrep@^1.11.1:
+  version "1.11.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.11.1.tgz#9fa3c0a96c2939d5a2389f71218bd1bb6eaa8679"
+  integrity sha512-oHJfpqeXuTQhOO+szqIObYOddwQ9o+lzd4PQLlTQN+sQ7ex8D1qqFip207O2iJyFc5oWE8Bekf4YHTibdbW66w==
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"

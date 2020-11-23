@@ -9,7 +9,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -32,11 +32,23 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 
+	private getMacTitlebarSize() {
+		const osVersion = this.environmentService.os.release;
+		if (parseFloat(osVersion) >= 20) { // Big Sur increases title bar height
+			return 28;
+		}
+
+		return 22;
+	}
+
+	get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
+	get maximumHeight(): number { return this.minimumHeight; }
+
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,

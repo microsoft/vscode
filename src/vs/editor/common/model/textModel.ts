@@ -830,6 +830,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.getEOL();
 	}
 
+	public getEndOfLineSequence(): model.EndOfLineSequence {
+		this._assertNotDisposed();
+		return (
+			this._buffer.getEOL() === '\n'
+				? model.EndOfLineSequence.LF
+				: model.EndOfLineSequence.CRLF
+		);
+	}
+
 	public getLineMinColumn(lineNumber: number): number {
 		this._assertNotDisposed();
 		return 1;
@@ -1491,16 +1500,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return (result.reverseEdits === null ? undefined : result.reverseEdits);
 	}
 
-	public undo(): void {
-		this._undoRedoService.undo(this.uri);
+	public undo(): void | Promise<void> {
+		return this._undoRedoService.undo(this.uri);
 	}
 
 	public canUndo(): boolean {
 		return this._undoRedoService.canUndo(this.uri);
 	}
 
-	public redo(): void {
-		this._undoRedoService.redo(this.uri);
+	public redo(): void | Promise<void> {
+		return this._undoRedoService.redo(this.uri);
 	}
 
 	public canRedo(): boolean {

@@ -125,13 +125,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('a', 10), 'a');
 	});
 
-	test('pad', () => {
-		assert.strictEqual(strings.pad(1, 0), '1');
-		assert.strictEqual(strings.pad(1, 1), '1');
-		assert.strictEqual(strings.pad(1, 2), '01');
-		assert.strictEqual(strings.pad(0, 2), '00');
-	});
-
 	test('escape', () => {
 		assert.strictEqual(strings.escape(''), '');
 		assert.strictEqual(strings.escape('foo'), 'foo');
@@ -423,5 +416,10 @@ suite('Strings', () => {
 
 	test('getGraphemeBreakType', () => {
 		assert.equal(strings.getGraphemeBreakType(0xBC1), strings.GraphemeBreakType.SpacingMark);
+	});
+
+	test('truncate', () => {
+		assert.equal('hello world', strings.truncate('hello world', 100));
+		assert.equal('hello…', strings.truncate('hello world', 5));
 	});
 });

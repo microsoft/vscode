@@ -10,7 +10,7 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { NotificationsCenterVisibleContext, INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,16 +37,16 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private notificationsList: NotificationsList | undefined;
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
-	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
+	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
 	private clearAllAction: ClearAllNotificationsAction | undefined;
 
 	constructor(
-		private container: HTMLElement,
-		private model: INotificationsModel,
+		private readonly container: HTMLElement,
+		private readonly model: INotificationsModel,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -59,7 +59,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
-		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
+		this._register(this.layoutService.onLayout(dimension => this.layout(Dimension.lift(dimension))));
 	}
 
 	get isVisible(): boolean {
@@ -251,7 +251,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	protected updateStyles(): void {
 		if (this.notificationsCenterContainer && this.notificationsCenterHeader) {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : '';
+			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_CENTER_BORDER);
 			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : '';

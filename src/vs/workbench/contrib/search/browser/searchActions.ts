@@ -82,6 +82,13 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 	}
 };
 
+export const togglePreserveCaseCommand = (accessor: ServicesAccessor) => {
+	const searchView = getSearchView(accessor.get(IViewsService));
+	if (searchView) {
+		searchView.togglePreserveCase();
+	}
+};
+
 export class FocusNextInputAction extends Action {
 
 	static readonly ID = 'search.focus.nextInputBox';
@@ -146,7 +153,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
 
-				const updatedText = openedView.updateTextFromSelection({ allowUnselectedWord: !this.expandSearchReplaceWidget });
+				const updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: !this.expandSearchReplaceWidget });
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
 		});
@@ -155,12 +162,14 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 export interface IFindInFilesArgs {
 	query?: string;
 	replace?: string;
+	preserveCase?: boolean;
 	triggerSearch?: boolean;
 	filesToInclude?: string;
 	filesToExclude?: string;
 	isRegex?: boolean;
 	isCaseSensitive?: boolean;
 	matchWholeWord?: boolean;
+	useExcludeSettingsAndIgnoreFiles?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
 
@@ -173,7 +182,7 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 			if (typeof args.query === 'string') {
 				openedView.setSearchParameters(args);
 			} else {
-				updatedText = openedView.updateTextFromSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
+				updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 			}
 			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		}

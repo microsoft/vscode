@@ -14,7 +14,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,7 +22,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { pad, escapeRegExpCharacters } from 'vs/base/common/strings';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -63,7 +63,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IModeService modeService: IModeService,
 	) {
 		super();
-		this.markdownRenderer = this._register(new MarkdownRenderer(editor, modeService, openerService));
+		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, modeService, openerService));
 		this.model = this._register(new ParameterHintsModel(editor));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -192,7 +192,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		const multiple = hints.signatures.length > 1;
-		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
+		this.domNodes.element.classList.toggle('multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
 		this.domNodes.signature.innerText = '';
@@ -243,11 +243,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		const hasDocs = this.hasDocs(signature, activeParameter);
 
-		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
-		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
+		this.domNodes.signature.classList.toggle('has-docs', hasDocs);
+		this.domNodes.docs.classList.toggle('empty', !hasDocs);
 
 		this.domNodes.overloads.textContent =
-			pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
+			String(hints.activeSignature + 1).padStart(hints.signatures.length.toString().length, '0') + '/' + hints.signatures.length;
 
 		if (activeParameter) {
 			const labelToAnnounce = this.getParameterLabel(signature, activeParameterIndex);
@@ -311,8 +311,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			return [0, 0];
 		} else if (Array.isArray(param.label)) {
 			return param.label;
+		} else if (!param.label.length) {
+			return [0, 0];
 		} else {
-			const regex = new RegExp(`\\b${escapeRegExpCharacters(param.label)}\\b`, 'g');
+			const regex = new RegExp(`(\\W|^)${escapeRegExpCharacters(param.label)}(?=\\W|$)`, 'g');
 			regex.test(signature.label);
 			const idx = regex.lastIndex - param.label.length;
 			return idx >= 0

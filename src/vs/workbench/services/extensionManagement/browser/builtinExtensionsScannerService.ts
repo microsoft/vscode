@@ -67,7 +67,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
 			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
 		} else {
-			enableBuiltinExtensions = environmentService.configuration.remoteAuthority ? false : true;
+			enableBuiltinExtensions = environmentService.remoteAuthority ? false : true;
 		}
 		if (enableBuiltinExtensions) {
 			return getUriFromAmdModule(require, '../../../../../../extensions');

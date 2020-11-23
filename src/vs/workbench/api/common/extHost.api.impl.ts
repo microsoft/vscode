@@ -81,6 +81,7 @@ import { ExtHostCustomEditors } from 'vs/workbench/api/common/extHostCustomEdito
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { ExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -152,6 +153,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
+	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostDocumentsAndEditors, extHostWorkspace));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -225,6 +227,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
 				return extHostAuthentication.onDidChangeSessions;
 			},
+			getPassword(key: string): Thenable<string | undefined> {
+				return extHostAuthentication.getPassword(extension, key);
+			},
+			setPassword(key: string, value: string): Thenable<void> {
+				return extHostAuthentication.setPassword(extension, key, value);
+			},
+			deletePassword(key: string): Thenable<void> {
+				return extHostAuthentication.deletePassword(extension, key);
+			},
+			get onDidChangePassword(): Event<void> {
+				return extHostAuthentication.onDidChangePassword;
+			}
 		};
 
 		// namespace: commands
@@ -321,6 +335,25 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			? extHostTypes.ExtensionKind.Workspace
 			: extHostTypes.ExtensionKind.UI;
 
+		const test: typeof vscode.test = {
+			registerTestProvider(provider) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.registerTestProvider(provider);
+			},
+			createDocumentTestObserver(document) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.createTextDocumentTestObserver(document);
+			},
+			createWorkspaceTestObserver(workspaceFolder) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.createWorkspaceTestObserver(workspaceFolder);
+			},
+			runTests(provider) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.runTests(provider);
+			},
+		};
+
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
 			getExtension(extensionId: string): Extension<any> | undefined {
@@ -385,9 +418,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
 			},
-			registerOnTypeRenameProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, stopPattern?: RegExp): vscode.Disposable {
+			registerOnTypeRenameRangeProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameRangeProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerOnTypeRenameProvider(extension, checkSelector(selector), provider, stopPattern);
+				return extHostLanguageFeatures.registerOnTypeRenameRangeProvider(extension, checkSelector(selector), provider);
 			},
 			registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerReferenceProvider(extension, checkSelector(selector), provider);
@@ -605,9 +638,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}) => {
 				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
-			registerDecorationProvider(provider: vscode.FileDecorationProvider) {
+			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
 				checkProposedApiEnabled(extension);
-				return extHostDecorations.registerDecorationProvider(provider, extension.identifier);
+				return extHostDecorations.registerFileDecorationProvider(provider, extension.identifier);
 			},
 			registerUriHandler(handler: vscode.UriHandler) {
 				return extHostUrls.registerUriHandler(extension.identifier, handler);
@@ -630,7 +663,31 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 			}) {
 				return extHostWebviewViews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
-			}
+			},
+			get activeNotebookEditor(): vscode.NotebookEditor | undefined {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.activeNotebookEditor;
+			},
+			onDidChangeActiveNotebookEditor(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeActiveNotebookEditor(listener, thisArgs, disposables);
+			},
+			get visibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.visibleNotebookEditors;
+			},
+			get onDidChangeVisibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeVisibleNotebookEditors;
+			},
+			onDidChangeNotebookEditorSelection(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeNotebookEditorSelection(listener, thisArgs, disposables);
+			},
+			onDidChangeNotebookEditorVisibleRanges(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
+			},
 		};
 
 		// namespace: workspace
@@ -925,7 +982,19 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		};
 
 		// namespace: notebook
-		const notebook: typeof vscode.notebook = {
+		const notebook: (typeof vscode.notebook & {
+			// to ensure that notebook extensions not break before they update APIs.
+			visibleNotebookEditors: vscode.NotebookEditor[];
+			onDidChangeVisibleNotebookEditors: Event<vscode.NotebookEditor[]>;
+			activeNotebookEditor: vscode.NotebookEditor | undefined;
+			onDidChangeActiveNotebookEditor: Event<vscode.NotebookEditor | undefined>;
+			onDidChangeNotebookEditorSelection: Event<vscode.NotebookEditorSelectionChangeEvent>;
+			onDidChangeNotebookEditorVisibleRanges: Event<vscode.NotebookEditorVisibleRangesChangeEvent>;
+		}) = {
+			openNotebookDocument: (uriComponents, viewType) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.openNotebookDocument(uriComponents, viewType);
+			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidOpenNotebookDocument;
@@ -942,7 +1011,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.notebookDocuments.map(d => d.notebookDocument);
 			},
-			get visibleNotebookEditors() {
+			get visibleNotebookEditors(): vscode.NotebookEditor[] {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.visibleNotebookEditors;
 			},
@@ -1024,6 +1093,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			extensions,
 			languages,
 			scm,
+			test,
 			comment,
 			comments,
 			tasks,
@@ -1125,7 +1195,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
-			ThemeIcon2: extHostTypes.ThemeIcon,
 			TreeItem: extHostTypes.TreeItem,
 			TreeItem2: extHostTypes.TreeItem,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
@@ -1150,6 +1219,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
+			OnTypeRenameRanges: extHostTypes.OnTypeRenameRanges,
+			TestRunState: extHostTypes.TestRunState,
+			TestMessageSeverity: extHostTypes.TestMessageSeverity,
+			TestState: extHostTypes.TestState,
 		};
 	};
 }

@@ -13,7 +13,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbe
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -21,7 +21,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -60,7 +60,7 @@ class ConfirmedExtensionIdStorage {
 	}
 
 	set(ids: string[]): void {
-		this.storageService.store(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL);
+		this.storageService.store(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -118,7 +118,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		);
 
 		const cache = ExtensionUrlBootstrapHandler.cache;
-		setTimeout(() => cache.forEach(uri => this.handleURL(uri)));
+		setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -293,7 +293,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
+		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		await this.hostService.reload();
 	}
 
@@ -346,10 +346,10 @@ registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
  */
 class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
 
-	private static _cache: URI[] = [];
+	private static _cache: [URI, IOpenURLOptions | undefined][] = [];
 	private static disposable: IDisposable;
 
-	static get cache(): URI[] {
+	static get cache(): [URI, IOpenURLOptions | undefined][] {
 		ExtensionUrlBootstrapHandler.disposable.dispose();
 
 		const result = ExtensionUrlBootstrapHandler._cache;
@@ -361,12 +361,12 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
 	}
 
-	async handleURL(uri: URI): Promise<boolean> {
+	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!isExtensionId(uri.authority)) {
 			return false;
 		}
 
-		ExtensionUrlBootstrapHandler._cache.push(uri);
+		ExtensionUrlBootstrapHandler._cache.push([uri, options]);
 		return true;
 	}
 }

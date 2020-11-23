@@ -139,7 +139,7 @@ export class SimpleFileDialog {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		this.remoteAuthority = this.environmentService.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 		this.scheme = this.pathService.defaultUriScheme;
 	}
@@ -212,7 +212,12 @@ export class SimpleFileDialog {
 			path = path.replace(/\\/g, '/');
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority, this.pathService.defaultUriScheme);
+		return resources.toLocalResource(uri,
+			// If the default scheme is file, then we don't care about the remote authority
+			uri.scheme === Schemas.file ? undefined : this.remoteAuthority,
+			// If there is a remote authority, then we should use the system's default URI as the local scheme.
+			// If there is *no* remote authority, then we should use the default scheme for this dialog as that is already local.
+			this.remoteAuthority ? this.pathService.defaultUriScheme : uri.scheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
@@ -221,6 +226,8 @@ export class SimpleFileDialog {
 				return defaultUri.scheme;
 			}
 			return available[0];
+		} else if (defaultUri) {
+			return defaultUri.scheme;
 		}
 		return Schemas.file;
 	}
@@ -582,21 +589,22 @@ export class SimpleFileDialog {
 
 	private setActiveItems(value: string) {
 		const inputBasename = resources.basename(this.remoteUriFrom(value));
-		// Make sure that the folder whose children we are currently viewing matches the path in the input
 		const userPath = this.constructFullUserPath();
-		if (equalsIgnoreCase(userPath, value.substring(0, userPath.length))) {
+		// Make sure that the folder whose children we are currently viewing matches the path in the input
+		const pathsEqual = equalsIgnoreCase(userPath, value.substring(0, userPath.length)) ||
+			equalsIgnoreCase(value, userPath.substring(0, value.length));
+		if (pathsEqual) {
 			let hasMatch = false;
-			if (inputBasename.length > this.userEnteredPathSegment.length) {
-				for (let i = 0; i < this.filePickBox.items.length; i++) {
-					const item = <FileQuickPickItem>this.filePickBox.items[i];
-					if (this.setAutoComplete(value, inputBasename, item)) {
-						hasMatch = true;
-						break;
-					}
+			for (let i = 0; i < this.filePickBox.items.length; i++) {
+				const item = <FileQuickPickItem>this.filePickBox.items[i];
+				if (this.setAutoComplete(value, inputBasename, item)) {
+					hasMatch = true;
+					break;
 				}
 			}
 			if (!hasMatch) {
-				this.userEnteredPathSegment = inputBasename;
+				const userBasename = inputBasename.length >= 2 ? userPath.substring(userPath.length - inputBasename.length + 2) : '';
+				this.userEnteredPathSegment = (userBasename === inputBasename) ? inputBasename : '';
 				this.autoCompletePathSegment = '';
 				this.filePickBox.activeItems = [];
 			}
@@ -797,6 +805,7 @@ export class SimpleFileDialog {
 				}
 
 				this.filePickBox.items = items;
+				this.filePickBox.activeItems = [<FileQuickPickItem>this.filePickBox.items[0]];
 				if (this.allowFolderSelection) {
 					this.filePickBox.activeItems = [];
 				}
@@ -915,7 +924,8 @@ export class SimpleFileDialog {
 			const ext = resources.extname(file);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
-					if (ext === ('.' + this.options.filters[i].extensions[j])) {
+					const testExt = this.options.filters[i].extensions[j];
+					if ((testExt === '*') || (ext === ('.' + testExt))) {
 						return true;
 					}
 				}

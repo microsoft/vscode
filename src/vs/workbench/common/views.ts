@@ -25,8 +25,12 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
+export const testViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
+
+export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
@@ -48,7 +52,7 @@ export interface IViewContainerDescriptor {
 
 	readonly storageId?: string;
 
-	readonly icon?: string | URI;
+	readonly icon?: ThemeIcon | URI;
 
 	readonly alwaysUseContainerInfo?: boolean;
 
@@ -184,7 +188,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	}
 
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
-		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
+		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer?.id === container.id).length > 0)[0];
 	}
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
@@ -216,7 +220,7 @@ export interface IViewDescriptor {
 
 	readonly canMoveView?: boolean;
 
-	readonly containerIcon?: string | URI;
+	readonly containerIcon?: ThemeIcon | URI;
 
 	readonly containerTitle?: string;
 
@@ -252,7 +256,7 @@ export interface IAddedViewDescriptorState {
 export interface IViewContainerModel {
 
 	readonly title: string;
-	readonly icon: string | URI | undefined;
+	readonly icon: ThemeIcon | URI | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;

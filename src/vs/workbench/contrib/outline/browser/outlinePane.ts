@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup, Separator } from 'vs/base/common/actions';
@@ -12,8 +13,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import { escape } from 'vs/base/common/strings';
-import 'vs/css!./outlinePane';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -30,7 +29,7 @@ import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -212,7 +211,7 @@ class OutlineViewState {
 			followCursor: this.followCursor,
 			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
-		}), StorageScope.WORKSPACE);
+		}), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	restore(storageService: IStorageService): void {
@@ -426,7 +425,7 @@ export class OutlinePane extends ViewPane {
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
 		this._outlineViewState.persist(this._storageService);
 		if (e.followCursor) {
-			// todo@joh update immediately
+			// todo@jrieken update immediately
 		}
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;
@@ -443,7 +442,7 @@ export class OutlinePane extends ViewPane {
 		this._domNode.classList.add('message');
 		this._tree.setInput(undefined!);
 		this._progressBar.stop().hide();
-		this._message.innerText = escape(message);
+		this._message.innerText = message;
 	}
 
 	private static _createOutlineModel(model: ITextModel, disposables: DisposableStore): Promise<OutlineModel | undefined> {

@@ -8,10 +8,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -44,8 +44,8 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 	) {
 		super();
 		this.socketFactory = socketFactory;
-		if (this._environmentService.configuration.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.configuration.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+		if (this._environmentService.remoteAuthority) {
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
 		} else {
 			this._connection = null;
 		}
@@ -72,6 +72,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			);
 		}
 		return this._environment;
+	}
+
+	whenExtensionsReady(): Promise<void> {
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.whenExtensionsReady(channel),
+			undefined
+		);
 	}
 
 	scanExtensions(skipExtensions: ExtensionIdentifier[] = []): Promise<IExtensionDescription[]> {
@@ -130,7 +137,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	private readonly _onReconnecting = this._register(new Emitter<void>());
 	public readonly onReconnecting = this._onReconnecting.event;
 
-	private readonly _onDidStateChange = this._register(new Emitter<PersistenConnectionEvent>());
+	private readonly _onDidStateChange = this._register(new Emitter<PersistentConnectionEvent>());
 	public readonly onDidStateChange = this._onDidStateChange.event;
 
 	readonly remoteAuthority: string;
@@ -183,7 +190,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 						this._onReconnecting.fire(undefined);
 					}
 					const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,

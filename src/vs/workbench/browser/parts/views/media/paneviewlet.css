@@ -34,6 +34,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	font-size: 11px;
+	min-width: 3ch;
 	-webkit-margin-before: 0;
 	-webkit-margin-after: 0;
 }
@@ -47,6 +48,7 @@
 	text-overflow: ellipsis;
 	text-transform: none;
 	white-space: nowrap;
+	flex-shrink: 100000;
 }
 
 .monaco-pane-view .pane > .pane-header .description .codicon {

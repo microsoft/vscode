@@ -10,7 +10,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
+import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
 import { ICommandAction, MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
@@ -31,7 +31,7 @@ import { Extensions as ViewExtensions, IViewsRegistry, IViewContainersRegistry, 
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, IExplorerService, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, ExpandAllAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, togglePreserveCaseCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, ExpandAllAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -55,6 +55,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -509,11 +510,11 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 	name: nls.localize('name', "Search"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	hideIfEmpty: true,
-	icon: searchViewIcon.classNames,
+	icon: ThemeIcon.fromCodicon(searchViewIcon),
 	order: 1
 }, ViewContainerLocation.Sidebar);
 
-const viewDescriptor = { id: VIEW_ID, containerIcon: 'codicon-search', name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView), canToggleVisibility: false, canMoveView: true };
+const viewDescriptor = { id: VIEW_ID, containerIcon: ThemeIcon.fromCodicon(searchViewIcon), name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView), canToggleVisibility: false, canMoveView: true };
 
 // Register search default location to sidebar
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
@@ -571,12 +572,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					properties: {
 						query: { 'type': 'string' },
 						replace: { 'type': 'string' },
+						preserveCase: { 'type': 'boolean' },
 						triggerSearch: { 'type': 'boolean' },
 						filesToInclude: { 'type': 'string' },
 						filesToExclude: { 'type': 'string' },
 						isRegex: { 'type': 'boolean' },
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
+						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 					}
 				}
 			},
@@ -641,6 +644,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	when: Constants.SearchViewFocusedKey,
 	handler: toggleRegexCommand
 }, ToggleRegexKeybinding));
+
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
+	id: Constants.TogglePreserveCaseId,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: Constants.SearchViewFocusedKey,
+	handler: togglePreserveCaseCommand
+}, TogglePreserveCaseKeybinding));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.AddCursorsAtSearchResults,
@@ -815,7 +825,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('search.actionsPositionAuto', "Position the actionbar to the right when the search view is narrow, and immediately after the content when the search view is wide."),
 				nls.localize('search.actionsPositionRight', "Always position the actionbar to the right."),
 			],
-			default: 'auto',
+			default: 'right',
 			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the search view.")
 		},
 		'search.searchOnType': {
@@ -852,7 +862,7 @@ configurationRegistry.registerConfiguration({
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type that editor that can display search results. "includes, excludes, and flags" just refers to settings that affect search. For example, the "search.exclude" setting.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
+			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type of editor that can display search results. "includes, excludes, and flags" refers to the "files to include" and "files to exclude" input boxes, and the flags that control whether a query is case-sensitive or a regex.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
 		},
 		'search.searchEditor.defaultNumberOfContextLines': {
 			type: ['number', 'null'],

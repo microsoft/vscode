@@ -263,7 +263,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			const name = match[2];
 			return encodeURIComponent(name) === name;
 		}
-		return true;
+		return false;
 	}
 
 	private async fetchPackageInfo(pack: string): Promise<ViewPackageInfo | undefined> {
@@ -282,8 +282,8 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	private npmView(pack: string): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
-			const command = 'npm view --json ' + pack + ' description dist-tags.latest homepage version';
-			cp.exec(command, (error, stdout) => {
+			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
+			cp.execFile(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);

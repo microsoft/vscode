@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/co
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
+import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
@@ -22,8 +23,7 @@ import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/comm
 import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { editorGroupToViewColumn, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -347,7 +347,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	private static toWorkingCopyResource(viewType: string, resource: URI) {
 		const authority = viewType.replace(/[^a-z0-9\-_]/gi, '-');
-		const path = '/' + btoa(resource.with({ query: null, fragment: null }).toString(true));
+		const path = `/${multibyteAwareBtoa(resource.with({ query: null, fragment: null }).toString(true))}`;
 		return URI.from({
 			scheme: Schemas.vscodeCustomEditor,
 			authority: authority,
@@ -361,7 +361,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public get capabilities(): WorkingCopyCapabilities {
-		return WorkingCopyCapabilities.None;
+		return this.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 	}
 
 	public isDirty(): boolean {
@@ -372,6 +372,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return this._savePoint !== this._currentEditIndex;
 		}
 		return this._fromBackup;
+	}
+
+	private isUntitled() {
+		return this._editorResource.scheme === Schemas.untitled;
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
@@ -503,7 +507,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return undefined;
 		}
 
-		if (this._editorResource.scheme === Schemas.untitled) {
+		if (this.isUntitled()) {
 			const targetUri = await this.suggestUntitledSavePath(options);
 			if (!targetUri) {
 				return undefined;
@@ -517,28 +521,31 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this._ongoingSave?.cancel();
 		this._ongoingSave = savePromise;
 
-		this.change(() => {
-			this._isDirtyFromContentChange = false;
-			this._savePoint = this._currentEditIndex;
-			this._fromBackup = false;
-		});
-
 		try {
 			await savePromise;
+
+			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
+				this.change(() => {
+					this._isDirtyFromContentChange = false;
+					this._savePoint = this._currentEditIndex;
+					this._fromBackup = false;
+				});
+			}
 		} finally {
-			if (this._ongoingSave === savePromise) {
+			if (this._ongoingSave === savePromise) { // Make sure we are still doing the same save
 				this._ongoingSave = undefined;
 			}
 		}
+
 		return this._editorResource;
 	}
 
 	private suggestUntitledSavePath(options: ISaveOptions | undefined): Promise<URI | undefined> {
-		if (this._editorResource.scheme !== Schemas.untitled) {
+		if (!this.isUntitled()) {
 			throw new Error('Resource is not untitled');
 		}
 
-		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this._environmentService.remoteAuthority;
 		const localResource = toLocalResource(this._editorResource, remoteAuthority, this._pathService.defaultUriScheme);
 
 		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems);
@@ -559,7 +566,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 	}
 
-	public async backup(): Promise<IWorkingCopyBackup> {
+	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();
 		if (!editors.length) {
 			throw new Error('No editors found for resource, cannot back up');
@@ -595,6 +602,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			createCancelablePromise(token =>
 				this._proxy.$backup(this._editorResource.toJSON(), this.viewType, token)));
 		this._hotExitState = pendingState;
+
+		token.onCancellationRequested(() => {
+			pendingState.operation.cancel();
+		});
 
 		try {
 			const backupId = await pendingState.operation;

@@ -696,6 +696,11 @@ export interface ITextModel {
 	getEOL(): string;
 
 	/**
+	 * Get the end of line sequence predominantly used in the text buffer.
+	 */
+	getEndOfLineSequence(): EndOfLineSequence;
+
+	/**
 	 * Get the minimum legal column for line at `lineNumber`
 	 */
 	getLineMinColumn(lineNumber: number): number;
@@ -1142,7 +1147,7 @@ export interface ITextModel {
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
-	undo(): void;
+	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
@@ -1155,7 +1160,7 @@ export interface ITextModel {
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
-	redo(): void;
+	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?

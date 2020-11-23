@@ -14,7 +14,7 @@ import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
 
-// todo@joh move these things back into something like contrib/insets
+// todo@jrieken move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
 
 	readonly domNode: HTMLElement;
@@ -73,7 +73,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
 
 		let editor: IActiveCodeEditor | undefined;
-		id = id.substr(0, id.indexOf(',')); //todo@joh HACK
+		id = id.substr(0, id.indexOf(',')); //todo@jrieken HACK
 
 		for (const candidate of this._editorService.listCodeEditors()) {
 			if (candidate.getId() === id && candidate.hasModel() && isEqual(candidate.getModel().uri, URI.revive(uri))) {

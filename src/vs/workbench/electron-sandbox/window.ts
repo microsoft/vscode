@@ -27,12 +27,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -43,7 +43,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from '../services/preferences/common/preferences';
 import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
@@ -59,12 +59,15 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
-import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 export class NativeWindow extends Disposable {
+
+	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -107,7 +110,9 @@ export class NativeWindow extends Disposable {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -179,14 +184,29 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => {
-			this.notificationService.info(message);
-		});
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
-		// Display change events
-		ipcRenderer.on('vscode:displayChanged', () => {
-			clearAllFontInfos();
-		});
+		// Shell Environment Issue Notifications
+		const choices: IPromptChoice[] = [{
+			label: nls.localize('learnMode', "Learn More"),
+			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+		}];
+
+		ipcRenderer.on('vscode:showShellEnvSlowWarning', () => this.notificationService.prompt(
+			Severity.Warning,
+			nls.localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
+			choices,
+			{
+				sticky: true,
+				neverShowAgain: { id: 'ignoreShellEnvSlowWarning', scope: NeverShowAgainScope.GLOBAL }
+			}
+		));
+
+		ipcRenderer.on('vscode:showShellEnvTimeoutError', () => this.notificationService.prompt(
+			Severity.Error,
+			nls.localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
+			choices
+		));
 
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => {
@@ -199,7 +219,50 @@ export class NativeWindow extends Disposable {
 			setFullscreen(false);
 		});
 
-		// accessibility support changed event
+		// Proxy Login Dialog
+		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
+			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+			const result = await this.dialogService.input(Severity.Warning, nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
+				[
+					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+				],
+				[
+					{ placeholder: nls.localize('username', "Username"), value: payload.username },
+					{ placeholder: nls.localize('password', "Password"), type: 'password', value: payload.password }
+				],
+				{
+					cancelId: 1,
+					detail: nls.localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					checkbox: {
+						label: nls.localize('rememberCredentials', "Remember my credentials"),
+						checked: rememberCredentials
+					}
+				});
+
+			// Reply back to the channel without result to indicate
+			// that the login dialog was cancelled
+			if (result.choice !== 0 || !result.values) {
+				ipcRenderer.send(payload.replyChannel);
+			}
+
+			// Other reply back with the picked credentials
+			else {
+
+				// Update state based on checkbox
+				if (result.checkboxChecked) {
+					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				} else {
+					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+				}
+
+				// Reply back to main side with credentials
+				const [username, password] = result.values;
+				ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
+			}
+		});
+
+		// Accessibility support changed event
 		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
@@ -261,8 +324,8 @@ export class NativeWindow extends Disposable {
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.nativeHostService.onWindowMaximize, id => id === this.nativeHostService.windowId), () => true),
-			Event.map(Event.filter(this.nativeHostService.onWindowUnmaximize, id => id === this.nativeHostService.windowId), () => false)
+			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
+			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
@@ -444,7 +507,7 @@ export class NativeWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const remoteAuthority = this.environmentService.remoteAuthority;
 						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
 							getAddress: async (): Promise<IAddress> => {
 								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;

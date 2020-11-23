@@ -33,7 +33,6 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 	if (label
 		&& typeof label === 'object'
 		&& typeof label.label === 'string') {
-		checkProposedApiEnabled(extension);
 		let highlights: [number, number][] | undefined = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
@@ -293,7 +292,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.elements.get(treeItemHandle);
 	}
 
-	reveal(element: T, options?: IRevealOptions): Promise<void> {
+	reveal(element: T | undefined, options?: IRevealOptions): Promise<void> {
 		options = options ? options : { select: true, focus: false };
 		const select = isUndefinedOrNull(options.select) ? true : options.select;
 		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
@@ -302,10 +301,15 @@ class ExtHostTreeView<T> extends Disposable {
 		if (typeof this.dataProvider.getParent !== 'function') {
 			return Promise.reject(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
 		}
-		return this.refreshPromise
-			.then(() => this.resolveUnknownParentChain(element))
-			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
-				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus, expand })), error => this.logService.error(error));
+
+		if (element) {
+			return this.refreshPromise
+				.then(() => this.resolveUnknownParentChain(element))
+				.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
+					.then(treeNode => this.proxy.$reveal(this.viewId, { item: treeNode.item, parentChain: parentChain.map(p => p.item) }, { select, focus, expand })), error => this.logService.error(error));
+		} else {
+			return this.proxy.$reveal(this.viewId, undefined, { select, focus, expand });
+		}
 	}
 
 	private _message: string = '';
@@ -601,9 +605,6 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getThemeIcon(extensionTreeItem: vscode.TreeItem2): ThemeIcon | undefined {
-		if ((extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath.themeColor) {
-			checkProposedApiEnabled(this.extension);
-		}
 		return extensionTreeItem.iconPath instanceof ThemeIcon ? extensionTreeItem.iconPath : undefined;
 	}
 

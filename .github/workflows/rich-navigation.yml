@@ -19,6 +19,10 @@ jobs:
         key: ${{ runner.os }}-dependencies-${{ hashfiles('yarn.lock') }}
         restore-keys: ${{ runner.os }}-dependencies-
 
+    - uses: actions/setup-node@v1
+      with:
+        node-version: 10
+
     - name: Install dependencies
       if: steps.caching-stage.outputs.cache-hit != 'true'
       run: yarn --frozen-lockfile

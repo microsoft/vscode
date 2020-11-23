@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { escapeCodicons } from 'vs/base/common/codicons';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -433,16 +432,23 @@ export class Selection extends Range {
 export class ResolvedAuthority {
 	readonly host: string;
 	readonly port: number;
+	readonly connectionToken: string | undefined;
 
-	constructor(host: string, port: number) {
+	constructor(host: string, port: number, connectionToken?: string) {
 		if (typeof host !== 'string' || host.length === 0) {
 			throw illegalArgument('host');
 		}
 		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
 			throw illegalArgument('port');
 		}
+		if (typeof connectionToken !== 'undefined') {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+				throw illegalArgument('connectionToken');
+			}
+		}
 		this.host = host;
 		this.port = Math.round(port);
+		this.connectionToken = connectionToken;
 	}
 }
 
@@ -1283,40 +1289,7 @@ export class CodeInset {
 
 
 @es5ClassCompat
-export class MarkdownString {
-
-	value: string;
-	isTrusted?: boolean;
-	readonly supportThemeIcons?: boolean;
-
-	constructor(value?: string, supportThemeIcons: boolean = false) {
-		this.value = value ?? '';
-		this.supportThemeIcons = supportThemeIcons;
-	}
-
-	appendText(value: string): MarkdownString {
-		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
-			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
-			.replace(/\n/, '\n\n');
-
-		return this;
-	}
-
-	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
-
-		return this;
-	}
-
-	appendCodeblock(code: string, language: string = ''): MarkdownString {
-		this.value += '\n```';
-		this.value += language;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
-		return this;
-	}
+export class MarkdownString extends BaseMarkdownString implements vscode.MarkdownString {
 
 	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
 		if (thing instanceof MarkdownString) {
@@ -1324,6 +1297,11 @@ export class MarkdownString {
 		}
 		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
 	}
+
+	constructor(value?: string, supportThemeIcons: boolean = false) {
+		super(value ?? '', { supportThemeIcons });
+	}
+
 }
 
 @es5ClassCompat
@@ -2181,11 +2159,11 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
-	readonly themeColor?: ThemeColor;
+	readonly color?: ThemeColor;
 
 	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
-		this.themeColor = color;
+		this.color = color;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2729,7 +2707,7 @@ export enum DebugConfigurationProviderTriggerKind {
 @es5ClassCompat
 export class QuickInputButtons {
 
-	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
 }
@@ -2742,8 +2720,8 @@ export enum ExtensionKind {
 export class FileDecoration {
 
 	static validate(d: FileDecoration): void {
-		if (d.badge && d.badge.length !== 1) {
-			throw new Error(`The 'letter'-property must be undefined or a single character`);
+		if (d.badge && d.badge.length !== 1 && d.badge.length !== 2) {
+			throw new Error(`The 'badge'-property must be undefined or a short character`);
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
@@ -2913,3 +2891,64 @@ export enum StandardTokenType {
 	String = 2,
 	RegEx = 4
 }
+
+
+export class OnTypeRenameRanges {
+	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
+	}
+}
+
+//#region Testing
+export enum TestRunState {
+	Unset = 0,
+	Running = 1,
+	Passed = 2,
+	Failed = 3,
+	Skipped = 4,
+	Errored = 5
+}
+
+export enum TestMessageSeverity {
+	Error = 0,
+	Warning = 1,
+	Information = 2,
+	Hint = 3
+}
+
+@es5ClassCompat
+export class TestState {
+	#runState: TestRunState;
+	#duration?: number;
+	#messages: ReadonlyArray<Readonly<vscode.TestMessage>>;
+
+	public get runState() {
+		return this.#runState;
+	}
+
+	public get duration() {
+		return this.#duration;
+	}
+
+	public get messages() {
+		return this.#messages;
+	}
+
+	constructor(runState: TestRunState, messages: vscode.TestMessage[] = [], duration?: number) {
+		this.#runState = runState;
+		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
+		this.#duration = duration;
+	}
+}
+
+type AllowedUndefined = 'description' | 'location';
+
+/**
+ * Test item without any optional properties. Only some properties are
+ * permitted to be undefined, but they must still exist.
+ */
+export type RequiredTestItem = {
+	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
+};
+
+
+//#endregion

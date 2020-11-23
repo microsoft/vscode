@@ -140,6 +140,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setRegex(this._state.isRegex);
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
+			this._replaceInput.setPreserveCase(this._state.preserveCase);
 			this.findFirst();
 		}));
 
@@ -451,6 +452,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 });

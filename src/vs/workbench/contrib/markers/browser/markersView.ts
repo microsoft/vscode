@@ -20,7 +20,7 @@ import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/ran
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Iterable } from 'vs/base/common/iterator';
@@ -51,6 +51,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -107,6 +108,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
@@ -114,7 +116,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.smallLayoutContextKey = Constants.MarkersViewSmallLayoutContextKey.bindTo(this.contextKeyService);
-		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
+		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
 		for (const resourceMarker of this.markersWorkbenchService.markersModel.resourceMarkers) {
@@ -124,7 +126,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 		this.setCurrentActiveEditor();
 
-		this.filter = new Filter(new FilterOptions());
+		this.filter = new Filter(FilterOptions.EMPTY(uriIdentityService));
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
 		// actions
@@ -365,7 +367,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private updateFilter() {
 		this.cachedFilterStats = undefined;
-		this.filter.options = new FilterOptions(this.filters.filterText, this.getFilesExcludeExpressions(), this.filters.showWarnings, this.filters.showErrors, this.filters.showInfos);
+		this.filter.options = new FilterOptions(this.filters.filterText, this.getFilesExcludeExpressions(), this.filters.showWarnings, this.filters.showErrors, this.filters.showInfos, this.uriIdentityService);
 		if (this.tree) {
 			this.tree.refilter();
 		}

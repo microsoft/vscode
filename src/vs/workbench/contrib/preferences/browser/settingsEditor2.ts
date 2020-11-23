@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -30,13 +31,12 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { IUserDataAutoSyncService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
@@ -46,7 +46,7 @@ import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickE
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -90,7 +90,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
 
 	private static readonly SUGGESTIONS: string[] = [
-		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@${EXTENSION_SETTING_TAG}`
+		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@${EXTENSION_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}scm`, `@${FEATURE_SETTING_TAG}explorer`, `@${FEATURE_SETTING_TAG}search`, `@${FEATURE_SETTING_TAG}debug`, `@${FEATURE_SETTING_TAG}extensions`, `@${FEATURE_SETTING_TAG}terminal`, `@${FEATURE_SETTING_TAG}task`, `@${FEATURE_SETTING_TAG}problems`, `@${FEATURE_SETTING_TAG}output`, `@${FEATURE_SETTING_TAG}comments`, `@${FEATURE_SETTING_TAG}remote`, `@${FEATURE_SETTING_TAG}timeline`
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
@@ -139,6 +139,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
+	private searchResultLabel: string | null = null;
+	private lastSyncedLabel: string | null = null;
 
 	private tocRowFocused: IContextKey<boolean>;
 	private settingRowFocused: IContextKey<boolean>;
@@ -170,9 +172,8 @@ export class SettingsEditor2 extends EditorPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -199,8 +200,6 @@ export class SettingsEditor2 extends EditorPane {
 				this.onConfigUpdate(e.affectedKeys);
 			}
 		}));
-
-		storageKeysSyncRegistryService.registerStorageKey({ key: SETTINGS_AUTOSAVE_NOTIFIED_KEY, version: 1 });
 	}
 
 	get minimumWidth(): number { return 375; }
@@ -331,7 +330,7 @@ export class SettingsEditor2 extends EditorPane {
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
-		this.searchWidget.layout({ height: 20, width: monacoWidth });
+		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
 		this.rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
@@ -418,10 +417,16 @@ export class SettingsEditor2 extends EditorPane {
 		this.searchWidget.setValue(query.trim());
 	}
 
-	private updateInputAriaLabel(lastSyncedLabel: string) {
-		const label = lastSyncedLabel ?
-			`${searchBoxLabel}. ${lastSyncedLabel}` :
-			searchBoxLabel;
+	private updateInputAriaLabel() {
+		let label = searchBoxLabel;
+		if (this.searchResultLabel) {
+			label += `. ${this.searchResultLabel}`;
+		}
+
+		if (this.lastSyncedLabel) {
+			label += `. ${this.lastSyncedLabel}`;
+		}
+
 		this.searchWidget.updateAriaLabel(label);
 	}
 
@@ -475,10 +480,19 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
+		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.DownArrow) {
+				this.focusSettings();
+			}
+		}));
 
-		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncService.canToggleEnablement()) {
+		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncEnablementService.canToggleEnablement()) {
 			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
-			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
+			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
+				this.lastSyncedLabel = lastSyncedLabel;
+				this.updateInputAriaLabel();
+			}));
 		}
 
 		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
@@ -686,8 +700,10 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.settingsTree.onDidFocus(() => {
-			this._currentFocusContext = SettingsFocusContext.SettingTree;
-			this.settingRowFocused.set(true);
+			if (document.activeElement?.classList.contains('monaco-list')) {
+				this._currentFocusContext = SettingsFocusContext.SettingTree;
+				this.settingRowFocused.set(true);
+			}
 		}));
 
 		this._register(this.settingsTree.onDidBlur(() => {
@@ -717,7 +733,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private notifyNoSaveNeeded() {
 		if (!this.storageService.getBoolean(SETTINGS_AUTOSAVE_NOTIFIED_KEY, StorageScope.GLOBAL, false)) {
-			this.storageService.store(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL);
+			this.storageService.store(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 			this.notificationService.info(localize('settingsNoSaveNeeded', "Your changes are automatically saved as you edit."));
 		}
 	}
@@ -948,7 +964,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
 		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
-		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core);
+		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core, this.logService);
 		const resolvedSettingsRoot = settingsResult.tree;
 
 		// Warn for settings not included in layout
@@ -962,7 +978,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.hasWarnedMissingSettings = true;
 		}
 
-		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core);
+		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
 		resolvedSettingsRoot.children!.push(resolveExtensionsSettings(dividedGroups.extension || []));
@@ -1118,18 +1134,20 @@ export class SettingsEditor2 extends EditorPane {
 	private triggerSearch(query: string): Promise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
+		this.viewState.featureFilters = new Set<string>();
 		if (query) {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters!.add(tag));
 			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
+			parsedQuery.featureFilters!.forEach(feature => this.viewState.featureFilters!.add(feature));
 		}
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || (this.viewState.extensionFilters && this.viewState.extensionFilters.size)) {
+			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;
@@ -1286,9 +1304,11 @@ export class SettingsEditor2 extends EditorPane {
 				this.tocTreeModel.update();
 			}
 
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
-			this.tocTree.expandAll();
+			if (type === SearchResultIdx.Local) {
+				this.tocTree.setFocus([]);
+				this.viewState.filterToCategory = undefined;
+				this.tocTree.expandAll();
+			}
 
 			this.refreshTOCTree();
 			this.renderTree(undefined, true);
@@ -1307,6 +1327,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (!this.searchResultModel) {
 			if (this.countElement.style.display !== 'none') {
+				this.searchResultLabel = null;
 				this.countElement.style.display = 'none';
 				this.layout(this.dimension);
 			}
@@ -1317,11 +1338,17 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
 			const count = this.tocTreeModel.settingsTreeRoot.count;
+			let resultString: string;
 			switch (count) {
-				case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
-				case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
-				default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
+				case 0: resultString = localize('noResults', "No Settings Found"); break;
+				case 1: resultString = localize('oneResult', "1 Setting Found"); break;
+				default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
 			}
+
+			this.searchResultLabel = resultString;
+			this.updateInputAriaLabel();
+			this.countElement.innerText = resultString;
+			aria.status(resultString);
 
 			if (this.countElement.style.display !== 'block') {
 				this.countElement.style.display = 'block';
@@ -1355,12 +1382,12 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private layoutTrees(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (76 + 11 /* header height + padding*/);
+		const listHeight = dimension.height - (72 + 11 /* header height + editor padding */);
 		const settingsTreeHeight = listHeight - 14;
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = listHeight - 17;
+		const tocTreeHeight = settingsTreeHeight - 1;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
 		this.tocTree.layout(tocTreeHeight);
 	}
@@ -1389,7 +1416,7 @@ class SyncControls extends Disposable {
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IThemeService themeService: IThemeService,
 	) {
 		super();
@@ -1422,7 +1449,7 @@ class SyncControls extends Disposable {
 			this.update();
 		}));
 
-		this._register(this.userDataAutoSyncService.onDidChangeEnablement(() => {
+		this._register(this.userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
 			this.update();
 		}));
 	}
@@ -1446,7 +1473,7 @@ class SyncControls extends Disposable {
 			return;
 		}
 
-		if (this.userDataAutoSyncService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
+		if (this.userDataAutoSyncEnablementService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
 			DOM.show(this.lastSyncedLabel);
 			DOM.hide(this.turnOnSyncButton.element);
 		} else {

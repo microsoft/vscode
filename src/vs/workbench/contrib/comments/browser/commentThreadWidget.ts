@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IAction } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -22,7 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
@@ -47,6 +46,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
@@ -153,7 +153,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 		this._applyTheme(this.themeService.getColorTheme());
 
-		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer(editor, this.modeService, this.openerService));
+		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.modeService, this.openerService));
 		this._parentEditor = editor;
 	}
 
@@ -450,8 +450,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
-		// create comment thread only when not readonly
-		if (!this._commentThread.readOnly) {
+		// create comment thread only when it supports reply
+		if (this._commentThread.canReply) {
 			this.createCommentForm();
 		}
 
@@ -470,7 +470,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
-		if (!this._commentThread.readOnly && this._commentReplyComponent) {
+		if (this._commentThread.canReply && this._commentReplyComponent) {
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
 				this._commentReplyComponent.editor.focus();
 			} else if (this._commentReplyComponent.editor.getModel()!.getValueLength() > 0) {
@@ -478,15 +478,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeReadOnly(() => {
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {
 			if (this._commentReplyComponent) {
-				if (this._commentThread.readOnly) {
+				if (!this._commentThread.canReply) {
 					this._commentReplyComponent.form.style.display = 'none';
 				} else {
 					this._commentReplyComponent.form.style.display = 'block';
 				}
 			} else {
-				if (!this._commentThread.readOnly) {
+				if (this._commentThread.canReply) {
 					this.createCommentForm();
 				}
 			}
@@ -711,10 +711,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		label = this._commentThread.label;
 
 		if (label === undefined) {
-			if (this._commentThread.comments && this._commentThread.comments.length) {
-				const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-				label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
-			} else {
+			if (!(this._commentThread.comments && this._commentThread.comments.length)) {
 				label = nls.localize('startThread', "Start discussion");
 			}
 		}
@@ -883,13 +880,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		const borderColor = theme.getColor(peekViewBorder);
 		this.style({
-			arrowColor: borderColor,
-			frameColor: borderColor
+			arrowColor: borderColor || Color.transparent,
+			frameColor: borderColor || Color.transparent
 		});
 
 		const content: string[] = [];
+
+		if (borderColor) {
+			content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid ${borderColor} }`);
+		}
+
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {
 			content.push(`.monaco-editor .review-widget .body .comment-body a { color: ${linkColor} }`);
@@ -914,6 +916,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
 		if (blockQuoteBOrder) {
 			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
+		}
+
+		const border = theme.getColor(PANEL_BORDER);
+		if (border) {
+			content.push(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
 		}
 
 		const hcBorder = theme.getColor(contrastBorder);
@@ -957,9 +964,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	hide() {
-		this._isExpanded = false;
-		// Focus the container so that the comment editor will be blurred before it is hidden
-		this.editor.focus();
+		if (this._isExpanded) {
+			this._isExpanded = false;
+			// Focus the container so that the comment editor will be blurred before it is hidden
+			this.editor.focus();
+		}
 		super.hide();
 	}
 

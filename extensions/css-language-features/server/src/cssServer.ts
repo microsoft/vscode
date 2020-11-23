@@ -67,7 +67,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		}
 
-		requestService = getRequestService(params.initializationOptions.handledSchemas || ['file'], connection, runtime);
+		requestService = getRequestService(params.initializationOptions?.handledSchemas || ['file'], connection, runtime);
 
 		function getClientCapability<T>(name: string, def: T) {
 			const keys = name.split('.');
@@ -90,7 +90,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
-			completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/', '-'] } : undefined,
+			completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/', '-', ':'] } : undefined,
 			hoverProvider: true,
 			documentSymbolProvider: true,
 			referencesProvider: true,

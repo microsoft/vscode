@@ -20,7 +20,7 @@ import { IEditorOptions, ITextEditorOptions, IResourceEditorInput } from 'vs/pla
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -109,22 +109,25 @@ class NotebookDiffEditorFactory implements IEditorInputFactory {
 			originalResource: input.originalResource,
 			name: input.name,
 			originalName: input.originalName,
+			textDiffName: input.textDiffName,
 			viewType: input.viewType,
 		});
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, group: number };
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
 		}
-		const { resource, originalResource, name, originalName, viewType } = data;
+		const { resource, originalResource, name, originalName, textDiffName, viewType } = data;
 		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName, viewType);
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName,
+			textDiffName || nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", originalResource.toString(true), resource.toString(true)),
+			viewType);
 		return input;
 	}
 
@@ -301,6 +304,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
+		if (originalInput instanceof NotebookDiffEditorInput) {
+			return undefined;
+		}
+
 		let notebookUri: URI = originalInput.resource;
 		let cellOptions: IResourceEditorInput | undefined;
 
@@ -316,7 +323,12 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		if (id === undefined) {
-			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
+			const existingEditors = group.editors.filter(editor =>
+				editor.resource
+				&& isEqual(editor.resource, notebookUri)
+				&& !(editor instanceof NotebookEditorInput)
+				&& !(editor instanceof NotebookDiffEditorInput)
+			);
 
 			if (existingEditors.length) {
 				return undefined;
@@ -407,7 +419,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		const info = associatedEditors[0];
 
-		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), info.id);
+		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), info.id);
 		const notebookOptions = new NotebookEditorOptions({ ...options, override: false });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}

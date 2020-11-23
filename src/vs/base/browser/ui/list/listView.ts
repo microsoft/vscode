@@ -327,7 +327,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => scheduleAtNextAnimationFrame(cb));
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
-			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
 			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
@@ -1323,6 +1322,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				if (item.row) {
 					const renderer = this.renderers.get(item.row.templateId);
 					if (renderer) {
+						if (renderer.disposeElement) {
+							renderer.disposeElement(item.element, -1, item.row.templateData, undefined);
+						}
 						renderer.disposeTemplate(item.row.templateData);
 					}
 				}

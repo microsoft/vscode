@@ -18,13 +18,13 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PaneView, IPaneViewOptions, IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel } from 'vs/workbench/common/views';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, defaultViewIcon } from 'vs/workbench/common/views';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -305,6 +305,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(this.toolbar);
 		this.setActions();
 
+		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
+
 		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
 			this.updateTitle(this.title);
 		}));
@@ -336,8 +338,8 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 	}
 
-	private getIcon(): string | URI {
-		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || 'codicon-window';
+	private getIcon(): ThemeIcon | URI {
+		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || ThemeIcon.fromCodicon(defaultViewIcon);
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
@@ -1316,7 +1318,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	saveState(): void {
 		this.panes.forEach((view) => view.saveState());
-		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE);
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {

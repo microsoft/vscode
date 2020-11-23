@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { format, compare } from 'vs/base/common/strings';
+import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -346,12 +346,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				[{
 					label: nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
+						this.configurationService.updateValue('editor.accessibilitySupport', 'on');
 					}
 				}, {
 					label: nls.localize('screenReaderDetectedExplanation.answerNo', "No"),
 					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+						this.configurationService.updateValue('editor.accessibilitySupport', 'off');
 					}
 				}],
 				{ sticky: true }
@@ -918,7 +918,7 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 		this.currentMarker = this.getMarker();
 		if (this.hasToUpdateStatus(previousMarker, this.currentMarker)) {
 			if (this.currentMarker) {
-				const line = this.currentMarker.message.split(/\r\n|\r|\n/g)[0];
+				const line = splitLines(this.currentMarker.message)[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
 					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ text: '', ariaLabel: '' }, 'statusbar.currentProblem', nls.localize('currentProblem', "Current Problem"), StatusbarAlignment.LEFT);
@@ -1046,12 +1046,19 @@ export class ChangeModeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(actionId, actionLabel);
 	}
 
 	async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
+		if (activeEditorPane?.isNotebookEditor) {
+			// it's inside notebook editor
+			return this.commandService.executeCommand('notebook.cell.changeLanguage');
+		}
+
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -1343,7 +1350,7 @@ export class ChangeEncodingAction extends Action {
 
 		let guessedEncoding: string | undefined = undefined;
 		if (this.fileService.canHandleResource(resource)) {
-			const content = await this.textFileService.read(resource, { autoGuessEncoding: true });
+			const content = await this.textFileService.readStream(resource, { autoGuessEncoding: true });
 			guessedEncoding = content.encoding;
 		}
 

@@ -12,7 +12,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { Rectangle, BrowserWindow } from 'electron';
+import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IWindowState {
@@ -59,7 +59,7 @@ export interface ICodeWindow extends IDisposable {
 	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: INativeWindowConfiguration, isReload?: boolean): void;
-	reload(configuration?: INativeWindowConfiguration, cli?: NativeParsedArgs): void;
+	reload(cli?: NativeParsedArgs): void;
 
 	focus(options?: { force: boolean }): void;
 	close(): void;
@@ -98,6 +98,7 @@ export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onWindowOpened: Event<ICodeWindow>;
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 
@@ -108,9 +109,11 @@ export interface IWindowsMainService {
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
+	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
+	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
 }

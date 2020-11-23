@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
-import { isWindows, Platform, platform } from 'vs/base/common/platform';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
 export class NativeEnvironmentService implements INativeEnvironmentService {
 
@@ -92,12 +91,6 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
-
-	@memoize
-	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
-
-	@memoize
-	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }
@@ -189,87 +182,34 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+	get debugRenderer(): boolean { return !!this._args.debugRenderer; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }
 	get logLevel(): string | undefined { return this._args.log; }
 
 	@memoize
-	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
-
-	@memoize
-	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
-
-	@memoize
-	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
+	get sharedIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'shared', product.version); }
 
 	@memoize
 	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
 
-	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get crashReporterId(): string | undefined { return this._args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this._args['crash-reporter-directory']; }
 
 	get driverHandle(): string | undefined { return this._args['driver']; }
-	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
+	@memoize
+	get telemetryLogResource(): URI { return URI.file(path.join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
 
-	get sandbox(): boolean { return !!this._args['__sandbox']; }
-
-	constructor(private _args: NativeParsedArgs) {
-		if (!process.env['VSCODE_LOGS']) {
+	constructor(protected _args: NativeParsedArgs) {
+		if (!_args.logsPath) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
-			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
+			_args.logsPath = path.join(this.userDataPath, 'logs', key);
 		}
-
-		this.logsPath = process.env['VSCODE_LOGS']!;
+		this.logsPath = _args.logsPath;
 	}
-}
-
-// Read this before there's any chance it is overwritten
-// Related to https://github.com/microsoft/vscode/issues/30624
-export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
-
-const safeIpcPathLengths: { [platform: number]: number } = {
-	[Platform.Linux]: 107,
-	[Platform.Mac]: 103
-};
-
-function getNixIPCHandle(userDataPath: string, type: string): string {
-	const vscodePortable = process.env['VSCODE_PORTABLE'];
-
-	let result: string;
-	if (xdgRuntimeDir && !vscodePortable) {
-		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
-		result = path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
-	} else {
-		result = path.join(userDataPath, `${product.version}-${type}.sock`);
-	}
-
-	const limit = safeIpcPathLengths[platform];
-	if (typeof limit === 'number') {
-		if (result.length >= limit) {
-			// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
-			console.warn(`WARNING: IPC handle "${result}" is longer than ${limit} chars, try a shorter --user-data-dir`);
-		}
-	}
-
-	return result;
-}
-
-function getWin32IPCHandle(userDataPath: string, type: string): string {
-	const scope = crypto.createHash('md5').update(userDataPath).digest('hex');
-
-	return `\\\\.\\pipe\\${scope}-${product.version}-${type}-sock`;
-}
-
-function getIPCHandle(userDataPath: string, type: string): string {
-	if (isWindows) {
-		return getWin32IPCHandle(userDataPath, type);
-	}
-
-	return getNixIPCHandle(userDataPath, type);
 }
 
 export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
@@ -305,5 +245,5 @@ export function parsePathArg(arg: string | undefined, process: NodeJS.Process): 
 }
 
 export function parseUserDataDir(args: NativeParsedArgs, process: NodeJS.Process): string {
-	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath(process.platform));
+	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath());
 }

@@ -42,14 +42,13 @@ import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
-import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
+import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
+import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, NotebookCellsChangeType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
 
 const $ = DOM.$;
 
@@ -186,7 +185,7 @@ abstract class AbstractCellRenderer {
 		const toolbar = new ToolBar(container, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					return item;
 				}
 
@@ -342,11 +341,11 @@ abstract class AbstractCellRenderer {
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 			}
 		}));
 	}
@@ -415,6 +414,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService));
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
+		DOM.hide(statusBar.durationContainer);
+		DOM.hide(statusBar.cellRunStatusContainer);
+
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
@@ -455,7 +457,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-		dragImageContainer.innerHTML = templateData.container.outerHTML;
+		DOM.reset(dragImageContainer, templateData.container.cloneNode(true));
 
 		// Remove all rendered content nodes after the
 		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
@@ -553,7 +555,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 class EditorTextRenderer {
 
-	getRichText(editor: ICodeEditor, modelRange: Range): string | null {
+	private _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
+		createHTML(input) { return input; }
+	});
+
+	getRichText(editor: ICodeEditor, modelRange: Range): HTMLElement | null {
 		const model = editor.getModel();
 		if (!model) {
 			return null;
@@ -563,20 +569,24 @@ class EditorTextRenderer {
 		const fontInfo = editor.getOptions().get(EditorOption.fontInfo);
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		return `<div style="`
+
+		const style = ``
 			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
 			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
 			+ `font-family: ${fontFamily};`
 			+ `font-weight: ${fontInfo.fontWeight};`
 			+ `font-size: ${fontInfo.fontSize}px;`
 			+ `line-height: ${fontInfo.lineHeight}px;`
-			+ `white-space: pre;`
-			+ `">`
-			+ this.getRichTextLines(model, modelRange, colorMap)
-			+ '</div>';
+			+ `white-space: pre;`;
+
+		const element = DOM.$('div', { style });
+
+		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
+		element.innerHTML = linesHtml as unknown as string;
+		return element;
 	}
 
-	private getRichTextLines(model: ITextModel, modelRange: Range, colorMap: string[]): string {
+	private getRichTextLinesAsHtml(model: ITextModel, modelRange: Range, colorMap: string[]): string | TrustedHTML {
 		const startLineNumber = modelRange.startLineNumber;
 		const startColumn = modelRange.startColumn;
 		const endLineNumber = modelRange.endLineNumber;
@@ -599,7 +609,9 @@ class EditorTextRenderer {
 			}
 		}
 
-		return result;
+		return this._ttPolicy
+			? this._ttPolicy.createHTML(result)
+			: result;
 	}
 
 	private getDefaultColorMap(): string[] {
@@ -631,7 +643,7 @@ class CodeCellDragImageRenderer {
 		dragImageContainer.classList.forEach(c => dragImageContainer.classList.remove(c));
 		dragImageContainer.classList.add('cell-drag-image', 'monaco-list-row', 'focused', `${type}-cell-row`);
 
-		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
+		const editorContainer: HTMLElement | null = dragImageContainer.querySelector('.cell-editor-container');
 		if (!editorContainer) {
 			return null;
 		}
@@ -640,8 +652,7 @@ class CodeCellDragImageRenderer {
 		if (!richEditorText) {
 			return null;
 		}
-
-		editorContainer.innerHTML = richEditorText;
+		DOM.reset(editorContainer, richEditorText);
 
 		return dragImageContainer;
 	}
@@ -718,6 +729,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const cellRunState = new RunStateRenderer(statusBar.cellRunStatusContainer, runToolbar, this.instantiationService);
 
 		const outputContainer = DOM.append(container, $('.output'));
+		const outputShowMoreContainer = DOM.append(container, $('.output-show-more-container'));
 
 		const focusIndicatorRight = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right'));
 
@@ -752,6 +764,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			runButtonContainer,
 			executionOrderLabel,
 			outputContainer,
+			outputShowMoreContainer,
 			editor,
 			disposables,
 			elementDisposables: new DisposableStore(),
@@ -834,6 +847,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP - CELL_BOTTOM_MARGIN}px`;
 		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+		templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
 		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP}px`;
 	}
 
@@ -901,6 +915,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			if (e.outputIsHoveredChanged) {
 				this.updateForHover(element, templateData);
+			}
+		}));
+		elementDisposables.add(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
+				this.updateForMetadata(element, templateData);
 			}
 		}));
 
@@ -990,6 +1009,7 @@ export class RunStateRenderer {
 	private pendingNewState: NotebookCellRunState | undefined;
 
 	constructor(private readonly element: HTMLElement, private readonly runToolbar: ToolBar, private readonly instantiationService: IInstantiationService) {
+		DOM.hide(element);
 	}
 
 	clear() {
@@ -1027,6 +1047,12 @@ export class RunStateRenderer {
 		} else {
 			this.element.innerText = '';
 		}
+
+		if (runState === NotebookCellRunState.Idle) {
+			DOM.hide(this.element);
+		} else {
+			this.element.style.display = 'flex';
+		}
 	}
 }
 
@@ -1050,7 +1076,7 @@ export class ListTopCellToolbar extends Disposable {
 		const toolbar = new ToolBar(this.topCellToolbar, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					return item;
 				}
 

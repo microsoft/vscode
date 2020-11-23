@@ -18,7 +18,7 @@ import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } fro
 import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -32,8 +32,9 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -60,10 +61,13 @@ const toggleOutputActionKeybindings = {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
 	}
 };
+
+const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
+
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	icon: Codicon.output.classNames,
+	icon: ThemeIcon.fromCodicon(outputViewIcon),
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: OUTPUT_VIEW_ID,
@@ -74,7 +78,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	containerIcon: Codicon.output.classNames,
+	containerIcon: ThemeIcon.fromCodicon(outputViewIcon),
 	canMoveView: true,
 	canToggleVisibility: false,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
@@ -200,7 +204,7 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const logFileOutputChannelDescriptor = this.getLogFileOutputChannelDescriptor(outputService);
 		if (logFileOutputChannelDescriptor) {
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor));
+			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor), { pinned: true });
 		}
 	}
 	private getLogFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
@@ -298,7 +302,7 @@ registerAction2(class extends Action2 {
 		const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
 		if (entry) {
 			assertIsDefined(entry.channel.file);
-			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)));
+			await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
 		}
 	}
 });

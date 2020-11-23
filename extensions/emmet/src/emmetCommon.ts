@@ -17,7 +17,7 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath } from './util';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, getPathBaseName } from './util';
 import { reflectCssValue } from './reflectCssValue';
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
@@ -31,8 +31,12 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		wrapIndividualLinesWithAbbreviation(args);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.expandAbbreviationInternal', (args) => {
 		expandEmmetAbbreviation(args);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.expandAbbreviation', () => {
+		vscode.commands.executeCommand('workbench.action.expandEmmetAbbreviation');
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.removeTag', () => {
@@ -124,6 +128,10 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		return reflectCssValue();
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('workbench.action.showEmmetCommands', () => {
+		vscode.commands.executeCommand('workbench.action.quickOpen', '>Emmet: ');
+	}));
+
 	updateEmmetExtensionsPath();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
@@ -132,6 +140,13 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		}
 		if (e.affectsConfiguration('emmet.extensionsPath')) {
 			updateEmmetExtensionsPath();
+		}
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((e) => {
+		const basefileName: string = getPathBaseName(e.fileName);
+		if (basefileName.startsWith('snippets') && basefileName.endsWith('.json')) {
+			updateEmmetExtensionsPath(true);
 		}
 	}));
 }

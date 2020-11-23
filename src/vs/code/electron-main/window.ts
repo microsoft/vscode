@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
+import * as perf from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, Details } from 'electron';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
@@ -23,7 +24,6 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -33,9 +33,9 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -85,7 +85,7 @@ const enum ReadyState {
 
 export class CodeWindow extends Disposable implements ICodeWindow {
 
-	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
+	private static readonly MAX_URL_LENGTH = 2 * ByteSize.MB; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
 	private readonly _onLoad = this._register(new Emitter<void>());
 	readonly onLoad = this._onLoad.event;
@@ -111,8 +111,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[];
 
-	private pendingLoadConfig?: INativeWindowConfiguration;
-
 	private marketplaceHeadersPromise: Promise<object>;
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[];
@@ -123,7 +121,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IStorageMainService private readonly storageService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -151,7 +149,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 			const options: BrowserWindowConstructorOptions = {
 				width: this.windowState.width,
@@ -286,6 +284,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.registerListeners();
 	}
 
+	private pendingLoadConfig: INativeWindowConfiguration | undefined;
+
 	private currentConfig: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
 
@@ -297,11 +297,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
-	get isExtensionDevelopmentHost(): boolean { return !!(this.config && this.config.extensionDevelopmentPath); }
+	get isExtensionDevelopmentHost(): boolean { return !!(this.currentConfig?.extensionDevelopmentPath); }
 
-	get isExtensionTestHost(): boolean { return !!(this.config && this.config.extensionTestsPath); }
+	get isExtensionTestHost(): boolean { return !!(this.currentConfig?.extensionTestsPath); }
 
-	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.config?.debugId; }
+	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.currentConfig?.debugId; }
 
 	setRepresentedFilename(filename: string): void {
 		if (isMacintosh) {
@@ -468,9 +468,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				if (!this._win) {
 					return; // disposed
 				}
-
-				// Notify renderers about displays changed
-				this.sendWhenReady('vscode:displayChanged');
 
 				// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
 				// we need to detect when display metrics change or displays are added/removed and toggle the
@@ -681,6 +678,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	load(config: INativeWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
 
+		// If this window was loaded before from the command line
+		// (as indicated by VSCODE_CLI environment), make sure to
+		// preserve that user environment in subsequent loads,
+		// unless the new configuration context was also a CLI
+		// (for https://github.com/microsoft/vscode/issues/108571)
+		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
+		if (currentUserEnv && isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(config.userEnv)) {
+			config.userEnv = { ...currentUserEnv, ...config.userEnv }; // still allow to override certain environment as passed in
+		}
+
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
 		if (this._readyState === ReadyState.NONE) {
@@ -739,10 +746,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._onLoad.fire();
 	}
 
-	reload(configurationIn?: INativeWindowConfiguration, cli?: NativeParsedArgs): void {
+	reload(cli?: NativeParsedArgs): void {
 
-		// If config is not provided, copy our current one
-		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
+		// Copy our current config for reuse
+		const configuration = Object.assign({}, this.currentConfig);
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
@@ -774,7 +781,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.logLevel = this.logService.getLevel();
 
 		// Set zoomlevel
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		const zoomLevel = windowConfig?.zoomLevel;
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
@@ -784,7 +791,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.fullscreen = this.isFullScreen;
 
 		// Set Accessibility Config
-		windowConfiguration.colorScheme = (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) ? ColorScheme.HIGH_CONTRAST : nativeTheme.shouldUseDarkColors ? ColorScheme.DARK : ColorScheme.LIGHT;
+		windowConfiguration.colorScheme = {
+			dark: nativeTheme.shouldUseDarkColors,
+			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
+		};
 		windowConfiguration.autoDetectHighContrast = windowConfig?.autoDetectHighContrast ?? true;
 		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
 
@@ -796,6 +806,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Parts splash
 		windowConfiguration.partsSplashPath = path.join(this.environmentService.userDataPath, 'rapid_render.json');
+
+		// OS Info
+		windowConfiguration.os = {
+			release: os.release()
+		};
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);
@@ -812,10 +827,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// large depending on user configuration, so we can only remove it in that case.
 		let configUrl = this.doGetUrl(config);
 		if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
-			delete config.userEnv;
 			this.logService.warn('Application URL exceeds maximum of 2MB and was shortened.');
 
-			configUrl = this.doGetUrl(config);
+			configUrl = this.doGetUrl({ ...config, userEnv: undefined });
 
 			if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
 				this.logService.error('Application URL exceeds maximum of 2MB and cannot be loaded.');
@@ -1114,7 +1128,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private useNativeFullScreen(): boolean {
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
 			return true; // default
 		}
@@ -1131,7 +1145,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.config?.extensionDevelopmentPath);
+		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.currentConfig?.extensionDevelopmentPath);
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
 			menuBarVisibility = 'default';
 		}

@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -187,6 +187,15 @@ export interface IStartupMetrics {
 		readonly ellapsedWindowLoadToRequire: number;
 
 		/**
+		 * The time it took to wait for resolving the shell environment. This time the workbench
+		 * will not continue to load and be blocked entirely.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willWaitForShellEnv` and `didWaitForShellEnv` performance marks.
+		 */
+		readonly ellapsedWaitForShellEnv: number;
+
+		/**
 		 * The time it took to require the workspace storage DB, connect to it
 		 * and load the initial set of values.
 		 *
@@ -320,7 +329,10 @@ export abstract class AbstractTimerService implements ITimerService {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._startupMetrics = this._extensionService.whenInstalledExtensionsRegistered()
+		this._startupMetrics = Promise.all([
+			this._extensionService.whenInstalledExtensionsRegistered(),
+			_lifecycleService.when(LifecyclePhase.Restored)
+		])
 			.then(() => this._computeStartupMetrics())
 			.then(metrics => {
 				this._reportStartupTimes(metrics);
@@ -385,6 +397,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? perf.getDuration('main:appReady', 'main:loadWindow') : undefined,
 				ellapsedWindowLoadToRequire: perf.getDuration('main:loadWindow', 'willLoadWorkbenchMain'),
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedWaitForShellEnv: perf.getDuration('willWaitForShellEnv', 'didWaitForShellEnv'),
 				ellapsedWorkspaceStorageInit: perf.getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: perf.getDuration('willInitWorkspaceService', 'didInitWorkspaceService'),
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),

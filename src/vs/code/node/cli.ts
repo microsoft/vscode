@@ -23,6 +23,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
+		|| !!argv['install-builtin-extension']
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
@@ -122,10 +123,6 @@ export async function main(argv: string[]): Promise<any> {
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		};
 
-		if (args['force-user-env']) {
-			env['VSCODE_FORCE_USER_ENV'] = '1';
-		}
-
 		delete env['ELECTRON_RUN_AS_NODE'];
 
 		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];
@@ -138,7 +135,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				await new Promise<void>(c => child.once('exit', () => c()));
+				await new Promise<void>(resolve => child.once('exit', () => resolve()));
 			});
 		}
 
@@ -156,41 +153,39 @@ export async function main(argv: string[]): Promise<any> {
 			// stdin. We do this because there is no reliable way to find out if data is piped to stdin. Just
 			// checking for stdin being connected to a TTY is not enough (https://github.com/microsoft/vscode/issues/40351)
 
-			if (args._.length === 0) {
-				if (hasReadStdinArg) {
-					stdinFilePath = getStdinFilePath();
+			if (hasReadStdinArg) {
+				stdinFilePath = getStdinFilePath();
 
-					// returns a file path where stdin input is written into (write in progress).
-					try {
-						readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+				// returns a file path where stdin input is written into (write in progress).
+				try {
+					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
-						// Make sure to open tmp file
-						addArg(argv, stdinFilePath);
+					// Make sure to open tmp file
+					addArg(argv, stdinFilePath);
 
-						// Enable --wait to get all data and ignore adding this to history
-						addArg(argv, '--wait');
-						addArg(argv, '--skip-add-to-recently-opened');
-						args.wait = true;
+					// Enable --wait to get all data and ignore adding this to history
+					addArg(argv, '--wait');
+					addArg(argv, '--skip-add-to-recently-opened');
+					args.wait = true;
 
-						console.log(`Reading from stdin via: ${stdinFilePath}`);
-					} catch (e) {
-						console.log(`Failed to create file to read via stdin: ${e.toString()}`);
-						stdinFilePath = undefined;
-					}
-				} else {
-
-					// If the user pipes data via stdin but forgot to add the "-" argument, help by printing a message
-					// if we detect that data flows into via stdin after a certain timeout.
-					processCallbacks.push(_ => stdinDataListener(1000).then(dataReceived => {
-						if (dataReceived) {
-							if (isWindows) {
-								console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
-							} else {
-								console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
-							}
-						}
-					}));
+					console.log(`Reading from stdin via: ${stdinFilePath}`);
+				} catch (e) {
+					console.log(`Failed to create file to read via stdin: ${e.toString()}`);
+					stdinFilePath = undefined;
 				}
+			} else {
+
+				// If the user pipes data via stdin but forgot to add the "-" argument, help by printing a message
+				// if we detect that data flows into via stdin after a certain timeout.
+				processCallbacks.push(_ => stdinDataListener(1000).then(dataReceived => {
+					if (dataReceived) {
+						if (isWindows) {
+							console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
+						} else {
+							console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
+						}
+					}
+				}));
 			}
 		}
 
@@ -332,13 +327,13 @@ export async function main(argv: string[]): Promise<any> {
 		const child = spawn(process.execPath, argv.slice(2), options);
 
 		if (args.wait && waitMarkerFilePath) {
-			return new Promise<void>(c => {
+			return new Promise<void>(resolve => {
 
 				// Complete when process exits
-				child.once('exit', () => c(undefined));
+				child.once('exit', () => resolve(undefined));
 
 				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath!).then(c, c);
+				whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
 			}).then(() => {
 
 				// Make sure to delete the tmp stdin file if we have any

@@ -7,9 +7,7 @@
 /* eslint-disable code-import-patterns */
 
 import { ConsoleLogService } from 'vs/platform/log/common/log';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
@@ -27,14 +25,8 @@ import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backu
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
-import { IKeyboardLayoutInfo, IKeymapService, ILinuxKeyboardLayoutInfo, ILinuxKeyboardMapping, IMacKeyboardLayoutInfo, IMacKeyboardMapping, IWindowsKeyboardLayoutInfo, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
-import { ChordKeybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { isWindows, OS } from 'vs/base/common/platform';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
@@ -52,15 +44,18 @@ import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTa
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { AsbtractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
+import { AbstractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
+import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
+import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 
 //#region Environment
@@ -86,8 +81,12 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
+
+	sessionId = this.configuration.sessionId;
+	machineId = this.configuration.machineId;
+	remoteAuthority = this.configuration.remoteAuthority;
+	os = { release: 'unknown' };
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -99,6 +98,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	keyboardLayoutResource: URI = undefined!;
 	sync: 'on' | 'off' | undefined;
 	debugExtensionHost: IExtensionHostDebugParams = undefined!;
+	debugRenderer = false;
 	isExtensionDevelopment: boolean = false;
 	disableExtensions: boolean | string[] = [];
 	extensionDevelopmentLocationURI?: URI[] | undefined;
@@ -113,15 +113,12 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	appSettingsHome: URI = undefined!;
 	userDataPath: string = undefined!;
 	machineSettingsResource: URI = undefined!;
-	backupHome: string = undefined!;
-	backupWorkspacesPath: string = undefined!;
 
 	log?: string | undefined;
 	extHostLogsPath: URI = undefined!;
 
 	installSourcePath: string = undefined!;
 
-	mainIPCHandle: string = undefined!;
 	sharedIPCHandle: string = undefined!;
 
 	extensionsPath?: string | undefined;
@@ -129,17 +126,16 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	builtinExtensionsPath: string = undefined!;
 
 	driverHandle?: string | undefined;
-	driverVerbose = false;
 
 	crashReporterDirectory?: string | undefined;
 	crashReporterId?: string | undefined;
 
 	nodeCachedDataDir?: string | undefined;
 
-	disableUpdates = false;
-	sandbox = true;
 	verbose = false;
 	isBuilt = false;
+
+	get telemetryLogResource(): URI { return joinPath(this.userRoamingDataHome, 'telemetry.log'); }
 	disableTelemetry = false;
 }
 
@@ -414,19 +410,6 @@ module.exports = testRunner;`);
 
 //#endregion
 
-
-//#region Resource Identity
-
-export class SimpleResourceIdentityService implements IResourceIdentityService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async resolveResourceIdentity(resource: URI): Promise<string> { return hash(resource.toString()).toString(16); }
-}
-
-//#endregion
-
-
 //#region Remote
 
 export class SimpleRemoteAgentService implements IRemoteAgentService {
@@ -444,6 +427,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
 	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
+	async whenExtensionsReady(): Promise<void> { }
 }
 
 //#endregion
@@ -510,37 +494,11 @@ registerSingleton(ITelemetryService, SimpleTelemetryService);
 //#endregion
 
 
-//#region Keymap Service
+//#region Keymap Service (borrowed from browser for now to enable keyboard access)
 
-class SimpleKeyboardMapper implements IKeyboardMapper {
-	dumpDebugInfo(): string { return ''; }
-	resolveKeybinding(keybinding: ChordKeybinding): ResolvedKeybinding[] { return []; }
-	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		let keybinding = new SimpleKeybinding(
-			keyboardEvent.ctrlKey,
-			keyboardEvent.shiftKey,
-			keyboardEvent.altKey,
-			keyboardEvent.metaKey,
-			keyboardEvent.keyCode
-		).toChord();
-		return new USLayoutResolvedKeybinding(keybinding, OS);
-	}
-	resolveUserBinding(firstPart: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] { return []; }
-}
+class SimpleKeyboardLayoutService extends BrowserKeyboardLayoutService { }
 
-class SimpleKeymapService implements IKeymapService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeKeyboardMapper = Event.None;
-	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper { return new SimpleKeyboardMapper(); }
-	getCurrentKeyboardLayout(): (IWindowsKeyboardLayoutInfo & { isUserKeyboardLayout?: boolean | undefined; isUSStandard?: true | undefined; }) | (ILinuxKeyboardLayoutInfo & { isUserKeyboardLayout?: boolean | undefined; isUSStandard?: true | undefined; }) | (IMacKeyboardLayoutInfo & { isUserKeyboardLayout?: boolean | undefined; isUSStandard?: true | undefined; }) | null { return null; }
-	getAllKeyboardLayouts(): IKeyboardLayoutInfo[] { return []; }
-	getRawKeyboardMapping(): IWindowsKeyboardMapping | ILinuxKeyboardMapping | IMacKeyboardMapping | null { return null; }
-	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void { }
-}
-
-registerSingleton(IKeymapService, SimpleKeymapService);
+registerSingleton(IKeyboardLayoutService, SimpleKeyboardLayoutService);
 
 //#endregion
 
@@ -694,7 +652,7 @@ registerSingleton(IUserDataAutoSyncService, SimpleUserDataAutoSyncAccountService
 
 //#region User Data Sync Store Management
 
-class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
+class SimpleUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -707,10 +665,9 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined> { return undefined; }
 }
 
-registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
+registerSingleton(IUserDataSyncStoreManagementService, SimpleUserDataSyncStoreManagementService);
 
 //#endregion
-
 
 //#region Task
 
@@ -740,6 +697,7 @@ class SimpleTaskService implements ITaskService {
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
 	getTasksForGroup(group: string): Promise<Task[]> { throw new Error('Method not implemented.'); }
 	getRecentlyUsedTasks(): LinkedMap<string, string> { throw new Error('Method not implemented.'); }
+	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void { throw new Error('Method not implemented.'); }
 	migrateRecentTasks(tasks: Task[]): Promise<void> { throw new Error('Method not implemented.'); }
 	createSorter(): TaskSorter { throw new Error('Method not implemented.'); }
 	getTaskDescription(task: CustomTask | ContributedTask | InMemoryTask | ConfiguringTask): string | undefined { throw new Error('Method not implemented.'); }
@@ -795,7 +753,7 @@ registerSingleton(IWorkspaceTagsService, SimpleWorkspaceTagsService);
 
 //#region Output Channel
 
-class SimpleOutputChannelModelService extends AsbtractOutputChannelModelService {
+class SimpleOutputChannelModelService extends AbstractOutputChannelModelService {
 	declare readonly _serviceBrand: undefined;
 }
 
@@ -818,3 +776,9 @@ class SimpleIntegrityService implements IIntegrityService {
 registerSingleton(IIntegrityService, SimpleIntegrityService);
 
 //#endregion
+
+//#region Terminal Instance
+
+class SimpleTerminalInstanceService extends TerminalInstanceService { }
+
+registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);

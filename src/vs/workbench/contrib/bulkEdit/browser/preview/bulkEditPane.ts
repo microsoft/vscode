@@ -12,7 +12,7 @@ import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeServ
 import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -26,7 +26,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { basename } from 'vs/base/common/resources';
+import { basename, dirname } from 'vs/base/common/resources';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -34,7 +34,7 @@ import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -128,7 +128,7 @@ export class BulkEditPane extends ViewPane {
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
 			new BulkEditDelegate(),
-			[new TextEditElementRenderer(), this._instaService.createInstance(FileElementRenderer, resourceLabels), new CategoryElementRenderer()],
+			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
 			this._treeDataSource,
 			{
 				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
@@ -293,7 +293,7 @@ export class BulkEditPane extends ViewPane {
 			this._setTreeInput(input);
 
 			// (3) remember preference
-			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL);
+			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL, StorageTarget.USER);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
 	}
@@ -356,15 +356,16 @@ export class BulkEditPane extends ViewPane {
 				leftResource,
 				rightResource: previewUri,
 				label,
+				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
 				options
-			});
+			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
 		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
 		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions, this._contextMenuService);
+		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getActions: () => actions,

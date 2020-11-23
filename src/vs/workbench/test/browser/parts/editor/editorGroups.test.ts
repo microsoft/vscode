@@ -7,11 +7,11 @@ import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
 import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -157,6 +157,8 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
 	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+	setPreferredName(name: string): void { }
+	setPreferredDescription(description: string): void { }
 	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
@@ -269,12 +271,13 @@ suite('Workbench editor groups', () => {
 
 	test('contains()', function () {
 		const group = createGroup();
+		const instantiationService = workbenchInstantiationService();
 
 		const input1 = input();
 		const input2 = input();
 
-		const diffInput1 = new DiffEditorInput('name', 'description', input1, input2);
-		const diffInput2 = new DiffEditorInput('name', 'description', input2, input1);
+		const diffInput1 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input1, input2, undefined);
+		const diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input2, input1, undefined);
 
 		group.openEditor(input1, { pinned: true, active: true });
 

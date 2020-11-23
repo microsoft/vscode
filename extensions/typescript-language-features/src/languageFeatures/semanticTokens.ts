@@ -75,7 +75,9 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 
 		let versionBeforeRequest = document.version;
 
-		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token);
+		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token, {
+			cancelOnResourceChange: document.uri
+		});
 		if (response.type !== 'response' || !response.body) {
 			return null;
 		}

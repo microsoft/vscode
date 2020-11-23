@@ -14,13 +14,13 @@ import { IInstantiationService, IConstructorSignature0, ServicesAccessor, Brande
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
@@ -29,12 +29,6 @@ export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditor
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false);
 export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
 export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
-
-/** TODO@ben remove me eventually */
-/** @deprecated */
-export const Deprecated_EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
-/** @deprecated */
-export const Deprecated_EditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 
 // Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
@@ -184,7 +178,7 @@ export interface IFileEditorInputFactory {
 	/**
 	 * Creates new new editor input capable of showing files.
 	 */
-	createFileEditorInput(resource: URI, preferredResource: URI | undefined, encoding: string | undefined, mode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	/**
 	 * Check if the provided object is a file editor input.
@@ -394,15 +388,15 @@ export interface IEditorInput extends IDisposable {
 	readonly onDidChangeLabel: Event<void>;
 
 	/**
-	 * Returns the optional associated canonical resource of this input.
+	 * Returns the optional associated resource of this input.
 	 *
 	 * This resource should be unique for all editors of the same
-	 * kind and is often used to identify the editor input among
+	 * kind and input and is often used to identify the editor input among
 	 * others.
 	 *
-	 * Note: use `EditorResourceAccessor` to access the resource
-	 * of editors with support for side-by-side editors and
-	 * canonical vs original resources.
+	 * **Note:** DO NOT use this property for anything but identity
+	 * checks. DO NOT use this property to present as label to the user.
+	 * Please refer to `EditorResourceAccessor` documentation in that case.
 	 */
 	readonly resource: URI | undefined;
 
@@ -677,6 +671,10 @@ export interface IEditorInputWithPreferredResource {
 	 * "normalize" the URIs so that only one editor opens for different
 	 * URIs. But when displaying the editor label to the user, the
 	 * preferred URI should be used.
+	 *
+	 * Not all editors have a `preferredResouce`. The `EditorResourceAccessor`
+	 * utility can be used to always get the right resource without having
+	 * to do instanceof checks.
 	 */
 	readonly preferredResource: URI;
 }
@@ -705,6 +703,24 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Sets the preferred resource to use for this file input.
 	 */
 	setPreferredResource(preferredResource: URI): void;
+
+	/**
+	 * Sets the preferred name to use for this file input.
+	 *
+	 * Note: for certain file schemes the input may decide to ignore this
+	 * name and use our standard naming. Specifically for schemes we own,
+	 * we do not let others override the name.
+	 */
+	setPreferredName(name: string): void;
+
+	/**
+	 * Sets the preferred description to use for this file input.
+	 *
+	 * Note: for certain file schemes the input may decide to ignore this
+	 * description and use our standard naming. Specifically for schemes we own,
+	 * we do not let others override the description.
+	 */
+	setPreferredDescription(description: string): void;
 
 	/**
 	 * Sets the preferred encoding to use for this file input.
@@ -736,7 +752,7 @@ export class SideBySideEditorInput extends EditorInput {
 
 	constructor(
 		protected readonly name: string | undefined,
-		private readonly description: string | undefined,
+		protected readonly description: string | undefined,
 		private readonly _secondary: EditorInput,
 		private readonly _primary: EditorInput
 	) {
@@ -767,6 +783,10 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
+	/**
+	 * Use `EditorResourceAccessor` utility method to access the resources
+	 * of both sides of the diff editor.
+	 */
 	get resource(): URI | undefined {
 		return undefined;
 	}
@@ -1264,6 +1284,7 @@ interface IEditorPartConfiguration {
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitSizing?: 'split' | 'distribute';
+	splitOnDragAndDrop?: boolean;
 	limit?: {
 		enabled?: boolean;
 		value?: number;
@@ -1313,9 +1334,10 @@ class EditorResourceAccessorImpl {
 	 * be used whenever the URI is used to e.g. compare with other editors or when
 	 * caching certain data based on the URI.
 	 *
-	 *  For example: on Windows and macOS, the same file URI with different casing may
+	 * For example: on Windows and macOS, the same file URI with different casing may
 	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
-	 * form so that only one editor opens for same file URIs with different casing.
+	 * form so that only one editor opens for same file URIs with different casing. As
+	 * such, the original URI and the canonical URI can be different.
 	 */
 	getOriginalUri(editor: IEditorInput | undefined | null): URI | undefined;
 	getOriginalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
@@ -1356,7 +1378,8 @@ class EditorResourceAccessorImpl {
 	 *
 	 * For example: on Windows and macOS, the same file URI with different casing may
 	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
-	 * form so that only one editor opens for same file URIs with different casing.
+	 * form so that only one editor opens for same file URIs with different casing. As
+	 * such, the original URI and the canonical URI can be different.
 	 */
 	getCanonicalUri(editor: IEditorInput | undefined | null): URI | undefined;
 	getCanonicalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
@@ -1417,13 +1440,15 @@ export const enum CloseDirection {
 export interface IEditorMemento<T> {
 
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
-	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	saveEditorState(group: IEditorGroup, editor: IEditorInput, state: T): void;
 
 	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: IEditorInput): T | undefined;
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
-	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
+	clearEditorState(editor: IEditorInput, group?: IEditorGroup): void;
+
+	clearEditorStateOnDispose(resource: URI, editor: IEditorInput): void;
 
 	moveEditorState(source: URI, target: URI, comparer: IExtUri): void;
 }
@@ -1565,3 +1590,44 @@ export function computeEditorAriaLabel(input: IEditorInput, index: number | unde
 
 	return ariaLabel;
 }
+
+
+//#region Editor Group Column
+
+/**
+ * A way to address editor groups through a column based system
+ * where `0` is the first column. Will fallback to `SIDE_GROUP`
+ * in case the column does not exist yet.
+ */
+export type EditorGroupColumn = number;
+
+export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService, viewColumn?: EditorGroupColumn): GroupIdentifier {
+	if (typeof viewColumn !== 'number' || viewColumn === ACTIVE_GROUP) {
+		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such
+	}
+
+	const groups = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
+
+	let candidateGroup = groups[viewColumn];
+	if (candidateGroup) {
+		return candidateGroup.id; // found direct match
+	}
+
+	let firstGroup = groups[0];
+	if (groups.length === 1 && firstGroup.count === 0) {
+		return firstGroup.id; // first editor should always open in first group independent from position provided
+	}
+
+	return SIDE_GROUP; // open to the side if group not found or we are instructed to
+}
+
+export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
+	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
+	if (!group) {
+		throw new Error('Invalid group provided');
+	}
+
+	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
+}
+
+//#endregion

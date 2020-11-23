@@ -37,7 +37,7 @@ export async function openEditorWith(
 	configurationService: IConfigurationService,
 	quickInputService: IQuickInputService,
 ): Promise<IEditorPane | undefined> {
-	const resource = EditorResourceAccessor.getOriginalUri(input);
+	const resource = input.resource;
 	if (!resource) {
 		return;
 	}
@@ -60,7 +60,8 @@ export async function openEditorWith(
 	}
 
 	// Prompt
-	const resourceExt = extname(resource);
+	const originalResource = EditorResourceAccessor.getOriginalUri(input) || resource;
+	const resourceExt = extname(originalResource);
 
 	const items: (IQuickPickItem & { handler: IOpenEditorOverrideHandler })[] = allEditorOverrides.map(([handler, entry]) => {
 		return {
@@ -81,7 +82,7 @@ export async function openEditorWith(
 	if (items.length) {
 		picker.selectedItems = [items[0]];
 	}
-	picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
+	picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(originalResource));
 
 	const pickedItem = await new Promise<(IQuickPickItem & { handler: IOpenEditorOverrideHandler }) | undefined>(resolve => {
 		picker.onDidAccept(() => {

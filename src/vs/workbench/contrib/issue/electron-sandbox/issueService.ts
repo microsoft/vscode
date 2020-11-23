@@ -11,11 +11,12 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -26,12 +27,13 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@ITASExperimentService private readonly experimentService: ITASExperimentService
 	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const extensions = await this.extensionManagementService.getInstalled();
-		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
+		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
 		const extensionData = enabledExtensions.map((extension): IssueReporterExtensionData => {
 			const { manifest } = extension;
 			const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
@@ -49,11 +51,13 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				isBuiltin,
 			};
 		});
+		const experiments = await this.experimentService.getCurrentExperiments();
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
 			zoomLevel: getZoomLevel(),
 			enabledExtensions: extensionData,
+			experiments: experiments?.join('\n')
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
 	}

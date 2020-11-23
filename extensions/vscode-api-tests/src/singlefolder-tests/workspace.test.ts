@@ -974,4 +974,78 @@ suite('vscode API - workspace', () => {
 		// const expected2 = 'import2;import1;';
 		assert.equal(document.getText(), expected);
 	});
+
+	test('issue #107739 - Redo of rename Java Class name has no effect', async () => {
+		const file = await createRandomFile('hello');
+		const fileName = basename(file.fsPath);
+		const newFile = vscode.Uri.parse(file.toString().replace(fileName, `${fileName}2`));
+
+		// apply edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.insert(file, new vscode.Position(0, 5), '2');
+			we.renameFile(file, newFile);
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// show the new document
+		{
+			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
+		}
+
+		// undo and show the old document
+		{
+			await vscode.commands.executeCommand('undo');
+			const document = await vscode.workspace.openTextDocument(file);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello');
+		}
+
+		// redo and show the new document
+		{
+			await vscode.commands.executeCommand('redo');
+			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
+		}
+
+	});
+
+	test('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
+		const file = await createRandomFile('hello\nworld');
+
+		const document = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(document);
+
+		// apply edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.insert(file, new vscode.Position(0, 5), '2');
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// check the document
+		{
+			assert.equal(document.getText(), 'hello2\nworld');
+			assert.equal(document.isDirty, true);
+		}
+
+		// apply no-op edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.set(file, [vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]);
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// undo
+		{
+			await vscode.commands.executeCommand('undo');
+			assert.equal(document.getText(), 'hello\nworld');
+			assert.equal(document.isDirty, false);
+		}
+	});
 });

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './actions/showEmmetCommands';
-import './actions/expandAbbreviation';
+import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { expandEmmetAbbreviationCommand } from './expandEmmetAbbreviation';
 
+registerEditorCommand(expandEmmetAbbreviationCommand);

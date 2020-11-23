@@ -25,8 +25,8 @@ import { match } from 'minimatch';
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
 	'require', // from our AMD loader
-	'atob',
-	'btoa',
+	// 'atob',
+	// 'btoa',
 	'setTimeout',
 	'clearTimeout',
 	'setInterval',

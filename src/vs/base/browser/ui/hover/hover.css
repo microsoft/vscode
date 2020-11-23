@@ -87,7 +87,6 @@
 
 .monaco-hover .monaco-tokenized-source {
 	white-space: pre-wrap;
-	word-break: break-all;
 }
 
 .monaco-hover .hover-row.status-bar {
@@ -133,7 +132,7 @@
 }
 
 /** Spans in markdown hovers need a margin-bottom to avoid looking cramped: https://github.com/microsoft/vscode/issues/101496 **/
-.monaco-hover .markdown-hover .hover-contents span {
+.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents) span {
 	margin-bottom: 4px;
 	display: inline-block;
 }

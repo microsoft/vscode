@@ -10,7 +10,7 @@ import { SyncActionDescriptor, ICommandAction, MenuRegistry, MenuId } from 'vs/p
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { WorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issueService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IssueReporterData } from 'vs/platform/issue/common/issue';

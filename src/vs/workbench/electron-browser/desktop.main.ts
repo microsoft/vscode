@@ -5,6 +5,9 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
+import { createHash } from 'crypto';
+import { stat } from 'vs/base/node/pfs';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -42,14 +45,16 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/electron
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
-import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 class DesktopMain extends Disposable {
 
@@ -71,27 +76,27 @@ class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		importEntries(this.environmentService.configuration.perfEntries);
+		importEntries(this.configuration.perfEntries);
 
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 		setZoomLevel(zoomLevel, true /* isTrusted */);
-		setFullscreen(!!this.environmentService.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen);
 	}
 
 	private reviveUris() {
-		if (this.environmentService.configuration.folderUri) {
-			this.environmentService.configuration.folderUri = URI.revive(this.environmentService.configuration.folderUri);
+		if (this.configuration.folderUri) {
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
 
-		if (this.environmentService.configuration.workspace) {
-			this.environmentService.configuration.workspace = reviveWorkspaceIdentifier(this.environmentService.configuration.workspace);
+		if (this.configuration.workspace) {
+			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
-		const filesToWait = this.environmentService.configuration.filesToWait;
+		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
-		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
+		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
@@ -125,12 +130,12 @@ class DesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Driver
-		if (this.environmentService.configuration.driver) {
+		if (this.configuration.driver) {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
+		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
@@ -231,8 +236,11 @@ class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.configuration.backupPath ? URI.file(this.environmentService.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
 
+		// Uri Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -253,13 +261,10 @@ class DesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const resourceIdentityService = this._register(new NativeResourceIdentityService());
-		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
-
-		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
+		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		const services = await Promise.all([
-			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -274,6 +279,14 @@ class DesktopMain extends Disposable {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
+
+				return service;
+			}),
+
+			this.createKeyboardLayoutService(logService, mainProcessService).then(service => {
+
+				// KeyboardLayout
+				serviceCollection.set(IKeyboardLayoutService, service);
 
 				return service;
 			})
@@ -296,24 +309,24 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
-		if (this.environmentService.configuration.workspace) {
-			return this.environmentService.configuration.workspace;
+		if (this.configuration.workspace) {
+			return this.configuration.workspace;
 		}
 
 		// Single-folder workspace
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
-		if (this.environmentService.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri, resourceIdentityService);
+		if (this.configuration.folderUri) {
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
 		}
 
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
 			let id: string;
-			if (this.environmentService.backupWorkspaceHome) {
-				id = basename(this.environmentService.backupWorkspaceHome); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			if (this.configuration.backupPath) {
+				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
 			} else if (this.environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
@@ -326,21 +339,48 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, resourceIdentityService: IResourceIdentityService): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
+	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 		try {
 			const folder = folderUri.scheme === Schemas.file
 				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
 				: folderUri;
-			const id = await resourceIdentityService.resolveResourceIdentity(folderUri);
+			const id = await this.createHash(folderUri);
 			return { id, folder };
 		} catch (error) {
 			onUnexpectedError(error);
 		}
+
 		return;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.configuration.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, logService);
+	private async createHash(resource: URI): Promise<string> {
+
+		// Return early the folder is not local
+		if (resource.scheme !== Schemas.file) {
+			return createHash('md5').update(resource.toString()).digest('hex');
+		}
+
+		const fileStat = await stat(resource.fsPath);
+		let ctime: number | undefined;
+		if (isLinux) {
+			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+		} else if (isMacintosh) {
+			ctime = fileStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+		} else if (isWindows) {
+			if (typeof fileStat.birthtimeMs === 'number') {
+				ctime = Math.floor(fileStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			} else {
+				ctime = fileStat.birthtime.getTime();
+			}
+		}
+
+		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
+		// deleted and recreated. in that case we do not want to carry over previous state
+		return createHash('md5').update(resource.fsPath).update(ctime ? String(ctime) : '').digest('hex');
+	}
+
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);
@@ -370,6 +410,20 @@ class DesktopMain extends Disposable {
 		}
 	}
 
+	private async createKeyboardLayoutService(logService: ILogService, mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
+		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+
+		try {
+			await keyboardLayoutService.initialize();
+
+			return keyboardLayoutService;
+		} catch (error) {
+			onUnexpectedError(error);
+			logService.error(error);
+
+			return keyboardLayoutService;
+		}
+	}
 }
 
 export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
