@@ -312,7 +312,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markersPerResource, deliveredMarkersPerOwner);
 	}
 
-	private deliverMarkersPerOwnerAndResourceResolved(owner: string, resource: string, markers: Map<string, IMarkerData>, reported: Map<string, number>): Promise<void> {
+	private deliverMarkersPerOwnerAndResourceResolved(owner: string, resource: string, markers: Map<string, IMarkerData>, reported: Map<string, number>): void {
 		if (markers.size !== reported.get(resource)) {
 			let toSet: IMarkerData[] = [];
 			markers.forEach(value => toSet.push(value));
