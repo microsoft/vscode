@@ -148,6 +148,7 @@ stages:
   jobs:
   - job: macOSARM64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: arm64
     steps:

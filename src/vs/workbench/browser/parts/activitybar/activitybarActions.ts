@@ -151,7 +151,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
 		const actions = await this.resolveActions(menu, disposables);
 
-		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService, this.environmentService) !== 'native' && !isMacintosh); // see #40262
+		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
 		const position = this.configurationService.getValue('workbench.sideBar.location');
 
 		this.contextMenuService.showContextMenu({

@@ -210,7 +210,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 			}
 
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
+			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 			if (useCustomTitleStyle) {
 				options.titleBarStyle = 'hidden';
 				this.hiddenTitleBarStyle = true;
@@ -1149,7 +1149,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.currentConfig?.extensionDevelopmentPath);
+		let menuBarVisibility = getMenuBarVisibility(this.configurationService);
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
 			menuBarVisibility = 'default';
 		}

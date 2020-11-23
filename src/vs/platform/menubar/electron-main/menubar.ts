@@ -82,7 +82,7 @@ export class Menubar {
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
 
-		if (isMacintosh || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
 			this.restoreCachedMenubarData();
 		}
 
@@ -416,7 +416,7 @@ export class Menubar {
 
 	private shouldDrawMenu(menuId: string): boolean {
 		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
 			return false;
 		}
 

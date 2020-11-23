@@ -12,8 +12,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { CELL_STATUSBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -341,7 +341,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING;
+		return this._textEditor.getTopForLineNumber(line) + getEditorTopPadding();
 	}
 
 	getPositionScrollTopOffset(line: number, column: number): number {
@@ -349,7 +349,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForPosition(line, column) + EDITOR_TOP_PADDING;
+		return this._textEditor.getTopForPosition(line, column) + getEditorTopPadding();
 	}
 
 	cursorAtBeginEnd(): boolean {
