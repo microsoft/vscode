@@ -118,7 +118,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		);
 
 		const cache = ExtensionUrlBootstrapHandler.cache;
-		setTimeout(() => cache.forEach(uri => this.handleURL(uri)));
+		setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -346,10 +346,10 @@ registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
  */
 class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
 
-	private static _cache: URI[] = [];
+	private static _cache: [URI, IOpenURLOptions | undefined][] = [];
 	private static disposable: IDisposable;
 
-	static get cache(): URI[] {
+	static get cache(): [URI, IOpenURLOptions | undefined][] {
 		ExtensionUrlBootstrapHandler.disposable.dispose();
 
 		const result = ExtensionUrlBootstrapHandler._cache;
@@ -361,12 +361,12 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
 	}
 
-	async handleURL(uri: URI): Promise<boolean> {
+	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!isExtensionId(uri.authority)) {
 			return false;
 		}
 
-		ExtensionUrlBootstrapHandler._cache.push(uri);
+		ExtensionUrlBootstrapHandler._cache.push([uri, options]);
 		return true;
 	}
 }
