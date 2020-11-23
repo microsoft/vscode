@@ -253,6 +253,11 @@ export interface IStat {
 	ctime: number;
 
 	size: number;
+
+	/**
+	 * The file is read-only.
+	 */
+	readonly?: boolean;
 }
 
 export interface IWatchOptions {
@@ -742,6 +747,14 @@ interface IBaseStat {
 	 * it is optional.
 	 */
 	etag?: string;
+
+	/**
+	 * The file is read-only
+	 *
+	 * The value may or may not be resolved as
+	 * it is optional.
+	 */
+	readonly?: boolean;
 }
 
 export interface IBaseStatWithMetadata extends IBaseStat {
@@ -749,6 +762,7 @@ export interface IBaseStatWithMetadata extends IBaseStat {
 	ctime: number;
 	etag: string;
 	size: number;
+	readonly?: boolean;
 }
 
 /**
@@ -783,6 +797,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata 
 	etag: string;
 	size: number;
 	children?: IFileStatWithMetadata[];
+	readonly?: boolean;
 }
 
 export interface IResolveFileResult {

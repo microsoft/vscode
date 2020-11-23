@@ -31,6 +31,7 @@ interface IBackupMetaData {
 	size: number;
 	etag: string;
 	orphaned: boolean;
+	readonly?: boolean;
 }
 
 /**
@@ -197,7 +198,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				ctime: this.lastResolvedFileStat.ctime,
 				size: this.lastResolvedFileStat.size,
 				etag: this.lastResolvedFileStat.etag,
-				orphaned: this.inOrphanMode
+				orphaned: this.inOrphanMode,
+				readonly: this.lastResolvedFileStat.readonly
 			};
 		}
 
@@ -462,6 +464,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
+			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false
@@ -1028,6 +1031,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isReadonly(): boolean {
+		if (this.lastResolvedFileStat?.readonly) {
+			return true;
+		}
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
