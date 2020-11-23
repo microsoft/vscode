@@ -471,34 +471,34 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'UTF-16 BE',
 		order: 4
 	},
-	windows1252: {
-		labelLong: 'Western (Windows 1252)',
-		labelShort: 'Windows 1252',
+	cp850: {
+		labelLong: 'Western European (IBM 850)',
+		labelShort: 'CP 850',
 		order: 5
 	},
 	iso88591: {
-		labelLong: 'Western (ISO 8859-1)',
+		labelLong: 'Western European (ISO 8859-1)',
 		labelShort: 'ISO 8859-1',
 		order: 6
 	},
-	iso88593: {
-		labelLong: 'Western (ISO 8859-3)',
-		labelShort: 'ISO 8859-3',
+	iso885915: {
+		labelLong: 'Western European (ISO 8859-15)',
+		labelShort: 'ISO 8859-15',
 		order: 7
 	},
-	iso885915: {
-		labelLong: 'Western (ISO 8859-15)',
-		labelShort: 'ISO 8859-15',
+	macroman: {
+		labelLong: 'Western European (Mac Roman)',
+		labelShort: 'Mac Roman',
 		order: 8
 	},
-	macroman: {
-		labelLong: 'Western (Mac Roman)',
-		labelShort: 'Mac Roman',
+	windows1252: {
+		labelLong: 'Western European (Windows 1252)',
+		labelShort: 'Windows 1252',
 		order: 9
 	},
-	cp437: {
-		labelLong: 'DOS (CP 437)',
-		labelShort: 'CP437',
+	iso88596: {
+		labelLong: 'Arabic (ISO 8859-6)',
+		labelShort: 'ISO 8859-6',
 		order: 10
 	},
 	windows1256: {
@@ -506,9 +506,9 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'Windows 1256',
 		order: 11
 	},
-	iso88596: {
-		labelLong: 'Arabic (ISO 8859-6)',
-		labelShort: 'ISO 8859-6',
+	iso88594: {
+		labelLong: 'Baltic (ISO 8859-4)',
+		labelShort: 'ISO 8859-4',
 		order: 12
 	},
 	windows1257: {
@@ -516,174 +516,174 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'Windows 1257',
 		order: 13
 	},
-	iso88594: {
-		labelLong: 'Baltic (ISO 8859-4)',
-		labelShort: 'ISO 8859-4',
-		order: 14
-	},
 	iso885914: {
 		labelLong: 'Celtic (ISO 8859-14)',
 		labelShort: 'ISO 8859-14',
-		order: 15
+		order: 14
 	},
-	windows1250: {
-		labelLong: 'Central European (Windows 1250)',
-		labelShort: 'Windows 1250',
-		order: 16
+	cp852: {
+		labelLong: 'Central European (IBM 852)',
+		labelShort: 'CP 852',
+		order: 15
 	},
 	iso88592: {
 		labelLong: 'Central European (ISO 8859-2)',
 		labelShort: 'ISO 8859-2',
+		order: 16
+	},
+	windows1250: {
+		labelLong: 'Central European (Windows 1250)',
+		labelShort: 'Windows 1250',
 		order: 17
 	},
-	cp852: {
-		labelLong: 'Central European (CP 852)',
-		labelShort: 'CP 852',
+	gb2312: {
+		labelLong: 'Chinese, Simplified (GB 2312)',
+		labelShort: 'GB 2312',
 		order: 18
 	},
-	windows1251: {
-		labelLong: 'Cyrillic (Windows 1251)',
-		labelShort: 'Windows 1251',
+	gbk: {
+		labelLong: 'Chinese, Simplified (GBK)',
+		labelShort: 'GBK',
 		order: 19
 	},
-	cp866: {
-		labelLong: 'Cyrillic (CP 866)',
-		labelShort: 'CP 866',
+	gb18030: {
+		labelLong: 'Chinese, Simplified (GB 18030)',
+		labelShort: 'GB18030',
 		order: 20
+	},
+	cp950: {
+		labelLong: 'Chinese, Traditional (Big5)',
+		labelShort: 'Big5',
+		order: 21
+	},
+	big5hkscs: {
+		labelLong: 'Chinese, Traditional (Big5-HKSCS)',
+		labelShort: 'Big5-HKSCS',
+		order: 22
+	},
+	cp866: {
+		labelLong: 'Cyrillic (IBM 866)',
+		labelShort: 'CP 866',
+		order: 23
 	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
-		order: 21
+		order: 24
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
-		order: 22
+		order: 25
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
 		labelShort: 'KOI8-U',
-		order: 23
-	},
-	iso885913: {
-		labelLong: 'Estonian (ISO 8859-13)',
-		labelShort: 'ISO 8859-13',
-		order: 24
-	},
-	windows1253: {
-		labelLong: 'Greek (Windows 1253)',
-		labelShort: 'Windows 1253',
-		order: 25
-	},
-	iso88597: {
-		labelLong: 'Greek (ISO 8859-7)',
-		labelShort: 'ISO 8859-7',
 		order: 26
-	},
-	windows1255: {
-		labelLong: 'Hebrew (Windows 1255)',
-		labelShort: 'Windows 1255',
-		order: 27
-	},
-	iso88598: {
-		labelLong: 'Hebrew (ISO 8859-8)',
-		labelShort: 'ISO 8859-8',
-		order: 28
-	},
-	iso885910: {
-		labelLong: 'Nordic (ISO 8859-10)',
-		labelShort: 'ISO 8859-10',
-		order: 29
-	},
-	iso885916: {
-		labelLong: 'Romanian (ISO 8859-16)',
-		labelShort: 'ISO 8859-16',
-		order: 30
-	},
-	windows1254: {
-		labelLong: 'Turkish (Windows 1254)',
-		labelShort: 'Windows 1254',
-		order: 31
-	},
-	iso88599: {
-		labelLong: 'Turkish (ISO 8859-9)',
-		labelShort: 'ISO 8859-9',
-		order: 32
-	},
-	windows1258: {
-		labelLong: 'Vietnamese (Windows 1258)',
-		labelShort: 'Windows 1258',
-		order: 33
-	},
-	gbk: {
-		labelLong: 'Simplified Chinese (GBK)',
-		labelShort: 'GBK',
-		order: 34
-	},
-	gb18030: {
-		labelLong: 'Simplified Chinese (GB18030)',
-		labelShort: 'GB18030',
-		order: 35
-	},
-	cp950: {
-		labelLong: 'Traditional Chinese (Big5)',
-		labelShort: 'Big5',
-		order: 36
-	},
-	big5hkscs: {
-		labelLong: 'Traditional Chinese (Big5-HKSCS)',
-		labelShort: 'Big5-HKSCS',
-		order: 37
-	},
-	shiftjis: {
-		labelLong: 'Japanese (Shift JIS)',
-		labelShort: 'Shift JIS',
-		order: 38
-	},
-	eucjp: {
-		labelLong: 'Japanese (EUC-JP)',
-		labelShort: 'EUC-JP',
-		order: 39
-	},
-	euckr: {
-		labelLong: 'Korean (EUC-KR)',
-		labelShort: 'EUC-KR',
-		order: 40
-	},
-	windows874: {
-		labelLong: 'Thai (Windows 874)',
-		labelShort: 'Windows 874',
-		order: 41
-	},
-	iso885911: {
-		labelLong: 'Latin/Thai (ISO 8859-11)',
-		labelShort: 'ISO 8859-11',
-		order: 42
 	},
 	koi8ru: {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
-		order: 43
+		order: 27
 	},
 	koi8t: {
-		labelLong: 'Tajik (KOI8-T)',
+		labelLong: 'Cyrillic (KOI8-T)',
 		labelShort: 'KOI8-T',
-		order: 44
+		order: 28
 	},
-	gb2312: {
-		labelLong: 'Simplified Chinese (GB 2312)',
-		labelShort: 'GB 2312',
-		order: 45
+	windows1251: {
+		labelLong: 'Cyrillic (Windows 1251)',
+		labelShort: 'Windows 1251',
+		order: 29
+	},
+	iso885913: {
+		labelLong: 'Estonian (ISO 8859-13)',
+		labelShort: 'ISO 8859-13',
+		order: 30
+	},
+	iso88597: {
+		labelLong: 'Greek (ISO 8859-7)',
+		labelShort: 'ISO 8859-7',
+		order: 31
+	},
+	windows1253: {
+		labelLong: 'Greek (Windows 1253)',
+		labelShort: 'Windows 1253',
+		order: 32
+	},
+	iso88598: {
+		labelLong: 'Hebrew (ISO 8859-8)',
+		labelShort: 'ISO 8859-8',
+		order: 33
+	},
+	windows1255: {
+		labelLong: 'Hebrew (Windows 1255)',
+		labelShort: 'Windows 1255',
+		order: 34
+	},
+	eucjp: {
+		labelLong: 'Japanese (EUC-JP)',
+		labelShort: 'EUC-JP',
+		order: 35
+	},
+	shiftjis: {
+		labelLong: 'Japanese (Shift JIS)',
+		labelShort: 'Shift JIS',
+		order: 36
+	},
+	euckr: {
+		labelLong: 'Korean (EUC-KR)',
+		labelShort: 'EUC-KR',
+		order: 37
 	},
 	cp865: {
-		labelLong: 'Nordic DOS (CP 865)',
+		labelLong: 'Nordic (IBM 865)',
 		labelShort: 'CP 865',
+		order: 38
+	},
+	iso885910: {
+		labelLong: 'Nordic (ISO 8859-10)',
+		labelShort: 'ISO 8859-10',
+		order: 39
+	},
+	cp437: {
+		labelLong: 'OEM (IBM 437)',
+		labelShort: 'CP437',
+		order: 40
+	},
+	iso88593: {
+		labelLong: 'South European (ISO 8859-3)',
+		labelShort: 'ISO 8859-3',
+		order: 41
+	},
+	iso885916: {
+		labelLong: 'South-Eastern European (ISO 8859-16)',
+		labelShort: 'ISO 8859-16',
+		order: 42
+	},
+	iso885911: {
+		labelLong: 'Thai (ISO 8859-11)',
+		labelShort: 'ISO 8859-11',
+		order: 43
+	},
+	windows874: {
+		labelLong: 'Thai (Windows 874)',
+		labelShort: 'Windows 874',
+		order: 44
+	},
+	iso88599: {
+		labelLong: 'Turkish (ISO 8859-9)',
+		labelShort: 'ISO 8859-9',
+		order: 45
+	},
+	windows1254: {
+		labelLong: 'Turkish (Windows 1254)',
+		labelShort: 'Windows 1254',
 		order: 46
 	},
-	cp850: {
-		labelLong: 'Western European DOS (CP 850)',
-		labelShort: 'CP 850',
+	windows1258: {
+		labelLong: 'Vietnamese (Windows 1258)',
+		labelShort: 'Windows 1258',
 		order: 47
 	}
 };
