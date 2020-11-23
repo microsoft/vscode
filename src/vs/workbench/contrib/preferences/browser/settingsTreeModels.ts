@@ -317,11 +317,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (!idFilters || !idFilters.size) {
 			return true;
 		}
-
-		if (!this.setting.key) {
-			return false;
-		}
-
 		return idFilters.has(this.setting.key);
 	}
 }
