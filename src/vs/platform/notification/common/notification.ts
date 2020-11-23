@@ -35,12 +35,6 @@ export interface INotificationProperties {
 	 * such as future requests will not cause the notification to show again.
 	 */
 	readonly neverShowAgain?: INeverShowAgainOptions;
-
-	/**
-	 * Will be called if the user closed the notification without picking
-	 * any of the provided choices.
-	 */
-	onCancel?: () => void;
 }
 
 export enum NeverShowAgainScope {
@@ -253,6 +247,15 @@ export interface IPromptChoiceWithMenu extends IPromptChoice {
 	readonly isSecondary: undefined;
 }
 
+export interface IPromptOptions extends INotificationProperties {
+
+	/**
+	 * Will be called if the user closed the notification without picking
+	 * any of the provided choices.
+	 */
+	onCancel?: () => void;
+}
+
 export interface IStatusMessageOptions {
 
 	/**
@@ -337,7 +340,7 @@ export interface INotificationService {
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: INotificationProperties): INotificationHandle;
+	prompt(severity: Severity, message: string, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: IPromptOptions): INotificationHandle;
 
 	/**
 	 * Shows a status message in the status area with the provided text.
