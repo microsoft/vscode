@@ -53,7 +53,7 @@ steps:
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
 - script: |
-    npx https://aka.ms/enablesecurefeed
+    npx https://aka.ms/enablesecurefeed standAlone
   displayName: Switch to Terrapin packages
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 

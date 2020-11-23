@@ -53,7 +53,7 @@ steps:
   displayName: Merge distro
 
 - script: |
-    npx https://aka.ms/enablesecurefeed
+    npx https://aka.ms/enablesecurefeed standAlone
   displayName: Switch to Terrapin packages
 
 # - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
