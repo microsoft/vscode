@@ -195,6 +195,9 @@ export class TunnelModel extends Disposable {
 				this._onForwardPort.fire(newForward);
 				return tunnel;
 			}
+		} else {
+			this.forwarded.get(key)!.name = name;
+			this._onForwardPort.fire();
 		}
 	}
 
