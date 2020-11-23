@@ -36,12 +36,11 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 				for (const welcome of contribution.value) {
 					const id = ViewIdentifierMap[welcome.view] ?? welcome.view;
 					const { group, order } = parseGroupAndOrder(welcome, contribution);
-					const enablement = ContextKeyExpr.deserialize(welcome.enablement);
+					const precondition = ContextKeyExpr.deserialize(welcome.enablement);
 					const disposable = viewsRegistry.registerViewWelcomeContent(id, {
 						content: welcome.contents,
 						when: ContextKeyExpr.deserialize(welcome.when),
-						// supply the enablement clause for each line in case the line defines a button
-						preconditions: welcome.contents.split('\n').map((_) => enablement),
+						precondition,
 						group,
 						order
 					});

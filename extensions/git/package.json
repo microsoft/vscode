@@ -2276,7 +2276,7 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0",
+        "when": "config.git.enabled && workbenchState == workspace && workspaceFolderCount != 0",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
