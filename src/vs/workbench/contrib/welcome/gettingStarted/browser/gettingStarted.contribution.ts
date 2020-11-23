@@ -10,6 +10,9 @@ import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import product from 'vs/platform/product/common/product';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -21,6 +24,7 @@ registerAction2(class extends Action2 {
 			precondition: ContextKeyExpr.has('config.workbench.experimental.gettingStarted'),
 			menu: {
 				id: MenuId.MenubarHelpMenu,
+				when: ContextKeyExpr.has('config.workbench.experimental.gettingStarted'),
 				group: '1_welcome',
 				order: 2,
 			}
@@ -33,3 +37,16 @@ registerAction2(class extends Action2 {
 });
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(GettingStartedInputFactory.ID, GettingStartedInputFactory);
+
+if (product.quality !== 'stable') {
+	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+		...workbenchConfigurationNodeBase,
+		properties: {
+			'workbench.experimental.gettingStarted': {
+				type: 'boolean',
+				description: localize('gettingStartedDescription', "Enables an experimental Getting Started page, accesible via the Help menu."),
+				default: false,
+			}
+		}
+	});
+}

@@ -26,6 +26,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorWalkThroughAction } from 'vs/workbench/contrib/welcome/walkThrough/browser/editor/editorWalkThrough';
 import { isMacintosh } from 'vs/base/common/platform';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const typeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -63,6 +64,7 @@ export class GettingStartedPage extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService) {
 		super();
 
@@ -114,34 +116,48 @@ export class GettingStartedPage extends Disposable {
 		container.querySelectorAll('[x-dispatch]').forEach(element => {
 			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
 			if (command) {
-				switch (command) {
-					case 'scrollPrev':
-						this.dispatchListeners.add(addDisposableListener(element, 'click', () => this.scrollPrev(container)));
-						break;
-					case 'skip':
-						this.dispatchListeners.add(addDisposableListener(element, 'click', () => this.commandService.executeCommand('workbench.action.closeActiveEditor')));
-						break;
-					case 'selectCategory':
-						this.dispatchListeners.add(addDisposableListener(element, 'click', () => {
+				this.dispatchListeners.add(addDisposableListener(element, 'click', () => {
+
+					type GettingStartedActionClassification = {
+						command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+						argument: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+					};
+					type GettingStartedActionEvent = {
+						command: string;
+						argument: string | undefined;
+					};
+					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
+
+					switch (command) {
+						case 'scrollPrev': {
+							this.scrollPrev(container);
+							break;
+						}
+						case 'skip': {
+							this.commandService.executeCommand('workbench.action.closeActiveEditor');
+							break;
+						}
+						case 'selectCategory': {
 							const additionalElementCommand = this.additionalTopLevelItems.find(item => item.id === argument)?.command;
 							if (additionalElementCommand) {
 								this.commandService.executeCommand(additionalElementCommand);
 							} else {
 								this.scrollToCategory(container, argument);
 							}
-						}));
-						break;
-					case 'runTaskAction':
-						this.dispatchListeners.add(addDisposableListener(element, 'click', () => {
+							break;
+						}
+						case 'runTaskAction': {
 							const taskToRun = assertIsDefined(this.currentCategory?.tasks.find(task => task.id === argument));
 							const commandToRun = assertIsDefined(taskToRun.button?.command);
 							this.commandService.executeCommand(commandToRun);
-						}));
-						break;
-					default:
-						console.error('Dispatch to', command, argument, 'not defined');
-						break;
-				}
+							break;
+						}
+						default: {
+							console.error('Dispatch to', command, argument, 'not defined');
+							break;
+						}
+					}
+				}));
 			}
 		});
 	}
