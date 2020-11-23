@@ -300,7 +300,7 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
 			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
 
 			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
@@ -416,7 +416,7 @@ export class NativeWindow extends Disposable {
 		this.customTitleContextMenuDisposable.clear();
 
 		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (!filePath || getTitleBarStyle(this.configurationService) !== 'custom') {
 			return;
 		}
 
@@ -448,7 +448,7 @@ export class NativeWindow extends Disposable {
 	private create(): void {
 
 		// Native menu controller
-		if (isMacintosh || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
 			this._register(this.instantiationService.createInstance(NativeMenubarControl));
 		}
 
