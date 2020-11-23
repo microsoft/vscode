@@ -547,6 +547,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
 			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT, StorageScope.GLOBAL, true) &&
 					resolveResult.commandId !== 'workbench.action.terminal.toggleTerminal' &&
 					resolveResult.commandId !== 'workbench.action.terminal.new' &&
