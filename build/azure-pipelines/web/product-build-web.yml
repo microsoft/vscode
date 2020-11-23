@@ -52,6 +52,10 @@ steps:
     git merge $(node -p "require('./package.json').distro")
   displayName: Merge distro
 
+- script: |
+    npx https://aka.ms/enablesecurefeed standAlone
+  displayName: Switch to Terrapin packages
+
 # - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
 #   inputs:
 #     keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
