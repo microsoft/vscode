@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, IPromptOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';

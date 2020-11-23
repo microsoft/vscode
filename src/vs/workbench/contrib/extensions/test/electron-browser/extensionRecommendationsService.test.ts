@@ -38,7 +38,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, Severity, IPromptChoice, INotificationProperties } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
@@ -262,7 +262,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		prompted = false;
 
 		class TestNotificationService2 extends TestNotificationService {
-			public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: INotificationProperties) {
+			public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 				prompted = true;
 				promptedEmitter.fire();
 				return super.prompt(severity, message, choices, options);
