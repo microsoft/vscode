@@ -240,6 +240,19 @@ export interface IPromptChoice {
 	run: () => void;
 }
 
+export interface IPromptChoiceWithMenu extends IPromptChoice {
+
+	/**
+	 * Additional choices those will be shown in the dropdown menu for this choice.
+	 */
+	readonly menu: IPromptChoice[];
+
+	/**
+	 * Menu is not supported on secondary choices
+	 */
+	readonly isSecondary: undefined;
+}
+
 export interface IStatusMessageOptions {
 
 	/**
@@ -324,7 +337,7 @@ export interface INotificationService {
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: INotificationProperties): INotificationHandle;
+	prompt(severity: Severity, message: string, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: INotificationProperties): INotificationHandle;
 
 	/**
 	 * Shows a status message in the status area with the provided text.

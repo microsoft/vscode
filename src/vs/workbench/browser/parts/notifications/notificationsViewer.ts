@@ -457,13 +457,15 @@ export class NotificationTemplateRenderer extends Disposable {
 			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
 			for (const action of primaryActions) {
 				const buttonOptions = { title: true, /* assign titles to buttons in case they overflow */ };
+				const dropdownActions = action instanceof ChoiceAction ? action.menu
+					: action instanceof ActionWithMenuAction ? action.actions : undefined;
 				const button = this.inputDisposables.add(
-					action instanceof ActionWithMenuAction
+					dropdownActions
 						? buttonToolbar.addButtonWithDropdown({
 							...buttonOptions,
 							dropdownMenuOptions: {
 								contextMenuProvider: this.contextMenuService,
-								actions: action.actions,
+								actions: dropdownActions,
 								actionRunner
 							}
 						})

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, ActionWithMenuAction, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellablePromises, raceCancellation, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationHandle, INotificationService, IPromptChoice, IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
@@ -59,23 +59,13 @@ class RecommendationsNotification {
 	constructor(
 		private readonly severity: Severity,
 		private readonly message: string,
-		private readonly primary: IAction[],
-		private readonly secondary: IAction[],
+		private readonly choices: IPromptChoice[],
 		private readonly notificationService: INotificationService
 	) { }
 
 	show(): void {
 		if (!this.notificationHandle) {
-			this.updateNotificationHandle(this.notificationService.notify({
-				message: this.message,
-				severity: this.severity,
-				actions: {
-					primary: this.primary,
-					secondary: this.secondary,
-				},
-				sticky: true,
-				onCancel: () => this.cancelled = true
-			}));
+			this.updateNotificationHandle(this.notificationService.prompt(this.severity, this.message, this.choices, { sticky: true, onCancel: () => this.cancelled = true }));
 		}
 	}
 
@@ -84,17 +74,7 @@ class RecommendationsNotification {
 			this.onDidCloseDisposable.clear();
 			this.notificationHandle.close();
 			this.cancelled = false;
-			this.updateNotificationHandle(this.notificationService.notify({
-				message: this.message,
-				severity: this.severity,
-				actions: {
-					primary: this.primary,
-					secondary: this.secondary,
-				},
-				silent: true,
-				sticky: false,
-				onCancel: () => this.cancelled = true
-			}));
+			this.updateNotificationHandle(this.notificationService.prompt(this.severity, this.message, this.choices, { silent: true, sticky: false, onCancel: () => this.cancelled = true }));
 		}
 	}
 
@@ -261,8 +241,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		{ onDidInstallRecommendedExtensions, onDidShowRecommendedExtensions, onDidCancelRecommendedExtensions, onDidNeverShowRecommendedExtensionsAgain }: RecommendationsNotificationActions): CancelablePromise<RecommendationsNotificationResult> {
 		return createCancelablePromise<RecommendationsNotificationResult>(async token => {
 			let accepted = false;
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
+			const choices: (IPromptChoice | IPromptChoiceWithMenu)[] = [];
 			const installExtensions = async (isMachineScoped?: boolean) => {
 				this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				onDidInstallRecommendedExtensions(extensions);
@@ -271,24 +250,32 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 					this.extensionManagementService.installExtensions(extensions.map(e => e.gallery!), { isMachineScoped })
 				]);
 			};
-
-			if (this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions)) {
-				primary.push(new ActionWithMenuAction('install', [
-					new Action('install and do no sync', localize('install and do no sync', "Install (Do not sync)"), undefined, true, () => installExtensions(true))
-				], localize('install', "Install"), undefined, true, () => installExtensions()));
-			} else {
-				primary.push(new Action('install', localize('install', "Install"), undefined, true, () => installExtensions()));
-			}
-			primary.push(new Action('show recommendations', localize('show recommendations', "Show Recommendations"), undefined, true, async () => {
-				onDidShowRecommendedExtensions(extensions);
-				for (const extension of extensions) {
-					this.extensionsWorkbenchService.open(extension, { pinned: true });
+			choices.push({
+				label: localize('install', "Install"),
+				run: () => installExtensions(),
+				menu: this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions) ? [{
+					label: localize('install and do no sync', "Install (Do not sync)"),
+					run: () => installExtensions(true)
+				}] : undefined,
+			});
+			choices.push(...[{
+				label: localize('show recommendations', "Show Recommendations"),
+				run: async () => {
+					onDidShowRecommendedExtensions(extensions);
+					for (const extension of extensions) {
+						this.extensionsWorkbenchService.open(extension, { pinned: true });
+					}
+					this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				}
-				this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
-			}));
-			secondary.push(new Action('donotshow', choiceNever, undefined, true, async () => onDidNeverShowRecommendedExtensionsAgain(extensions)));
+			}, {
+				label: choiceNever,
+				isSecondary: true,
+				run: () => {
+					onDidNeverShowRecommendedExtensionsAgain(extensions);
+				}
+			}]);
 			try {
-				accepted = await this.doShowRecommendationsNotification(Severity.Info, message, primary, secondary, source, token);
+				accepted = await this.doShowRecommendationsNotification(Severity.Info, message, choices, source, token);
 			} catch (error) {
 				if (!isPromiseCanceledError(error)) {
 					throw error;
@@ -330,11 +317,11 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	 * 			=> If it is not exe based and has higher or same priority as current, hide the current notification after showing it for 3s.
 	 * 			=> Otherwise wait until the current notification is hidden.
 	 */
-	private async doShowRecommendationsNotification(severity: Severity, message: string, primary: IAction[], secondary: IAction[], source: RecommendationSource, token: CancellationToken): Promise<boolean> {
+	private async doShowRecommendationsNotification(severity: Severity, message: string, choices: IPromptChoice[], source: RecommendationSource, token: CancellationToken): Promise<boolean> {
 		const disposables = new DisposableStore();
 		try {
 			this.recommendationSources.push(source);
-			const recommendationsNotification = new RecommendationsNotification(severity, message, primary, secondary, this.notificationService);
+			const recommendationsNotification = new RecommendationsNotification(severity, message, choices, this.notificationService);
 			Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
 			if (this.visibleNotification) {
 				const index = this.pendingNotificaitons.length;
