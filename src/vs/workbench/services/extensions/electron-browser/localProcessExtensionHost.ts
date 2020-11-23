@@ -151,13 +151,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
 				this._tryFindDebugPort()
-			]).then(data => {
-				const pipeName = data[0];
-				const portNumber = data[1];
+			]).then(([pipeName, portNumber]) => {
 				const env = objects.mixin(objects.deepClone(process.env), {
 					AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: true,
+					VSCODE_LOG_NATIVE: this._isExtensionDevHost,
 					VSCODE_IPC_HOOK_EXTHOST: pipeName,
 					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
@@ -497,11 +496,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 			// Send to local console
 			log(entry, 'Extension Host');
-
-			// Broadcast to other windows if we are in development mode
-			if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
-				this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
-			}
 		}
 	}
 

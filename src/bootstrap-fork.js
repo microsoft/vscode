@@ -135,18 +135,43 @@ function pipeLoggingToParent() {
 			&& !(obj instanceof Date);
 	}
 
+	/**
+	 *
+	 * @param {'log' | 'warn' | 'error'} severity
+	 * @param {string} args
+	 */
+	function safeSendConsoleMessage(severity, args) {
+		safeSend({ type: '__$console', severity, arguments: args });
+	}
+
+	/**
+	 * @param {'log' | 'info' | 'warn' | 'error'} method
+	 * @param {'log' | 'warn' | 'error'} severity
+	 */
+	function wrapConsoleMethod(method, severity) {
+		if (process.env.VSCODE_LOG_NATIVE === 'true') {
+			const original = console[method];
+			console[method] = function () {
+				safeSendConsoleMessage(severity, safeToArray(arguments));
+				original.apply(console, arguments);
+			};
+		} else {
+			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
+		}
+	}
+
 	// Pass console logging to the outside so that we have it in the main side if told so
 	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
-	} else {
+		wrapConsoleMethod('log', 'log');
+		wrapConsoleMethod('warn', 'log');
+		wrapConsoleMethod('error', 'warn');
+	} else if (process.env.VSCODE_LOG_NATIVE !== 'true') {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
 	}
 
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
+	wrapConsoleMethod('error', 'error');
 }
 
 function handleExceptions() {
