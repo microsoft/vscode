@@ -551,7 +551,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT, StorageScope.GLOBAL, true) &&
 					resolveResult.commandId !== 'workbench.action.terminal.toggleTerminal' &&
 					resolveResult.commandId !== 'workbench.action.terminal.new' &&
-					resolveResult.commandId !== 'workbench.action.togglePanel') {
+					resolveResult.commandId !== 'workbench.action.togglePanel' &&
+					resolveResult.commandId !== 'workbench.action.terminal.focus') {
 					this._notificationService.prompt(
 						Severity.Info,
 						nls.localize('configure terminal settings', "Some keybindings are dispatched to the workbench by default."),
