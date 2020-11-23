@@ -615,11 +615,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.windowById(windowId);
 		if (window) {
 			const contents = window.win.webContents;
-			if (isMacintosh && window.hasHiddenTitleBarStyle && !window.isFullScreen && !contents.isDevToolsOpened()) {
-				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
-			} else {
-				contents.toggleDevTools();
-			}
+			contents.toggleDevTools();
 		}
 	}
 

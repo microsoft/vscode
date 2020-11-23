@@ -176,7 +176,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				}
 
 				// Menu
-				const menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
 					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
 				}
@@ -265,7 +265,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.menuBarVisibility')) {
-				if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
+				if (getMenuBarVisibility(this.configurationService) === 'compact') {
 					this.installMenubar();
 				} else {
 					this.uninstallMenubar();
@@ -463,7 +463,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		// Install menubar if compact
-		if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
+		if (getMenuBarVisibility(this.configurationService) === 'compact') {
 			this.installMenubar();
 		}
 
