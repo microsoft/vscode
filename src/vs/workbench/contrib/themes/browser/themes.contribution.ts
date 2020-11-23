@@ -22,6 +22,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
+import { GettingStartedCategory, GettingStartedRegistryID, IGettingStartedRegistry } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
+import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 
 export class SelectColorThemeAction extends Action {
 
@@ -34,6 +36,7 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
 		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
@@ -84,6 +87,7 @@ export class SelectColorThemeAction extends Action {
 						openExtensionViewlet(this.viewletService, `category:themes ${quickpick.value}`);
 					} else {
 						selectTheme(theme, true);
+						this.gettingStartedService.progressTask(pickColorThemeTask);
 					}
 					isCompleted = true;
 					quickpick.hide();
@@ -379,4 +383,14 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
+});
+
+
+const pickColorThemeTask = Registry.as<IGettingStartedRegistry>(GettingStartedRegistryID).registerTask({
+	category: GettingStartedCategory.Beginner,
+	description: localize('pickColorTask.description', "Modify the colors in the user interface to suit your preferences and work environment."),
+	id: 'pickColorTheme',
+	title: localize('pickColorTask.title', "Color Theme"),
+	order: 0,
+	button: { title: localize('pickColorTask.button', "Find a Theme"), command: SelectColorThemeAction.ID },
 });

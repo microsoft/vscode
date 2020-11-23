@@ -7,7 +7,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
 	Intermediate = 'Intermediate',
@@ -24,9 +23,9 @@ export const enum GettingStartedPriority {
 
 export interface IGettingStartedTask {
 	readonly id: string,
-	readonly name: string,
+	readonly title: string,
 	readonly description: string,
-	readonly priority: number,
+	readonly order: number,
 	readonly category: GettingStartedCategory | string,
 	readonly button?: { title: string, command: string }
 	readonly detail?: { editor?: { lang: string, text: string }, steps?: string[] }
@@ -34,28 +33,42 @@ export interface IGettingStartedTask {
 
 export interface IGettingStartedCategoryDescriptor {
 	id: GettingStartedCategory | string,
-	name: string,
+	title: string,
 	description: string,
+	icon: string
 	priority: GettingStartedPriority | number
 }
 
 export interface IGettingStartedCategory {
 	readonly id: GettingStartedCategory | string,
-	readonly name: string,
+	readonly title: string,
 	readonly description: string,
+	readonly icon: string
 	readonly priority: GettingStartedPriority | number
 	readonly tasks: readonly Readonly<IGettingStartedTask>[]
 }
 
 interface IWritableGettingStartedCategory {
 	id: GettingStartedCategory | string,
-	name: string,
+	title: string,
 	description: string,
+	icon: string
 	priority: GettingStartedPriority | number
 	tasks: IGettingStartedTask[]
 }
 
-export class GettingStartedRegistryImpl {
+export interface IGettingStartedRegistry {
+	onDidAddTask: Event<IGettingStartedTask>
+	onDidAddCategory: Event<IGettingStartedCategory>
+
+	registerTask(task: IGettingStartedTask): IGettingStartedTask;
+	registerCategory(categoryDescriptor: IGettingStartedCategoryDescriptor): void
+
+	getCategory(id: GettingStartedCategory | string): Readonly<IGettingStartedCategory> | undefined
+	getCategories(): readonly Readonly<IGettingStartedCategory>[]
+}
+
+export class GettingStartedRegistryImpl implements IGettingStartedRegistry {
 	private readonly _onDidAddTask = new Emitter<IGettingStartedTask>();
 	onDidAddTask: Event<IGettingStartedTask> = this._onDidAddTask.event;
 	private readonly _onDidAddCategory = new Emitter<IGettingStartedCategory>();
@@ -63,11 +76,12 @@ export class GettingStartedRegistryImpl {
 
 	private readonly gettingStartedContributions = new Map<string, IWritableGettingStartedCategory>();
 
-	public registerTask(task: IGettingStartedTask): void {
+	public registerTask(task: IGettingStartedTask): IGettingStartedTask {
 		const category = this.gettingStartedContributions.get(task.category);
 		if (!category) { throw Error('Registering getting started task to category that does not exist (' + task.category + ')'); }
 		category.tasks.push(task);
 		this._onDidAddTask.fire(task);
+		return task;
 	}
 
 	public registerCategory(categoryDescriptor: IGettingStartedCategoryDescriptor): void {
@@ -91,29 +105,32 @@ export class GettingStartedRegistryImpl {
 	}
 }
 
-const GettingStartedRegistryID = 'GettingStartedRegistry';
+export const GettingStartedRegistryID = 'GettingStartedRegistry';
 const registryImpl = new GettingStartedRegistryImpl();
 Registry.add(GettingStartedRegistryID, registryImpl);
-
-export const GettingStartedRegistry: GettingStartedRegistryImpl = Registry.as(GettingStartedRegistryID);
+export const GettingStartedRegistry: IGettingStartedRegistry = Registry.as(GettingStartedRegistryID);
 
 GettingStartedRegistry.registerCategory({
 	id: GettingStartedCategory.Beginner,
-	name: nls.localize('gettingStarted.beginner.title', "Welcome to VS Code"),
+	title: nls.localize('gettingStarted.beginner.title', "Get Started"),
+	icon: 'lightbulb',
 	description: nls.localize('gettingStarted.beginner.description', "Get to know your new Editor"),
 	priority: GettingStartedPriority.Beginner,
 });
 
+
 GettingStartedRegistry.registerCategory({
 	id: GettingStartedCategory.Intermediate,
-	name: nls.localize('gettingStarted.intermediate.title', "Essentials"),
+	title: nls.localize('gettingStarted.intermediate.title', "Essentials"),
+	icon: 'heart',
 	description: nls.localize('gettingStarted.intermediate.description', "Must know features you'll love"),
 	priority: GettingStartedPriority.Intermediate,
 });
 
 GettingStartedRegistry.registerCategory({
 	id: GettingStartedCategory.Advanced,
-	name: nls.localize('gettingStarted.advanced.title', "Genius Picks"),
-	description: nls.localize('gettingStarted.advanced.description', "Favorite tips & tricks from VS Code experts"),
+	title: nls.localize('gettingStarted.advanced.title', "Tips & Tricks"),
+	icon: 'tools',
+	description: nls.localize('gettingStarted.advanced.description', "Favorites from VS Code experts"),
 	priority: GettingStartedPriority.Advanced,
 });
