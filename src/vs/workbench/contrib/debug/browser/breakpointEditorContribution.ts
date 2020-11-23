@@ -22,7 +22,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { generateUuid } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -35,6 +35,7 @@ import { isSafari } from 'vs/base/browser/browser';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 
@@ -46,7 +47,7 @@ interface IBreakpointDecoration {
 }
 
 const breakpointHelperDecoration: IModelDecorationOptions = {
-	glyphMarginClassName: 'codicon-debug-hint',
+	glyphMarginClassName: icons.debugBreakpointHint.classNames,
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -72,7 +73,7 @@ export function createBreakpointDecorations(model: ITextModel, breakpoints: Read
 }
 
 function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
-	const { className, message } = getBreakpointMessageAndClassName(state, breakpointsActivated, breakpoint, undefined);
+	const { icon, message } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
 	if (message) {
@@ -94,7 +95,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 
 	const renderInline = breakpoint.column && (breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
 	return {
-		glyphMarginClassName: `${className}`,
+		glyphMarginClassName: icon.classNames,
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		beforeContentClassName: renderInline ? `debug-breakpoint-placeholder` : undefined,
@@ -453,9 +454,9 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
 			// In practice this happens for the first breakpoint that was set on a line
 			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-			const cssClass = candidate.breakpoint ? getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).className : 'codicon-debug-breakpoint-disabled';
+			const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.debugBreakpointDisabled;
 			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
-			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, cssClass, candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
+			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, icon.classNames, candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
 			return {
 				decorationId,
@@ -575,9 +576,8 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 
 	private create(cssClass: string | null | undefined): void {
 		this.domNode = $('.inline-breakpoint-widget');
-		this.domNode.classList.add('codicon');
 		if (cssClass) {
-			this.domNode.classList.add(cssClass);
+			this.domNode.classList.add(...cssClass.split(' '));
 		}
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async e => {
 			if (this.breakpoint) {
@@ -645,15 +645,15 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
 	if (debugIconBreakpointColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-breakpoint,
-		.monaco-workbench .codicon-debug-breakpoint-conditional,
-		.monaco-workbench .codicon-debug-breakpoint-log,
-		.monaco-workbench .codicon-debug-breakpoint-function,
-		.monaco-workbench .codicon-debug-breakpoint-data,
-		.monaco-workbench .codicon-debug-breakpoint-unsupported,
-		.monaco-workbench .codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe::after {
+		.monaco-workbench ${icons.debugBreakpoint.cssSelector},
+		.monaco-workbench ${icons.debugBreakpointConditional.cssSelector},
+		.monaco-workbench ${icons.debugBreakpointLog.cssSelector},
+		.monaco-workbench ${icons.debugBreakpointFunction.cssSelector},
+		.monaco-workbench ${icons.debugBreakpointData.cssSelector},
+		.monaco-workbench ${icons.debugBreakpointUnsupported.cssSelector},
+		.monaco-workbench ${icons.debugBreakpointHint.cssSelector}:not([class*='${icons.debugBreakpoint.classNameIdentifier}']):not([class*='${icons.debugStackframe.classNameIdentifier}']),
+		.monaco-workbench ${icons.debugBreakpoint.cssSelector}${icons.debugStackframeFocused.cssSelector}::after,
+		.monaco-workbench ${icons.debugBreakpoint.cssSelector}${icons.debugStackframe.cssSelector}::after {
 			color: ${debugIconBreakpointColor} !important;
 		}
 		`);
@@ -680,7 +680,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointCurrentStackframeForegroundColor = theme.getColor(debugIconBreakpointCurrentStackframeForeground);
 	if (debugIconBreakpointCurrentStackframeForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-stackframe,
+		.monaco-workbench ${icons.debugStackframe.cssSelector},
 		.monaco-editor .debug-top-stack-frame-column::before {
 			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
 		}
@@ -690,7 +690,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeForeground);
 	if (debugIconBreakpointStackframeFocusedColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-stackframe-focused {
+		.monaco-workbench ${icons.debugStackframeFocused.cssSelector} {
 			color: ${debugIconBreakpointStackframeFocusedColor} !important;
 		}
 		`);

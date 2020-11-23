@@ -13,6 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -55,7 +56,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
 					buttons: [{
-						iconClass: 'codicon-gear',
+						iconClass: debugConfigure.classNames,
 						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
 					}],
 					trigger: () => {

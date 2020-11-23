@@ -18,6 +18,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
+import { debugExceptionWidgetClose } from 'vs/workbench/contrib/debug/browser/debugIcons';
 const $ = dom.$;
 
 // theming
@@ -79,7 +80,7 @@ export class ExceptionWidget extends ZoneWidget {
 		let ariaLabel = label.textContent;
 
 		const actionBar = new ActionBar(actions);
-		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), 'codicon codicon-close', true, async () => {
+		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), debugExceptionWidgetClose.classNames, true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 			contribution.closeExceptionWidget();
 		}), { label: false, icon: true });

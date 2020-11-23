@@ -18,9 +18,12 @@ class Registry implements IIconRegistry {
 	private readonly _onDidRegister = new Emitter<Codicon>();
 
 	public add(icon: Codicon) {
-		if (!this._icons.has(icon.id)) {
+		const existing = this._icons.get(icon.id);
+		if (!existing) {
 			this._icons.set(icon.id, icon);
 			this._onDidRegister.fire(icon);
+		} else if (icon.description) {
+			existing.description = icon.description;
 		} else {
 			console.error(`Duplicate registration of codicon ${icon.id}`);
 		}
@@ -44,7 +47,7 @@ const _registry = new Registry();
 export const iconRegistry: IIconRegistry = _registry;
 
 export function registerIcon(id: string, def: Codicon, description?: string) {
-	return new Codicon(id, def);
+	return new Codicon(id, def, description);
 }
 
 export class Codicon {
@@ -55,6 +58,8 @@ export class Codicon {
 	// classNamesArray is useful for migrating to ES6 classlist
 	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
+
+	public get classNameIdentifier() { return 'codicon-' + this.id; }
 }
 
 interface IconDefinition {
