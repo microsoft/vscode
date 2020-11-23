@@ -174,7 +174,7 @@ tokenTypes[TokenType.variable] = 'variable';
 tokenTypes[TokenType.enumMember] = 'enumMember';
 tokenTypes[TokenType.property] = 'property';
 tokenTypes[TokenType.function] = 'function';
-tokenTypes[TokenType.member] = 'member';
+tokenTypes[TokenType.member] = 'method';
 
 const tokenModifiers: string[] = [];
 tokenModifiers[TokenModifier.async] = 'async';
