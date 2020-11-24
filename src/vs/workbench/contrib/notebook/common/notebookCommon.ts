@@ -888,3 +888,4 @@ export interface INotebookDecorationRenderOptions {
 	borderColor?: string | ThemeColor;
 	top?: editorCommon.IContentDecorationRenderOptions;
 }
+

@@ -741,6 +741,13 @@ export enum NotebookEditorRevealType {
 	InCenterIfOutsideViewport = 2,
 }
 
+export interface INotebookDocumentShowOptions {
+	position?: EditorGroupColumn;
+	preserveFocus?: boolean;
+	pinned?: boolean;
+	selection?: ICellRange;
+}
+
 export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarEntry>;
 
 export interface MainThreadNotebookShape extends IDisposable {
@@ -760,6 +767,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
 	$tryOpenDocument(uriComponents: UriComponents, viewType?: string): Promise<URI>;
+	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
 	$removeNotebookEditorDecorationType(key: string): void;
