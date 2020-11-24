@@ -68,7 +68,13 @@ steps:
 
   - script: |
       set -e
-      CHILD_CONCURRENCY=1 npm_config_arch=$(NPM_ARCH) yarn --frozen-lockfile
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --frozen-lockfile && break
+        echo "Yarn failed, trying again..."
+      done
+    env:
+      CHILD_CONCURRENCY: 1
+      npm_config_arch: $(NPM_ARCH)
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 

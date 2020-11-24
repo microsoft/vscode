@@ -85,8 +85,13 @@ steps:
       export npm_config_arch=$(VSCODE_ARCH)
       export npm_config_node_gyp=$(which node-gyp)
       export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
-      ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
-      CHILD_CONCURRENCY=1 yarn --frozen-lockfile --verbose
+
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --frozen-lockfile && break
+        echo "Yarn failed, trying again..."
+      done
+    env:
+      CHILD_CONCURRENCY: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
