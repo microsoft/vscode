@@ -17,7 +17,7 @@ export const loadedScriptsViewIcon = registerIcon('loaded-scripts-view-icon', Co
 export const debugBreakpoint = registerIcon('debug-breakpoint', Codicon.debugBreakpoint, localize('debugBreakpoint', 'Icon for breakpoints.'));
 export const debugBreakpointDisabled = registerIcon('debug-breakpoint-disabled', Codicon.debugBreakpointDisabled, localize('debugBreakpointDisabled', 'Icon for disabled breakpoints.'));
 export const debugBreakpointUnverified = registerIcon('debug-breakpoint-unverified', Codicon.debugBreakpointUnverified, localize('debugBreakpointUnverified', 'Icon for unverified breakpoints.'));
-export const debugBreakpointHint = registerIcon('debug-hint', Codicon.debugHint, localize('debugBreakpointHint', 'Icon for breakpoint hints.'));
+export const debugBreakpointHint = registerIcon('debug-hint', Codicon.debugHint, localize('debugBreakpointHint', 'Icon for breakpoint hints shown on hover in editor glyph margin.'));
 export const debugBreakpointFunction = registerIcon('debug-breakpoint-function', Codicon.debugBreakpointFunction, localize('debugBreakpointFunction', 'Icon for function breakpoints.'));
 export const debugBreakpointFunctionUnverified = registerIcon('debug-breakpoint-function-unverified', Codicon.debugBreakpointFunctionUnverified, localize('debugBreakpointFunctionUnverified', 'Icon for unverified function breakpoints.'));
 export const debugBreakpointFunctionDisabled = registerIcon('debug-breakpoint-function-disabled', Codicon.debugBreakpointFunctionDisabled, localize('debugBreakpointFunctionDisabled', 'Icon for disabled function breakpoints.'));
@@ -34,10 +34,8 @@ export const debugBreakpointLogUnverified = registerIcon('debug-breakpoint-log-u
 export const debugBreakpointLog = registerIcon('debug-breakpoint-log', Codicon.debugBreakpointLog, localize('debugBreakpointLog', 'Icon for log breakpoints.'));
 export const debugBreakpointLogDisabled = registerIcon('debug-breakpoint-log-disabled', Codicon.debugBreakpointLogDisabled, localize('debugBreakpointLogDisabled', 'Icon for disabled log breakpoint.'));
 
-export const debugStackframeActive = registerIcon('debug-stackframe-active', Codicon.debugStackframeActive, localize('debugStackframeActive', 'Icon for an active stackframe.'));
-export const debugStackframeDot = registerIcon('debug-stackframe-dot', Codicon.debugStackframeDot, localize('debugStackframeDot', 'Icon for a stackframe dot.'));
-export const debugStackframe = registerIcon('debug-stackframe', Codicon.debugStackframe, localize('debugStackframe', 'Icon for a stackframe.'));
-export const debugStackframeFocused = registerIcon('debug-stackframe-focused', Codicon.debugStackframeFocused, localize('debugStackframeFocused', 'Icon for a focused stackframe.'));
+export const debugStackframe = registerIcon('debug-stackframe', Codicon.debugStackframe, localize('debugStackframe', 'Icon for a stackframe shown in the editor glyph margin.'));
+export const debugStackframeFocused = registerIcon('debug-stackframe-focused', Codicon.debugStackframeFocused, localize('debugStackframeFocused', 'Icon for a focused stackframe  shown in the editor glyph margin.'));
 
 export const debugGripper = registerIcon('debug-gripper', Codicon.gripper, localize('debugGripper', 'Icon for the debug bar gripper.'));
 
@@ -66,8 +64,7 @@ export const watchExpressionsAdd = registerIcon('watch-expressions-add', Codicon
 export const watchExpressionsAddFuncBreakpoint = registerIcon('watch-expressions-add-function-breakpoint', Codicon.add, localize('watchExpressionsAddFuncBreakpoint', 'Icon for the add function breakpoint action in the watch view.'));
 
 export const breakpointsRemoveAll = registerIcon('breakpoints-remove-all', Codicon.closeAll, localize('breakpointsRemoveAll', 'Icon for the remove all action in the breakpoints view.'));
-export const breakpointsActivate = registerIcon('breakpoints-activate', Codicon.activateBreakpoints, localize('breakpointsActivate', 'Icon for the activatel action in the breakpoints view.'));
+export const breakpointsActivate = registerIcon('breakpoints-activate', Codicon.activateBreakpoints, localize('breakpointsActivate', 'Icon for the activate action in the breakpoints view.'));
 
 export const debugConsoleEvaluationInput = registerIcon('debug-console-evaluation-input', Codicon.arrowSmallRight, localize('debugConsoleEvaluationInput', 'Icon for the debug evaluation input marker.'));
 export const debugConsoleEvaluationPrompt = registerIcon('debug-console-evaluation-prompt', Codicon.chevronRight, localize('debugConsoleEvaluationPrompt', 'Icon for the debug evaluation prompt.'));
-export const debugExceptionWidgetClose = registerIcon('debug-exception-widget-close', Codicon.close, localize('debugExceptionWidgetClose', 'Icon for the close action of the debug exception widget.'));
