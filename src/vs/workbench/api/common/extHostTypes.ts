@@ -2940,4 +2940,15 @@ export class TestState {
 	}
 }
 
+type AllowedUndefined = 'description' | 'location';
+
+/**
+ * Test item without any optional properties. Only some properties are
+ * permitted to be undefined, but they must still exist.
+ */
+export type RequiredTestItem = {
+	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
+};
+
+
 //#endregion

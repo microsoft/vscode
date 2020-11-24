@@ -487,8 +487,20 @@ function registerOpenEditorAPICommands(): void {
 		const quickInputService = accessor.get(IQuickInputService);
 
 		const [resource, id, optionsArg, columnArg] = payload;
+		let group: IEditorGroup | undefined = undefined;
 
-		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		if (columnArg === SIDE_GROUP) {
+			const direction = preferredSideBySideGroupDirection(configurationService);
+
+			let neighbourGroup = editorGroupsService.findGroup({ direction });
+			if (!neighbourGroup) {
+				neighbourGroup = editorGroupsService.addGroup(editorGroupsService.activeGroup, direction);
+			}
+			group = neighbourGroup;
+		} else {
+			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		}
+
 		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
 
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });

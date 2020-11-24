@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/wo
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -192,15 +192,19 @@ export class NativeWindow extends Disposable {
 			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 		}];
 
-		ipcRenderer.on('vscode:showShellEnvError', (event: unknown, error: string) => this.notificationService.prompt(
-			Severity.Error,
-			nls.localize('shellEnvError', "Unable to resolve your shell environment: {0}", error),
-			choices
+		ipcRenderer.on('vscode:showShellEnvSlowWarning', () => this.notificationService.prompt(
+			Severity.Warning,
+			nls.localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
+			choices,
+			{
+				sticky: true,
+				neverShowAgain: { id: 'ignoreShellEnvSlowWarning', scope: NeverShowAgainScope.GLOBAL }
+			}
 		));
 
-		ipcRenderer.on('vscode:showShellEnvTimeoutWarning', () => this.notificationService.prompt(
-			Severity.Warning,
-			nls.localize('shellEnvTimeoutWarning', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
+		ipcRenderer.on('vscode:showShellEnvTimeoutError', () => this.notificationService.prompt(
+			Severity.Error,
+			nls.localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
 			choices
 		));
 
@@ -296,7 +300,7 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
 			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
 
 			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
@@ -412,7 +416,7 @@ export class NativeWindow extends Disposable {
 		this.customTitleContextMenuDisposable.clear();
 
 		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (!filePath || getTitleBarStyle(this.configurationService) !== 'custom') {
 			return;
 		}
 
@@ -444,7 +448,7 @@ export class NativeWindow extends Disposable {
 	private create(): void {
 
 		// Native menu controller
-		if (isMacintosh || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
 			this._register(this.instantiationService.createInstance(NativeMenubarControl));
 		}
 

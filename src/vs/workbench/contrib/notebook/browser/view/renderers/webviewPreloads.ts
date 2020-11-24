@@ -137,14 +137,27 @@ function webviewPreloads() {
 				}
 
 				if (entry.target.id === id && entry.contentRect) {
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: id,
-						data: {
-							height: entry.contentRect.height + __outputNodePadding__ * 2
-						}
-					});
+					if (entry.contentRect.height !== 0) {
+						entry.target.style.padding = `${__outputNodePadding__}px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height + __outputNodePadding__ * 2
+							}
+						});
+					} else {
+						entry.target.style.padding = `0px`;
+						vscode.postMessage({
+							__vscode_notebook_message: true,
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height
+							}
+						});
+					}
 				}
 			}
 		});
@@ -410,7 +423,8 @@ function webviewPreloads() {
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';
 					outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
-					outputNode.style.minHeight = '32px';
+					// outputNode.style.minHeight = '32px';
+					outputNode.style.padding = '0px';
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);

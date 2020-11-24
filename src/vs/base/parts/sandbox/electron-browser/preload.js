@@ -108,18 +108,13 @@
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
 
-			_resolveEnv: undefined,
 			resolveEnv:
 				/**
 				 * @param userEnv {{[key: string]: string}}
 				 * @returns {Promise<void>}
 				 */
 				function (userEnv) {
-					if (!this._resolveEnv) {
-						this._resolveEnv = resolveEnv(userEnv);
-					}
-
-					return this._resolveEnv;
+					return resolveEnv(userEnv);
 				},
 
 			getProcessMemoryInfo:
@@ -194,6 +189,9 @@
 		return true;
 	}
 
+	/** @type {Promise<void> | undefined} */
+	let resolvedEnv = undefined;
+
 	/**
 	 * If VSCode is not run from a terminal, we should resolve additional
 	 * shell specific environment from the OS shell to ensure we are seeing
@@ -204,23 +202,27 @@
 	 * @returns {Promise<void>}
 	 */
 	function resolveEnv(userEnv) {
+		if (!resolvedEnv) {
 
-		// Apply `userEnv` directly
-		Object.assign(process.env, userEnv);
+			// Apply `userEnv` directly
+			Object.assign(process.env, userEnv);
 
-		// Resolve `shellEnv` from the main side
-		return new Promise(function (resolve) {
-			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
+			// Resolve `shellEnv` from the main side
+			resolvedEnv = new Promise(function (resolve) {
+				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
 
-				// Assign all keys of the shell environment to our process environment
-				// But make sure that the user environment wins in the end
-				Object.assign(process.env, shellEnv, userEnv);
+					// Assign all keys of the shell environment to our process environment
+					// But make sure that the user environment wins in the end
+					Object.assign(process.env, shellEnv, userEnv);
 
-				resolve();
+					resolve();
+				});
+
+				ipcRenderer.send('vscode:fetchShellEnv');
 			});
+		}
 
-			ipcRenderer.send('vscode:fetchShellEnv');
-		});
+		return resolvedEnv;
 	}
 
 	//#endregion

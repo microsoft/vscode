@@ -17,9 +17,9 @@ import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTes
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, RequiredTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -178,7 +178,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 }
 
-const keyMap: { [K in keyof Omit<Required<vscode.TestItem>, 'children'>]: null } = {
+const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
 	label: null,
 	location: null,
 	state: null,
@@ -215,6 +215,9 @@ export interface OwnedCollectionTestItem extends InternalTestItem {
 	previousEquals: (v: vscode.TestItem) => boolean;
 }
 
+/**
+ * @private
+ */
 export class OwnedTestCollection {
 	protected readonly testIdToInternal = new Map<string, OwnedCollectionTestItem>();
 
@@ -378,7 +381,146 @@ export class SingleUseTestCollection implements IDisposable {
  */
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
 	revived: vscode.TestItem;
+	depth: number;
 	wrapped?: vscode.TestItem;
+}
+
+class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
+	private readonly added = new Set<MirroredCollectionTestItem>();
+	private readonly updated = new Set<MirroredCollectionTestItem>();
+	private readonly removed = new Set<MirroredCollectionTestItem>();
+
+	private readonly alreadyRemoved = new Set<string>();
+
+	public get isEmpty() {
+		return this.added.size === 0 && this.removed.size === 0 && this.updated.size === 0;
+	}
+
+	constructor(private readonly collection: MirroredTestCollection, private readonly emitter: Emitter<vscode.TestChangeEvent>) {
+		super();
+	}
+
+	/**
+	 * @override
+	 */
+	public add(node: MirroredCollectionTestItem): void {
+		this.added.add(node);
+	}
+
+	/**
+	 * @override
+	 */
+	public update(node: MirroredCollectionTestItem): void {
+		Object.assign(node.revived, TestItem.to(node.item));
+		if (!this.added.has(node)) {
+			this.updated.add(node);
+		}
+	}
+
+	/**
+	 * @override
+	 */
+	public remove(node: MirroredCollectionTestItem): void {
+		if (this.added.has(node)) {
+			this.added.delete(node);
+			return;
+		}
+
+		this.updated.delete(node);
+
+		if (node.parent && this.alreadyRemoved.has(node.parent)) {
+			this.alreadyRemoved.add(node.id);
+			return;
+		}
+
+		this.removed.add(node);
+	}
+
+	/**
+	 * @override
+	 */
+	public getChangeEvent(): vscode.TestChangeEvent {
+		const { collection, added, updated, removed } = this;
+		return {
+			get added() { return [...added].map(collection.getPublicTestItem, collection); },
+			get updated() { return [...updated].map(collection.getPublicTestItem, collection); },
+			get removed() { return [...removed].map(collection.getPublicTestItem, collection); },
+			get commonChangeAncestor() {
+				let ancestorPath: MirroredCollectionTestItem[] | undefined;
+				const buildAncestorPath = (node: MirroredCollectionTestItem | undefined) => {
+					if (!node) {
+						return undefined;
+					}
+
+					// add the node and all its parents to the list of ancestors. If
+					// the node is detached, do not return a path (its parent will
+					// also have been passed to remove() and be present)
+					const path: MirroredCollectionTestItem[] = new Array(node.depth + 1);
+					for (let i = node.depth; i >= 0; i--) {
+						if (!node) {
+							return undefined; // detached child
+						}
+
+						path[node.depth] = node;
+						node = node.parent ? collection.getMirroredTestDataById(node.parent) : undefined;
+					}
+
+					return path;
+				};
+
+				const addAncestorPath = (node: MirroredCollectionTestItem) => {
+					// fast path: if the common ancestor is already the root, no more work to do
+					if (ancestorPath && ancestorPath.length === 0) {
+						return;
+					}
+
+					const thisPath = buildAncestorPath(node);
+					if (!thisPath) {
+						return;
+					}
+
+					if (!ancestorPath) {
+						ancestorPath = thisPath;
+						return;
+					}
+
+					// removes node from the path to the ancestor that don't match
+					// the corresponding node in *this* path.
+					for (let i = ancestorPath.length - 1; i >= 0; i--) {
+						if (ancestorPath[i] !== thisPath[i]) {
+							ancestorPath.pop();
+						}
+					}
+				};
+
+				const addParentAncestor = (node: MirroredCollectionTestItem) => {
+					if (ancestorPath && ancestorPath.length === 0) {
+						// no-op
+					} else if (node.parent === null) {
+						ancestorPath = [];
+					} else {
+						const parent = collection.getMirroredTestDataById(node.parent);
+						if (parent) {
+							addAncestorPath(parent);
+						}
+					}
+				};
+
+				for (const node of added) { addParentAncestor(node); }
+				for (const node of updated) { addAncestorPath(node); }
+				for (const node of removed) { addParentAncestor(node); }
+
+				const ancestor = ancestorPath && ancestorPath[ancestorPath.length - 1];
+				return ancestor ? collection.getPublicTestItem(ancestor) : null;
+			},
+		};
+	}
+
+	public complete() {
+		if (!this.isEmpty) {
+			this.emitter.fire(this.getChangeEvent());
+		}
+	}
 }
 
 /**
@@ -386,18 +528,12 @@ interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
  * @private
  */
 export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
-	private changeEmitter = new Emitter<vscode.TestItem | null>();
+	private changeEmitter = new Emitter<vscode.TestChangeEvent>();
 
 	/**
 	 * Change emitter that fires with the same sematics as `TestObserver.onDidChangeTests`.
 	 */
 	public readonly onDidChangeTests = this.changeEmitter.event;
-
-	/**
-	 * Mapping of mirrored test items to their underlying ID. Given here to avoid
-	 * exposing them to extensions.
-	 */
-	protected readonly mirroredTestIds = new WeakMap<vscode.TestItem, string>();
 
 	/**
 	 * Gets a list of root test items.
@@ -409,66 +545,101 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
-	public getAllAsTestItem(itemIds: ReadonlyArray<string>): vscode.TestItem[] {
-		return itemIds.map(itemId => {
+	public getAllAsTestItem(itemIds: Iterable<string>): vscode.TestItem[] {
+		let output: vscode.TestItem[] = [];
+		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
-			return item && this.createCollectionItemWrapper(item);
-		}).filter(isDefined);
+			if (item) {
+				output.push(this.getPublicTestItem(item));
+			}
+		}
+
+		return output;
+	}
+
+	/**
+	 *
+	 * If the test ID exists, returns its underlying ID.
+	 */
+	public getMirroredTestDataById(itemId: string) {
+		return this.items.get(itemId);
 	}
 
 	/**
 	 * If the test item is a mirrored test item, returns its underlying ID.
 	 */
 	public getMirroredTestDataByReference(item: vscode.TestItem) {
-		const itemId = this.mirroredTestIds.get(item);
-		return itemId ? this.items.get(itemId) : undefined;
+		const id = getMirroredItemId(item);
+		return id ? this.items.get(id) : undefined;
 	}
 
 	/**
 	 * @override
 	 */
-	protected createItem(item: InternalTestItem): MirroredCollectionTestItem {
-		return { ...item, revived: TestItem.to(item.item), children: new Set() };
+	protected createItem(item: InternalTestItem, parent?: MirroredCollectionTestItem): MirroredCollectionTestItem {
+		return { ...item, revived: TestItem.to(item.item), depth: parent ? parent.depth + 1 : 0, children: new Set() };
 	}
 
 	/**
 	 * @override
 	 */
-	protected onChange(item: MirroredCollectionTestItem | null) {
-		if (item) {
-			Object.assign(item.revived, TestItem.to(item.item));
-		}
-
-		this.changeEmitter.fire(item ? this.createCollectionItemWrapper(item) : null);
+	protected createChangeCollector() {
+		return new MirroredChangeCollector(this, this.changeEmitter);
 	}
 
-	private createCollectionItemWrapper(item: MirroredCollectionTestItem): vscode.TestItem {
+	/**
+	 * Gets the public test item instance for the given mirrored record.
+	 */
+	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.TestItem {
 		if (!item.wrapped) {
-			item.wrapped = createMirroredTestItem(item, this);
-			this.mirroredTestIds.set(item.wrapped, item.id);
+			item.wrapped = new ExtHostTestItem(item, this);
 		}
 
 		return item.wrapped;
 	}
 }
 
-const createMirroredTestItem = (internal: MirroredCollectionTestItem, collection: MirroredTestCollection): vscode.TestItem => {
-	const obj = {};
-
-	Object.defineProperty(obj, 'children', {
-		enumerable: true,
-		configurable: false,
-		get: () => collection.getAllAsTestItem([...internal.children])
-	});
-
-	simpleProps.forEach(prop => Object.defineProperty(obj, prop, {
-		enumerable: true,
-		configurable: false,
-		get: () => internal.revived[prop],
-	}));
-
-	return obj as any;
+const getMirroredItemId = (item: vscode.TestItem) => {
+	return (item as any)[MirroredItemId] as string | undefined;
 };
+
+const MirroredItemId = Symbol('MirroredItemId');
+
+class ExtHostTestItem implements vscode.TestItem, RequiredTestItem {
+	readonly #internal: MirroredCollectionTestItem;
+	readonly #collection: MirroredTestCollection;
+
+	public get label() { return this.#internal.revived.label; }
+	public get description() { return this.#internal.revived.description; }
+	public get state() { return this.#internal.revived.state; }
+	public get location() { return this.#internal.revived.location; }
+	public get runnable() { return this.#internal.revived.runnable ?? true; }
+	public get debuggable() { return this.#internal.revived.debuggable ?? false; }
+	public get children() {
+		return this.#collection.getAllAsTestItem(this.#internal.children);
+	}
+
+	get [MirroredItemId]() { return this.#internal.id; }
+
+	constructor(internal: MirroredCollectionTestItem, collection: MirroredTestCollection) {
+		this.#internal = internal;
+		this.#collection = collection;
+	}
+
+	public toJSON() {
+		const serialized: RequiredTestItem = {
+			label: this.label,
+			description: this.description,
+			state: this.state,
+			location: this.location,
+			runnable: this.runnable,
+			debuggable: this.debuggable,
+			children: this.children.map(c => (c as ExtHostTestItem).toJSON()),
+		};
+
+		return serialized;
+	}
+}
 
 interface IObserverData {
 	observers: number;

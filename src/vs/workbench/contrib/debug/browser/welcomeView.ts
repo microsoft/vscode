@@ -117,7 +117,6 @@ let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
-	preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR],
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug
 });

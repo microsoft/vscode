@@ -1028,7 +1028,7 @@ declare module 'vscode' {
 		 * @param element
 		 * @param item Undefined properties of `item` should be set then `item` should be returned.
 		 */
-		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
+		resolveTreeItem?(item: TreeItem2, element: T): ProviderResult<TreeItem2>;
 	}
 
 	export class TreeItem2 extends TreeItem {
@@ -2200,7 +2200,7 @@ declare module 'vscode' {
 		 * null if a top-level test was added or removed. When fired, the consumer
 		 * should check the test item and all its children for changes.
 		 */
-		readonly onDidChangeTest: Event<TestItem | null>;
+		readonly onDidChangeTest: Event<TestChangeEvent>;
 
 		/**
 		 * An event the fires when all test providers have signalled that the tests
@@ -2217,6 +2217,29 @@ declare module 'vscode' {
 		 * providers that they no longer need to update tests.
 		 */
 		dispose(): void;
+	}
+
+	export interface TestChangeEvent {
+		/**
+		 * List of all tests that are newly added.
+		 */
+		readonly added: ReadonlyArray<TestItem>;
+
+		/**
+		 * List of existing tests that have updated.
+		 */
+		readonly updated: ReadonlyArray<TestItem>;
+
+		/**
+		 * List of existing tests that have been removed.
+		 */
+		readonly removed: ReadonlyArray<TestItem>;
+
+		/**
+		 * Highest node in the test tree under which changes were made. This can
+		 * be easily plugged into events like the TreeDataProvider update event.
+		 */
+		readonly commonChangeAncestor: TestItem | null;
 	}
 
 	/**
@@ -2336,7 +2359,7 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
-		 * Whether this test item can be debugged.
+		 * Whether this test item can be debugged. Defaults to `false` if not provided.
 		 */
 		debuggable?: boolean;
 

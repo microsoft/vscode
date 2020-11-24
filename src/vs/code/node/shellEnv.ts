@@ -9,6 +9,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 /**
  * We need to get the environment from a user's shell.
@@ -56,7 +57,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
-function doResolveUnixShellEnv(logService: ILogService): Promise<typeof process.env> {
+async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof process.env> {
 	const promise = new Promise<typeof process.env>((resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
@@ -125,6 +126,11 @@ function doResolveUnixShellEnv(logService: ILogService): Promise<typeof process.
 		});
 	});
 
-	// swallow errors
-	return promise.catch(() => ({}));
+	try {
+		return await promise;
+	} catch (error) {
+		logService.error('getUnixShellEnvironment#error', toErrorMessage(error));
+
+		return {}; // ignore any errors
+	}
 }

@@ -1354,6 +1354,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return new Promise(resolve => { r = resolve; });
 	}
 
+	private _nearestCodeCellIndex(index: number /* exclusive */, direction: 'above' | 'below') {
+		const nearest = this._notebookViewModel!.viewCells.slice(0, index).reverse().findIndex(cell => cell.cellKind === CellKind.Code);
+		if (nearest > -1) {
+			return index - nearest - 1;
+		} else {
+			const nearestCellTheOtherDirection = this._notebookViewModel!.viewCells.slice(index + 1).findIndex(cell => cell.cellKind === CellKind.Code);
+			if (nearestCellTheOtherDirection > -1) {
+				return index + nearestCellTheOtherDirection;
+			}
+			return -1;
+		}
+	}
+
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = '', ui: boolean = false): CellViewModel | null {
 		if (!this._notebookViewModel!.metadata.editable) {
 			return null;
@@ -1361,10 +1374,29 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const index = cell ? this._notebookViewModel!.getCellIndex(cell) : 0;
 		const nextIndex = ui ? this._notebookViewModel!.getNextVisibleCellIndex(index) : index + 1;
-		const newLanguages = this._notebookViewModel!.resolvedLanguages;
-		const language = (cell?.cellKind === CellKind.Code && type === CellKind.Code)
-			? cell.language
-			: ((type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown');
+		let language;
+		if (type === CellKind.Code) {
+			if (cell?.cellKind === CellKind.Code) {
+				language = cell.language;
+			} else if (cell?.cellKind === CellKind.Markdown) {
+				const nearestCodeCellIndex = this._nearestCodeCellIndex(index, direction);
+				if (nearestCodeCellIndex > -1) {
+					language = this._notebookViewModel!.viewCells[nearestCodeCellIndex].language;
+				} else {
+					language = this._notebookViewModel!.resolvedLanguages[0] || 'plaintext';
+				}
+			} else {
+				if (cell === undefined && direction === 'above') {
+					// insert cell at the very top
+					language = this._notebookViewModel!.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || this._notebookViewModel!.resolvedLanguages[0] || 'plaintext';
+				} else {
+					language = this._notebookViewModel!.resolvedLanguages[0] || 'plaintext';
+				}
+			}
+		} else {
+			language = 'markdown';
+		}
+
 		const insertIndex = cell ?
 			(direction === 'above' ? index : nextIndex) :
 			index;

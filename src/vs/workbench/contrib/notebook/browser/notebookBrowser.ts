@@ -8,7 +8,7 @@ import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/brow
 import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
@@ -719,4 +719,18 @@ export function getActiveNotebookEditor(editorService: IEditorService): INoteboo
 	// TODO@rebornix can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
 	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
 	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
+}
+
+let EDITOR_TOP_PADDING = 12;
+const editorTopPaddingChangeEmitter = new Emitter<void>();
+
+export const EditorTopPaddingChangeEvent = editorTopPaddingChangeEmitter.event;
+
+export function updateEditorTopPadding(top: number) {
+	EDITOR_TOP_PADDING = top;
+	editorTopPaddingChangeEmitter.fire();
+}
+
+export function getEditorTopPadding() {
+	return EDITOR_TOP_PADDING;
 }

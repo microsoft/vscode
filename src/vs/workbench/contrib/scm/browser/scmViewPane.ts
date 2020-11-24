@@ -1063,12 +1063,14 @@ class ViewModel {
 	}
 
 	focus() {
-		for (const repository of this.scmViewService.visibleRepositories) {
-			const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
+		if (this.tree.getFocus().length === 0) {
+			for (const repository of this.scmViewService.visibleRepositories) {
+				const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
 
-			if (widget) {
-				widget.focus();
-				return;
+				if (widget) {
+					widget.focus();
+					return;
+				}
 			}
 		}
 
