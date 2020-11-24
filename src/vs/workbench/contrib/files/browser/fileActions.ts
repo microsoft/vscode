@@ -56,23 +56,16 @@ import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/b
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
-
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
 export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
-
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
-
 export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
-
 export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
-
 export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
-
 export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
-
 export const DOWNLOAD_LABEL = nls.localize('download', "Download...");
-
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
+const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
 function onError(notificationService: INotificationService, error: any): void {
 	if (error.message === 'string') {
@@ -226,7 +219,7 @@ async function deleteFiles(explorerService: IExplorerService, bulkEditService: I
 
 	// Call function
 	try {
-		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, skipTrashBin: !useTrash }));
+		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, skipTrashBin: !useTrash, maxSize: MAX_UNDO_FILE_SIZE }));
 		await bulkEditService.apply(resourceFileEdits, {
 			undoRedoSource: explorerService.undoRedoSource,
 			label: distinctElements.length > 1 ? nls.localize('deleteBulkEdit', "Delete {0} files", distinctElements.length) : nls.localize('deleteFileBulkEdit', "Delete {0}", distinctElements[0].name)
