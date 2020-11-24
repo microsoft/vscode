@@ -458,7 +458,7 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
 		const arch = process.env['VSCODE_ARCH'];
 		const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
-		const appName = product.nameLong + '.app';
+		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'Visual\\ Studio\\ Code\\ -\\ Insiders.app' : 'Visual\\ Studio\\ Code.app';
 		const appPath = path.join(appRoot, appName, 'Contents', 'Resources', 'app', 'bin', 'code');
 		const codeProc = cp.exec(
 			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
