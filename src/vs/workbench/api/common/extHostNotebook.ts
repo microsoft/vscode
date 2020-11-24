@@ -437,9 +437,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (editorId) {
-			throw new Error(`Could NOT open editor for "${document.documentURI.toString()}" because another editor opened in the meantime.`);
+			throw new Error(`Could NOT open editor for "${notebookDocument.toString()}" because another editor opened in the meantime.`);
 		} else {
-			throw new Error(`Could NOT open editor for "${document.documentURI.toString()}".`);
+			throw new Error(`Could NOT open editor for "${notebookDocument.toString()}".`);
 		}
 	}
 
