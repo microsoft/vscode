@@ -226,7 +226,7 @@ async function deleteFiles(explorerService: IExplorerService, bulkEditService: I
 
 	// Call function
 	try {
-		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, doNotUseTrash: !useTrash }));
+		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, skipTrashBin: !useTrash }));
 		await bulkEditService.apply(resourceFileEdits, {
 			undoRedoSource: explorerService.undoRedoSource,
 			label: distinctElements.length > 1 ? nls.localize('deleteBulkEdit', "Delete {0} files", distinctElements.length) : nls.localize('deleteFileBulkEdit', "Delete {0}", distinctElements[0].name)
