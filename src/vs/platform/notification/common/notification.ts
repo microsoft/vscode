@@ -209,18 +209,12 @@ export interface INotificationHandle {
 	close(): void;
 }
 
-export interface IPromptChoice {
+interface IBasePromptChoice {
 
 	/**
 	 * Label to show for the choice to the user.
 	 */
 	readonly label: string;
-
-	/**
-	 * Primary choices show up as buttons in the notification below the message.
-	 * Secondary choices show up under the gear icon in the header of the notification.
-	 */
-	readonly isSecondary?: boolean;
 
 	/**
 	 * Whether to keep the notification open after the choice was selected
@@ -234,17 +228,26 @@ export interface IPromptChoice {
 	run: () => void;
 }
 
+export interface IPromptChoice extends IBasePromptChoice {
+
+	/**
+	 * Primary choices show up as buttons in the notification below the message.
+	 * Secondary choices show up under the gear icon in the header of the notification.
+	 */
+	readonly isSecondary?: boolean;
+}
+
 export interface IPromptChoiceWithMenu extends IPromptChoice {
 
 	/**
 	 * Additional choices those will be shown in the dropdown menu for this choice.
 	 */
-	readonly menu: IPromptChoice[];
+	readonly menu: IBasePromptChoice[];
 
 	/**
 	 * Menu is not supported on secondary choices
 	 */
-	readonly isSecondary: undefined;
+	readonly isSecondary: false | undefined;
 }
 
 export interface IPromptOptions extends INotificationProperties {
