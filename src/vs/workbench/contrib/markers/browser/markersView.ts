@@ -227,7 +227,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						group: 'navigation',
 						order: Number.MAX_SAFE_INTEGER,
 					},
-					icon: { id: 'codicon/collapse-all' }
+					icon: Codicon.collapseAll
 				});
 			}
 			async run(): Promise<void> {

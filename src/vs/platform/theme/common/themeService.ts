@@ -11,7 +11,6 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Codicon } from 'vs/base/common/codicons';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -48,16 +47,23 @@ export namespace ThemeIcon {
 			return undefined;
 		}
 		let [, owner, name] = match;
-		if (!owner) {
-			owner = `codicon/`;
+		if (!owner || owner === 'codicon/') {
+			return { id: name };
 		}
 		return { id: owner + name };
 	}
 
-	export function fromCodicon(codicon: Codicon): ThemeIcon {
-		return { id: codicon.id };
+	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
+		let id = icon.id;
+		const tildeIndex = id.lastIndexOf('~');
+		if (tildeIndex !== -1) {
+			id = id.substring(0, tildeIndex);
+		}
+		if (modifier) {
+			id = `${id}~${modifier}`;
+		}
+		return { id };
 	}
-
 
 	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;

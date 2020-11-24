@@ -40,6 +40,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { Codicon } from 'vs/base/common/codicons';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -277,7 +278,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: '_workbench.openUserSettingsEditor',
 					title: OPEN_SETTINGS2_ACTION_TITLE,
-					icon: { id: 'codicon/go-to-file' },
+					icon: Codicon.goToFile,
 					menu: [{
 						id: MenuId.EditorTitle,
 						when: ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()),
@@ -295,7 +296,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-					icon: { id: 'codicon/go-to-file' },
+					icon: Codicon.goToFile,
 					menu: [{
 						id: MenuId.EditorTitle,
 						when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
@@ -815,7 +816,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openGlobalKeybindings',
 					title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
 					category,
-					icon: { id: 'codicon/go-to-file' },
+					icon: Codicon.goToFile,
 					keybinding: {
 						when: null,
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -872,7 +873,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openGlobalKeybindingsFile',
 					title: { value: nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)"), original: 'Open Keyboard Shortcuts (JSON)' },
 					category,
-					icon: { id: 'codicon/go-to-file' },
+					icon: Codicon.goToFile,
 					menu: [
 						{ id: MenuId.CommandPalette },
 						{
@@ -1123,7 +1124,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				command: {
 					id: commandId,
 					title: OPEN_SETTINGS2_ACTION_TITLE,
-					icon: { id: 'codicon/go-to-file' }
+					icon: Codicon.goToFile
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
 				group: 'navigation',
@@ -1148,7 +1149,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					command: {
 						id: commandId,
 						title: OPEN_SETTINGS2_ACTION_TITLE,
-						icon: { id: 'codicon/go-to-file' }
+						icon: Codicon.goToFile
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
 					group: 'navigation',

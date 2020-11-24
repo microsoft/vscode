@@ -34,7 +34,6 @@ import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/pla
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -67,7 +66,7 @@ const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.loca
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	icon: ThemeIcon.fromCodicon(outputViewIcon),
+	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: OUTPUT_VIEW_ID,
@@ -78,7 +77,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	containerIcon: ThemeIcon.fromCodicon(outputViewIcon),
+	containerIcon: outputViewIcon,
 	canMoveView: true,
 	canToggleVisibility: false,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
@@ -143,7 +142,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.EditorContext,
 				when: CONTEXT_IN_OUTPUT
 			}],
-			icon: { id: 'codicon/clear-all' }
+			icon: Codicon.clearAll
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -167,10 +166,10 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 3,
 			},
-			icon: { id: 'codicon/unlock' },
+			icon: Codicon.unlock,
 			toggled: {
 				condition: CONTEXT_OUTPUT_SCROLL_LOCK,
-				icon: { id: 'codicon/lock' },
+				icon: Codicon.lock,
 				tooltip: { value: nls.localize('outputScrollOn', "Turn Auto Scrolling On"), original: 'Turn Auto Scrolling On' }
 			}
 		});
@@ -194,7 +193,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: CONTEXT_ACTIVE_LOG_OUTPUT,
 			}],
-			icon: { id: 'codicon/go-to-file' },
+			icon: Codicon.goToFile,
 			precondition: CONTEXT_ACTIVE_LOG_OUTPUT
 		});
 	}

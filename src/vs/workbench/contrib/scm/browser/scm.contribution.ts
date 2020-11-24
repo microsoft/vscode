@@ -28,7 +28,6 @@ import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService'
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -46,7 +45,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
-	icon: ThemeIcon.fromCodicon(sourceControlViewIcon),
+	icon: sourceControlViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true
@@ -68,7 +67,7 @@ viewsRegistry.registerViews([{
 	canMoveView: true,
 	weight: 80,
 	order: -999,
-	containerIcon: ThemeIcon.fromCodicon(sourceControlViewIcon)
+	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
 viewsRegistry.registerViews([{
@@ -83,7 +82,7 @@ viewsRegistry.registerViews([{
 	order: -1000,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
-	containerIcon: ThemeIcon.fromCodicon(sourceControlViewIcon)
+	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)

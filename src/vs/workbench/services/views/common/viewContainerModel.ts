@@ -348,7 +348,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			titleChanged = true;
 		}
 
-		const icon = useDefaultContainerInfo ? this.container.icon : this.visibleViewDescriptors[0]?.containerIcon || ThemeIcon.fromCodicon(defaultViewIcon);
+		const icon = useDefaultContainerInfo ? this.container.icon : this.visibleViewDescriptors[0]?.containerIcon || defaultViewIcon;
 		let iconChanged: boolean = false;
 		if (!this.isEqualIcon(icon)) {
 			this._icon = icon;
