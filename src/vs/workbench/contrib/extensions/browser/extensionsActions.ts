@@ -32,7 +32,6 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -3219,20 +3218,20 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 });
 
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
-	dark: '#327e36',
-	light: '#327e36',
+	dark: buttonBackground,
+	light: buttonBackground,
 	hc: null
 }, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
-	dark: Color.white,
-	light: Color.white,
+	dark: buttonForeground,
+	light: buttonForeground,
 	hc: null
 }, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
-	dark: '#28632b',
-	light: '#28632b',
+	dark: buttonHoverBackground,
+	light: buttonHoverBackground,
 	hc: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
