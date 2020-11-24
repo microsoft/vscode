@@ -7,7 +7,7 @@ import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostCont
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
@@ -57,8 +57,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 
 	async $setTunnelProvider(): Promise<void> {
 		const tunnelProvider: ITunnelProvider = {
-			forwardPort: (tunnelOptions: TunnelOptions) => {
-				const forward = this._proxy.$forwardPort(tunnelOptions);
+			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
+				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
 				if (forward) {
 					return forward.then(tunnel => {
 						return {

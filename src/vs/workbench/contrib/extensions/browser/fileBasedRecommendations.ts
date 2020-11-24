@@ -27,6 +27,7 @@ import { setImmediate } from 'vs/base/common/platform';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { distinct } from 'vs/base/common/arrays';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -150,8 +151,16 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private onModelAdded(model: ITextModel): void {
+		const uri = model.uri;
+		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
+		if (!uri || !supportedSchemes.includes(uri.scheme)) {
+			return;
+		}
+
 		this.promptRecommendationsForModel(model);
-		this._register(model.onDidChangeLanguage(() => this.promptRecommendationsForModel(model)));
+		const disposables = new DisposableStore();
+		disposables.add(model.onDidChangeLanguage(() => this.promptRecommendationsForModel(model)));
+		disposables.add(model.onWillDispose(() => disposables.dispose()));
 	}
 
 	/**
@@ -160,11 +169,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	 */
 	private promptRecommendationsForModel(model: ITextModel): void {
 		const uri = model.uri;
-		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
-		if (!uri || !supportedSchemes.includes(uri.scheme)) {
-			return;
-		}
-
 		const language = model.getLanguageIdentifier().language;
 		const fileExtension = extname(uri).toLowerCase();
 		if (this.processedLanguages.includes(language) && this.processedFileExtensions.includes(fileExtension)) {

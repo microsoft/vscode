@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, basename, distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -57,7 +57,8 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -812,8 +813,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IHostService private hostService: IHostService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IBulkEditService private readonly bulkEditService: IBulkEditService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.toDispose = [];
 
@@ -1074,10 +1074,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					continue;
 				}
 
-				await this.bulkEditService.apply([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
-					undoRedoSource: this.explorerService.undoRedoSource,
-					label: localize('overwrite', "Overwrite {0}", entry.name)
-				});
+				await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], localize('overwrite', "Overwrite {0}", entry.name));
 
 				if (token.isCancellationRequested) {
 					break;
@@ -1351,10 +1348,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 					progress.report({ message: sourceFileName });
 
-					await this.bulkEditService.apply([new ResourceFileEdit(sourceFile, targetFile, { overwrite: true, copy: true })], {
-						undoRedoSource: this.explorerService.undoRedoSource,
-						label: localize('copyFile', "Copy {0}", sourceFileName)
-					});
+					await this.explorerService.applyBulkEdit([new ResourceFileEdit(sourceFile, targetFile, { overwrite: true, copy: true })], localize('copyFile', "Copy {0}", sourceFileName));
 					// if we only add one file, just open it directly
 
 					const item = this.explorerService.findClosest(targetFile);
@@ -1449,10 +1443,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action when user copies
 		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 		const resourceFileEdits = sources.map(({ resource, isDirectory }) => (new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming), { copy: true })));
-		await this.bulkEditService.apply(resourceFileEdits, {
-			undoRedoSource: this.explorerService.undoRedoSource,
-			label: resourceFileEdits.length > 1 ? localize('copy', "Copy {0} files", resourceFileEdits.length) : localize('copyOneFile', "Copy {0}", basenameOrAuthority(resourceFileEdits[0].newResource!))
-		});
+		await this.explorerService.applyBulkEdit(resourceFileEdits, resourceFileEdits.length > 1 ? localize('copy', "Copy {0} files", resourceFileEdits.length) : localize('copyOneFile', "Copy {0}", basenameOrAuthority(resourceFileEdits[0].newResource!)));
 
 		const editors = resourceFileEdits.filter(edit => {
 			const item = edit.newResource ? this.explorerService.findClosest(edit.newResource) : undefined;
@@ -1469,7 +1460,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const label = sources.length > 1 ? localize('move', "Move {0} files", sources.length) : localize('moveOneFile', "Move {0}", sources[0].name);
 
 		try {
-			await this.bulkEditService.apply(resourceFileEdits, { undoRedoSource: this.explorerService.undoRedoSource, label });
+			await this.explorerService.applyBulkEdit(resourceFileEdits, label);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1486,10 +1477,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.bulkEditService.apply(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), {
-							undoRedoSource: this.explorerService.undoRedoSource,
-							label
-						});
+						await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), label);
 					} catch (error) {
 						this.notificationService.error(error);
 					}

@@ -379,6 +379,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	private searchBox: SuggestEnabledInput | undefined;
 	private readonly searchViewletState: MementoObject;
 	private readonly sortActions: ChangeSortAction[];
+	private secondaryActions: IAction[] | undefined = undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -421,6 +422,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.secondaryActions = undefined;
 				this.updateTitleArea();
 			}
 		}, this));
@@ -587,23 +589,23 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	getSecondaryActions(): IAction[] {
-		const actions: IAction[] = [];
+		if (!this.secondaryActions) {
+			this.secondaryActions = [];
+			this.secondaryActions.push(this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL));
+			if (this.configurationService.getValue(AutoUpdateConfigurationKey)) {
+				this.secondaryActions.push(this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL));
+			} else {
+				this.secondaryActions.push(this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL, false), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
+			}
 
-		actions.push(this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL));
-		if (this.configurationService.getValue(AutoUpdateConfigurationKey)) {
-			actions.push(this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL));
-		} else {
-			actions.push(this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL, false), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL));
+			this.secondaryActions.push(new Separator());
+			this.secondaryActions.push(this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL, false));
+			this.secondaryActions.push(this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL, false));
+
+			this.secondaryActions.push(new Separator());
+			this.secondaryActions.push(this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL));
 		}
-
-		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(EnableAllAction, EnableAllAction.ID, EnableAllAction.LABEL, false));
-		actions.push(this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL, false));
-
-		actions.push(new Separator());
-		actions.push(this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL));
-
-		return actions;
+		return this.secondaryActions;
 	}
 
 	search(value: string): void {

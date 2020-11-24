@@ -16,7 +16,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -36,7 +36,7 @@ class ExtensionTunnel implements vscode.Tunnel {
 export class ExtHostTunnelService extends Disposable implements IExtHostTunnelService {
 	readonly _serviceBrand: undefined;
 	private readonly _proxy: MainThreadTunnelServiceShape;
-	private _forwardPortProvider: ((tunnelOptions: TunnelOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
+	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel, disposeListener: IDisposable }>> = new Map();
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
@@ -119,9 +119,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		this._onDidChangeTunnels.fire();
 	}
 
-	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined {
+	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined {
 		if (this._forwardPortProvider) {
-			const providedPort = this._forwardPortProvider!(tunnelOptions);
+			const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
 			if (providedPort !== undefined) {
 				return asPromise(() => providedPort).then(tunnel => {
 					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {

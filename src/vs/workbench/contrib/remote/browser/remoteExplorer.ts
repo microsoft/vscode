@@ -5,7 +5,7 @@
 import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Extensions, IViewDescriptorService, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { Extensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,6 +22,10 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { Codicon } from 'vs/base/common/codicons';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -33,7 +37,6 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
@@ -52,9 +55,18 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 		if (this.environmentService.remoteAuthority && viewEnabled) {
+			const viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
+				id: TunnelPanel.ID,
+				name: nls.localize('ports', "Ports"),
+				icon: ThemeIcon.fromCodicon(Codicon.plug),
+				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TunnelPanel.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+				storageId: TunnelPanel.ID,
+				hideIfEmpty: true,
+				order: 5
+			}, ViewContainerLocation.Panel);
+
 			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-			const viewContainer = this.viewDescriptorService.getViewContainerById(VIEWLET_ID);
 			if (viewContainer) {
 				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
 			}
