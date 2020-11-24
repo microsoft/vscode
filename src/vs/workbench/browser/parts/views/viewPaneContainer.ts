@@ -26,7 +26,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, defaultViewIcon } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined, isString } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -357,9 +357,9 @@ export abstract class ViewPane extends Pane implements IView {
 				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
 				-webkit-mask-size: 16px;
 			`);
-		} else if (isString(icon)) {
+		} else if (ThemeIcon.isThemeIcon(icon)) {
 			this.iconContainer.classList.add('codicon');
-			cssClass = icon;
+			cssClass = ThemeIcon.asClassName(icon);
 		}
 
 		if (cssClass) {
