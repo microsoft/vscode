@@ -434,7 +434,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.menuBarContainer.classList.add('menubar');
 
 		const content = assertIsDefined(this.content);
-		content.prepend(this.menuBarContainer);
+		if (this.homeBarContainer) {
+			content.insertBefore(this.menuBarContainer, this.homeBarContainer.nextSibling);
+		} else {
+			content.prepend(this.menuBarContainer);
+		}
 
 		// Menubar: install a custom menu bar depending on configuration
 		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
@@ -572,7 +576,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		})));
 
 		const content = assertIsDefined(this.content);
-		content.prepend(this.homeBarContainer);
+		content.appendChild(this.homeBarContainer);
 	}
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
