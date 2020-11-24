@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.52.0",
-  "distro": "bbac5f0265d748c479a89354eda09dcf92b8f4ee",
+  "distro": "e5fdc430f3622754e5b5838e4c4a93751b6f3ed7",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -44,7 +44,8 @@
     "web": "node resources/web/code-web.js",
     "compile-web": "gulp compile-web --max_old_space_size=4095",
     "watch-web": "gulp watch-web --max_old_space_size=4095",
-    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
+    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.0.2"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -54,12 +55,12 @@
     "https-proxy-agent": "^2.2.3",
     "iconv-lite-umd": "0.6.8",
     "jschardet": "2.2.1",
-    "keytar": "^7.1.0",
+    "keytar": "7.2.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.2.1",
     "native-watchdog": "1.3.0",
-    "node-pty": "0.10.0-beta17",
+    "node-pty": "0.10.0-beta18",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
     "tas-client-umd": "0.1.2",
@@ -111,7 +112,8 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "9.3.3",
+    "electron": "11.0.2",
+    "electron-rebuild": "2.0.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "eslint-plugin-mocha": "8.0.0",
@@ -168,7 +170,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^4.4.2",
     "tsec": "googleinterns/tsec",
-    "typescript": "^4.2.0-dev.20201104",
+    "typescript": "^4.2.0-dev.20201119",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
@@ -189,7 +191,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.2.0",
+    "vscode-windows-ca-certs": "^0.3.0",
     "vscode-windows-registry": "1.0.3",
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",

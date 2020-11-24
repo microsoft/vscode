@@ -246,7 +246,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			diffEditorConfiguration.diffWordWrap = <'off' | 'on' | 'inherit' | undefined>diffEditorConfiguration.wordWrap;
 			delete diffEditorConfiguration.wordWrap;
 
-			objects.mixin(editorConfiguration, diffEditorConfiguration);
+			Object.assign(editorConfiguration, diffEditorConfiguration);
 		}
 
 		return editorConfiguration;

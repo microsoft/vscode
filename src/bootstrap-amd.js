@@ -18,7 +18,9 @@ loader.config({
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename,
-	'vs/nls': nlsConfig
+	'vs/nls': nlsConfig,
+	amdModulesPattern: /^vs\//,
+	recordStats: true
 });
 
 // Running in Electron

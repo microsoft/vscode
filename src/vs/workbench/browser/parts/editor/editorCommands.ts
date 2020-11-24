@@ -19,7 +19,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
@@ -363,14 +363,14 @@ function registerDiffEditorCommands(): void {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-		configurationService.updateValue('diffEditor.renderSideBySide', newValue, ConfigurationTarget.USER);
+		configurationService.updateValue('diffEditor.renderSideBySide', newValue);
 	}
 
 	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const newValue = !configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
-		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue, ConfigurationTarget.USER);
+		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
 	}
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -487,8 +487,20 @@ function registerOpenEditorAPICommands(): void {
 		const quickInputService = accessor.get(IQuickInputService);
 
 		const [resource, id, optionsArg, columnArg] = payload;
+		let group: IEditorGroup | undefined = undefined;
 
-		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		if (columnArg === SIDE_GROUP) {
+			const direction = preferredSideBySideGroupDirection(configurationService);
+
+			let neighbourGroup = editorGroupsService.findGroup({ direction });
+			if (!neighbourGroup) {
+				neighbourGroup = editorGroupsService.addGroup(editorGroupsService.activeGroup, direction);
+			}
+			group = neighbourGroup;
+		} else {
+			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		}
+
 		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
 
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });

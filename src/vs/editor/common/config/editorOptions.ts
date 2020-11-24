@@ -421,6 +421,11 @@ export interface IEditorOptions {
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
+	 * Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation.
+	 * This means selection will snap to indentation boundaries.
+	 */
+	atomicSoftTabs?: boolean;
+	/**
 	 * Enable format on type.
 	 * Defaults to false.
 	 */
@@ -3631,6 +3636,7 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
+	atomicSoftTabs,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -3858,6 +3864,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
+	)),
+	atomicSoftTabs: register(new EditorBooleanOption(
+		EditorOption.atomicSoftTabs, 'atomicSoftTabs', false,
+		{ description: nls.localize('atomicSoftTabs', "Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation. This means selection will snap to indentation boundaries.") }
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,

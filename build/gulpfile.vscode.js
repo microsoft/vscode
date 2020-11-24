@@ -207,7 +207,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -326,7 +325,8 @@ const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
-	{ platform: 'darwin', arch: null, opts: { stats: true } },
+	{ platform: 'darwin', arch: 'x64', opts: { stats: true } },
+	{ platform: 'darwin', arch: 'arm64', opts: { stats: true } },
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },

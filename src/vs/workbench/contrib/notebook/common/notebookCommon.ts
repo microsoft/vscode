@@ -58,6 +58,7 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 ];
 
 export const BUILTIN_RENDERER_ID = '_builtin';
+export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
 export enum NotebookRunState {
 	Running = 1,
@@ -72,7 +73,8 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
-	runState: NotebookRunState.Idle
+	runState: NotebookRunState.Idle,
+	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
@@ -84,6 +86,7 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
+	trusted: boolean;
 }
 
 export enum NotebookCellRunState {
@@ -182,6 +185,7 @@ export enum MimeTypeRendererResolver {
 export interface IOrderedMimeType {
 	mimeType: string;
 	rendererId: string;
+	isTrusted: boolean;
 }
 
 export interface ITransformedDisplayOutputDto extends IDisplayOutput {
@@ -535,6 +539,19 @@ export namespace CellUri {
 	}
 }
 
+export function mimeTypeIsAlwaysSecure(mimeType: string) {
+	if ([
+		'application/json',
+		'text/markdown',
+		'image/png',
+		'text/plain'
+	].indexOf(mimeType) > -1) {
+		return true;
+	}
+
+	return false;
+}
+
 export function mimeTypeSupportedByCore(mimeType: string) {
 	if ([
 		'application/json',
@@ -853,6 +870,7 @@ export interface INotebookCellStatusBarEntry {
 	readonly command: string | Command | undefined;
 	readonly accessibilityInformation?: IAccessibilityInformation;
 	readonly visible: boolean;
+	readonly opacity?: string;
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';

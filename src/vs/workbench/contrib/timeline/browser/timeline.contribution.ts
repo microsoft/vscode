@@ -18,11 +18,16 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
+
+const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
 	readonly name = TimelinePane.TITLE;
-	readonly containerIcon = 'codicon-history';
+	readonly containerIcon = ThemeIcon.fromCodicon(timelineViewIcon);
 	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
 	readonly order = 2;
 	readonly weight = 30;

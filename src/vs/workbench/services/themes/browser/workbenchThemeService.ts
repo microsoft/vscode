@@ -38,6 +38,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 // implementation
 
@@ -112,6 +113,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
+		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -167,7 +169,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.applyAndSetProductIconTheme(productIconData, true);
 		}
 
-		extensionService.whenInstalledExtensionsRegistered().then(_ => {
+		Promise.all([extensionService.whenInstalledExtensionsRegistered(), userDataInitializationService.whenInitializationFinished()]).then(_ => {
 			this.installConfigurationListener();
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();

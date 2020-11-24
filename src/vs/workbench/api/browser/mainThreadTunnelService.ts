@@ -6,8 +6,8 @@
 import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IRemoteExplorerService, MakeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ITunnelProvider, ITunnelService, TunnelCreationInformation, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
@@ -57,14 +57,14 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 
 	async $setTunnelProvider(): Promise<void> {
 		const tunnelProvider: ITunnelProvider = {
-			forwardPort: (tunnelOptions: TunnelOptions) => {
-				const forward = this._proxy.$forwardPort(tunnelOptions);
+			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationInformation: TunnelCreationInformation) => {
+				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationInformation);
 				if (forward) {
 					return forward.then(tunnel => {
 						return {
 							tunnelRemotePort: tunnel.remoteAddress.port,
 							tunnelRemoteHost: tunnel.remoteAddress.host,
-							localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : MakeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
+							localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 							tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
 							dispose: (silent?: boolean) => {
 								this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);

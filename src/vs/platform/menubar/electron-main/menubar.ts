@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { app, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, KeyboardEvent } from 'electron';
+import { app, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, KeyboardEvent } from 'electron';
 import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -61,7 +61,7 @@ export class Menubar {
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
-	private readonly fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow | undefined, event: Event) => void } = Object.create(null);
+	private readonly fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow | undefined, event: KeyboardEvent) => void } = Object.create(null);
 
 	constructor(
 		@IUpdateService private readonly updateService: IUpdateService,
@@ -82,7 +82,7 @@ export class Menubar {
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
 
-		if (isMacintosh || getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
 			this.restoreCachedMenubarData();
 		}
 
@@ -416,7 +416,7 @@ export class Menubar {
 
 	private shouldDrawMenu(menuId: string): boolean {
 		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
 			return false;
 		}
 
@@ -638,7 +638,7 @@ export class Menubar {
 	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): MenuItem;
 	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): MenuItem {
 		const label = this.mnemonicLabel(arg1);
-		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: MenuItem & IMenuItemWithKeybinding, win: BrowserWindow, event: Event) => {
+		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: MenuItem & IMenuItemWithKeybinding, win: BrowserWindow, event: KeyboardEvent) => {
 			const userSettingsLabel = menuItem ? menuItem.userSettingsLabel : null;
 			let commandId = arg2;
 			if (Array.isArray(arg2)) {

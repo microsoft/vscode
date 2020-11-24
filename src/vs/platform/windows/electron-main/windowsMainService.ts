@@ -7,14 +7,13 @@ import * as fs from 'fs';
 import { basename, normalize, join, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, app } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app, WebContents } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -1369,7 +1368,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
 
 		// Build INativeWindowConfiguration from config and options
-		const configuration: INativeWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
+		const configuration = { ...options.cli } as INativeWindowConfiguration;
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.machineId = this.machineId;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
@@ -1698,6 +1697,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const res = WindowsMainService.WINDOWS.filter(window => window.id === windowId);
 
 		return arrays.firstOrDefault(res);
+	}
+
+	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {
+		const browserWindow = BrowserWindow.fromWebContents(webContents);
+		if (!browserWindow) {
+			return undefined;
+		}
+
+		return this.getWindowById(browserWindow.id);
 	}
 
 	getWindows(): ICodeWindow[] {

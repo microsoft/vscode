@@ -27,7 +27,8 @@ import type { ServicesAccessor } from 'vs/platform/instantiation/common/instanti
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -341,6 +342,8 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	BulkEditPreviewContribution, LifecyclePhase.Ready
 );
 
+const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codicon.lightbulb, localize('refactorPreviewViewIcon', 'View icon of the refactor preview view.'));
+
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,
 	name: localize('panel', "Refactor Preview"),
@@ -349,7 +352,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 		ViewPaneContainer,
 		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
 	),
-	icon: Codicon.lightbulb.classNames,
+	icon: ThemeIcon.fromCodicon(refactorPreviewViewIcon),
 	storageId: BulkEditPane.ID
 }, ViewContainerLocation.Panel);
 
@@ -358,5 +361,5 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	name: localize('panel', "Refactor Preview"),
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
-	containerIcon: Codicon.lightbulb.classNames,
+	containerIcon: ThemeIcon.fromCodicon(refactorPreviewViewIcon),
 }], container);

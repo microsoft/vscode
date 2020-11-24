@@ -303,7 +303,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 
@@ -345,7 +345,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
@@ -394,7 +394,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Menubar visibility
-		const newMenubarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		const newMenubarVisibility = getMenuBarVisibility(this.configurationService);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
 		// Centered Layout
@@ -438,7 +438,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateWindowBorder(skipLayout: boolean = false) {
-		if (isWeb || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (isWeb || getTitleBarStyle(this.configurationService) !== 'custom') {
 			return;
 		}
 
@@ -482,7 +482,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.fullscreen = isFullscreen();
 
 		// Menubar visibility
-		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService);
 
 		// Activity bar visibility
 		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
@@ -878,7 +878,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+				if (getTitleBarStyle(this.configurationService) === 'native') {
 					return false;
 				} else if (!this.state.fullscreen && !isWeb) {
 					return true;
