@@ -256,6 +256,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = 'codicon codicon-chevron-down';
 		const dropdownMenu = this._register(new DropdownMenu(this.dropdownButton.element, options.dropdownMenuOptions));
+		dropdownMenu.menuOptions = options.dropdownMenuOptions;
 		this._register(dropdownMenu.onDidChangeVisibility(visible => this.dropdownButton.element.setAttribute('aria-expanded', `${visible}`)));
 		this._register(this.dropdownButton.onDidClick(() => dropdownMenu.show()));
 	}
