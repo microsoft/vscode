@@ -180,7 +180,7 @@
 	//#region Portable helpers
 
 	/**
-	 * @param {{ portable: string; applicationName: string; }} product
+	 * @param {{ portable: string | undefined; applicationName: string; }} product
 	 * @returns {{ portableDataPath: string; isPortable: boolean; } | undefined}
 	 */
 	function configurePortable(product) {
