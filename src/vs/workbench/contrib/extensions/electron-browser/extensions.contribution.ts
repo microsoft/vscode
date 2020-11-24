@@ -26,6 +26,7 @@ import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensio
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
+import { Codicon } from 'vs/base/common/codicons';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
@@ -109,9 +110,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
-		icon: {
-			id: 'codicon/debug-start'
-		}
+		icon: Codicon.debugStart
 	},
 	group: 'navigation',
 	when: ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID)
@@ -121,9 +120,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
-		icon: {
-			id: 'codicon/circle-filled'
-		}
+		icon: Codicon.circleFilled
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.notEqualsTo('running'))
@@ -133,9 +130,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
-		icon: {
-			id: 'codicon/debug-stop'
-		}
+		icon: Codicon.debugStop
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.isEqualTo('running'))
@@ -145,9 +140,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
-		icon: {
-			id: 'codicon/save-all'
-		},
+		icon: Codicon.saveAll,
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},
 	group: 'navigation',

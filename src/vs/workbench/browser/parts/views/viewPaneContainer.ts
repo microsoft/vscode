@@ -339,7 +339,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	private getIcon(): ThemeIcon | URI {
-		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || ThemeIcon.fromCodicon(defaultViewIcon);
+		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || defaultViewIcon;
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {

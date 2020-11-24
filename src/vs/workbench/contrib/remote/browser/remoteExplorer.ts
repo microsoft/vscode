@@ -22,7 +22,6 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -58,7 +57,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			const viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 				id: TunnelPanel.ID,
 				name: nls.localize('ports', "Ports"),
-				icon: ThemeIcon.fromCodicon(Codicon.plug),
+				icon: Codicon.plug,
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TunnelPanel.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 				storageId: TunnelPanel.ID,
 				hideIfEmpty: true,

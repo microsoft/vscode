@@ -21,6 +21,7 @@ import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/l
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Codicon } from 'vs/base/common/codicons';
 
 
 registerAction2(class extends Action2 {
@@ -30,7 +31,7 @@ registerAction2(class extends Action2 {
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
-			icon: { id: 'codicon/server-environment' },
+			icon: Codicon.serverEnvironment,
 			f1: true
 		});
 	}

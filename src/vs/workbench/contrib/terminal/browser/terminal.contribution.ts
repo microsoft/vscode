@@ -37,7 +37,6 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { terminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -67,7 +66,7 @@ const terminalViewIcon = registerIcon('terminal-view-icon', Codicon.terminal, nl
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
-	icon: ThemeIcon.fromCodicon(terminalViewIcon),
+	icon: terminalViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: TERMINAL_VIEW_ID,
 	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS },
@@ -78,7 +77,7 @@ Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERM
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
-	containerIcon: ThemeIcon.fromCodicon(terminalViewIcon),
+	containerIcon: terminalViewIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane)

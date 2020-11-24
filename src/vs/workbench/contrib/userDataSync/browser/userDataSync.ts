@@ -53,7 +53,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_VIEW_ICON } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -1125,7 +1124,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					UserDataSyncViewPaneContainer,
 					[SYNC_VIEW_CONTAINER_ID]
 				),
-				icon: ThemeIcon.fromCodicon(SYNC_VIEW_ICON),
+				icon: SYNC_VIEW_ICON,
 				hideIfEmpty: true,
 			}, ViewContainerLocation.Sidebar);
 	}
