@@ -62,6 +62,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
+import { memoize } from 'vs/base/common/decorators';
 
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -552,39 +553,36 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		return 400;
 	}
 
+	@memoize
 	getActions(): IAction[] {
-		const filterActions: IAction[] = [];
-
 		// Local extensions filters
-		filterActions.push(...[
-			this.instantiationService.createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, localize('builtin filter', "Built-in")),
-			this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, localize('installed filter', "Installed")),
-			this.instantiationService.createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, localize('enabled filter', "Enabled")),
-			this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, localize('disabled filter', "Disabled")),
-			this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, localize('outdated filter', "Outdated")),
-		]);
+		let filterActions: IAction[] = [
+			this._register(this.instantiationService.createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, localize('builtin filter', "Built-in"))),
+			this._register(this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, localize('installed filter', "Installed"))),
+			this._register(this.instantiationService.createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, localize('enabled filter', "Enabled"))),
+			this._register(this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, localize('disabled filter', "Disabled"))),
+			this._register(this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, localize('outdated filter', "Outdated"))),
+		];
 
 		if (this.extensionGalleryService.isEnabled()) {
-			const galleryFilterActions = [
-				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.featured', localize('featured filter', "Featured"), '@featured'),
-				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.popular', localize('most popular filter', "Most Popular"), '@popular'),
-				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.recommended', localize('most popular recommended', "Recommended"), '@recommended'),
-				this.instantiationService.createInstance(RecentlyPublishedExtensionsAction, RecentlyPublishedExtensionsAction.ID, localize('recently published filter', "Recently Published")),
-				new Separator(),
-				new SubmenuAction('workbench.extensions.action.filterExtensionsByCategory', localize('filter by category', "Category"), EXTENSION_CATEGORIES.map(category => this.instantiationService.createInstance(SearchCategoryAction, `extensions.actions.searchByCategory.${category}`, category, category))),
-				new Separator(),
+			filterActions = [
+				this._register(this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.featured', localize('featured filter', "Featured"), '@featured')),
+				this._register(this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.popular', localize('most popular filter', "Most Popular"), '@popular')),
+				this._register(this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.recommended', localize('most popular recommended', "Recommended"), '@recommended')),
+				this._register(this.instantiationService.createInstance(RecentlyPublishedExtensionsAction, RecentlyPublishedExtensionsAction.ID, localize('recently published filter', "Recently Published"))),
+				this._register(new Separator()),
+				this._register(new SubmenuAction('workbench.extensions.action.filterExtensionsByCategory', localize('filter by category', "Category"), EXTENSION_CATEGORIES.map(category => this.instantiationService.createInstance(SearchCategoryAction, `extensions.actions.searchByCategory.${category}`, category, category)))),
+				this._register(new Separator()),
+				...filterActions,
+				this._register(new Separator()),
+				this._register(new SubmenuAction('workbench.extensions.action.sortBy', localize('sorty by', "Sort By"), this.sortActions)),
 			];
-			filterActions.splice(0, 0, ...galleryFilterActions);
-			filterActions.push(...[
-				new Separator(),
-				new SubmenuAction('workbench.extensions.action.sortBy', localize('sorty by', "Sort By"), this.sortActions),
-			]);
 		}
 
 		return [
-			new SubmenuAction('workbench.extensions.action.filterExtensions', localize('filterExtensions', "Filter Extensions..."), filterActions, 'codicon-filter'),
-			this.instantiationService.createInstance(RefreshExtensionsAction, RefreshExtensionsAction.ID, RefreshExtensionsAction.LABEL),
-			this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange, this.searchBox ? this.searchBox.getValue() : ''),
+			this._register(new SubmenuAction('workbench.extensions.action.filterExtensions', localize('filterExtensions', "Filter Extensions..."), filterActions, 'codicon-filter')),
+			this._register(this.instantiationService.createInstance(RefreshExtensionsAction, RefreshExtensionsAction.ID, RefreshExtensionsAction.LABEL)),
+			this._register(this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange, () => this.searchBox!.getValue() || '')),
 		];
 	}
 
