@@ -358,7 +358,6 @@ export abstract class ViewPane extends Pane implements IView {
 				-webkit-mask-size: 16px;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
-			this.iconContainer.classList.add('codicon');
 			cssClass = ThemeIcon.asClassName(icon);
 		}
 
