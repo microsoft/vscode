@@ -27,6 +27,7 @@ import { setImmediate } from 'vs/base/common/platform';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { distinct } from 'vs/base/common/arrays';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -157,8 +158,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		this.promptRecommendationsForModel(model);
-		const disposable = model.onDidChangeLanguage(() => this.promptRecommendationsForModel(model));
-		model.onWillDispose(() => disposable.dispose());
+		const disposables = new DisposableStore();
+		disposables.add(model.onDidChangeLanguage(() => this.promptRecommendationsForModel(model)));
+		disposables.add(model.onWillDispose(() => disposables.dispose()));
 	}
 
 	/**
