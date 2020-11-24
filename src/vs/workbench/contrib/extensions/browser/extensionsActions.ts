@@ -186,6 +186,7 @@ export class ActionWithDropDownAction extends ExtensionAction {
 		super(id, label);
 		this.update();
 		this._register(Event.any(...actions.map(a => a.onDidChange))(() => this.update(true)));
+		actions.forEach(a => this._register(a));
 	}
 
 	update(donotUpdateActions?: boolean): void {
