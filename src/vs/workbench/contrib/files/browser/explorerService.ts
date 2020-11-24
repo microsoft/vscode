@@ -19,6 +19,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -41,7 +42,8 @@ export class ExplorerService implements IExplorerService {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IEditorService private editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IBulkEditService private readonly bulkEditService: IBulkEditService
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 
@@ -90,11 +92,22 @@ export class ExplorerService implements IExplorerService {
 		return this.view.getContext(respectMultiSelection);
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], label: string): Promise<void> {
-		await this.bulkEditService.apply(edit, {
-			undoRedoSource: UNDO_REDO_SOURCE,
-			label,
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string }): Promise<void> {
+		const promise = this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			delay: 500,
+			title: options.progressLabel
+		}, async progress => {
+
+			await this.bulkEditService.apply(edit, {
+				undoRedoSource: UNDO_REDO_SOURCE,
+				label: options.undoLabel,
+				progress
+			});
 		});
+		this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
+
+		return promise;
 	}
 
 	hasViewFocus(): boolean {
