@@ -6,6 +6,11 @@
 import { PerformanceEntry } from 'perf_hooks';
 
 /**
+ * Start the startup performace observer
+ */
+export function start(): void;
+
+/**
  * Return all performance entries captured so far and stop startup
  * performance recording.
  */

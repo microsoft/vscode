@@ -8,30 +8,33 @@
 //@ts-check
 
 function _factory(sharedObj, nodeRequire) {
-	if (!sharedObj.MonacoStartupPerformanceMarks) {
 
-		const { PerformanceObserver } = nodeRequire('perf_hooks');
+	let _data = sharedObj.MonacoStartupPerformanceMarks;
 
-		let startupEntries = [];
-
-		const startupObs = new PerformanceObserver(list => { startupEntries = startupEntries.concat(list.getEntries()); });
-		startupObs.observe({ buffered: true, entryTypes: ['mark'] });
-
-		sharedObj.MonacoStartupPerformanceMarks = {
-			startupEntries,
-			dispose() {
-				startupObs.disconnect();
-				startupEntries.length = 0;
-				delete sharedObj.MonacoStartupPerformanceMarks;
-			},
+	if (!_data) {
+		_data = sharedObj.MonacoStartupPerformanceMarks = {
+			startupEntries =[],
+			observer: undefined,
 		};
 	}
 
 	return {
+		start() {
+			if (!_data.observer) {
+				const { PerformanceObserver } = nodeRequire('perf_hooks');
+				const observer = new PerformanceObserver(list => _data = _data.concat(list.getEntries()));
+				observer.observe({ buffered: true, entryTypes: ['mark'] });
+				_data.observer = observer;
+			}
+		},
 		consumeAndStop() {
-			const entries = sharedObj.startupEntries.slice(0);
-			sharedObj.MonacoStartupPerformanceMarks.dispose();
-			return entries;
+			if (_data.observer) {
+				const entries = _data.startupEntries.slice(0);
+				_data.observer.disconnect();
+				_data.startupEntries.length = 0;
+				return entries;
+			}
+			return []; // never started
 		}
 	};
 }
