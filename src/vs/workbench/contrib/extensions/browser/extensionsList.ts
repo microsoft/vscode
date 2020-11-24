@@ -223,10 +223,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				});
 			}
 		}, this, data.extensionDisposables);
+	}
 
+	disposeElement(extension: IExtension, index: number, data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.disposables = dispose(data.disposables);
 	}
 }
