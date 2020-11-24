@@ -5,7 +5,7 @@
 
 
 import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -163,10 +163,10 @@ class DeleteOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		let contents: VSBuffer | undefined;
+		let fileContent: IFileContent | undefined;
 		if (!this._undoesCreateOperation && !this.options.folder) {
 			try {
-				contents = (await this._fileService.readFile(this.oldUri)).value;
+				fileContent = (await this._fileService.readFile(this.oldUri));
 			} catch (err) {
 				this._logService.critical(err);
 			}
@@ -174,7 +174,11 @@ class DeleteOperation implements IFileOperation {
 
 		const useTrash = this._fileService.hasCapability(this.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash');
 		await this._workingCopyFileService.delete([this.oldUri], { useTrash, recursive: this.options.recursive, ...this.undoRedoInfo });
-		return this._instaService.createInstance(CreateOperation, this.oldUri, this.options, { isUndoing: true }, contents);
+
+		if (typeof this.options.maxSize === 'number' && fileContent && (fileContent?.size > this.options.maxSize)) {
+			return new Noop();
+		}
+		return this._instaService.createInstance(CreateOperation, this.oldUri, this.options, { isUndoing: true }, fileContent?.value);
 	}
 
 	toString(): string {
