@@ -150,8 +150,15 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private onModelAdded(model: ITextModel): void {
+		const uri = model.uri;
+		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
+		if (!uri || !supportedSchemes.includes(uri.scheme)) {
+			return;
+		}
+
 		this.promptRecommendationsForModel(model);
-		this._register(model.onDidChangeLanguage(() => this.promptRecommendationsForModel(model)));
+		const disposable = model.onDidChangeLanguage(() => this.promptRecommendationsForModel(model));
+		model.onWillDispose(() => disposable.dispose());
 	}
 
 	/**
@@ -160,11 +167,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	 */
 	private promptRecommendationsForModel(model: ITextModel): void {
 		const uri = model.uri;
-		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
-		if (!uri || !supportedSchemes.includes(uri.scheme)) {
-			return;
-		}
-
 		const language = model.getLanguageIdentifier().language;
 		const fileExtension = extname(uri).toLowerCase();
 		if (this.processedLanguages.includes(language) && this.processedFileExtensions.includes(fileExtension)) {
