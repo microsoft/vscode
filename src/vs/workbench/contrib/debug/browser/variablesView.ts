@@ -36,6 +36,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { debugCollapseAll } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -179,7 +180,7 @@ export class VariablesView extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
+		return [new CollapseAction(() => this.tree, true, 'explorer-action ' + debugCollapseAll.classNames)];
 	}
 
 	layoutBody(width: number, height: number): void {

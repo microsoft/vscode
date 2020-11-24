@@ -33,6 +33,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { debugConsole } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -247,7 +248,7 @@ export class OpenDebugConsoleAction extends ToggleViewAction {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(id, label, REPL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService, 'codicon-debug-console');
+		super(id, label, REPL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService, debugConsole.classNames);
 	}
 }
 
