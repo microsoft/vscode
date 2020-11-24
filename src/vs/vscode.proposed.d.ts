@@ -223,7 +223,7 @@ declare module 'vscode' {
 
 	}
 
-	export interface TunnelCreationInformation {
+	export interface TunnelCreationOptions {
 		/**
 		 * True when the local operating system will require elevation to use the requested local port.
 		 */
@@ -246,7 +246,7 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationInformation: TunnelCreationInformation) => Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
 		/**
 		 * Provides filtering for candidate ports.
