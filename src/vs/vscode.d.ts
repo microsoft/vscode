@@ -1905,7 +1905,7 @@ declare module 'vscode' {
 		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on file paths
 		 * relative to the base path.
 		 */
-		constructor(base: WorkspaceFolder | string, pattern: string)
+		constructor(base: Uri | WorkspaceFolder | string, pattern: string)
 	}
 
 	/**

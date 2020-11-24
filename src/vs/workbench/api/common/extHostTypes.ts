@@ -2193,9 +2193,9 @@ export class RelativePattern implements IRelativePattern {
 
 	pattern: string;
 
-	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
+	constructor(base: URI | vscode.WorkspaceFolder | string, pattern: string) {
 		if (typeof base !== 'string') {
-			if (!base || !URI.isUri(base.uri)) {
+			if (!base || !URI.isUri(base) && !URI.isUri(base.uri)) {
 				throw illegalArgument('base');
 			}
 		}
@@ -2206,6 +2206,9 @@ export class RelativePattern implements IRelativePattern {
 
 		if (typeof base === 'string') {
 			this.base = base;
+		} else if (URI.isUri(base)) {
+			this.baseFolder = base;
+			this.base = base.fsPath;
 		} else {
 			this.baseFolder = base.uri;
 			this.base = base.uri.fsPath;
