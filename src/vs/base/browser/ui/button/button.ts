@@ -13,8 +13,8 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
 import { renderCodicons } from 'vs/base/browser/codicons';
 import { addDisposableListener, IFocusTracker, EventType, EventHelper, trackFocus, reset, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
-import { DropdownMenu, IDropdownMenuOptions } from 'vs/base/browser/ui/dropdown/dropdown';
-import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
+import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { IAction } from 'vs/base/common/actions';
 
 export interface IButtonOptions extends IButtonStyles {
 	readonly title?: boolean | string;
@@ -231,7 +231,8 @@ export class Button extends Disposable implements IButton {
 }
 
 export interface IButtonWithDropdownOptions extends IButtonOptions {
-	readonly dropdownMenuOptions: IDropdownMenuOptions & IMenuOptions;
+	readonly contextMenuProvider: IContextMenuProvider;
+	readonly actions: IAction[];
 }
 
 export class ButtonWithDropdown extends Disposable implements IButton {
@@ -255,10 +256,14 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportCodicons: true }));
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = 'codicon codicon-chevron-down';
-		const dropdownMenu = this._register(new DropdownMenu(this.dropdownButton.element, options.dropdownMenuOptions));
-		dropdownMenu.menuOptions = options.dropdownMenuOptions;
-		this._register(dropdownMenu.onDidChangeVisibility(visible => this.dropdownButton.element.setAttribute('aria-expanded', `${visible}`)));
-		this._register(this.dropdownButton.onDidClick(() => dropdownMenu.show()));
+		this._register(this.dropdownButton.onDidClick(() => {
+			options.contextMenuProvider.showContextMenu({
+				getAnchor: () => this.dropdownButton.element,
+				getActions: () => options.actions,
+				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
+			});
+			this.dropdownButton.element.setAttribute('aria-expanded', 'true');
+		}));
 	}
 
 	set label(value: string) {
