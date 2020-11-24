@@ -1387,6 +1387,7 @@ export interface WorkspaceFileEditOptions {
 	recursive?: boolean;
 	copy?: boolean;
 	folder?: boolean;
+	skipTrashBin?: boolean;
 	maxSize?: number;
 }
 

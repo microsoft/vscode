@@ -207,7 +207,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))

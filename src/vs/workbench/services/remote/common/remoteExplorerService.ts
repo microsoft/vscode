@@ -258,13 +258,17 @@ export class TunnelModel extends Disposable {
 		this._onCandidatesChanged.fire(removedCandidates);
 	}
 
+	private polishProcessDetail(detail: string): string {
+		const nullIndex = detail.indexOf('\0');
+		return detail.substr(0, nullIndex > 0 ? nullIndex : detail.length).trim();
+	}
+
 	// Returns removed candidates
 	private updateInResponseToCandidates(candidates: { host: string, port: number, detail: string }[]): Map<string, { host: string, port: number }> {
 		const removedCandidates = this._candidates;
 		this._candidates = new Map();
 		candidates.forEach(value => {
-			const nullIndex = value.detail.indexOf('\0');
-			const detail = value.detail.substr(0, nullIndex > 0 ? nullIndex : value.detail.length).trim();
+			const detail = this.polishProcessDetail(value.detail);
 			const addressKey = makeAddress(value.host, value.port);
 			this._candidates.set(addressKey, {
 				host: value.host,
@@ -276,7 +280,7 @@ export class TunnelModel extends Disposable {
 			}
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
 			if (forwardedValue) {
-				forwardedValue.runningProcess = value.detail;
+				forwardedValue.runningProcess = detail;
 			}
 		});
 		removedCandidates.forEach((_value, key) => {
