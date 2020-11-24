@@ -45,7 +45,7 @@
 	 * @param {string | undefined} appRoot
 	 */
 	function enableASARSupport(appRoot) {
-		if (!path || !Module) {
+		if (!path || !Module || typeof process === 'undefined') {
 			console.warn('enableASARSupport() is only available in node.js environments'); // TODO@sandbox ASAR is currently non-sandboxed only
 			return;
 		}
@@ -127,7 +127,7 @@
 	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
 	 */
 	function setupNLS() {
-		if (!path || !fs) {
+		if (!path || !fs || typeof process === 'undefined') {
 			console.warn('setupNLS() is only available in node.js environments');
 			return { availableLanguages: {} }; // TODO@sandbox NLS is currently non-sandboxed only
 		}
@@ -184,7 +184,7 @@
 	 * @returns {{ portableDataPath: string; isPortable: boolean; } | undefined}
 	 */
 	function configurePortable(product) {
-		if (!path || !fs) {
+		if (!path || !fs || typeof process === 'undefined') {
 			console.warn('configurePortable() is only available in node.js environments'); // TODO@sandbox Portable is currently non-sandboxed only
 			return;
 		}
@@ -265,6 +265,16 @@
 		// @ts-ignore
 		process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
 		global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
+	}
+
+	function safeProcess() {
+		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+
+		if (typeof process !== 'undefined') {
+			return process; // Native environment (non-sandboxed)
+		} else if (typeof globals.vscode !== 'undefined') {
+			return globals.vscode.process; // Native environment (sandboxed)
+		}
 	}
 
 	//#endregion
