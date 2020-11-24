@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor, EditorCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
@@ -24,6 +24,7 @@ export interface ILanguageIdentifierResolver {
 }
 
 class GrammarContributions implements IGrammarContributions {
+
 	private static _grammars: ModeScopeMap = {};
 
 	constructor(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
@@ -47,12 +48,20 @@ class GrammarContributions implements IGrammarContributions {
 	}
 }
 
-export class ExpandEmmetAbbreviationCommand extends EditorCommand {
-	constructor() {
-		super({ id: 'workbench.action.expandEmmetAbbreviation', precondition: undefined });
+export interface IEmmetActionOptions extends IActionOptions {
+	actionName: string;
+}
+
+export abstract class EmmetEditorAction extends EditorAction {
+
+	protected emmetActionName: string;
+
+	constructor(opts: IEmmetActionOptions) {
+		super(opts);
+		this.emmetActionName = opts.actionName;
 	}
 
-	private static readonly emmetSupportedModes = ['html', 'xml', 'xsl', 'jsx', 'js', 'pug', 'slim', 'haml', 'css', 'sass', 'scss', 'less', 'sss', 'stylus'];
+	private static readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
 	private _lastGrammarContributions: Promise<GrammarContributions> | null = null;
 	private _lastExtensionService: IExtensionService | null = null;
@@ -66,21 +75,20 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 		return this._lastGrammarContributions || Promise.resolve(null);
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
-		if (!accessor) {
-			return;
-		}
-
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const extensionService = accessor.get(IExtensionService);
 		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
-			if (this.id === 'workbench.action.expandEmmetAbbreviation' && grammarContributions) {
-				return commandService.executeCommand<void>('editor.emmet.action.expandAbbreviationInternal', ExpandEmmetAbbreviationCommand.getLanguage(modeService, editor, grammarContributions));
+
+			if (this.id === 'editor.emmet.action.expandAbbreviation' && grammarContributions) {
+				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
 			}
+
 			return undefined;
 		});
+
 	}
 
 	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICodeEditor, grammars: IGrammarContributions) {
@@ -96,34 +104,24 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		const languageIdentifier = languageIdentifierResolver.getLanguageIdentifier(languageId);
 		const language = languageIdentifier ? languageIdentifier.language : '';
-		let syntax = language.split('.').pop();
+		const syntax = language.split('.').pop();
 
 		if (!syntax) {
 			return null;
 		}
 
-		// map to something Emmet understands
-		if (['jsx-tags', 'javascriptreact', 'typescriptreact'].includes(syntax)) {
-			syntax = 'jsx';
-		}
-
-		const getParentMode = (syntax: string): string => {
-			if (syntax === 'jsx') {
-				// return otherwise getGrammar gives a string that Emmet doesn't understand
-				return syntax;
-			}
-
-			const languageGrammar = grammars.getGrammar(syntax);
+		let checkParentMode = (): string => {
+			let languageGrammar = grammars.getGrammar(syntax);
 			if (!languageGrammar) {
 				return syntax;
 			}
-			const languages = languageGrammar.split('.');
-			if (languages.length <= 1) {
+			let languages = languageGrammar.split('.');
+			if (languages.length < 2) {
 				return syntax;
 			}
-			for (let i = languages.length - 1; i >= 1; i--) {
-				const language = languages[i];
-				if (this.emmetSupportedModes.includes(language)) {
+			for (let i = 1; i < languages.length; i++) {
+				const language = languages[languages.length - i];
+				if (this.emmetSupportedModes.indexOf(language) !== -1) {
 					return language;
 				}
 			}
@@ -132,9 +130,9 @@ export class ExpandEmmetAbbreviationCommand extends EditorCommand {
 
 		return {
 			language: syntax,
-			parentMode: getParentMode(syntax)
+			parentMode: checkParentMode()
 		};
 	}
-}
 
-export const expandEmmetAbbreviationCommand = new ExpandEmmetAbbreviationCommand();
+
+}

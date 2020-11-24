@@ -54,7 +54,7 @@ if (typeof process !== 'undefined') {
 	// Native environment (non-sandboxed)
 	nodeProcess = process;
 } else if (typeof _globals.vscode !== 'undefined') {
-	// Native envionment (sandboxed)
+	// Native environment (sandboxed)
 	nodeProcess = _globals.vscode.process;
 }
 

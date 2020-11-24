@@ -1028,7 +1028,7 @@ declare module 'vscode' {
 		 * @param element
 		 * @param item Undefined properties of `item` should be set then `item` should be returned.
 		 */
-		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
+		resolveTreeItem?(item: TreeItem2, element: T): ProviderResult<TreeItem2>;
 	}
 
 	export class TreeItem2 extends TreeItem {

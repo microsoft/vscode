@@ -489,6 +489,9 @@ export namespace Codicon {
 	export const redo = new Codicon('redo', { character: '\\ebb0' });
 	export const checkAll = new Codicon('check-all', { character: '\\ebb1' });
 	export const pinnedDirty = new Codicon('pinned-dirty', { character: '\\ebb2' });
+	export const passFilled = new Codicon('pass-filled', { character: '\\ebb3' });
+	export const circleLargeFilled = new Codicon('circle-large-filled', { character: '\\ebb4' });
+	export const circleLargeOutline = new Codicon('circle-large-outline', { character: '\\ebb5' });
 }
 
 

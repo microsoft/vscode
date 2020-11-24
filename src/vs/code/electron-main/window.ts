@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, Details } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -210,7 +210,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 			}
 
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService, this.environmentService, !!config.extensionDevelopmentPath) === 'custom';
+			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 			if (useCustomTitleStyle) {
 				options.titleBarStyle = 'hidden';
 				this.hiddenTitleBarStyle = true;
@@ -543,8 +543,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private onWindowError(error: WindowError.UNRESPONSIVE): void;
-	private onWindowError(error: WindowError.CRASHED, details: Details): void;
-	private onWindowError(error: WindowError, details?: Details): void {
+	private onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): void;
+	private onWindowError(error: WindowError, details?: RenderProcessGoneDetails): void {
 		this.logService.error(error === WindowError.CRASHED ? `[VS Code]: renderer process crashed (detail: ${details?.reason})` : '[VS Code]: detected unresponsive');
 
 		// If we run extension tests from CLI, showing a dialog is not
@@ -1145,7 +1145,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		let menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService, !!this.currentConfig?.extensionDevelopmentPath);
+		let menuBarVisibility = getMenuBarVisibility(this.configurationService);
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
 			menuBarVisibility = 'default';
 		}

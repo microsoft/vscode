@@ -218,7 +218,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	updateLayout(dimension: DOM.Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
 				this.title.style.zoom = `${1 / getZoomFactor()}`;

@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.14.1"
+    versionSpec: "12.18.3"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -51,6 +51,10 @@ steps:
     git fetch distro
     git merge $(node -p "require('./package.json').distro")
   displayName: Merge distro
+
+- script: |
+    npx https://aka.ms/enablesecurefeed standAlone
+  displayName: Switch to Terrapin packages
 
 # - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
 #   inputs:
