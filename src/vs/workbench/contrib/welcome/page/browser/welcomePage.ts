@@ -46,6 +46,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { gettingStartedInputTypeId, GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -69,7 +70,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			backupFileService.hasBackups().then(hasBackups => {
 				// Open the welcome even if we opened a set of default editors
 				if ((!editorService.activeEditor || layoutService.openedDefaultEditors) && !hasBackups) {
-					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
+					const startupEditorSetting = configurationService.getValue(configurationKey) as string;
+					const openWithReadme = startupEditorSetting === 'readme';
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;
@@ -101,18 +103,21 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								return undefined;
 							});
 					} else {
+						const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
+						const startupEditorCtor = startupEditorSetting === 'gettingStarted' ? GettingStartedPage : WelcomePage;
+
 						let options: IEditorOptions;
 						let editor = editorService.activeEditor;
 						if (editor) {
 							// Ensure that the welcome editor won't get opened more than once
-							if (editor.getTypeId() === welcomeInputTypeId || editorService.editors.some(e => e.getTypeId() === welcomeInputTypeId)) {
+							if (editor.getTypeId() === startupEditorTypeID || editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
 								return undefined;
 							}
 							options = { pinned: false, index: 0 };
 						} else {
 							options = { pinned: false };
 						}
-						return instantiationService.createInstance(WelcomePage).openEditor(options);
+						return instantiationService.createInstance(startupEditorCtor).openEditor(options);
 					}
 				}
 				return undefined;
@@ -129,7 +134,7 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 			return welcomeEnabled.value;
 		}
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 }
 
 export class WelcomePageAction extends Action {

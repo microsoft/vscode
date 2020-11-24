@@ -28,7 +28,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-const typeId = 'workbench.editors.gettingStartedInput';
+export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
 
 export class GettingStartedPage extends Disposable {
@@ -76,7 +76,7 @@ export class GettingStartedPage extends Disposable {
 
 
 		this.editorInput = this.instantiationService.createInstance(WalkThroughInput, {
-			typeId,
+			typeId: gettingStartedInputTypeId,
 			name: localize('editorGettingStarted.title', "Getting Started"),
 			resource,
 			telemetryFrom,
@@ -287,7 +287,7 @@ export class GettingStartedPage extends Disposable {
 
 export class GettingStartedInputFactory implements IEditorInputFactory {
 
-	static readonly ID = typeId;
+	static readonly ID = gettingStartedInputTypeId;
 
 	public canSerialize(editorInput: EditorInput): boolean {
 		return true;
