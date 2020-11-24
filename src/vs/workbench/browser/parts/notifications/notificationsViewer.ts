@@ -465,6 +465,7 @@ export class NotificationTemplateRenderer extends Disposable {
 							...buttonOptions,
 							contextMenuProvider: this.contextMenuService,
 							actions: dropdownActions,
+							actionRunner
 						})
 						: buttonToolbar.addButton(buttonOptions));
 				button.label = action.label;
