@@ -202,6 +202,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._linkProvider.delete(scheme);
 			this._registeredSchemes.delete(scheme);
 			this._fsProvider.delete(handle);
+			this._enableProposedApi.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
 	}
