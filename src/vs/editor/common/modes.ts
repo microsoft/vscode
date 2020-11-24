@@ -1388,6 +1388,7 @@ export interface WorkspaceFileEditOptions {
 	copy?: boolean;
 	folder?: boolean;
 	doNotUseTrash?: boolean;
+	maxSize?: number;
 }
 
 export interface WorkspaceFileEdit {

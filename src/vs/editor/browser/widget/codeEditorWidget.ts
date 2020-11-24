@@ -1027,6 +1027,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._triggerEditorCommand(source, handlerId, payload)) {
 			return;
 		}
+
+		this._commandService.executeCommand(handlerId, payload);
 	}
 
 	private _startComposition(): void {

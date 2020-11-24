@@ -25,7 +25,12 @@
 	const preloadGlobals = globals();
 	const sandbox = preloadGlobals.context.sandbox;
 	const webFrame = preloadGlobals.webFrame;
-	const safeProcess = sandbox ? preloadGlobals.process : process;
+	const safeProcess = preloadGlobals.process;
+	const configuration = parseWindowConfiguration();
+
+	// Start to resolve process.env before anything gets load
+	// so that we can run loading and resolving in parallel
+	const whenEnvResolved = safeProcess.resolveEnv(configuration.userEnv);
 
 	/**
 	 * @param {string[]} modulePaths
@@ -33,18 +38,6 @@
 	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
 	 */
 	function load(modulePaths, resultCallback, options) {
-		const args = parseURLQueryArgs();
-		/**
-		 * // configuration: INativeWindowConfiguration
-		 * @type {{
-		 * zoomLevel?: number,
-		 * extensionDevelopmentPath?: string[],
-		 * extensionTestsPath?: string,
-		 * userEnv?: { [key: string]: string | undefined },
-		 * appRoot: string,
-		 * nodeCachedDataDir?: string
-		 * }} */
-		const configuration = JSON.parse(args['config'] || '{}') || {};
 
 		// Apply zoom level early to avoid glitches
 		const zoomLevel = configuration.zoomLevel;
@@ -64,22 +57,15 @@
 			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
 		}
 
-		// Correctly inherit the parent's environment (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			Object.assign(safeProcess.env, configuration.userEnv);
-		}
-
-		// Enable ASAR support (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-		}
+		// Enable ASAR support
+		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
 		if (options && typeof options.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
-		// Get the nls configuration into the process.env as early as possible  (TODO@sandbox non-sandboxed only)
-		const nlsConfig = sandbox ? { availableLanguages: {} } : globalThis.MonacoBootstrap.setupNLS();
+		// Get the nls configuration into the process.env as early as possible
+		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
 		if (locale === 'zh-tw') {
@@ -150,17 +136,23 @@
 			options.beforeRequire();
 		}
 
-		require(modulePaths, result => {
+		require(modulePaths, async result => {
 			try {
+
+				// Wait for process environment being fully resolved
+				const perf = perfLib();
+				perf.mark('willWaitForShellEnv');
+				await whenEnvResolved;
+				perf.mark('didWaitForShellEnv');
+
+				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
-				if (callbackResult && typeof callbackResult.then === 'function') {
-					callbackResult.then(() => {
-						if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-							developerToolsUnbind();
-						}
-					}, error => {
-						onUnexpectedError(error, enableDeveloperTools);
-					});
+				if (callbackResult instanceof Promise) {
+					await callbackResult;
+
+					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
+						developerToolsUnbind();
+					}
 				}
 			} catch (error) {
 				onUnexpectedError(error, enableDeveloperTools);
@@ -169,16 +161,26 @@
 	}
 
 	/**
-	 * @returns {{[param: string]: string }}
+	 * Parses the contents of the `INativeWindowConfiguration` that
+	 * is passed into the URL from the `electron-main` side.
+	 *
+	 * @returns {{
+	 * zoomLevel?: number,
+	 * extensionDevelopmentPath?: string[],
+	 * extensionTestsPath?: string,
+	 * userEnv?: { [key: string]: string | undefined },
+	 * appRoot: string,
+	 * nodeCachedDataDir?: string
+	 * }}
 	 */
-	function parseURLQueryArgs() {
-		const search = window.location.search || '';
-
-		return search.split(/[?&]/)
+	function parseWindowConfiguration() {
+		const rawConfiguration = (window.location.search || '').split(/[?&]/)
 			.filter(function (param) { return !!param; })
 			.map(function (param) { return param.split('='); })
 			.filter(function (param) { return param.length === 2; })
 			.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
+
+		return JSON.parse(rawConfiguration['config'] || '{}') || {};
 	}
 
 	/**
@@ -256,8 +258,25 @@
 		return window.vscode;
 	}
 
+	/**
+	 * @return {{ mark: (name: string) => void }}
+	 */
+	function perfLib() {
+		globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
+
+		return {
+			/**
+			 * @param {string} name
+			 */
+			mark(name) {
+				globalThis.MonacoPerformanceMarks.push(name, Date.now());
+			}
+		};
+	}
+
 	return {
 		load,
-		globals
+		globals,
+		perfLib
 	};
 }));

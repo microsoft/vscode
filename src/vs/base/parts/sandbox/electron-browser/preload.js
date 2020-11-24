@@ -108,17 +108,13 @@
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
 
-			_whenEnvResolved: undefined,
-			whenEnvResolved:
+			resolveEnv:
 				/**
-				 * @returns when the shell environment has been resolved.
+				 * @param userEnv {{[key: string]: string}}
+				 * @returns {Promise<void>}
 				 */
-				function () {
-					if (!this._whenEnvResolved) {
-						this._whenEnvResolved = resolveEnv();
-					}
-
-					return this._whenEnvResolved;
+				function (userEnv) {
+					return resolveEnv(userEnv);
 				},
 
 			getProcessMemoryInfo:
@@ -193,34 +189,40 @@
 		return true;
 	}
 
+	/** @type {Promise<void> | undefined} */
+	let resolvedEnv = undefined;
+
 	/**
 	 * If VSCode is not run from a terminal, we should resolve additional
 	 * shell specific environment from the OS shell to ensure we are seeing
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
 	 *
+	 * @param userEnv {{[key: string]: string}}
 	 * @returns {Promise<void>}
 	 */
-	function resolveEnv() {
-		return new Promise(function (resolve) {
-			const handle = setTimeout(function () {
-				console.warn('Preload: Unable to resolve shell environment in a reasonable time');
+	function resolveEnv(userEnv) {
+		if (!resolvedEnv) {
 
-				// It took too long to fetch the shell environment, return
-				resolve();
-			}, 3000);
+			// Apply `userEnv` directly
+			Object.assign(process.env, userEnv);
 
-			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
-				clearTimeout(handle);
+			// Resolve `shellEnv` from the main side
+			resolvedEnv = new Promise(function (resolve) {
+				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
 
-				// Assign all keys of the shell environment to our process environment
-				Object.assign(process.env, shellEnv);
+					// Assign all keys of the shell environment to our process environment
+					// But make sure that the user environment wins in the end
+					Object.assign(process.env, shellEnv, userEnv);
 
-				resolve();
+					resolve();
+				});
+
+				ipcRenderer.send('vscode:fetchShellEnv');
 			});
+		}
 
-			ipcRenderer.send('vscode:fetchShellEnv');
-		});
+		return resolvedEnv;
 	}
 
 	//#endregion
