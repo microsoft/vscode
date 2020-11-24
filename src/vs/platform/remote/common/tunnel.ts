@@ -26,12 +26,12 @@ export interface TunnelOptions {
 	label?: string;
 }
 
-export interface TunnelCreationInformation {
+export interface TunnelCreationOptions {
 	elevationRequired?: boolean;
 }
 
 export interface ITunnelProvider {
-	forwardPort(tunnelOptions: TunnelOptions, tunnelCreationInformation: TunnelCreationInformation): Promise<RemoteTunnel> | undefined;
+	forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel> | undefined;
 }
 
 export interface ITunnelService {
