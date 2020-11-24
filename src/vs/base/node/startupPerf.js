@@ -13,7 +13,7 @@ function _factory(sharedObj, nodeRequire) {
 
 	if (!_data) {
 		_data = sharedObj.MonacoStartupPerformanceMarks = {
-			startupEntries =[],
+			startupEntries: [],
 			observer: undefined,
 		};
 	}
@@ -22,14 +22,16 @@ function _factory(sharedObj, nodeRequire) {
 		start() {
 			if (!_data.observer) {
 				const { PerformanceObserver } = nodeRequire('perf_hooks');
-				const observer = new PerformanceObserver(list => _data = _data.concat(list.getEntries()));
+				const observer = new PerformanceObserver(list => {
+					_data.startupEntries.push(list.getEntries());
+				});
 				observer.observe({ buffered: true, entryTypes: ['mark'] });
 				_data.observer = observer;
 			}
 		},
 		consumeAndStop() {
 			if (_data.observer) {
-				const entries = _data.startupEntries.slice(0);
+				const entries = [].concat(..._data.startupEntries);
 				_data.observer.disconnect();
 				_data.startupEntries.length = 0;
 				return entries;
