@@ -478,7 +478,7 @@ export class OutputContainer extends Disposable {
 
 	private _generateShowMoreElement(): any {
 		const md: IMarkdownString = {
-			value: `There are more than ${OUTPUT_COUNT_LIMIT} outputs, [show more ...](command:workbench.action.openLargeOutput)`,
+			value: `There are more than ${OUTPUT_COUNT_LIMIT} outputs, [show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)`,
 			isTrusted: true,
 			supportThemeIcons: true
 		};
