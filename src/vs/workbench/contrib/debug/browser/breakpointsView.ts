@@ -37,6 +37,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -379,8 +381,8 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
 		data.checkbox.checked = breakpoint.enabled;
 
-		const { message, className } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService);
-		data.icon.className = `codicon ${className}`;
+		const { message, icon } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService);
+		data.icon.className = icon.classNames;
 		data.breakpoint.title = breakpoint.message || message || '';
 
 		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
@@ -475,8 +477,8 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 	renderElement(functionBreakpoint: FunctionBreakpoint, _index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
-		data.icon.className = `codicon ${className}`;
+		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
+		data.icon.className = icon.classNames;
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
 		data.breakpoint.title = message ? message : '';
@@ -531,8 +533,8 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 	renderElement(dataBreakpoint: DataBreakpoint, _index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = dataBreakpoint;
 		data.name.textContent = dataBreakpoint.description;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService);
-		data.icon.className = `codicon ${className}`;
+		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService);
+		data.icon.className = icon.classNames;
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = dataBreakpoint.enabled;
 		data.breakpoint.title = message ? message : '';
@@ -622,9 +624,9 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	renderElement(functionBreakpoint: FunctionBreakpoint, _index: number, data: IInputTemplateData): void {
 		data.breakpoint = functionBreakpoint;
 		data.reactedOnEvent = false;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
+		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
 
-		data.icon.className = `codicon ${className}`;
+		data.icon.className = icon.classNames;
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
 		data.checkbox.disabled = true;
@@ -664,7 +666,7 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 			return element.toString();
 		}
 
-		const { message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), element as IBreakpoint | IDataBreakpoint | IFunctionBreakpoint, this.labelService);
+		const { message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), element as IBreakpoint | IDataBreakpoint | IFunctionBreakpoint, this.labelService);
 		const toString = element.toString();
 
 		return message ? `${toString}, ${message}` : toString;
@@ -700,12 +702,12 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndClassName(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint, labelService?: ILabelService): { message?: string, className: string } {
+export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint, labelService?: ILabelService): { message?: string, icon: Codicon } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	if (!breakpoint.enabled || !breakpointsActivated) {
 		return {
-			className: breakpoint instanceof DataBreakpoint ? 'codicon-debug-breakpoint-data-disabled' : breakpoint instanceof FunctionBreakpoint ? 'codicon-debug-breakpoint-function-disabled' : breakpoint.logMessage ? 'codicon-debug-breakpoint-log-disabled' : 'codicon-debug-breakpoint-disabled',
+			icon: breakpoint instanceof DataBreakpoint ? icons.debugBreakpointDataDisabled : breakpoint instanceof FunctionBreakpoint ? icons.debugBreakpointFunctionDisabled : breakpoint.logMessage ? icons.debugBreakpointLogDisabled : icons.debugBreakpointDisabled,
 			message: breakpoint.logMessage ? nls.localize('disabledLogpoint', "Disabled Logpoint") : nls.localize('disabledBreakpoint', "Disabled Breakpoint"),
 		};
 	}
@@ -715,7 +717,7 @@ export function getBreakpointMessageAndClassName(state: State, breakpointsActiva
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
-			className: breakpoint instanceof DataBreakpoint ? 'codicon-debug-breakpoint-data-unverified' : breakpoint instanceof FunctionBreakpoint ? 'codicon-debug-breakpoint-function-unverified' : breakpoint.logMessage ? 'codicon-debug-breakpoint-log-unverified' : 'codicon-debug-breakpoint-unverified',
+			icon: breakpoint instanceof DataBreakpoint ? icons.debugBreakpointDataUnverified : breakpoint instanceof FunctionBreakpoint ? icons.debugBreakpointFunctionUnverified : breakpoint.logMessage ? icons.debugBreakpointLogUnverified : icons.debugBreakpointUnverified,
 			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified Logpoint") : nls.localize('unverifiedBreakopint', "Unverified Breakpoint")),
 		};
 	}
@@ -723,13 +725,13 @@ export function getBreakpointMessageAndClassName(state: State, breakpointsActiva
 	if (breakpoint instanceof FunctionBreakpoint) {
 		if (!breakpoint.supported) {
 			return {
-				className: 'codicon-debug-breakpoint-function-unverified',
+				icon: icons.debugBreakpointFunctionUnverified,
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
 			};
 		}
 
 		return {
-			className: 'codicon-debug-breakpoint-function',
+			icon: icons.debugBreakpointFunction,
 			message: breakpoint.message || nls.localize('functionBreakpoint', "Function Breakpoint")
 		};
 	}
@@ -737,13 +739,13 @@ export function getBreakpointMessageAndClassName(state: State, breakpointsActiva
 	if (breakpoint instanceof DataBreakpoint) {
 		if (!breakpoint.supported) {
 			return {
-				className: 'codicon-debug-breakpoint-data-unverified',
+				icon: icons.debugBreakpointDataUnverified,
 				message: nls.localize('dataBreakpointUnsupported', "Data breakpoints not supported by this debug type"),
 			};
 		}
 
 		return {
-			className: 'codicon-debug-breakpoint-data',
+			icon: icons.debugBreakpointData,
 			message: breakpoint.message || nls.localize('dataBreakpoint', "Data Breakpoint")
 		};
 	}
@@ -753,7 +755,7 @@ export function getBreakpointMessageAndClassName(state: State, breakpointsActiva
 
 		if (!breakpoint.supported) {
 			return {
-				className: 'codicon-debug-breakpoint-unsupported',
+				icon: icons.debugBreakpointUnsupported,
 				message: nls.localize('breakpointUnsupported', "Breakpoints of this type are not supported by the debugger"),
 			};
 		}
@@ -769,14 +771,14 @@ export function getBreakpointMessageAndClassName(state: State, breakpointsActiva
 		}
 
 		return {
-			className: breakpoint.logMessage ? 'codicon-debug-breakpoint-log' : 'codicon-debug-breakpoint-conditional',
+			icon: breakpoint.logMessage ? icons.debugBreakpointLog : icons.debugBreakpointConditional,
 			message: appendMessage(messages.join('\n'))
 		};
 	}
 
 	const message = ('message' in breakpoint && breakpoint.message) ? breakpoint.message : breakpoint instanceof Breakpoint && labelService ? labelService.getUriLabel(breakpoint.uri) : nls.localize('breakpoint', "Breakpoint");
 	return {
-		className: 'codicon-debug-breakpoint',
+		icon: icons.debugBreakpoint,
 		message
 	};
 }

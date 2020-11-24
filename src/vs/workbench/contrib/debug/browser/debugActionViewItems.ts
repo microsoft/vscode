@@ -20,6 +20,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 
@@ -68,7 +69,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
-		this.start = dom.append(container, $('.codicon.codicon-debug-start'));
+		this.start = dom.append(container, $(debugStart.cssSelector));
 		this.start.title = this.action.label;
 		this.start.setAttribute('role', 'button');
 		this.start.tabIndex = 0;

@@ -25,6 +25,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 
@@ -67,7 +68,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-arrow-small-right'));
+		dom.append(container, $('span.arrow' + debugConsoleEvaluationInput.cssSelector));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
