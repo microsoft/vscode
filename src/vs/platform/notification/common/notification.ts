@@ -114,6 +114,8 @@ export interface INotificationActions {
 	/**
 	 * Primary actions show up as buttons as part of the message and will close
 	 * the notification once clicked.
+	 *
+	 * Pass `ActionWithMenuAction` for an action that has additional menu actions.
 	 */
 	readonly primary?: ReadonlyArray<IAction>;
 
