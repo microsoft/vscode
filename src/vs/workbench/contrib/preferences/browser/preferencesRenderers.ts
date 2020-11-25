@@ -32,6 +32,7 @@ import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platf
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -737,7 +738,7 @@ class EditSettingRenderer extends Disposable {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(preferencesEditIcon.classNames) === -1) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(ThemeIcon.asClassName(preferencesEditIcon)) === -1) {
 					return false;
 				}
 			}

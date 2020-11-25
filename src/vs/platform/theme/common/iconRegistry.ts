@@ -45,7 +45,7 @@ export interface IIconRegistry {
 	 * @param defaults The default values
 	 * @description the description
 	 */
-	registerIcon(id: string, defaults: IconDefaults, description: string): ThemeIcon;
+	registerIcon(id: string, defaults: IconDefaults, description?: string): ThemeIcon;
 
 	/**
 	 * Register a icon to the registry.
@@ -224,7 +224,7 @@ class IconRegistry implements IIconRegistry {
 const iconRegistry = new IconRegistry();
 platform.Registry.add(Extensions.IconContribution, iconRegistry);
 
-export function registerIcon(id: string, defaults: IconDefaults, description?: string, deprecationMessage?: string): ThemeIcon {
+export function registerIcon(id: string, defaults: IconDefaults, description: string, deprecationMessage?: string): ThemeIcon {
 	return iconRegistry.registerIcon(id, defaults, description, deprecationMessage);
 }
 
@@ -234,9 +234,9 @@ export function getIconRegistry(): IIconRegistry {
 
 function initialize() {
 	for (const icon of Codicons.iconRegistry.all) {
-		registerIcon(icon.id, icon.definition);
+		iconRegistry.registerIcon(icon.id, icon.definition, icon.description);
 	}
-	Codicons.iconRegistry.onDidRegister(icon => registerIcon(icon.id, icon.definition));
+	Codicons.iconRegistry.onDidRegister(icon => iconRegistry.registerIcon(icon.id, icon.definition, icon.description));
 }
 initialize();
 
