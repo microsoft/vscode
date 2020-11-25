@@ -432,7 +432,7 @@ function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): strin
 	}
 
 	return FileAccess
-		.asBrowserUri(modulePathToHtml, require)
+		._asCodeFileUri(modulePathToHtml, require)
 		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 		.toString(true);
 }
