@@ -623,7 +623,7 @@ export class RawDebugSession implements IDisposable {
 		let env: IProcessEnvironment = processEnv;
 		if (vscodeArgs.env && Object.keys(vscodeArgs.env).length > 0) {
 			// merge environment variables into a copy of the process.env
-			env = objects.mixin(objects.deepClone(process.env), vscodeArgs.env);
+			env = objects.mixin(objects.deepClone(processEnv), vscodeArgs.env);
 			// and delete some if necessary
 			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
 		}
