@@ -32,7 +32,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -47,7 +47,7 @@ interface IBreakpointDecoration {
 }
 
 const breakpointHelperDecoration: IModelDecorationOptions = {
-	glyphMarginClassName: icons.debugBreakpointHint.classNames,
+	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -95,7 +95,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 
 	const renderInline = breakpoint.column && (breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
 	return {
-		glyphMarginClassName: icon.classNames,
+		glyphMarginClassName: ThemeIcon.asClassName(icon),
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		beforeContentClassName: renderInline ? `debug-breakpoint-placeholder` : undefined,
@@ -456,7 +456,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
 			const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.debugBreakpointDisabled;
 			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
-			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, icon.classNames, candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
+			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, ThemeIcon.asClassName(icon), candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
 			return {
 				decorationId,
@@ -645,15 +645,15 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
 	if (debugIconBreakpointColor) {
 		collector.addRule(`
-		.monaco-workbench ${icons.debugBreakpoint.cssSelector},
-		.monaco-workbench ${icons.debugBreakpointConditional.cssSelector},
-		.monaco-workbench ${icons.debugBreakpointLog.cssSelector},
-		.monaco-workbench ${icons.debugBreakpointFunction.cssSelector},
-		.monaco-workbench ${icons.debugBreakpointData.cssSelector},
-		.monaco-workbench ${icons.debugBreakpointUnsupported.cssSelector},
-		.monaco-workbench ${icons.debugBreakpointHint.cssSelector}:not([class*='${icons.debugBreakpoint.classNameIdentifier}']):not([class*='${icons.debugStackframe.classNameIdentifier}']),
-		.monaco-workbench ${icons.debugBreakpoint.cssSelector}${icons.debugStackframeFocused.cssSelector}::after,
-		.monaco-workbench ${icons.debugBreakpoint.cssSelector}${icons.debugStackframe.cssSelector}::after {
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpoint)},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointConditional)},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointLog)},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointFunction)},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointData)},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointUnsupported)},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointHint)}:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpoint)}${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)}::after,
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpoint)}${ThemeIcon.asCSSSelector(icons.debugStackframe)}::after {
 			color: ${debugIconBreakpointColor} !important;
 		}
 		`);
@@ -680,7 +680,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointCurrentStackframeForegroundColor = theme.getColor(debugIconBreakpointCurrentStackframeForeground);
 	if (debugIconBreakpointCurrentStackframeForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench ${icons.debugStackframe.cssSelector},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframe)},
 		.monaco-editor .debug-top-stack-frame-column::before {
 			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
 		}
@@ -690,7 +690,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeForeground);
 	if (debugIconBreakpointStackframeFocusedColor) {
 		collector.addRule(`
-		.monaco-workbench ${icons.debugStackframeFocused.cssSelector} {
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)} {
 			color: ${debugIconBreakpointStackframeFocusedColor} !important;
 		}
 		`);
