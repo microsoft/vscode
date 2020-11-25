@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import * as resources from 'vs/base/common/resources';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface IFileOperationUndoRedoInfo {
 	undoRedoGroupId?: number;
@@ -227,6 +228,7 @@ export class BulkFileEdits {
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
+		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceFileEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -236,6 +238,11 @@ export class BulkFileEdits {
 		const undoOperations: IFileOperation[] = [];
 		const undoRedoInfo = { undoRedoGroupId: this._undoRedoGroup.id };
 		for (const edit of this._edits) {
+
+			if (this._token.isCancellationRequested) {
+				break;
+			}
+
 			this._progress.report(undefined);
 
 			const options = edit.options || {};
