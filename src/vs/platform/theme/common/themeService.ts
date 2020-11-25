@@ -11,6 +11,7 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { CSSIcon } from 'vs/base/common/codicons';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -91,6 +92,12 @@ export namespace ThemeIcon {
 
 	export function asCSSSelector(icon: ThemeIcon): string {
 		return '.' + asClassNameArray(icon).join('.');
+	}
+
+	export function asCSSIcon(icon: ThemeIcon): CSSIcon {
+		return {
+			classNames: asClassName(icon)
+		};
 	}
 
 

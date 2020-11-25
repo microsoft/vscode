@@ -55,7 +55,8 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { FileAccess } from 'vs/base/common/network';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -586,9 +587,9 @@ appendEditorToolItem(
 	}
 );
 
-const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.arrowUp, nls.localize('previousChangeIcon', 'Icon for the previous change action in the diff editor'));
-const nextChangeIcon = registerIcon('diff-editor-next-change', Codicon.arrowDown, nls.localize('nextChangeIcon', 'Icon for the next change action in the diff editor'));
-const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, nls.localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor'));
+const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.arrowUp, nls.localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
+const nextChangeIcon = registerIcon('diff-editor-next-change', Codicon.arrowDown, nls.localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
+const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, nls.localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
 
 
 // Diff Editor Title Menu: Previous Change
