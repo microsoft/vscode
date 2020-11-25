@@ -87,6 +87,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -290,9 +291,11 @@ export class CodeApplication extends Disposable {
 			// Handle slow shell environment resolve calls:
 			// - a warning after 3s but continue to resolve
 			// - an error after 10s and stop trying to resolve
-			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning'), 3000);
+			const cts = new CancellationTokenSource();
+			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning', cts.token), 3000);
 			const shellEnvTimeoutErrorHandle = setTimeout(function () {
-				window?.sendWhenReady('vscode:showShellEnvTimeoutError');
+				cts.dispose(true);
+				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
 				acceptShellEnv({});
 			}, 10000);
 
