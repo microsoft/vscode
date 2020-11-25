@@ -103,7 +103,7 @@ const enum CellOverflowToolbarGroups {
 export interface INotebookActionContext {
 	readonly cellTemplate?: BaseCellRenderTemplate;
 	readonly cell?: ICellViewModel;
-	readonly notebookEditor: INotebookEditor & IActiveNotebookEditor;
+	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;
 }
 
