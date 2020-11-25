@@ -128,7 +128,7 @@ class CreateOperation implements IFileOperation {
 		} else {
 			await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite, ...this.undoRedoInfo });
 		}
-		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, { isUndoing: true }, !this.options.folder);
+		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, { isUndoing: true }, !this.options.folder && !this.contents);
 	}
 
 	toString(): string {
