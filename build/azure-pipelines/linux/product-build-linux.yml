@@ -55,6 +55,7 @@ steps:
   - script: |
       npx https://aka.ms/enablesecurefeed standAlone
     displayName: Switch to Terrapin packages
+    timeoutInMinutes: 5
 
   - script: |
       echo -n $VSCODE_ARCH > .build/arch

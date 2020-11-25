@@ -55,6 +55,7 @@ steps:
   - script: |
       npx https://aka.ms/enablesecurefeed standAlone
     displayName: Switch to Terrapin packages
+    timeoutInMinutes: 5
 
   # - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   #   inputs:
