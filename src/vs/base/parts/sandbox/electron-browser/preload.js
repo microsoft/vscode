@@ -37,6 +37,17 @@
 
 			/**
 			 * @param {string} channel
+			 * @param {any[]} args
+			 * @returns {Promise<any> | undefined}
+			 */
+			invoke(channel, ...args) {
+				if (validateIPC(channel)) {
+					return ipcRenderer.invoke(channel, ...args);
+				}
+			},
+
+			/**
+			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
 			 */
 			on(channel, listener) {
@@ -108,33 +119,30 @@
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
 
-			resolveEnv:
-				/**
-				 * @param userEnv {{[key: string]: string}}
-				 * @returns {Promise<void>}
-				 */
-				function (userEnv) {
-					return resolveEnv(userEnv);
-				},
+			/**
+			 * @param {{[key: string]: string}} userEnv
+			 * @returns {Promise<void>}
+			 */
+			resolveEnv(userEnv) {
+				return resolveEnv(userEnv);
+			},
 
-			getProcessMemoryInfo:
-				/**
-				 * @returns {Promise<import('electron').ProcessMemoryInfo>}
-				 */
-				function () {
-					return process.getProcessMemoryInfo();
-				},
+			/**
+			 * @returns {Promise<import('electron').ProcessMemoryInfo>}
+			 */
+			getProcessMemoryInfo() {
+				return process.getProcessMemoryInfo();
+			},
 
-			on:
-				/**
-				 * @param {string} type
-				 * @param {() => void} callback
-				 */
-				function (type, callback) {
-					if (validateProcessEventType(type)) {
-						process.on(type, callback);
-					}
+			/**
+			 * @param {string} type
+			 * @param {() => void} callback
+			 */
+			on(type, callback) {
+				if (validateProcessEventType(type)) {
+					process.on(type, callback);
 				}
+			}
 		},
 
 		/**
@@ -168,6 +176,7 @@
 
 	/**
 	 * @param {string} channel
+	 * @returns {true | never}
 	 */
 	function validateIPC(channel) {
 		if (!channel || !channel.startsWith('vscode:')) {
@@ -198,7 +207,7 @@
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
 	 *
-	 * @param userEnv {{[key: string]: string}}
+	 * @param {{[key: string]: string}} userEnv
 	 * @returns {Promise<void>}
 	 */
 	function resolveEnv(userEnv) {

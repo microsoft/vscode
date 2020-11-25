@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
-import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { app, ipcMain as ipc, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
+import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
@@ -52,7 +52,7 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { sep, posix } from 'vs/base/common/path';
+import { sep, posix, join, isAbsolute } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
@@ -86,6 +86,7 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { isEqualOrParent } from 'vs/base/common/extpath';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -100,7 +101,8 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -264,7 +266,9 @@ export class CodeApplication extends Disposable {
 			this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
+		//#region Bootstrap IPC Handlers
+
+		ipc.on('vscode:fetchShellEnv', async event => {
 			const webContents = event.sender;
 			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 
@@ -312,10 +316,50 @@ export class CodeApplication extends Disposable {
 			acceptShellEnv(shellEnv);
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: IpcMainEvent) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: IpcMainEvent) => event.sender.openDevTools());
+		ipc.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
+			const uri = this.validateNlsPath([path]);
+			if (!uri || typeof data !== 'string') {
+				return Promise.reject('Invalid operation (vscode:writeNlsFile)');
+			}
 
-		ipc.on('vscode:reloadWindow', (event: IpcMainEvent) => event.sender.reload());
+			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
+		});
+
+		ipc.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
+			const uri = this.validateNlsPath(paths);
+			if (!uri) {
+				return Promise.reject('Invalid operation (vscode:readNlsFile)');
+			}
+
+			return (await this.fileService.readFile(uri)).value.toString();
+		});
+
+		ipc.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
+		ipc.on('vscode:openDevTools', event => event.sender.openDevTools());
+
+		ipc.on('vscode:reloadWindow', event => event.sender.reload());
+
+		//#endregion
+	}
+
+	private validateNlsPath(pathSegments: unknown[]): URI | undefined {
+		let path: string | undefined = undefined;
+
+		for (const pathSegment of pathSegments) {
+			if (typeof pathSegment === 'string') {
+				if (typeof path !== 'string') {
+					path = pathSegment;
+				} else {
+					path = join(path, pathSegment);
+				}
+			}
+		}
+
+		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentService.cachedLanguagesPath, !isLinux)) {
+			return undefined;
+		}
+
+		return URI.file(path);
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -856,8 +900,7 @@ export class CodeApplication extends Disposable {
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
 		// will be used as crash reporter id and also update the json file.
 		try {
-			const fileService = accessor.get(IFileService);
-			const argvContent = await fileService.readFile(this.environmentService.argvResource);
+			const argvContent = await this.fileService.readFile(this.environmentService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
 			if (argvJSON['enable-crash-reporter'] === undefined) {
@@ -874,7 +917,7 @@ export class CodeApplication extends Disposable {
 					'}'
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
-				await fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
+				await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {
 			this.logService.error(error);
