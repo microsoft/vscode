@@ -207,6 +207,11 @@ export interface INotebookEditorCreationOptions {
 	readonly contributions?: INotebookEditorContributionDescription[];
 }
 
+export interface IActiveNotebookEditor {
+	viewModel: NotebookViewModel;
+	uri: URI;
+}
+
 export interface INotebookEditor extends IEditor {
 	isEmbedded: boolean;
 
@@ -216,6 +221,7 @@ export interface INotebookEditor extends IEditor {
 	 * Notebook view model attached to the current editor
 	 */
 	viewModel: NotebookViewModel | undefined;
+	hasModel(): this is IActiveNotebookEditor;
 
 	/**
 	 * An event emitted when the model of this editor has changed.
