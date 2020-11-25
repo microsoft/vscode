@@ -31,7 +31,6 @@ interface IBackupMetaData {
 	size: number;
 	etag: string;
 	orphaned: boolean;
-	readonly?: boolean;
 }
 
 /**
@@ -198,8 +197,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				ctime: this.lastResolvedFileStat.ctime,
 				size: this.lastResolvedFileStat.size,
 				etag: this.lastResolvedFileStat.etag,
-				orphaned: this.inOrphanMode,
-				readonly: this.lastResolvedFileStat.readonly
+				orphaned: this.inOrphanMode
 			};
 		}
 
@@ -332,7 +330,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size,
 			etag,
 			value: buffer,
-			encoding: preferredEncoding.encoding
+			encoding: preferredEncoding.encoding,
+			readonly: false
 		}, true /* dirty (loaded from buffer) */, options);
 
 		return this;
@@ -377,6 +376,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
+			readonly: false,
 			value: backup.value,
 			encoding
 		}, true /* dirty (loaded from backup) */, options);
@@ -1031,10 +1031,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isReadonly(): boolean {
-		if (this.lastResolvedFileStat?.readonly) {
-			return true;
-		}
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly ?? this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	getStat(): IFileStatWithMetadata | undefined {

@@ -230,7 +230,7 @@ export class FileService extends Disposable implements IFileService {
 			ctime: stat.ctime,
 			size: stat.size,
 			etag: etag({ mtime: stat.mtime, size: stat.size }),
-			readonly: stat.readonly
+			readonly: stat.readonly ?? Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly)
 		};
 
 		// check to recurse for directories

@@ -750,11 +750,8 @@ interface IBaseStat {
 
 	/**
 	 * The file is read-only
-	 *
-	 * The value may or may not be resolved as
-	 * it is optional.
 	 */
-	readonly?: boolean;
+	readonly: boolean;
 }
 
 export interface IBaseStatWithMetadata extends IBaseStat {
@@ -762,7 +759,7 @@ export interface IBaseStatWithMetadata extends IBaseStat {
 	ctime: number;
 	etag: string;
 	size: number;
-	readonly?: boolean;
+	readonly: boolean;
 }
 
 /**
@@ -797,7 +794,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata 
 	etag: string;
 	size: number;
 	children?: IFileStatWithMetadata[];
-	readonly?: boolean;
+	readonly: boolean;
 }
 
 export interface IResolveFileResult {

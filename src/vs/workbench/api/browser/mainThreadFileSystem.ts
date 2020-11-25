@@ -65,6 +65,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
+				readonly: stat.readonly,
 				type: MainThreadFileSystem._asFileType(stat)
 			};
 		}).catch(MainThreadFileSystem._handleError);
