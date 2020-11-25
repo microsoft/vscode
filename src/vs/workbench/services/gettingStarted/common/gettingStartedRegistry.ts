@@ -16,14 +16,6 @@ export const enum GettingStartedCategory {
 	Advanced = 'Advanced'
 }
 
-export const enum GettingStartedPriority {
-	Beginner = 0,
-	Intermediate = 10,
-	Advanced = 20,
-	FeatureContrib = 30,
-	ExtensionContrib = 40,
-}
-
 export interface IGettingStartedTask {
 	id: string,
 	title: string,
