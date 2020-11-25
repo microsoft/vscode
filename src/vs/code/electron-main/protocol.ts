@@ -18,7 +18,7 @@ type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { err
 
 export class FileProtocolHandler extends Disposable {
 
-	private readonly validRoots = TernarySearchTree.forUris<boolean>(!isLinux);
+	private readonly validRoots = TernarySearchTree.forUris<boolean>(() => !isLinux);
 
 	constructor(
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -78,14 +78,14 @@ export class FileProtocolHandler extends Disposable {
 		return Disposable.None;
 	}
 
-	private async handleFileRequest(request: Electron.Request, callback: ProtocolCallback) {
+	private async handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
 		const uri = URI.parse(request.url);
 
 		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol`);
 		callback({ error: -3 /* ABORTED */ });
 	}
 
-	private async handleResourceRequest(request: Electron.Request, callback: ProtocolCallback) {
+	private async handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
 		const uri = URI.parse(request.url);
 
 		// Restore the `vscode-file` URI to a `file` URI so that we can
