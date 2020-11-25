@@ -173,7 +173,6 @@ steps:
       set -e
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
     displayName: Prepare snap package
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   # needed for code signing
   - task: UseDotNet@2
@@ -214,7 +213,6 @@ steps:
     inputs:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"
