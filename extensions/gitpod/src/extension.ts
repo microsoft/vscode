@@ -11,7 +11,7 @@ import { ExposePortRequest, ExposePortResponse } from '@gitpod/supervisor-api-gr
 import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
 import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
 import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
-import { OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility, TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
+import { OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility, TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus, ExposedPortInfo } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
 import { CloseTerminalRequest, ListenTerminalRequest, ListenTerminalResponse, SetTerminalSizeRequest, WriteTerminalRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
 import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_pb';
@@ -104,7 +104,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	interface ExposedServedPort extends PortsStatus.AsObject {
 		served: true
-		exposed: PortsStatus.ExposedPortInfo.AsObject
+		exposed: ExposedPortInfo.AsObject
 	}
 	function isExposedServedPort(port: PortsStatus.AsObject | undefined): port is ExposedServedPort {
 		return !!port?.exposed && !!port.served;
@@ -159,54 +159,49 @@ export async function activate(context: vscode.ExtensionContext) {
 			return undefined;
 		}
 
-		updatePortsStatus(portsStatus: PortsStatusResponse, initial: boolean): void {
-			const toClean = initial ? new Set<number>(this.ports.ports.keys()) : undefined;
-			for (const ports of [portsStatus.getAddedList(), portsStatus.getUpdatedList()]) {
-				for (const portStatus of ports) {
-					const portNumber = portStatus.getLocalPort();
-					toClean?.delete(portNumber);
-					const port = this.ports.ports.get(portNumber) || new GitpodWorkspacePort(portNumber);
-					this.ports.ports.set(portNumber, port);
-					const currentStatus = port.status;
-					port.status = portStatus.toObject();
+		updatePortsStatus(portsStatus: PortsStatusResponse): void {
+			const toClean = new Set<number>(this.ports.ports.keys());
+			for (const portStatus of portsStatus.getPortsList()) {
+				const portNumber = portStatus.getLocalPort();
+				toClean?.delete(portNumber);
+				const port = this.ports.ports.get(portNumber) || new GitpodWorkspacePort(portNumber);
+				this.ports.ports.set(portNumber, port);
+				const currentStatus = port.status;
+				port.status = portStatus.toObject();
 
-					const exposed = portStatus.getExposed();
-					if (!portStatus.getServed()) {
-						port.description = 'not served';
-						port.iconPath = new vscode.ThemeIcon('circle-slash');
-					} else if (!exposed) {
-						port.description = 'detecting...';
-						port.iconPath = new vscode.ThemeIcon('circle-outline');
+				const exposed = portStatus.getExposed();
+				if (!portStatus.getServed()) {
+					port.description = 'not served';
+					port.iconPath = new vscode.ThemeIcon('circle-slash');
+				} else if (!exposed) {
+					port.description = 'detecting...';
+					port.iconPath = new vscode.ThemeIcon('circle-outline');
+				} else {
+					port.description = `open ${exposed.getVisibility() === PortVisibility.PUBLIC ? '(public)' : '(private)'}`;
+					port.iconPath = new vscode.ThemeIcon('circle-filled');
+				}
+
+				port.contextValue = 'port';
+				if (portStatus.getServed()) {
+					port.contextValue = 'served-' + port.contextValue;
+				}
+				if (exposed) {
+					port.contextValue = 'exposed-' + port.contextValue;
+					if (exposed.getVisibility() === PortVisibility.PUBLIC) {
+						port.contextValue = 'public-' + port.contextValue;
 					} else {
-						port.description = `open ${exposed.getVisibility() === PortVisibility.PUBLIC ? '(public)' : '(private)'}`;
-						port.iconPath = new vscode.ThemeIcon('circle-filled');
+						port.contextValue = 'private-' + port.contextValue;
 					}
+				}
+				if (isExposedServedGitpodWorkspacePort(port) && !isExposedServedPort(currentStatus)) {
+					this.onDidExposeServedPortEmitter.fire(port);
+				}
+			}
 
-					port.contextValue = 'port';
-					if (portStatus.getServed()) {
-						port.contextValue = 'served-' + port.contextValue;
-					}
-					if (exposed) {
-						port.contextValue = 'exposed-' + port.contextValue;
-						if (exposed.getVisibility() === PortVisibility.PUBLIC) {
-							port.contextValue = 'public-' + port.contextValue;
-						} else {
-							port.contextValue = 'private-' + port.contextValue;
-						}
-					}
-					if (isExposedServedGitpodWorkspacePort(port) && !isExposedServedPort(currentStatus)) {
-						this.onDidExposeServedPortEmitter.fire(port);
-					}
-				}
+			for (const portNumber of toClean) {
+				this.ports.ports.delete(portNumber);
 			}
-			for (const ports of [portsStatus.getRemovedList(), toClean]) {
-				if (ports === undefined) {
-					continue;
-				}
-				for (const portNumber of ports) {
-					this.ports.ports.delete(portNumber);
-				}
-			}
+
 			this.onDidChangeTreeDataEmitter.fire(this.ports);
 		}
 
@@ -231,13 +226,11 @@ export async function activate(context: vscode.ExtensionContext) {
 					const evts = statusServiceClient.portsStatus(req);
 					stopUpdates = evts.cancel;
 
-					let initial = true;
 					await new Promise((resolve, reject) => {
 						evts.on('close', resolve);
 						evts.on('error', reject);
 						evts.on('data', (update: PortsStatusResponse) => {
-							gitpodWorkspaceTreeDataProvider.updatePortsStatus(update, initial);
-							initial = false;
+							gitpodWorkspaceTreeDataProvider.updatePortsStatus(update);
 						});
 					});
 				} catch (err) {

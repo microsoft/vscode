@@ -119,7 +119,7 @@
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "master",
-    "@gitpod/supervisor-api-grpc": "cw-supervisor-ports",
+    "@gitpod/supervisor-api-grpc": "cw-simplify-supervisor-ports-api",
     "@grpc/grpc-js": "^1.1.7",
     "bufferutil": "^4.0.1",
     "reconnecting-websocket": "^4.4.0",
