@@ -26,7 +26,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE $MINE is:issue is:open",
+    "value": "$REPOS $MILESTONE $MINE is:issue is:open -label:iteration-plan",
     "editable": true
   },
   {
