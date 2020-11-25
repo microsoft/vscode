@@ -86,7 +86,7 @@
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,
-			preferScriptTags: true
+			preferScriptTags: sandbox
 		};
 
 		// Enable loading of node modules:

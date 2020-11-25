@@ -33,6 +33,7 @@ export interface INodeProcess {
 	versions?: {
 		electron?: string;
 	};
+	sandboxed?: boolean; // Electron
 	type?: string;
 	cwd(): string;
 }
@@ -59,6 +60,7 @@ if (typeof process !== 'undefined') {
 }
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
+export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
 
 // Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {

@@ -182,8 +182,8 @@ class FileAccessImpl {
 	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
-		// Only convert the URI if it is not already `file:` scheme
-		if (uri.scheme !== Schemas.file) {
+		// Only convert the URI if it is `vscode-file:` scheme
+		if (uri.scheme === Schemas.vscodeFileResource) {
 			return uri.with({
 				scheme: Schemas.file,
 				// Only preserve the `authority` if it is different from

@@ -328,7 +328,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._undoRedoService = undoRedoService;
 		this._attachedEditorCount = 0;
 
-		this._buffer = createTextBuffer(source, creationOptions.defaultEOL);
+		this._buffer = this._register(createTextBuffer(source, creationOptions.defaultEOL));
 
 		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
 

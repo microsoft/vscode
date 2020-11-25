@@ -318,10 +318,12 @@ class KeyboardController<T> implements IDisposable {
 	}
 
 	private onEscape(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
-		this.list.setSelection([], e.browserEvent);
-		this.view.domNode.focus();
+		if (this.list.getSelection().length) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.list.setSelection([], e.browserEvent);
+			this.view.domNode.focus();
+		}
 	}
 
 	dispose() {
