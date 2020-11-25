@@ -13,7 +13,7 @@ import { AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAl
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
@@ -38,7 +38,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -382,7 +381,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, icon } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService);
-		data.icon.className = icon.classNames;
+		data.icon.className = ThemeIcon.asClassName(icon);
 		data.breakpoint.title = breakpoint.message || message || '';
 
 		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
@@ -478,7 +477,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
-		data.icon.className = icon.classNames;
+		data.icon.className = ThemeIcon.asClassName(icon);
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
 		data.breakpoint.title = message ? message : '';
@@ -534,7 +533,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 		data.context = dataBreakpoint;
 		data.name.textContent = dataBreakpoint.description;
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService);
-		data.icon.className = icon.classNames;
+		data.icon.className = ThemeIcon.asClassName(icon);
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = dataBreakpoint.enabled;
 		data.breakpoint.title = message ? message : '';
@@ -626,7 +625,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		data.reactedOnEvent = false;
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), functionBreakpoint, this.labelService);
 
-		data.icon.className = icon.classNames;
+		data.icon.className = ThemeIcon.asClassName(icon);
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
 		data.checkbox.disabled = true;
@@ -702,7 +701,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint, labelService?: ILabelService): { message?: string, icon: Codicon } {
+export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint, labelService?: ILabelService): { message?: string, icon: ThemeIcon } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	if (!breakpoint.enabled || !breakpointsActivated) {

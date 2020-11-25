@@ -36,7 +36,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -207,7 +207,7 @@ export class CallStackView extends ViewPane {
 
 	getActions(): IAction[] {
 		if (this.stateMessage.hidden) {
-			return [new CollapseAction(() => this.tree, true, 'explorer-action ' + icons.debugCollapseAll.classNames)];
+			return [new CollapseAction(() => this.tree, true, 'explorer-action ' + ThemeIcon.asClassName(icons.debugCollapseAll))];
 		}
 
 		return [];
@@ -502,7 +502,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
 		const session = dom.append(container, $('.session'));
-		dom.append(session, $(icons.callstackViewSession.cssSelector));
+		dom.append(session, $(ThemeIcon.asCSSSelector(icons.callstackViewSession)));
 		const name = dom.append(session, $('.name'));
 		const stateLabel = dom.append(session, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
@@ -660,7 +660,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 		data.actionBar.clear();
 		if (hasActions) {
-			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), icons.debugRestartFrame.classNames, true, async () => {
+			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
 				try {
 					await stackFrame.restart();
 				} catch (e) {
@@ -995,7 +995,7 @@ class StopAction extends Action {
 		private readonly session: IDebugSession,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STOP_ID}`, STOP_LABEL, 'debug-action ' + icons.debugStop.classNames);
+		super(`action.${STOP_ID}`, STOP_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugStop));
 	}
 
 	public run(): Promise<any> {
@@ -1009,7 +1009,7 @@ class DisconnectAction extends Action {
 		private readonly session: IDebugSession,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${DISCONNECT_ID}`, DISCONNECT_LABEL, 'debug-action ' + icons.debugDisconnect.classNames);
+		super(`action.${DISCONNECT_ID}`, DISCONNECT_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugDisconnect));
 	}
 
 	public run(): Promise<any> {
@@ -1023,7 +1023,7 @@ class RestartAction extends Action {
 		private readonly session: IDebugSession,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${RESTART_SESSION_ID}`, RESTART_LABEL, 'debug-action ' + icons.debugRestart.classNames);
+		super(`action.${RESTART_SESSION_ID}`, RESTART_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugRestart));
 	}
 
 	public run(): Promise<any> {
@@ -1037,7 +1037,7 @@ class StepOverAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STEP_OVER_ID}`, STEP_OVER_LABEL, 'debug-action ' + icons.debugStepOver.classNames, thread.stopped);
+		super(`action.${STEP_OVER_ID}`, STEP_OVER_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugStepOver), thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -1051,7 +1051,7 @@ class StepIntoAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STEP_INTO_ID}`, STEP_INTO_LABEL, 'debug-action ' + icons.debugStepInto.classNames, thread.stopped);
+		super(`action.${STEP_INTO_ID}`, STEP_INTO_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugStepInto), thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -1065,7 +1065,7 @@ class StepOutAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${STEP_OUT_ID}`, STEP_OUT_LABEL, 'debug-action ' + icons.debugStepOut.classNames, thread.stopped);
+		super(`action.${STEP_OUT_ID}`, STEP_OUT_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugStepOut), thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -1079,7 +1079,7 @@ class PauseAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${PAUSE_ID}`, PAUSE_LABEL, 'debug-action ' + icons.debugPause.classNames, !thread.stopped);
+		super(`action.${PAUSE_ID}`, PAUSE_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugPause), !thread.stopped);
 	}
 
 	public run(): Promise<any> {
@@ -1093,7 +1093,7 @@ class ContinueAction extends Action {
 		private readonly thread: IThread,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(`action.${CONTINUE_ID}`, CONTINUE_LABEL, 'debug-action ' + icons.debugContinue.classNames, thread.stopped);
+		super(`action.${CONTINUE_ID}`, CONTINUE_LABEL, 'debug-action ' + ThemeIcon.asClassName(icons.debugContinue), thread.stopped);
 	}
 
 	public run(): Promise<any> {

@@ -20,7 +20,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -596,7 +596,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
-		dom.append(this.replInputContainer, $('.repl-input-chevron' + debugConsoleEvaluationPrompt.cssSelector));
+		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
@@ -857,7 +857,7 @@ export class ClearReplAction extends Action {
 	constructor(id: string, label: string,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
-		super(id, label, 'debug-action ' + debugConsoleClearAll.classNames);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(debugConsoleClearAll));
 	}
 
 	async run(): Promise<any> {

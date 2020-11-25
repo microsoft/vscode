@@ -21,7 +21,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugConfiguration, IDebugSession, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -68,7 +68,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		dom.append(container, $('span.arrow' + debugConsoleEvaluationInput.cssSelector));
+		dom.append(container, $('span.arrow' + ThemeIcon.asCSSSelector(debugConsoleEvaluationInput)));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
