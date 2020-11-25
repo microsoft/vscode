@@ -34,6 +34,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 
 interface IExtensionProfileInformation {
 	/**
@@ -453,4 +455,20 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	protected abstract _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null;
 	protected abstract _createSaveExtensionHostProfileAction(): Action | null;
 	protected abstract _createProfileAction(): Action | null;
+}
+
+export class ShowRuntimeExtensionsAction extends Action {
+	static readonly ID = 'workbench.action.showRuntimeExtensions';
+	static readonly LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
+
+	constructor(
+		id: string, label: string,
+		@IEditorService private readonly _editorService: IEditorService
+	) {
+		super(id, label);
+	}
+
+	public async run(e?: any): Promise<any> {
+		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
+	}
 }

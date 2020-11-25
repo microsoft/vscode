@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action } from 'vs/base/common/actions';
