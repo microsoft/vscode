@@ -13,11 +13,11 @@ import { IWorkingCopyFileOperationParticipant } from 'vs/workbench/services/work
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { insert } from 'vs/base/common/arrays';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export class WorkingCopyFileOperationParticipant extends Disposable {
 
-	private readonly participants: IWorkingCopyFileOperationParticipant[] = [];
+	private readonly participants = new LinkedList<IWorkingCopyFileOperationParticipant>();
 
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
@@ -28,8 +28,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 	}
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
-		const remove = insert(this.participants, participant);
-
+		const remove = this.participants.push(participant);
 		return toDisposable(() => remove());
 	}
 
@@ -86,6 +85,6 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 	}
 
 	dispose(): void {
-		this.participants.splice(0, this.participants.length);
+		this.participants.clear();
 	}
 }
