@@ -68,6 +68,9 @@ class BulkEdit {
 
 		let index = 0;
 		for (let range of ranges) {
+			if (this._token.isCancellationRequested) {
+				break;
+			}
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
 				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
