@@ -38,7 +38,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-browser/reportExtensionIssueAction';
-import { SaveExtensionHostProfileAction } from './saveExtensionHostProfileAction';
+import { SaveExtensionHostProfileAction } from 'vs/workbench/contrib/extensions/electron-browser/saveExtensionHostProfileAction';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -90,7 +90,7 @@ interface IRuntimeExtension {
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
-export class RuntimeExtensionsEditor extends EditorPane {
+export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
@@ -109,7 +109,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -328,11 +328,15 @@ export class RuntimeExtensionsEditor extends EditorPane {
 				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 
 				data.actionbar.clear();
-				if (element.unresponsiveProfile) {
-					data.actionbar.push(this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile), { icon: true, label: true });
+				const slowExtensionAction = this._createSlowExtensionAction(element);
+				if (slowExtensionAction) {
+					data.actionbar.push(slowExtensionAction, { icon: true, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.actionbar.push(this._instantiationService.createInstance(ReportExtensionIssueAction, element), { icon: true, label: true });
+					const reportExtensionIssueAction = this._createReportExtensionIssueAction(element);
+					if (reportExtensionIssueAction) {
+						data.actionbar.push(reportExtensionIssueAction, { icon: true, label: true });
+					}
 				}
 
 				let title: string;
@@ -435,7 +439,14 @@ export class RuntimeExtensionsEditor extends EditorPane {
 			overrideStyles: {
 				listBackground: editorBackground
 			},
-			accessibilityProvider: new RuntimeExtensionsEditorAccessibilityProvider()
+			accessibilityProvider: new class implements IListAccessibilityProvider<IRuntimeExtension> {
+				getWidgetAriaLabel(): string {
+					return nls.localize('runtimeExtensions', "Runtime Extensions");
+				}
+				getAriaLabel(element: IRuntimeExtension): string | null {
+					return element.description.name;
+				}
+			}
 		});
 
 		this._list.splice(0, this._list.length, this._elements || undefined);
@@ -447,20 +458,25 @@ export class RuntimeExtensionsEditor extends EditorPane {
 
 			const actions: IAction[] = [];
 
-			actions.push(this._instantiationService.createInstance(ReportExtensionIssueAction, e.element));
-			actions.push(new Separator());
+			const reportExtensionIssueAction = this._createReportExtensionIssueAction(e.element);
+			if (reportExtensionIssueAction) {
+				actions.push(reportExtensionIssueAction);
+				actions.push(new Separator());
+			}
 
 			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
 			actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
 			actions.push(new Separator());
 
 			const state = this._extensionHostProfileService.state;
-			if (state === ProfileSessionState.Running) {
-				actions.push(this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL));
-			} else {
-				actions.push(this._instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL));
+			const profileAction = (state === ProfileSessionState.Running ? this._createStopExtensionHostProfileAction() : this._createStartExtensionHostProfileAction());
+			if (profileAction) {
+				actions.push(profileAction);
 			}
-			actions.push(this.saveExtensionHostProfileAction);
+			const saveExtensionHostProfileAction = this.saveExtensionHostProfileAction;
+			if (saveExtensionHostProfileAction) {
+				actions.push(saveExtensionHostProfileAction);
+			}
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
@@ -470,8 +486,8 @@ export class RuntimeExtensionsEditor extends EditorPane {
 	}
 
 	@memoize
-	private get saveExtensionHostProfileAction(): IAction {
-		return this._instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL);
+	private get saveExtensionHostProfileAction(): IAction | null {
+		return this._createSaveExtensionHostProfileAction();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -479,6 +495,39 @@ export class RuntimeExtensionsEditor extends EditorPane {
 			this._list.layout(dimension.height);
 		}
 	}
+
+	protected abstract _createSlowExtensionAction(element: IRuntimeExtension): Action | null;
+	protected abstract _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null;
+	protected abstract _createSaveExtensionHostProfileAction(): Action | null;
+	protected abstract _createStartExtensionHostProfileAction(): Action | null;
+	protected abstract _createStopExtensionHostProfileAction(): Action | null;
+}
+
+export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
+
+	protected _createSlowExtensionAction(element: IRuntimeExtension): Action | null {
+		if (element.unresponsiveProfile) {
+			return this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile);
+		}
+		return null;
+	}
+
+	protected _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null {
+		return this._instantiationService.createInstance(ReportExtensionIssueAction, element);
+	}
+
+	protected _createSaveExtensionHostProfileAction(): Action | null {
+		return this._instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL);
+	}
+
+	protected _createStartExtensionHostProfileAction(): Action | null {
+		return this._instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL);
+	}
+
+	protected _createStopExtensionHostProfileAction(): Action | null {
+		return this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL);
+	}
+
 }
 
 export class ShowRuntimeExtensionsAction extends Action {
@@ -528,15 +577,5 @@ export class StopExtensionHostProfileAction extends Action {
 	run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
 		return Promise.resolve();
-	}
-}
-
-class RuntimeExtensionsEditorAccessibilityProvider implements IListAccessibilityProvider<IRuntimeExtension> {
-	getWidgetAriaLabel(): string {
-		return nls.localize('runtimeExtensions', "Runtime Extensions");
-	}
-
-	getAriaLabel(element: IRuntimeExtension): string | null {
-		return element.description.name;
 	}
 }
