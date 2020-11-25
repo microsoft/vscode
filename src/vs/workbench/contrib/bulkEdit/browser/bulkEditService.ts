@@ -63,7 +63,7 @@ class BulkEdit {
 			}
 		}
 
-		this._progress.report({ total: 100 });
+		this._progress.report({ increment: 0, total: 100 });
 		// Increment by percentage points since progress API expects that
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 100 / this._edits.length }) };
 

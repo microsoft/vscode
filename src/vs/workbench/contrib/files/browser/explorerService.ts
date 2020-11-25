@@ -99,7 +99,7 @@ export class ExplorerService implements IExplorerService {
 			location: ProgressLocation.Window,
 			delay: 500,
 			title: options.progressLabel,
-			cancellable: true
+			cancellable: edit.length > 1 // Only allow cancellation when there is more than one edit. Since cancelling will not actually stop the current edit that is in progress.
 		}, async progress => {
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
