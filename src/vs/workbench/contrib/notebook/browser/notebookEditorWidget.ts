@@ -624,8 +624,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._webview?.focusWebview();
 		} else {
 			const focus = this._list?.getFocus()[0];
-			if (typeof focus === 'number') {
-				const element = this._notebookViewModel!.viewCells[focus];
+			if (typeof focus === 'number' && this._notebookViewModel) {
+				const element = this._notebookViewModel.viewCells[focus];
 
 				if (element.focusMode === CellFocusMode.Editor) {
 					element.editState = CellEditState.Editing;
@@ -685,9 +685,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	async setOptions(options: NotebookEditorOptions | undefined) {
 		// reveal cell if editor options tell to do so
-		if (options?.cellOptions) {
+		if (options?.cellOptions && this._notebookViewModel) {
 			const cellOptions = options.cellOptions;
-			const cell = this._notebookViewModel!.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
+			const cell = this._notebookViewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
 				this.selectElement(cell);
 				await this.revealInCenterIfOutsideViewportAsync(cell);
@@ -1099,8 +1099,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			state.cellTotalHeights = cellHeights;
 
 			const focus = this._list.getFocus()[0];
-			if (typeof focus === 'number') {
-				const element = this._notebookViewModel!.viewCells[focus];
+			if (typeof focus === 'number' && this._notebookViewModel) {
+				const element = this._notebookViewModel.viewCells[focus];
 				if (element) {
 					const itemDOM = this._list?.domElementOfElement(element);
 					const editorFocused = !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
@@ -1355,11 +1355,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _nearestCodeCellIndex(index: number /* exclusive */, direction: 'above' | 'below') {
-		const nearest = this._notebookViewModel!.viewCells.slice(0, index).reverse().findIndex(cell => cell.cellKind === CellKind.Code);
+		if (!this._notebookViewModel) {
+			return -1;
+		}
+
+		const nearest = this._notebookViewModel.viewCells.slice(0, index).reverse().findIndex(cell => cell.cellKind === CellKind.Code);
 		if (nearest > -1) {
 			return index - nearest - 1;
 		} else {
-			const nearestCellTheOtherDirection = this._notebookViewModel!.viewCells.slice(index + 1).findIndex(cell => cell.cellKind === CellKind.Code);
+			const nearestCellTheOtherDirection = this._notebookViewModel.viewCells.slice(index + 1).findIndex(cell => cell.cellKind === CellKind.Code);
 			if (nearestCellTheOtherDirection > -1) {
 				return index + nearestCellTheOtherDirection;
 			}
@@ -1368,12 +1372,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = '', ui: boolean = false): CellViewModel | null {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
 			return null;
 		}
 
-		const index = cell ? this._notebookViewModel!.getCellIndex(cell) : 0;
-		const nextIndex = ui ? this._notebookViewModel!.getNextVisibleCellIndex(index) : index + 1;
+		if (!this._notebookViewModel.metadata.editable) {
+			return null;
+		}
+
+		const index = cell ? this._notebookViewModel.getCellIndex(cell) : 0;
+		const nextIndex = ui ? this._notebookViewModel.getNextVisibleCellIndex(index) : index + 1;
 		let language;
 		if (type === CellKind.Code) {
 			if (cell?.cellKind === CellKind.Code) {
@@ -1381,16 +1389,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			} else if (cell?.cellKind === CellKind.Markdown) {
 				const nearestCodeCellIndex = this._nearestCodeCellIndex(index, direction);
 				if (nearestCodeCellIndex > -1) {
-					language = this._notebookViewModel!.viewCells[nearestCodeCellIndex].language;
+					language = this._notebookViewModel.viewCells[nearestCodeCellIndex].language;
 				} else {
-					language = this._notebookViewModel!.resolvedLanguages[0] || 'plaintext';
+					language = this._notebookViewModel.resolvedLanguages[0] || 'plaintext';
 				}
 			} else {
 				if (cell === undefined && direction === 'above') {
 					// insert cell at the very top
-					language = this._notebookViewModel!.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || this._notebookViewModel!.resolvedLanguages[0] || 'plaintext';
+					language = this._notebookViewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || this._notebookViewModel.resolvedLanguages[0] || 'plaintext';
 				} else {
-					language = this._notebookViewModel!.resolvedLanguages[0] || 'plaintext';
+					language = this._notebookViewModel.resolvedLanguages[0] || 'plaintext';
 				}
 			}
 		} else {
@@ -1401,27 +1409,35 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const focused = this._list?.getFocusedElements();
-		const newCell = this._notebookViewModel!.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
+		const newCell = this._notebookViewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
 		return newCell as CellViewModel;
 	}
 
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
 			return null;
 		}
 
-		const index = this._notebookViewModel!.getCellIndex(cell);
+		if (!this._notebookViewModel.metadata.editable) {
+			return null;
+		}
 
-		return this._notebookViewModel!.splitNotebookCell(index);
+		const index = this._notebookViewModel.getCellIndex(cell);
+
+		return this._notebookViewModel.splitNotebookCell(index);
 	}
 
 	async joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null> {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
 			return null;
 		}
 
-		const index = this._notebookViewModel!.getCellIndex(cell);
-		const ret = await this._notebookViewModel!.joinNotebookCells(index, direction, constraint);
+		if (!this._notebookViewModel.metadata.editable) {
+			return null;
+		}
+
+		const index = this._notebookViewModel.getCellIndex(cell);
+		const ret = await this._notebookViewModel.joinNotebookCells(index, direction, constraint);
 
 		if (ret) {
 			ret.deletedCells.forEach(cell => {
@@ -1437,7 +1453,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
+			return false;
+		}
+
+		if (!this._notebookViewModel.metadata.editable) {
 			return false;
 		}
 
@@ -1445,18 +1465,22 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.pendingLayouts.get(cell)!.dispose();
 		}
 
-		const index = this._notebookViewModel!.getCellIndex(cell);
-		this._notebookViewModel!.deleteCell(index, true);
+		const index = this._notebookViewModel.getCellIndex(cell);
+		this._notebookViewModel.deleteCell(index, true);
 		return true;
 	}
 
 	async moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null> {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
 			return null;
 		}
 
-		const index = this._notebookViewModel!.getCellIndex(cell);
-		if (index === this._notebookViewModel!.length - 1) {
+		if (!this._notebookViewModel.metadata.editable) {
+			return null;
+		}
+
+		const index = this._notebookViewModel.getCellIndex(cell);
+		if (index === this._notebookViewModel.length - 1) {
 			return null;
 		}
 
@@ -1465,11 +1489,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async moveCellUp(cell: ICellViewModel): Promise<ICellViewModel | null> {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
 			return null;
 		}
 
-		const index = this._notebookViewModel!.getCellIndex(cell);
+		if (!this._notebookViewModel.metadata.editable) {
+			return null;
+		}
+
+		const index = this._notebookViewModel.getCellIndex(cell);
 		if (index === 0) {
 			return null;
 		}
@@ -1479,7 +1507,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
+			return null;
+		}
+
+		if (!this._notebookViewModel.metadata.editable) {
 			return null;
 		}
 
@@ -1487,15 +1519,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		const originalIdx = this._notebookViewModel!.getCellIndex(cell);
-		const relativeToIndex = this._notebookViewModel!.getCellIndex(relativeToCell);
+		const originalIdx = this._notebookViewModel.getCellIndex(cell);
+		const relativeToIndex = this._notebookViewModel.getCellIndex(relativeToCell);
 
 		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
 		return this._moveCellToIndex(originalIdx, 1, newIdx);
 	}
 
 	async moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null> {
-		if (!this._notebookViewModel!.metadata.editable) {
+		if (!this._notebookViewModel) {
+			return null;
+		}
+
+		if (!this._notebookViewModel.metadata.editable) {
 			return null;
 		}
 
@@ -1508,6 +1544,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	 * @example to move the cell from index 0 down one spot, call with (0, 2)
 	 */
 	private async _moveCellToIndex(index: number, length: number, desiredIndex: number): Promise<ICellViewModel | null> {
+		if (!this._notebookViewModel) {
+			return null;
+		}
+
 		if (index < desiredIndex) {
 			// The cell is moving "down", it will free up one index spot and consume a new one
 			desiredIndex -= length;
@@ -1517,7 +1557,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this._notebookViewModel!.moveCellToIdx(index, length, desiredIndex, true)) {
+		if (!this._notebookViewModel.moveCellToIdx(index, length, desiredIndex, true)) {
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
 
@@ -1525,9 +1565,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (this._isDisposed) {
 				r(null);
+				return;
 			}
 
-			const viewCell = this._notebookViewModel!.viewCells[desiredIndex];
+			if (!this._notebookViewModel) {
+				r(null);
+				return;
+			}
+
+			const viewCell = this._notebookViewModel.viewCells[desiredIndex];
 			this._list?.revealElementInView(viewCell);
 			r(viewCell);
 		});
@@ -1536,7 +1582,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	editNotebookCell(cell: CellViewModel): void {
-		if (!cell.getEvaluatedMetadata(this._notebookViewModel!.metadata).editable) {
+		if (!this._notebookViewModel) {
+			return;
+		}
+
+		if (!cell.getEvaluatedMetadata(this._notebookViewModel.metadata).editable) {
 			return;
 		}
 
@@ -1644,29 +1694,41 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async cancelNotebookExecution(): Promise<void> {
-		if (this._notebookViewModel?.metadata.runState !== NotebookRunState.Running) {
+		if (!this._notebookViewModel) {
+			return;
+		}
+
+		if (this._notebookViewModel.metadata.runState !== NotebookRunState.Running) {
 			return;
 		}
 
 		await this._ensureActiveKernel();
-		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
+		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel.uri, undefined);
 	}
 
 	async executeNotebook(): Promise<void> {
-		if (!this._notebookViewModel!.runnable) {
+		if (!this._notebookViewModel) {
+			return;
+		}
+
+		if (!this._notebookViewModel.runnable) {
 			return;
 		}
 
 		await this._ensureActiveKernel();
-		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel!.uri, undefined);
+		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel.uri, undefined);
 	}
 
 	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
+		if (!this._notebookViewModel) {
+			return;
+		}
+
 		if (cell.cellKind !== CellKind.Code) {
 			return;
 		}
 
-		const metadata = cell.getEvaluatedMetadata(this._notebookViewModel!.metadata);
+		const metadata = cell.getEvaluatedMetadata(this._notebookViewModel.metadata);
 		if (!metadata.runnable) {
 			return;
 		}
@@ -1676,21 +1738,25 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		await this._ensureActiveKernel();
-		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
+		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel.uri, cell.handle);
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		if (!this._notebookViewModel) {
+			return;
+		}
+
 		if (cell.cellKind === CellKind.Markdown) {
 			this.focusNotebookCell(cell, 'container');
 			return;
 		}
 
-		if (!cell.getEvaluatedMetadata(this._notebookViewModel!.metadata).runnable) {
+		if (!cell.getEvaluatedMetadata(this._notebookViewModel.metadata).runnable) {
 			return;
 		}
 
 		await this._ensureActiveKernel();
-		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
+		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel.uri, cell.handle);
 	}
 
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
