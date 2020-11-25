@@ -123,6 +123,9 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
 
+// Extensions Management
+import 'vs/workbench/contrib/extensions/browser/extensions.web.contribution';
+
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';

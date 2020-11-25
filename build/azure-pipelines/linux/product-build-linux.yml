@@ -54,17 +54,17 @@ steps:
       git merge $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
+  - script: |
+      npx https://aka.ms/enablesecurefeed standAlone
+    displayName: Switch to Terrapin packages
+    timeoutInMinutes: 5
+    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
       keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
-
-  - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
 
   - script: |
       set -e
@@ -173,7 +173,6 @@ steps:
       set -e
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
     displayName: Prepare snap package
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   # needed for code signing
   - task: UseDotNet@2
@@ -214,7 +213,6 @@ steps:
     inputs:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"

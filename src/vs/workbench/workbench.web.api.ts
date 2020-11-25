@@ -52,7 +52,7 @@ interface ITunnelProvider {
 }
 
 interface ITunnelFactory {
-	(tunnelOptions: ITunnelOptions, elevate?: boolean): Promise<ITunnel> | undefined;
+	(tunnelOptions: ITunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<ITunnel> | undefined;
 }
 
 interface ITunnelOptions {
@@ -64,6 +64,13 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+}
+
+export interface TunnelCreationOptions {
+	/**
+	 * True when the local operating system will require elevation to use the requested local port.
+	 */
+	elevationRequired?: boolean;
 }
 
 interface ITunnel extends IDisposable {

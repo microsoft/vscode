@@ -58,7 +58,7 @@ steps:
       npx https://aka.ms/enablesecurefeed standAlone
     displayName: Switch to Terrapin packages
     timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:

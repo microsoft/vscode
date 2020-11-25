@@ -368,9 +368,16 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 		return false;
 	}
 
-	getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
+	async getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			return element.groups();
+			const groups = await element.groups();
+			if (groups.length === 1) {
+				const items = await groups[0].items;
+				if (items && (items.length > 0) && (items[0].tunnelType === TunnelType.Forwarded)) {
+					return items;
+				}
+			}
+			return groups;
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
@@ -518,6 +525,7 @@ export class TunnelPanel extends ViewPane {
 
 		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
 		const treeContainer = dom.append(panelContainer, dom.$('.customview-tree'));
+		treeContainer.classList.add('ports-view');
 		treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
