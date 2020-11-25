@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -28,9 +27,6 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -501,49 +497,6 @@ export class ShowRuntimeExtensionsAction extends Action {
 
 	public async run(e?: any): Promise<any> {
 		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
-	}
-}
-
-
-export class DebugExtensionHostAction extends Action {
-	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
-	static readonly LABEL = nls.localize('debugExtensionHost', "Start Debugging Extension Host");
-	static readonly CSS_CLASS = 'debug-extension-host';
-
-	constructor(
-		@IDebugService private readonly _debugService: IDebugService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly productService: IProductService
-	) {
-		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
-	}
-
-	async run(): Promise<any> {
-
-		const inspectPort = await this._extensionService.getInspectPort(false);
-		if (!inspectPort) {
-			const res = await this._dialogService.confirm({
-				type: 'info',
-				message: nls.localize('restart1', "Profile Extensions"),
-				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this.productService.nameLong),
-				primaryButton: nls.localize('restart3', "&&Restart"),
-				secondaryButton: nls.localize('cancel', "&&Cancel")
-			});
-			if (res.confirmed) {
-				await this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
-			}
-
-			return;
-		}
-
-		return this._debugService.startDebugging(undefined, {
-			type: 'node',
-			name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
-			request: 'attach',
-			port: inspectPort
-		});
 	}
 }
 
