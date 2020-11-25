@@ -21,7 +21,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
@@ -35,13 +34,11 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Schemas } from 'vs/base/common/network';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-browser/reportExtensionIssueAction';
+import { SaveExtensionHostProfileAction } from './saveExtensionHostProfileAction';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -531,65 +528,6 @@ export class StopExtensionHostProfileAction extends Action {
 	run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
 		return Promise.resolve();
-	}
-}
-
-export class SaveExtensionHostProfileAction extends Action {
-
-	static readonly LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
-	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
-
-	constructor(
-		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
-		@IFileService private readonly _fileService: IFileService
-	) {
-		super(id, label, undefined, false);
-		this._extensionHostProfileService.onDidChangeLastProfile(() => {
-			this.enabled = (this._extensionHostProfileService.lastProfile !== null);
-		});
-	}
-
-	run(): Promise<any> {
-		return Promise.resolve(this._asyncRun());
-	}
-
-	private async _asyncRun(): Promise<any> {
-		let picked = await this._nativeHostService.showSaveDialog({
-			title: 'Save Extension Host Profile',
-			buttonLabel: 'Save',
-			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
-			filters: [{
-				name: 'CPU Profiles',
-				extensions: ['cpuprofile', 'txt']
-			}]
-		});
-
-		if (!picked || !picked.filePath || picked.canceled) {
-			return;
-		}
-
-		const profileInfo = this._extensionHostProfileService.lastProfile;
-		let dataToWrite: object = profileInfo ? profileInfo.data : {};
-
-		let savePath = picked.filePath;
-
-		if (this._environmentService.isBuilt) {
-			const profiler = await import('v8-inspect-profiler');
-			// when running from a not-development-build we remove
-			// absolute filenames because we don't want to reveal anything
-			// about users. We also append the `.txt` suffix to make it
-			// easier to attach these files to GH issues
-
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
-			dataToWrite = tmp.profile;
-
-			savePath = savePath + '.txt';
-		}
-
-		return this._fileService.writeFile(URI.file(savePath), VSBuffer.fromString(JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t')));
 	}
 }
 
