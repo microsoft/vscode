@@ -268,7 +268,6 @@ export class IssueMainService implements ICommonIssueService {
 
 					const windowConfiguration = {
 						appRoot: this.environmentService.appRoot,
-						nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 						windowId: this._processExplorerWindow.id,
 						userEnv: this.userEnv,
 						machineId: this.machineId,
@@ -396,7 +395,6 @@ export class IssueMainService implements ICommonIssueService {
 
 		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
-			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			userEnv: this.userEnv,
