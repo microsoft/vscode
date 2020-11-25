@@ -1327,7 +1327,7 @@ export interface IReadonlyTextBuffer {
 /**
  * @internal
  */
-export interface ITextBuffer extends IReadonlyTextBuffer, IDisposable {
+export interface ITextBuffer extends IReadonlyTextBuffer {
 	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
 }
