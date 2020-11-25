@@ -209,18 +209,8 @@ export class IssueMainService implements ICommonIssueService {
 							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
-							...this.environmentService.sandbox ?
-
-								// Sandbox
-								{
-									sandbox: true,
-									contextIsolation: true
-								} :
-
-								// No Sandbox
-								{
-									nodeIntegration: true
-								}
+							sandbox: true,
+							contextIsolation: true
 						}
 					});
 
@@ -275,18 +265,8 @@ export class IssueMainService implements ICommonIssueService {
 							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
-							...this.environmentService.sandbox ?
-
-								// Sandbox
-								{
-									sandbox: true,
-									contextIsolation: true
-								} :
-
-								// No Sandbox
-								{
-									nodeIntegration: true
-								}
+							sandbox: true,
+							contextIsolation: true
 						}
 					});
 
@@ -294,7 +274,6 @@ export class IssueMainService implements ICommonIssueService {
 
 					const windowConfiguration = {
 						appRoot: this.environmentService.appRoot,
-						nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 						windowId: this._processExplorerWindow.id,
 						userEnv: this.userEnv,
 						machineId: this.machineId,
@@ -422,7 +401,6 @@ export class IssueMainService implements ICommonIssueService {
 
 		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
-			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			userEnv: this.userEnv,
@@ -458,7 +436,7 @@ function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): strin
 	}
 
 	return FileAccess
-		.asBrowserUri(modulePathToHtml, require)
+		._asCodeFileUri(modulePathToHtml, require)
 		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 		.toString(true);
 }

@@ -88,9 +88,14 @@
 
 		window['MonacoEnvironment'] = {};
 
+		const baseUrl = sandbox ?
+			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
+			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`;
+
 		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
-			'vs/nls': nlsConfig
+			baseUrl,
+			'vs/nls': nlsConfig,
+			preferScriptTags: sandbox
 		};
 
 		// Enable loading of node modules:

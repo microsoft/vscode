@@ -35,6 +35,7 @@ import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSe
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { ProxyAuthHandler2 } from 'vs/code/electron-main/auth2';
+import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
@@ -412,6 +413,9 @@ export class CodeApplication extends Disposable {
 			this.logService.error(error);
 		}
 
+		// Setup Protocol Handler
+		const fileProtocolHandler = this._register(this.instantiationService.createInstance(FileProtocolHandler));
+
 		// Create Electron IPC Server
 		const electronIpcServer = new ElectronIPCServer();
 
@@ -457,7 +461,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
@@ -583,7 +587,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
@@ -645,8 +649,10 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
-		// ExtensionHost Debug broadcast service
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		fileProtocolHandler.injectWindowsMainService(windowsMainService);
+
+		// ExtensionHost Debug broadcast service
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
