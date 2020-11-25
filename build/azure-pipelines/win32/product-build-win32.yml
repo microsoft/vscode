@@ -107,6 +107,7 @@ steps:
       exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
       exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-code-helper" }
       exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
     displayName: Build
 
   - powershell: |
@@ -115,6 +116,7 @@ steps:
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min-ci" }
       exec { yarn gulp "vscode-reh-web-win32-$env:VSCODE_ARCH-min-ci" }
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
     displayName: Build Server
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
@@ -181,7 +183,7 @@ steps:
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
       ConnectedServiceName: "ESRP CodeSign"
-      FolderPath: "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
+      FolderPath: "$(CodeSigningFolderPath)"
       Pattern: "*.dll,*.exe,*.node"
       signConfigType: inlineSignParams
       inlineOperation: |
