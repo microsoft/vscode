@@ -20,6 +20,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -248,7 +249,7 @@ export class LaunchMainService implements ILaunchMainService {
 						folders: options.includeWorkspaceMetadata ? this.getFolderURIs(window) : undefined
 					};
 
-					window.sendWhenReady('vscode:getDiagnosticInfo', { replyChannel, args });
+					window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
 
 					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
 						// No data is returned if getting the connection fails.

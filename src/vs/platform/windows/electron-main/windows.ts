@@ -14,6 +14,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWindowState {
 	width?: number;
@@ -72,7 +73,7 @@ export interface ICodeWindow extends IDisposable {
 	getBounds(): Rectangle;
 
 	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, ...args: any[]): void;
+	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
