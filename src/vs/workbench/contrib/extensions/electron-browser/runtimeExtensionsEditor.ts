@@ -95,11 +95,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension> | null;
-	private _profileInfo: IExtensionHostProfile | null;
 	private _elements: IRuntimeExtension[] | null;
 	private _updateSoon: RunOnceScheduler;
-	private _profileSessionState: IContextKey<string>;
-	private _extensionsHostRecorded: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -110,7 +107,6 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -118,27 +114,14 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
 		this._list = null;
-		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._elements = null;
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
-		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
-		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 
-		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
-			this._profileInfo = this._extensionHostProfileService.lastProfile;
-			this._extensionsHostRecorded.set(!!this._profileInfo);
-			this._updateExtensions();
-		}));
-		this._register(this._extensionHostProfileService.onDidChangeState(() => {
-			const state = this._extensionHostProfileService.state;
-			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
-		}));
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
-
 		this._updateExtensions();
 	}
 
-	private async _updateExtensions(): Promise<void> {
+	protected async _updateExtensions(): Promise<void> {
 		this._elements = await this._resolveExtensions();
 		if (this._list) {
 			this._list.splice(0, this._list.length, this._elements);
@@ -161,11 +144,12 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		// group profile segments by extension
 		let segments: { [id: string]: number[]; } = Object.create(null);
 
-		if (this._profileInfo) {
-			let currentStartTime = this._profileInfo.startTime;
-			for (let i = 0, len = this._profileInfo.deltas.length; i < len; i++) {
-				const id = this._profileInfo.ids[i];
-				const delta = this._profileInfo.deltas[i];
+		const profileInfo = this._getProfileInfo();
+		if (profileInfo) {
+			let currentStartTime = profileInfo.startTime;
+			for (let i = 0, len = profileInfo.deltas.length; i < len; i++) {
+				const id = profileInfo.ids[i];
+				const delta = profileInfo.deltas[i];
 
 				let extensionSegments = segments[ExtensionIdentifier.toKey(id)];
 				if (!extensionSegments) {
@@ -184,7 +168,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			const extensionDescription = extensionsDescriptions[i];
 
 			let profileInfo: IExtensionProfileInformation | null = null;
-			if (this._profileInfo) {
+			if (profileInfo) {
 				let extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
@@ -204,7 +188,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
 				status: statusMap[extensionDescription.identifier.value],
 				profileInfo: profileInfo || undefined,
-				unresponsiveProfile: this._extensionHostProfileService.getUnresponsiveProfile(extensionDescription.identifier)
+				unresponsiveProfile: this._getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
 
@@ -213,7 +197,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		// bubble up extensions that have caused slowness
 
 		const isUnresponsive = (extension: IRuntimeExtension): boolean =>
-			extension.unresponsiveProfile === this._profileInfo;
+			extension.unresponsiveProfile === profileInfo;
 
 		const profileTime = (extension: IRuntimeExtension): number =>
 			extension.profileInfo?.totalTime ?? 0;
@@ -391,7 +375,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 				clearNode(data.msgContainer);
 
-				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
+				if (this._getUnresponsiveProfile(element.description.identifier)) {
 					const el = $('span', undefined, ...renderCodicons(` $(alert) Unresponsive`));
 					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
 					data.msgContainer.appendChild(el);
@@ -417,7 +401,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					}
 				}
 
-				if (this._profileInfo && element.profileInfo) {
+				if (element.profileInfo) {
 					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
 				} else {
 					data.profileTime.textContent = '';
@@ -468,8 +452,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
 			actions.push(new Separator());
 
-			const state = this._extensionHostProfileService.state;
-			const profileAction = (state === ProfileSessionState.Running ? this._createStopExtensionHostProfileAction() : this._createStartExtensionHostProfileAction());
+			const profileAction = this._createProfileAction();
 			if (profileAction) {
 				actions.push(profileAction);
 			}
@@ -496,14 +479,57 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		}
 	}
 
+	protected abstract _getProfileInfo(): IExtensionHostProfile | null;
+	protected abstract _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
 	protected abstract _createSlowExtensionAction(element: IRuntimeExtension): Action | null;
 	protected abstract _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null;
 	protected abstract _createSaveExtensionHostProfileAction(): Action | null;
-	protected abstract _createStartExtensionHostProfileAction(): Action | null;
-	protected abstract _createStopExtensionHostProfileAction(): Action | null;
+	protected abstract _createProfileAction(): Action | null;
 }
 
 export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
+
+	private _profileInfo: IExtensionHostProfile | null;
+	private _extensionsHostRecorded: IContextKey<boolean>;
+	private _profileSessionState: IContextKey<string>;
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService extensionService: IExtensionService,
+		@INotificationService notificationService: INotificationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@ILabelService labelService: ILabelService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+	) {
+		super(telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService);
+		this._profileInfo = this._extensionHostProfileService.lastProfile;
+		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
+		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
+
+		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
+			this._profileInfo = this._extensionHostProfileService.lastProfile;
+			this._extensionsHostRecorded.set(!!this._profileInfo);
+			this._updateExtensions();
+		}));
+		this._register(this._extensionHostProfileService.onDidChangeState(() => {
+			const state = this._extensionHostProfileService.state;
+			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
+		}));
+	}
+
+	protected _getProfileInfo(): IExtensionHostProfile | null {
+		return this._profileInfo;
+	}
+
+	protected _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
+		return this._extensionHostProfileService.getUnresponsiveProfile(extensionId);
+	}
 
 	protected _createSlowExtensionAction(element: IRuntimeExtension): Action | null {
 		if (element.unresponsiveProfile) {
@@ -520,14 +546,15 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 		return this._instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL);
 	}
 
-	protected _createStartExtensionHostProfileAction(): Action | null {
-		return this._instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL);
+	protected _createProfileAction(): Action | null {
+		const state = this._extensionHostProfileService.state;
+		const profileAction = (
+			state === ProfileSessionState.Running
+				? this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL)
+				: this._instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL)
+		);
+		return profileAction;
 	}
-
-	protected _createStopExtensionHostProfileAction(): Action | null {
-		return this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL);
-	}
-
 }
 
 export class ShowRuntimeExtensionsAction extends Action {
