@@ -23,7 +23,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath, IWindowSettings } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -303,7 +303,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 
@@ -345,7 +345,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
@@ -394,7 +394,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Menubar visibility
-		const newMenubarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		const newMenubarVisibility = getMenuBarVisibility(this.configurationService);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
 		// Centered Layout
@@ -438,7 +438,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateWindowBorder(skipLayout: boolean = false) {
-		if (isWeb || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (isWeb || getTitleBarStyle(this.configurationService) !== 'custom') {
 			return;
 		}
 
@@ -482,7 +482,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.fullscreen = isFullscreen();
 
 		// Menubar visibility
-		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService);
 
 		// Activity bar visibility
 		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
@@ -577,7 +577,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Only restore editors if we are not instructed to open files initially
 		// or when `window.restoreWindows` setting is explicitly set to `preserve`
-		const forceRestoreEditors = this.configurationService.getValue<IWindowSettings>('window').restoreWindows === 'preserve';
+		const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
 		this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
 
 		// Files to open, diff or create
@@ -878,7 +878,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+				if (getTitleBarStyle(this.configurationService) === 'native') {
 					return false;
 				} else if (!this.state.fullscreen && !isWeb) {
 					return true;
@@ -1074,7 +1074,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// State
 		if (this.state.zenMode.active) {
-			this.storageService.store2(Storage.ZEN_MODE_ENABLED, true, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(Storage.ZEN_MODE_ENABLED, true, StorageScope.WORKSPACE, StorageTarget.USER);
 
 			// Exit zen mode on shutdown unless configured to keep
 			this.state.zenMode.transitionDisposables.add(this.storageService.onWillSaveState(e => {
@@ -1160,18 +1160,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				? grid.getViewCachedVisibleSize(this.sideBarPartView)
 				: grid.getViewSize(this.sideBarPartView).width;
 
-			this.storageService.store2(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			const panelSize = this.state.panel.hidden
 				? grid.getViewCachedVisibleSize(this.panelPartView)
 				: (this.state.panel.position === Position.BOTTOM ? grid.getViewSize(this.panelPartView).height : grid.getViewSize(this.panelPartView).width);
 
-			this.storageService.store2(Storage.PANEL_SIZE, panelSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store2(Storage.PANEL_DIMENSION, positionToString(this.state.panel.position), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(Storage.PANEL_SIZE, panelSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(Storage.PANEL_DIMENSION, positionToString(this.state.panel.position), StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			const gridSize = grid.getViewSize();
-			this.storageService.store2(Storage.GRID_WIDTH, gridSize.width, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store2(Storage.GRID_HEIGHT, gridSize.height, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(Storage.GRID_WIDTH, gridSize.width, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(Storage.GRID_HEIGHT, gridSize.height, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}));
 	}
 
@@ -1202,7 +1202,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.state.editor.centered = active;
 
-		this.storageService.store2(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE, StorageTarget.USER);
 
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
@@ -1315,7 +1315,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Remember in settings
 		if (hidden) {
-			this.storageService.store2(Storage.EDITOR_HIDDEN, true, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(Storage.EDITOR_HIDDEN, true, StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE);
 		}
@@ -1376,7 +1376,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Remember in settings
 		const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (hidden !== defaultHidden) {
-			this.storageService.store2(Storage.SIDEBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(Storage.SIDEBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE);
 		}
@@ -1441,14 +1441,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 		// Remember in settings
 		if (!hidden) {
-			this.storageService.store2(Storage.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(Storage.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 		else {
 			this.storageService.remove(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE);
 
 			// Remember this setting only when panel is hiding
 			if (this.state.panel.wasLastMaximized) {
-				this.storageService.store2(Storage.PANEL_LAST_IS_MAXIMIZED, true, StorageScope.WORKSPACE, StorageTarget.USER);
+				this.storageService.store(Storage.PANEL_LAST_IS_MAXIMIZED, true, StorageScope.WORKSPACE, StorageTarget.USER);
 			}
 			else {
 				this.storageService.remove(Storage.PANEL_LAST_IS_MAXIMIZED, StorageScope.WORKSPACE);
@@ -1466,10 +1466,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (!this.state.panel.hidden) {
 				if (this.state.panel.position === Position.BOTTOM) {
 					this.state.panel.lastNonMaximizedHeight = size.height;
-					this.storageService.store2(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
 				} else {
 					this.state.panel.lastNonMaximizedWidth = size.width;
-					this.storageService.store2(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, this.state.panel.lastNonMaximizedWidth, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, this.state.panel.lastNonMaximizedWidth, StorageScope.GLOBAL, StorageTarget.MACHINE);
 				}
 			}
 
@@ -1544,7 +1544,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.panel.position = position;
 
 		// Save panel position
-		this.storageService.store2(Storage.PANEL_POSITION, newPositionValue, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(Storage.PANEL_POSITION, newPositionValue, StorageScope.WORKSPACE, StorageTarget.USER);
 
 		// Adjust CSS
 		const panelContainer = assertIsDefined(panelPart.getContainer());

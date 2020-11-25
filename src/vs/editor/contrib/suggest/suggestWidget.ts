@@ -32,6 +32,7 @@ import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 import { ResizableHTMLElement } from './resizable';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IPosition } from 'vs/editor/common/core/position';
+import { clamp } from 'vs/base/common/numbers';
 
 /**
  * Suggest widget colors
@@ -82,7 +83,7 @@ class PersistedWidgetSize {
 	}
 
 	store(size: dom.Dimension) {
-		this._service.store2(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	reset(): void {
@@ -829,7 +830,7 @@ export class SuggestWidget implements IDisposable {
 
 	getLayoutInfo() {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		const itemHeight = this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
+		const itemHeight = clamp(this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
 		const statusBarHeight = !this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
 		const borderWidth = this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
@@ -850,7 +851,7 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _setDetailsVisible(value: boolean) {
-		this._storageService.store2('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
+		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 }
 

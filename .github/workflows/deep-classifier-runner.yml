@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Actions
         uses: actions/checkout@v2
         with:
-          repository: 'microsoft/vscode-github-triage-actions'
+          repository: "microsoft/vscode-github-triage-actions"
           ref: v40
           path: ./actions
       - name: Install Actions

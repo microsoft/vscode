@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
@@ -80,6 +81,8 @@ export const enum AccountStatus {
 }
 
 export const SYNC_TITLE = localize('sync category', "Settings Sync");
+
+export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the settings sync view.'));
 
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);

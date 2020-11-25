@@ -12,6 +12,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as Codicons from 'vs/base/common/codicons';
 
+
 //  ------ API types
 
 
@@ -214,3 +215,8 @@ iconRegistry.onDidChangeSchema(() => {
 
 
 //setTimeout(_ => console.log(iconRegistry.toString()), 5000);
+
+
+// common icons
+
+export const widgetClose = registerIcon('widget-close', Codicons.Codicon.close, localize('widgetClose', 'Icon for the close action in widgets.'));

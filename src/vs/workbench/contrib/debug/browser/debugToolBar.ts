@@ -29,6 +29,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -64,7 +65,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.$el = dom.$('div.debug-toolbar');
 		this.$el.style.top = `${layoutService.offset?.top ?? 0}px`;
 
-		this.dragArea = dom.append(this.$el, dom.$('div.drag-area.codicon.codicon-gripper'));
+		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + icons.debugGripper.cssSelector));
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
 		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);
@@ -169,7 +170,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		const left = dom.getComputedStyle(this.$el).left;
 		if (left) {
 			const position = parseFloat(left) / window.innerWidth;
-			this.storageService.store2(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	}
 
@@ -180,7 +181,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground) || '';
 
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.$el.style.boxShadow = widgetShadowColor ? `0 0 12px 8px ${widgetShadowColor}` : '';
+			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const contrastBorderColor = this.getColor(contrastBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
@@ -220,7 +221,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
 			const moveToTop = y < titleAreaHeight;
 			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.storageService.store2(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	}
 
@@ -351,51 +352,51 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconStartColor = theme.getColor(debugIconStartForeground);
 	if (debugIconStartColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-start { color: ${debugIconStartColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStart.cssSelector} { color: ${debugIconStartColor} !important; }`);
 	}
 
 	const debugIconPauseColor = theme.getColor(debugIconPauseForeground);
 	if (debugIconPauseColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-pause { color: ${debugIconPauseColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugPause.cssSelector} { color: ${debugIconPauseColor} !important; }`);
 	}
 
 	const debugIconStopColor = theme.getColor(debugIconStopForeground);
 	if (debugIconStopColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-stop, .monaco-workbench .debug-view-content .codicon-record { color: ${debugIconStopColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStop.cssSelector} { color: ${debugIconStopColor} !important; }`);
 	}
 
 	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
 	if (debugIconDisconnectColor) {
-		collector.addRule(`.monaco-workbench .debug-view-content .codicon-debug-disconnect, .monaco-workbench .debug-toolbar .codicon-debug-disconnect { color: ${debugIconDisconnectColor} !important; }`);
+		collector.addRule(`.monaco-workbench .debug-view-content ${icons.debugDisconnect.cssSelector}, .monaco-workbench .debug-toolbar ${icons.debugDisconnect.cssSelector}, { color: ${debugIconDisconnectColor} !important; }`);
 	}
 
 	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
 	if (debugIconRestartColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-restart, .monaco-workbench .codicon-debug-restart-frame { color: ${debugIconRestartColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugRestart.cssSelector},, .monaco-workbench ${icons.debugRestartFrame.cssSelector}, { color: ${debugIconRestartColor} !important; }`);
 	}
 
 	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
 	if (debugIconStepOverColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-step-over { color: ${debugIconStepOverColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepOver.cssSelector}, { color: ${debugIconStepOverColor} !important; }`);
 	}
 
 	const debugIconStepIntoColor = theme.getColor(debugIconStepIntoForeground);
 	if (debugIconStepIntoColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-step-into { color: ${debugIconStepIntoColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepInto.cssSelector}, { color: ${debugIconStepIntoColor} !important; }`);
 	}
 
 	const debugIconStepOutColor = theme.getColor(debugIconStepOutForeground);
 	if (debugIconStepOutColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-step-out { color: ${debugIconStepOutColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepOut.cssSelector}, { color: ${debugIconStepOutColor} !important; }`);
 	}
 
 	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
 	if (debugIconContinueColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-continue,.monaco-workbench .codicon-debug-reverse-continue { color: ${debugIconContinueColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugContinue.cssSelector},,.monaco-workbench ${icons.debugReverseContinue.cssSelector}, { color: ${debugIconContinueColor} !important; }`);
 	}
 
 	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
 	if (debugIconStepBackColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-step-back { color: ${debugIconStepBackColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepBack.cssSelector}, { color: ${debugIconStepBackColor} !important; }`);
 	}
 });

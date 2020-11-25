@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/onTypeRename';
 import * as nls from 'vs/nls';
 import { registerEditorContribution, registerModelAndPositionCommand, EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import * as arrays from 'vs/base/common/arrays';
@@ -15,7 +14,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { OnTypeRenameProviderRegistry, OnTypeRenameRanges } from 'vs/editor/common/modes';
+import { OnTypeRenameRangeProviderRegistry, OnTypeRenameRanges } from 'vs/editor/common/modes';
 import { first, createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -96,7 +95,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 				this.reinitialize();
 			}
 		}));
-		this._register(OnTypeRenameProviderRegistry.onDidChange(() => this.reinitialize()));
+		this._register(OnTypeRenameRangeProviderRegistry.onDidChange(() => this.reinitialize()));
 		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize()));
 
 		this.reinitialize();
@@ -104,7 +103,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 	private reinitialize() {
 		const model = this._editor.getModel();
-		const isEnabled = model !== null && this._editor.getOption(EditorOption.renameOnType) && OnTypeRenameProviderRegistry.has(model);
+		const isEnabled = model !== null && this._editor.getOption(EditorOption.renameOnType) && OnTypeRenameRangeProviderRegistry.has(model);
 		if (isEnabled === this._enabled) {
 			return;
 		}
@@ -420,7 +419,7 @@ registerEditorCommand(new OnTypeRenameCommand({
 
 
 function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<OnTypeRenameRanges | undefined | null> {
-	const orderedByScore = OnTypeRenameProviderRegistry.ordered(model);
+	const orderedByScore = OnTypeRenameRangeProviderRegistry.ordered(model);
 
 	// in order of score ask the on type rename provider
 	// until someone response with a good result

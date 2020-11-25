@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadBulkEditsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorPropertiesChangeData, MainContext, MainThreadBulkEditsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -412,6 +412,35 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		return callback(provider, document);
+	}
+
+	async showNotebookDocument(notebookDocument: vscode.NotebookDocument, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
+		let resolvedOptions: INotebookDocumentShowOptions;
+		if (typeof options === 'object') {
+			resolvedOptions = {
+				position: typeConverters.ViewColumn.from(options.viewColumn),
+				preserveFocus: options.preserveFocus,
+				selection: options.selection,
+				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined
+			};
+		} else {
+			resolvedOptions = {
+				preserveFocus: false
+			};
+		}
+
+		const editorId = await this._proxy.$tryShowNotebookDocument(notebookDocument.uri, notebookDocument.viewType, resolvedOptions);
+		const editor = editorId && this._editors.get(editorId)?.editor;
+
+		if (editor) {
+			return editor;
+		}
+
+		if (editorId) {
+			throw new Error(`Could NOT open editor for "${notebookDocument.toString()}" because another editor opened in the meantime.`);
+		} else {
+			throw new Error(`Could NOT open editor for "${notebookDocument.toString()}".`);
+		}
 	}
 
 	async $provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]> {

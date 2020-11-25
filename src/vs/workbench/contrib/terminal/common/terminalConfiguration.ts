@@ -15,6 +15,11 @@ export const terminalConfiguration: IConfigurationNode = {
 	title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 	type: 'object',
 	properties: {
+		'terminal.integrated.sendKeybindingsToShell': {
+			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
+			type: 'boolean',
+			default: false
+		},
 		'terminal.integrated.automationShell.linux': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',

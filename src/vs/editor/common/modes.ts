@@ -819,10 +819,10 @@ export interface DocumentHighlightProvider {
 }
 
 /**
- * The rename provider interface defines the contract between extensions and
+ * The rename range provider interface defines the contract between extensions and
  * the live-rename feature.
  */
-export interface OnTypeRenameProvider {
+export interface OnTypeRenameRangeProvider {
 
 	/**
 	 * Provide a list of ranges that can be live-renamed together.
@@ -1385,6 +1385,10 @@ export interface WorkspaceFileEditOptions {
 	ignoreIfNotExists?: boolean;
 	ignoreIfExists?: boolean;
 	recursive?: boolean;
+	copy?: boolean;
+	folder?: boolean;
+	skipTrashBin?: boolean;
+	maxSize?: number;
 }
 
 export interface WorkspaceFileEdit {
@@ -1733,7 +1737,7 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
 /**
  * @internal
  */
-export const OnTypeRenameProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameProvider>();
+export const OnTypeRenameRangeProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameRangeProvider>();
 
 /**
  * @internal

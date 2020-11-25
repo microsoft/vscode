@@ -2193,9 +2193,9 @@ export class RelativePattern implements IRelativePattern {
 
 	pattern: string;
 
-	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
+	constructor(base: URI | vscode.WorkspaceFolder | string, pattern: string) {
 		if (typeof base !== 'string') {
-			if (!base || !URI.isUri(base.uri)) {
+			if (!base || !URI.isUri(base) && !URI.isUri(base.uri)) {
 				throw illegalArgument('base');
 			}
 		}
@@ -2206,6 +2206,9 @@ export class RelativePattern implements IRelativePattern {
 
 		if (typeof base === 'string') {
 			this.base = base;
+		} else if (URI.isUri(base)) {
+			this.baseFolder = base;
+			this.base = base.fsPath;
 		} else {
 			this.baseFolder = base.uri;
 			this.base = base.uri.fsPath;
@@ -2720,8 +2723,8 @@ export enum ExtensionKind {
 export class FileDecoration {
 
 	static validate(d: FileDecoration): void {
-		if (d.badge && d.badge.length !== 1) {
-			throw new Error(`The 'badge'-property must be undefined or a single character`);
+		if (d.badge && d.badge.length !== 1 && d.badge.length !== 2) {
+			throw new Error(`The 'badge'-property must be undefined or a short character`);
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
@@ -2897,3 +2900,58 @@ export class OnTypeRenameRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
 	}
 }
+
+//#region Testing
+export enum TestRunState {
+	Unset = 0,
+	Running = 1,
+	Passed = 2,
+	Failed = 3,
+	Skipped = 4,
+	Errored = 5
+}
+
+export enum TestMessageSeverity {
+	Error = 0,
+	Warning = 1,
+	Information = 2,
+	Hint = 3
+}
+
+@es5ClassCompat
+export class TestState {
+	#runState: TestRunState;
+	#duration?: number;
+	#messages: ReadonlyArray<Readonly<vscode.TestMessage>>;
+
+	public get runState() {
+		return this.#runState;
+	}
+
+	public get duration() {
+		return this.#duration;
+	}
+
+	public get messages() {
+		return this.#messages;
+	}
+
+	constructor(runState: TestRunState, messages: vscode.TestMessage[] = [], duration?: number) {
+		this.#runState = runState;
+		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
+		this.#duration = duration;
+	}
+}
+
+type AllowedUndefined = 'description' | 'location';
+
+/**
+ * Test item without any optional properties. Only some properties are
+ * permitted to be undefined, but they must still exist.
+ */
+export type RequiredTestItem = {
+	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
+};
+
+
+//#endregion

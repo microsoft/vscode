@@ -156,6 +156,9 @@ import 'vs/workbench/contrib/performance/browser/performance.contribution';
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
+// Testing
+import 'vs/workbench/contrib/testing/browser/testing.contribution';
+
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
 

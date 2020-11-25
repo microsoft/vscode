@@ -61,6 +61,8 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	isAfterLines(verticalOffset: number): boolean;
+	isInTopPadding(verticalOffset: number): boolean;
+	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;

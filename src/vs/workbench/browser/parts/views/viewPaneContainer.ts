@@ -18,15 +18,15 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PaneView, IPaneViewOptions, IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, defaultViewIcon } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined, isString } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -338,8 +338,8 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 	}
 
-	private getIcon(): string | URI {
-		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || 'codicon-window';
+	private getIcon(): ThemeIcon | URI {
+		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || defaultViewIcon;
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
@@ -357,9 +357,8 @@ export abstract class ViewPane extends Pane implements IView {
 				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
 				-webkit-mask-size: 16px;
 			`);
-		} else if (isString(icon)) {
-			this.iconContainer.classList.add('codicon');
-			cssClass = icon;
+		} else if (ThemeIcon.isThemeIcon(icon)) {
+			cssClass = ThemeIcon.asClassName(icon);
 		}
 
 		if (cssClass) {
@@ -556,9 +555,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.bodyContainer.classList.add('welcome');
 		this.viewWelcomeContainer.innerText = '';
 
-		let buttonIndex = 0;
-
-		for (const { content, preconditions } of contents) {
+		for (const { content, precondition } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -581,21 +578,15 @@ export abstract class ViewPane extends Pane implements IView {
 					disposables.add(button);
 					disposables.add(attachButtonStyler(button, this.themeService));
 
-					if (preconditions) {
-						const precondition = preconditions[buttonIndex];
+					if (precondition) {
+						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+						updateEnablement();
 
-						if (precondition) {
-							const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
-							updateEnablement();
-
-							const keys = new Set();
-							precondition.keys().forEach(key => keys.add(key));
-							const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-							onDidChangeContext(updateEnablement, null, disposables);
-						}
+						const keys = new Set();
+						precondition.keys().forEach(key => keys.add(key));
+						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+						onDidChangeContext(updateEnablement, null, disposables);
 					}
-
-					buttonIndex++;
 				} else {
 					const p = append(this.viewWelcomeContainer, $('p'));
 
@@ -1319,7 +1310,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	saveState(): void {
 		this.panes.forEach((view) => view.saveState());
-		this.storageService.store2(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {

@@ -880,7 +880,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// File
 				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
 				}
 
 				// Resource
@@ -895,6 +895,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// Files
 				else if (!(cachedInput instanceof ResourceEditorInput)) {
 					cachedInput.setPreferredResource(preferredResource);
+
+					if (resourceEditorInput.label) {
+						cachedInput.setPreferredName(resourceEditorInput.label);
+					}
+
+					if (resourceEditorInput.description) {
+						cachedInput.setPreferredDescription(resourceEditorInput.description);
+					}
 
 					if (resourceEditorInput.encoding) {
 						cachedInput.setPreferredEncoding(resourceEditorInput.encoding);

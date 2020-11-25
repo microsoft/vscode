@@ -113,9 +113,9 @@ function isSessionContext(obj: any): obj is CallStackContext {
 
 export function registerCommands(): void {
 
-	// These commands are used in call stack context menu, call stack inline actions, command pallete, debug toolbar, mac native touch bar
+	// These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
 	// When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
-	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command pallete) we do not pass any id and just take whatever is the focussed thread
+	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command palette) we do not pass any id and just take whatever is the focussed thread
 	// Same for stackFrame commands and session commands.
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,

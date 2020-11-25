@@ -18,6 +18,12 @@ export interface ThemeColor {
 	id: string;
 }
 
+export namespace ThemeColor {
+	export function isThemeColor(obj: any): obj is ThemeColor {
+		return obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
+	}
+}
+
 export function themeColorFromId(id: ColorIdentifier) {
 	return { id };
 }
@@ -29,8 +35,8 @@ export interface ThemeIcon {
 }
 
 export namespace ThemeIcon {
-	export function isThemeIcon(obj: any): obj is ThemeIcon | { id: string } {
-		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
+	export function isThemeIcon(obj: any): obj is ThemeIcon {
+		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
 	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
@@ -41,10 +47,26 @@ export namespace ThemeIcon {
 			return undefined;
 		}
 		let [, owner, name] = match;
-		if (!owner) {
-			owner = `codicon/`;
+		if (!owner || owner === 'codicon/') {
+			return { id: name };
 		}
 		return { id: owner + name };
+	}
+
+	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
+		let id = icon.id;
+		const tildeIndex = id.lastIndexOf('~');
+		if (tildeIndex !== -1) {
+			id = id.substring(0, tildeIndex);
+		}
+		if (modifier) {
+			id = `${id}~${modifier}`;
+		}
+		return { id };
+	}
+
+	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
+		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
 	}
 
 	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
@@ -61,6 +83,13 @@ export namespace ThemeIcon {
 			className += ` ${modifier.substr(1)}`;
 		}
 		return className;
+	}
+
+	export function revive(icon: any): ThemeIcon | undefined {
+		if (ThemeIcon.isThemeIcon(icon)) {
+			return { id: icon.id, color: icon.color ? { id: icon.color.id } : undefined };
+		}
+		return undefined;
 	}
 }
 

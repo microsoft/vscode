@@ -32,7 +32,6 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -186,6 +185,7 @@ export class ActionWithDropDownAction extends ExtensionAction {
 		super(id, label);
 		this.update();
 		this._register(Event.any(...actions.map(a => a.onDidChange))(() => this.update(true)));
+		actions.forEach(a => this._register(a));
 	}
 
 	update(donotUpdateActions?: boolean): void {
@@ -960,6 +960,11 @@ export class ExtensionEditorManageExtensionAction extends ExtensionDropDownActio
 	run(): Promise<any> {
 		const actionGroups: IAction[][] = [];
 		getContextMenuActions(this.extension, true, this.instantiationService).forEach(actions => actionGroups.push(actions));
+		actionGroups.forEach(group => group.forEach(extensionAction => {
+			if (extensionAction instanceof ExtensionAction) {
+				extensionAction.extension = this.extension;
+			}
+		}));
 		return super.run({ actionGroups, disposeActionsOnHide: true });
 	}
 
@@ -1104,7 +1109,7 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 	static readonly ID = 'extensions.disableForWorkspace';
 	static readonly LABEL = localize('disableForWorkspaceAction', "Disable (Workspace)");
 
-	constructor(readonly runningExtensions: IExtensionDescription[],
+	constructor(private _runningExtensions: IExtensionDescription[],
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
@@ -1113,9 +1118,14 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 		this.update();
 	}
 
+	set runningExtensions(runningExtensions: IExtensionDescription[]) {
+		this._runningExtensions = runningExtensions;
+		this.update();
+	}
+
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
+		if (this.extension && this.extension.local && this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
@@ -1135,7 +1145,8 @@ export class DisableGloballyAction extends ExtensionAction {
 	static readonly ID = 'extensions.disableGlobally';
 	static readonly LABEL = localize('disableGloballyAction', "Disable");
 
-	constructor(readonly runningExtensions: IExtensionDescription[],
+	constructor(
+		private _runningExtensions: IExtensionDescription[],
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
@@ -1143,9 +1154,14 @@ export class DisableGloballyAction extends ExtensionAction {
 		this.update();
 	}
 
+	set runningExtensions(runningExtensions: IExtensionDescription[]) {
+		this._runningExtensions = runningExtensions;
+		this.update();
+	}
+
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))) {
+		if (this.extension && this.extension.local && this._runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
@@ -1175,13 +1191,21 @@ export class EnableDropDownAction extends ActionWithDropDownAction {
 export class DisableDropDownAction extends ActionWithDropDownAction {
 
 	constructor(
-		runningExtensions: IExtensionDescription[],
+		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('extensions.disable', localize('disableAction', "Disable"), [
-			instantiationService.createInstance(DisableGloballyAction, runningExtensions),
-			instantiationService.createInstance(DisableForWorkspaceAction, runningExtensions)
-		]);
+		const actions = [
+			instantiationService.createInstance(DisableGloballyAction, []),
+			instantiationService.createInstance(DisableForWorkspaceAction, [])
+		];
+		super('extensions.disable', localize('disableAction', "Disable"), actions);
+
+		const updateRunningExtensions = async () => {
+			const runningExtensions = await extensionService.getExtensions();
+			actions.forEach(a => a.runningExtensions = runningExtensions);
+		};
+		updateRunningExtensions();
+		this._register(extensionService.onDidChangeExtensions(() => updateRunningExtensions()));
 	}
 
 }
@@ -1779,18 +1803,17 @@ export class ClearExtensionsInputAction extends ClearExtensionsSearchResultsActi
 		id: string,
 		label: string,
 		onSearchChange: Event<string>,
-		value: string,
+		getValue: () => string,
 		@IViewsService viewsService: IViewsService
 	) {
 		super(id, label, viewsService);
-		this.onSearchChange(value);
+		this.onSearchChange(getValue());
 		this._register(onSearchChange(this.onSearchChange, this));
 	}
 
 	private onSearchChange(value: string): void {
 		this.enabled = !!value;
 	}
-
 }
 
 export class RefreshExtensionsAction extends Action {
@@ -1810,7 +1833,7 @@ export class RefreshExtensionsAction extends Action {
 		const viewPaneContainer = this.viewsService.getActiveViewPaneContainerWithId(VIEWLET_ID);
 		if (viewPaneContainer) {
 			const extensionsViewPaneContainer = viewPaneContainer as IExtensionsViewPaneContainer;
-			extensionsViewPaneContainer.refresh();
+			return extensionsViewPaneContainer.refresh();
 		}
 	}
 }
@@ -3195,20 +3218,20 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 });
 
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
-	dark: '#327e36',
-	light: '#327e36',
+	dark: buttonBackground,
+	light: buttonBackground,
 	hc: null
 }, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
-	dark: Color.white,
-	light: Color.white,
+	dark: buttonForeground,
+	light: buttonForeground,
 	hc: null
 }, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
-	dark: '#28632b',
-	light: '#28632b',
+	dark: buttonHoverBackground,
+	light: buttonHoverBackground,
 	hc: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
