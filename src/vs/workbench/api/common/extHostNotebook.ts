@@ -214,7 +214,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _proxy: MainThreadNotebookShape;
 	private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape;
 	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
-	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
@@ -514,28 +513,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			return adapter.cancelNotebook(kernelId, document, cell);
 		});
-	}
-
-	async $executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-
-		if (!document || document.notebookDocument.viewType !== viewType) {
-			return;
-		}
-
-		const kernelInfo = this._notebookKernels.get(kernelId);
-
-		if (!kernelInfo) {
-			return;
-		}
-
-		const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
-
-		if (cell) {
-			return withToken(token => (kernelInfo!.kernel.executeCell as any)(document.notebookDocument, cell.cell, token));
-		} else {
-			return withToken(token => (kernelInfo!.kernel.executeAllCells as any)(document.notebookDocument, token));
-		}
 	}
 
 	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
