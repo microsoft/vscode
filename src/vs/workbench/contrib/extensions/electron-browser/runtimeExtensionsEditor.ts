@@ -20,7 +20,6 @@ import { append, $, reset, Dimension, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -36,17 +35,17 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderCodicons } from 'vs/base/browser/codicons';
-import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-browser/reportExtensionIssueAction';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -122,10 +121,6 @@ export class RuntimeExtensionsEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IProductService private readonly _productService: IProductService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -344,7 +339,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 					data.actionbar.push(this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile), { icon: true, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService, this._productService, this._nativeHostService), { icon: true, label: true });
+					data.actionbar.push(this._instantiationService.createInstance(ReportExtensionIssueAction, element), { icon: true, label: true });
 				}
 
 				let title: string;
@@ -459,7 +454,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 
 			const actions: IAction[] = [];
 
-			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService, this._nativeHostService));
+			actions.push(this._instantiationService.createInstance(ReportExtensionIssueAction, e.element));
 			actions.push(new Separator());
 
 			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
@@ -509,68 +504,6 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 }
 
-export class ReportExtensionIssueAction extends Action {
-
-	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
-	private static readonly _label = nls.localize('reportExtensionIssue', "Report Issue");
-
-	private _url: string | undefined;
-
-	constructor(
-		private extension: {
-			description: IExtensionDescription;
-			marketplaceInfo: IExtension;
-			status?: IExtensionsStatus;
-			unresponsiveProfile?: IExtensionHostProfile
-		},
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IProductService private readonly productService: IProductService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
-	) {
-		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
-		this.enabled = !!extension.description.repository && !!extension.description.repository.url;
-	}
-
-	async run(): Promise<void> {
-		if (!this._url) {
-			this._url = await this._generateNewIssueUrl(this.extension);
-		}
-		this.openerService.open(URI.parse(this._url));
-	}
-
-	private async _generateNewIssueUrl(extension: {
-		description: IExtensionDescription;
-		marketplaceInfo: IExtension;
-		status?: IExtensionsStatus;
-		unresponsiveProfile?: IExtensionHostProfile
-	}): Promise<string> {
-		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
-		if (!!baseUrl) {
-			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
-		} else {
-			baseUrl = this.productService.reportIssueUrl!;
-		}
-
-		let reason = 'Bug';
-		let title = 'Extension issue';
-		let message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
-		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
-
-		const os = await this.nativeHostService.getOSProperties();
-		const osVersion = `${os.type} ${os.arch} ${os.release}`;
-		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-		const body = encodeURIComponent(
-			`- Issue Type: \`${reason}\`
-- Extension Name: \`${extension.description.name}\`
-- Extension Version: \`${extension.description.version}\`
-- OS Version: \`${osVersion}\`
-- VSCode version: \`${this.productService.version}\`\n\n${message}`
-		);
-
-		return `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`;
-	}
-}
 
 export class DebugExtensionHostAction extends Action {
 	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
