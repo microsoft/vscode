@@ -3,11 +3,13 @@ steps:
       mkdir -p .build
       echo -n $BUILD_SOURCEVERSION > .build/commit
       echo -n $VSCODE_QUALITY > .build/quality
+      echo -n $ENABLE_TERRAPIN > .build/terrapin
+      echo -n "alpine" > .build/arch
     displayName: Prepare cache flag
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      keyfile: "build/.cachesalt, .build/commit, .build/quality"
+      keyfile: "build/.cachesalt, .build/commit, .build/quality, .build/terrapin"
       targetfolder: ".build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min"
       vstsFeed: "npm-vscode"
       platformIndependent: true
@@ -62,16 +64,17 @@ steps:
       git merge $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
+  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
+    inputs:
+      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
+      vstsFeed: "npm-vscode"
+
   - script: |
       npx https://aka.ms/enablesecurefeed standAlone
     displayName: Switch to Terrapin packages
     timeoutInMinutes: 5
-
-  - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
-    inputs:
-      keyfile: "build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
-      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
-      vstsFeed: "npm-vscode"
+    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
 
   - script: |
       set -e
@@ -86,7 +89,7 @@ steps:
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
     inputs:
-      keyfile: "build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
