@@ -127,14 +127,11 @@
 	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
 	 */
 	function setupNLS() {
-		if (!path || !fs || typeof process === 'undefined') {
-			console.warn('setupNLS() is only available in node.js environments');
-			return { availableLanguages: {} }; // TODO@sandbox NLS is currently non-sandboxed only
-		}
 
-		// Get the nls configuration into the process.env as early as possible.
+		// Get the nls configuration as early as possible.
+		const process = safeProcess();
 		let nlsConfig = { availableLanguages: {} };
-		if (process.env['VSCODE_NLS_CONFIG']) {
+		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
 				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 			} catch (e) {
@@ -153,8 +150,7 @@
 					return;
 				}
 
-				const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`);
-				fs.promises.readFile(bundleFile, 'utf8').then(function (content) {
+				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
 					const json = JSON.parse(content);
 					bundles[bundle] = json;
 
@@ -162,7 +158,7 @@
 				}).catch((error) => {
 					try {
 						if (nlsConfig._corruptedFile) {
-							fs.promises.writeFile(nlsConfig._corruptedFile, 'corrupted', 'utf8').catch(function (error) { console.error(error); });
+							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
 						}
 					} finally {
 						cb(error, undefined);
@@ -267,14 +263,69 @@
 		global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
 	}
 
-	function safeProcess() {
+	function safeGlobals() {
 		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
+		return globals.vscode;
+	}
+
+	/**
+	 * @returns {NodeJS.Process | undefined}
+	 */
+	function safeProcess() {
 		if (typeof process !== 'undefined') {
 			return process; // Native environment (non-sandboxed)
-		} else if (typeof globals.vscode !== 'undefined') {
-			return globals.vscode.process; // Native environment (sandboxed)
 		}
+
+		const globals = safeGlobals();
+		if (globals) {
+			return globals.process; // Native environment (sandboxed)
+		}
+	}
+
+	/**
+	 * @returns {Electron.IpcRenderer | undefined}
+	 */
+	function safeIpcRenderer() {
+		const globals = safeGlobals();
+		if (globals) {
+			return globals.ipcRenderer;
+		}
+	}
+
+	/**
+	 * @param {string[]} pathSegments
+	 * @returns {Promise<string>}
+	 */
+	async function safeReadNlsFile(...pathSegments) {
+		const ipcRenderer = safeIpcRenderer();
+		if (ipcRenderer) {
+			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
+		}
+
+		if (fs && path) {
+			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
+		}
+
+		throw new Error('Unsupported operation (read NLS files)');
+	}
+
+	/**
+	 * @param {string} path
+	 * @param {string} content
+	 * @returns {Promise<void>}
+	 */
+	function safeWriteNlsFile(path, content) {
+		const ipcRenderer = safeIpcRenderer();
+		if (ipcRenderer) {
+			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+		}
+
+		if (fs) {
+			return fs.promises.writeFile(path, content);
+		}
+
+		throw new Error('Unsupported operation (write NLS files)');
 	}
 
 	//#endregion
