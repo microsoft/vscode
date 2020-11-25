@@ -66,8 +66,6 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { GettingStartedCategory, GettingStartedRegistry } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
-import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2100,8 +2098,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -2112,7 +2109,6 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 			.then(viewlet => {
 				viewlet.search('@recommended:keymaps ');
 				viewlet.focus();
-				this.gettingStartedService.progressTask(findKeybindingsExtensionsTask);
 			});
 	}
 }
@@ -2125,8 +2121,7 @@ export class ShowLanguageExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -2137,7 +2132,6 @@ export class ShowLanguageExtensionsAction extends Action {
 			.then(viewlet => {
 				viewlet.search('@category:"programming languages" @sort:installs ');
 				viewlet.focus();
-				this.gettingStartedService.progressTask(findLanguageExtensionsTask);
 			});
 	}
 }
@@ -3198,31 +3192,6 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		await Promise.all(vsixs.map(vsix => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.install(vsix)));
 	}
 }
-
-const findKeybindingsExtensionsTask = GettingStartedRegistry.registerTask({
-	category: GettingStartedCategory.Beginner,
-	description: localize('findKeybindingsTask.description', "Find keyboard shortcuts for Vim, Sublime, Atom and others."),
-	id: 'findKeybindingsExtensions',
-	title: localize('findKeybindingsTask.title', "Configure Keybindings"),
-	order: 1,
-	button: {
-		title: localize('findKeybindingsTask.button', "Search for Keymaps'"),
-		command: ShowRecommendedKeymapExtensionsAction.ID
-	},
-});
-
-const findLanguageExtensionsTask = GettingStartedRegistry.registerTask({
-	category: GettingStartedCategory.Beginner,
-	description: localize('findLanguageExtsTask.description', "Get support for your languages like JavaScript, Python, Java, Azure, Docker, and more."),
-	id: 'findLanguageExtensions',
-	title: localize('findLanguageExtsTask.title', "Languages & Tools"),
-	order: 2,
-	button: {
-		title: localize('findLanguageExtsTask.button', "Install Language Support"),
-		command: ShowLanguageExtensionsAction.ID,
-	}
-});
-
 
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
 	const viewletService = accessor.get(IViewletService);

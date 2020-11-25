@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import * as nls from 'vs/nls';
+import { FileAccess } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { content } from 'vs/workbench/services/gettingStarted/common/gettingStartedContent';
 
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
@@ -22,49 +25,49 @@ export const enum GettingStartedPriority {
 }
 
 export interface IGettingStartedTask {
-	readonly id: string,
-	readonly title: string,
-	readonly description: string,
-	readonly order: number,
-	readonly category: GettingStartedCategory | string,
-	readonly button?: { title: string, command: string }
-	readonly detail?: { editor?: { lang: string, text: string }, steps?: string[] }
+	id: string,
+	title: string,
+	description: string,
+	category: GettingStartedCategory | string,
+	when: ContextKeyExpression,
+	order: number,
+	button: { title: string, command: string },
+	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
+	media: URI
 }
 
 export interface IGettingStartedCategoryDescriptor {
-	id: GettingStartedCategory | string,
-	title: string,
-	description: string,
-	icon: string
-	priority: GettingStartedPriority | number
+	id: GettingStartedCategory | string
+	title: string
+	description: string
+	codicon: string
+	when: ContextKeyExpression
+	content:
+	| { type: 'items' }
+	| { type: 'command', command: string }
 }
 
 export interface IGettingStartedCategory {
-	readonly id: GettingStartedCategory | string,
-	readonly title: string,
-	readonly description: string,
-	readonly icon: string
-	readonly priority: GettingStartedPriority | number
-	readonly tasks: readonly Readonly<IGettingStartedTask>[]
-}
-
-interface IWritableGettingStartedCategory {
-	id: GettingStartedCategory | string,
-	title: string,
-	description: string,
-	icon: string
-	priority: GettingStartedPriority | number
-	tasks: IGettingStartedTask[]
+	id: GettingStartedCategory | string
+	title: string
+	description: string
+	codicon: string
+	when: ContextKeyExpression
+	content:
+	| { type: 'items', items: IGettingStartedTask[] }
+	| { type: 'command', command: string }
 }
 
 export interface IGettingStartedRegistry {
-	onDidAddTask: Event<IGettingStartedTask>
 	onDidAddCategory: Event<IGettingStartedCategory>
+	onDidAddTask: Event<IGettingStartedTask>
 
 	registerTask(task: IGettingStartedTask): IGettingStartedTask;
-	registerCategory(categoryDescriptor: IGettingStartedCategoryDescriptor): void
+	getTask(id: string): IGettingStartedTask
 
+	registerCategory(categoryDescriptor: IGettingStartedCategoryDescriptor): void
 	getCategory(id: GettingStartedCategory | string): Readonly<IGettingStartedCategory> | undefined
+
 	getCategories(): readonly Readonly<IGettingStartedCategory>[]
 }
 
@@ -74,12 +77,16 @@ export class GettingStartedRegistryImpl implements IGettingStartedRegistry {
 	private readonly _onDidAddCategory = new Emitter<IGettingStartedCategory>();
 	onDidAddCategory: Event<IGettingStartedCategory> = this._onDidAddCategory.event;
 
-	private readonly gettingStartedContributions = new Map<string, IWritableGettingStartedCategory>();
+	private readonly gettingStartedContributions = new Map<string, IGettingStartedCategory>();
+	private readonly tasks = new Map<string, IGettingStartedTask>();
 
 	public registerTask(task: IGettingStartedTask): IGettingStartedTask {
 		const category = this.gettingStartedContributions.get(task.category);
 		if (!category) { throw Error('Registering getting started task to category that does not exist (' + task.category + ')'); }
-		category.tasks.push(task);
+		if (category.content.type !== 'items') { throw Error('Registering getting started task to category that is not of `items` type (' + task.category + ')'); }
+		if (this.tasks.has(task.id)) { throw Error('Attempting to register task with id ' + task.id + ' twice. Second is dropped.'); }
+		this.tasks.set(task.id, task);
+		category.content.items.push(task);
 		this._onDidAddTask.fire(task);
 		return task;
 	}
@@ -90,7 +97,14 @@ export class GettingStartedRegistryImpl implements IGettingStartedRegistry {
 			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor})`);
 			return;
 		}
-		const category: IWritableGettingStartedCategory = { ...categoryDescriptor, tasks: [], };
+
+		const category: IGettingStartedCategory = {
+			...categoryDescriptor,
+			content: categoryDescriptor.content.type === 'items'
+				? { type: 'items', items: [] }
+				: categoryDescriptor.content
+		};
+
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
 		this._onDidAddCategory.fire(category);
 	}
@@ -99,38 +113,42 @@ export class GettingStartedRegistryImpl implements IGettingStartedRegistry {
 		return this.gettingStartedContributions.get(id);
 	}
 
+	public getTask(id: string): IGettingStartedTask {
+		const task = this.tasks.get(id);
+		if (!task) { throw Error('Attempting to access task which does not exist in registry ' + id); }
+		return task;
+	}
+
 	public getCategories(): readonly Readonly<IGettingStartedCategory>[] {
-		const categories = [...this.gettingStartedContributions.values()];
-		return categories.sort((a, b) => a.priority - b.priority);
+		return [...this.gettingStartedContributions.values()];
+
 	}
 }
 
 export const GettingStartedRegistryID = 'GettingStartedRegistry';
 const registryImpl = new GettingStartedRegistryImpl();
+
+content.forEach(category => {
+
+	registryImpl.registerCategory({
+		...category,
+		when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
+	});
+
+	if (category.content.type === 'items') {
+		category.content.items.forEach((item, index) => {
+			registryImpl.registerTask({
+				...item,
+				category: category.id,
+				order: index,
+				when: ContextKeyExpr.deserialize(item.when) ?? ContextKeyExpr.true(),
+				media: item.media.startsWith('https://')
+					? URI.parse(item.media, true)
+					: FileAccess.asFileUri('vs/workbench/services/gettingStarted/common/media/' + item.media, require)
+			});
+		});
+	}
+});
+
 Registry.add(GettingStartedRegistryID, registryImpl);
 export const GettingStartedRegistry: IGettingStartedRegistry = Registry.as(GettingStartedRegistryID);
-
-GettingStartedRegistry.registerCategory({
-	id: GettingStartedCategory.Beginner,
-	title: nls.localize('gettingStarted.beginner.title', "Get Started"),
-	icon: 'lightbulb',
-	description: nls.localize('gettingStarted.beginner.description', "Get to know your new Editor"),
-	priority: GettingStartedPriority.Beginner,
-});
-
-
-GettingStartedRegistry.registerCategory({
-	id: GettingStartedCategory.Intermediate,
-	title: nls.localize('gettingStarted.intermediate.title', "Essentials"),
-	icon: 'heart',
-	description: nls.localize('gettingStarted.intermediate.description', "Must know features you'll love"),
-	priority: GettingStartedPriority.Intermediate,
-});
-
-GettingStartedRegistry.registerCategory({
-	id: GettingStartedCategory.Advanced,
-	title: nls.localize('gettingStarted.advanced.title', "Tips & Tricks"),
-	icon: 'tools',
-	description: nls.localize('gettingStarted.advanced.description', "Favorites from VS Code experts"),
-	priority: GettingStartedPriority.Advanced,
-});

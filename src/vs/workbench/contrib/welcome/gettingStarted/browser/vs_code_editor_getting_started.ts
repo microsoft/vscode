@@ -14,7 +14,7 @@ export default () => `
 				<div class="product-icon"></div>
 				<div class="title">
 					<h1 class="caption"><span id="product-name">${escape(localize('gettingStarted.vscode', "Visual Studio Code"))}</span></h1>
-					<p class="subtitle detail">${escape(localize({ key: 'gettingStarted.editingRedefined', comment: ['Shown as subtitle on the Welcome page.'] }, "Code editing. Redefined"))}</p>
+					<p class="subtitle description">${escape(localize({ key: 'gettingStarted.editingRedefined', comment: ['Shown as subtitle on the Welcome page.'] }, "Code editing. Redefined"))}</p>
 				</div>
 			</div>
 			<div id="getting-started-categories-container"></div>

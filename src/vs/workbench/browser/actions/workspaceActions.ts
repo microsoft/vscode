@@ -23,10 +23,6 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { GettingStartedCategory, GettingStartedRegistryID, IGettingStartedRegistry } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
-import product from 'vs/platform/product/common/product';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 
 export class OpenFileAction extends Action {
 
@@ -54,15 +50,13 @@ export class OpenFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private readonly dialogService: IFileDialogService,
-		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
 
-	async run(event?: unknown, data?: ITelemetryData): Promise<void> {
-		await this.dialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
-		this.gettingStartedService.progressTask(pickAFolderTask);
+	run(event?: unknown, data?: ITelemetryData): Promise<void> {
+		return this.dialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -74,15 +68,13 @@ export class OpenFileFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IFileDialogService private readonly dialogService: IFileDialogService,
-		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
 
-	async run(event?: unknown, data?: ITelemetryData): Promise<void> {
-		await this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
-		this.gettingStartedService.progressTask(pickAFolderTask);
+	run(event?: unknown, data?: ITelemetryData): Promise<void> {
+		return this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -321,20 +313,4 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	},
 	order: 3,
 	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), EmptyWorkspaceSupportContext)
-});
-
-// --- Getting Started Tasks Registration
-
-const gettingStartedRegistry = Registry.as<IGettingStartedRegistry>(GettingStartedRegistryID);
-
-const pickAFolderTask = gettingStartedRegistry.registerTask({
-	category: GettingStartedCategory.Beginner,
-	description: nls.localize('gettingStartedOpenFolder.description', "Open a project folder to get started with {0}!", product.nameLong),
-	id: 'pickAFolder',
-	title: nls.localize('gettingStartedOpenFolder.title', "Open Folder"),
-	order: 3,
-	button: {
-		title: nls.localize('gettingStartedOpenFolder.button', "Pick a Folder"),
-		command: isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID
-	},
 });

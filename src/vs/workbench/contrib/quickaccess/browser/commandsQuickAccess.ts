@@ -30,8 +30,6 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { GettingStartedCategory, GettingStartedRegistry } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
-import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -172,7 +170,6 @@ export class ShowAllCommandsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		accessor.get(IQuickInputService).quickAccess.show(CommandsQuickAccessProvider.PREFIX);
-		accessor.get(IGettingStartedService).progressTask(findLanguageExtensionsTask);
 	}
 }
 
@@ -196,21 +193,5 @@ export class ClearCommandHistoryAction extends Action2 {
 		}
 	}
 }
-
-//#endregion
-
-//#region Getting Started Tasks
-
-const findLanguageExtensionsTask = GettingStartedRegistry.registerTask({
-	category: GettingStartedCategory.Intermediate,
-	description: localize('commandPaletteTask.description', "The easiest way to find everything VS Code can do. If you\'re ever looking for a feature, check here first!"),
-	id: 'findLanguageExtensions',
-	title: localize('commandPaletteTask.title', "Command Palette"),
-	order: 0,
-	button: {
-		title: localize('commandPaletteTask.button', "View All Commands"),
-		command: ShowAllCommandsAction.ID
-	},
-});
 
 //#endregion
