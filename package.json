@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.52.0",
-  "distro": "8c7413ba1917b58eecc155ef75a6fa8b8e247267",
+  "distro": "4efc01d229d8c6ca0a14e80b89c7587fcb6cb59b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -44,7 +44,8 @@
     "web": "node resources/web/code-web.js",
     "compile-web": "gulp compile-web --max_old_space_size=4095",
     "watch-web": "gulp watch-web --max_old_space_size=4095",
-    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
+    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.0.2"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -54,12 +55,12 @@
     "https-proxy-agent": "^2.2.3",
     "iconv-lite-umd": "0.6.8",
     "jschardet": "2.2.1",
-    "keytar": "^5.5.0",
+    "keytar": "7.2.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
-    "native-keymap": "2.2.0",
+    "native-keymap": "2.2.1",
     "native-watchdog": "1.3.0",
-    "node-pty": "0.10.0-beta17",
+    "node-pty": "0.10.0-beta18",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
     "tas-client-umd": "0.1.2",
@@ -67,7 +68,8 @@
     "vscode-nsfw": "1.2.9",
     "vscode-oniguruma": "1.3.1",
     "vscode-proxy-agent": "^0.5.2",
-    "vscode-ripgrep": "^1.11.0",
+    "vscode-regexpp": "^3.1.0",
+    "vscode-ripgrep": "^1.11.1",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
     "xterm": "4.10.0-beta.4",
@@ -110,7 +112,8 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "9.3.3",
+    "electron": "11.0.2",
+    "electron-rebuild": "2.0.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "eslint-plugin-mocha": "8.0.0",
@@ -167,7 +170,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^4.4.2",
     "tsec": "googleinterns/tsec",
-    "typescript": "^4.2.0-dev.20201104",
+    "typescript": "^4.2.0-dev.20201119",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
@@ -188,7 +191,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.2.0",
+    "vscode-windows-ca-certs": "^0.3.0",
     "vscode-windows-registry": "1.0.3",
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",

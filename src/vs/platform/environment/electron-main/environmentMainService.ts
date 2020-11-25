@@ -35,7 +35,7 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	disableUpdates: boolean;
 }
 
-export class EnvironmentMainService extends NativeEnvironmentService {
+export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
 
 	@memoize
 	get backupHome(): string { return join(this.userDataPath, 'Backups'); }

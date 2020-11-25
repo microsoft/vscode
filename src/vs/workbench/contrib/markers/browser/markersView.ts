@@ -51,6 +51,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -107,6 +108,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
@@ -124,7 +126,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 		this.setCurrentActiveEditor();
 
-		this.filter = new Filter(new FilterOptions());
+		this.filter = new Filter(FilterOptions.EMPTY(uriIdentityService));
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
 
 		// actions
@@ -225,7 +227,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						group: 'navigation',
 						order: Number.MAX_SAFE_INTEGER,
 					},
-					icon: { id: 'codicon/collapse-all' }
+					icon: Codicon.collapseAll
 				});
 			}
 			async run(): Promise<void> {
@@ -365,7 +367,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private updateFilter() {
 		this.cachedFilterStats = undefined;
-		this.filter.options = new FilterOptions(this.filters.filterText, this.getFilesExcludeExpressions(), this.filters.showWarnings, this.filters.showErrors, this.filters.showInfos);
+		this.filter.options = new FilterOptions(this.filters.filterText, this.getFilesExcludeExpressions(), this.filters.showWarnings, this.filters.showErrors, this.filters.showInfos, this.uriIdentityService);
 		if (this.tree) {
 			this.tree.refilter();
 		}

@@ -27,7 +27,7 @@ import type { ServicesAccessor } from 'vs/platform/instantiation/common/instanti
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -169,7 +169,7 @@ registerAction2(class ApplyAction extends Action2 {
 			id: 'refactorPreview.apply',
 			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/check' },
+			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -203,7 +203,7 @@ registerAction2(class DiscardAction extends Action2 {
 			id: 'refactorPreview.discard',
 			title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/clear-all' },
+			icon: Codicon.clearAll,
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -264,7 +264,7 @@ registerAction2(class GroupByFile extends Action2 {
 			id: 'refactorPreview.groupByFile',
 			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/ungroup-by-ref-type' },
+			icon: Codicon.ungroupByRefType,
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -291,7 +291,7 @@ registerAction2(class GroupByType extends Action2 {
 			id: 'refactorPreview.groupByType',
 			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/group-by-ref-type' },
+			icon: Codicon.groupByRefType,
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
 				id: MenuId.BulkEditTitle,
@@ -318,7 +318,7 @@ registerAction2(class ToggleGrouping extends Action2 {
 			id: 'refactorPreview.toggleGrouping',
 			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
 			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
-			icon: { id: 'codicon/list-tree' },
+			icon: Codicon.listTree,
 			toggled: BulkEditPane.ctxGroupByFile.negate(),
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
@@ -341,6 +341,8 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	BulkEditPreviewContribution, LifecyclePhase.Ready
 );
 
+const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codicon.lightbulb, localize('refactorPreviewViewIcon', 'View icon of the refactor preview view.'));
+
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,
 	name: localize('panel', "Refactor Preview"),
@@ -349,7 +351,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 		ViewPaneContainer,
 		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
 	),
-	icon: Codicon.lightbulb.classNames,
+	icon: refactorPreviewViewIcon,
 	storageId: BulkEditPane.ID
 }, ViewContainerLocation.Panel);
 
@@ -358,5 +360,5 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	name: localize('panel', "Refactor Preview"),
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
-	containerIcon: Codicon.lightbulb.classNames,
+	containerIcon: refactorPreviewViewIcon,
 }], container);

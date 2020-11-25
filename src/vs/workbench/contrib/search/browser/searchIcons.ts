@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { localize } from 'vs/nls';
 
 export const searchDetailsIcon = registerIcon('search-details', Codicon.ellipsis);
 
@@ -20,7 +21,7 @@ export const searchExpandAllIcon = registerIcon('search-expand-results', Codicon
 export const searchClearIcon = registerIcon('search-clear-results', Codicon.clearAll);
 export const searchStopIcon = Codicon.searchStop;
 
-export const searchViewIcon = Codicon.search;
+export const searchViewIcon = registerIcon('search-view-icon', Codicon.search, localize('searchViewIcon', 'View icon of the search view.'));
 
 export const searchNewEditorIcon = registerIcon('search-new-editor', Codicon.newFile);
 export const searchGotoFileIcon = registerIcon('search-goto-file', Codicon.goToFile);

@@ -52,6 +52,7 @@
 	"command.branchFrom": "Create Branch From...",
 	"command.deleteBranch": "Delete Branch...",
 	"command.renameBranch": "Rename Branch...",
+	"command.cherryPick": "Cherry Pick...",
 	"command.merge": "Merge Branch...",
 	"command.rebase": "Rebase Branch...",
 	"command.createTag": "Create Tag",
@@ -68,6 +69,7 @@
 	"command.pushToForce": "Push to... (Force)",
 	"command.pushFollowTags": "Push (Follow Tags)",
 	"command.pushFollowTagsForce": "Push (Follow Tags, Force)",
+	"command.pushTags": "Push Tags",
 	"command.addRemote": "Add Remote...",
 	"command.removeRemote": "Remove Remote",
 	"command.sync": "Sync",
@@ -122,6 +124,7 @@
 	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
 	"config.decorations.enabled": "Controls whether Git contributes colors and badges to the explorer and the open editors view.",
 	"config.enableStatusBarSync": "Controls whether the Git Sync command appears in the status bar.",
+	"config.followTagsWhenSync": "Follow push all tags when running the sync command.",
 	"config.promptToSaveFilesBeforeStash": "Controls whether Git should check for unsaved files before stashing changes.",
 	"config.promptToSaveFilesBeforeStash.always": "Check for any unsaved files.",
 	"config.promptToSaveFilesBeforeStash.staged": "Check only for unsaved staged files.",
@@ -176,6 +179,7 @@
 	"config.timeline.date": "Controls which date to use for items in the Timeline view",
 	"config.timeline.date.committed": "Use the committed date",
 	"config.timeline.date.authored": "Use the authored date",
+	"config.useCommitInputAsStashMessage": "Controls whether to use the message from the commit input box as the default stash message.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -201,5 +205,5 @@
 	"view.workbench.scm.folder": "The folder currently open doesn't have a git repository. You can initialize a repository which will enable source control features powered by git.\n[Initialize Repository](command:git.init?%5Btrue%5D)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 	"view.workbench.scm.workspace": "The workspace currently open doesn't have any folders containing git repositories. You can initialize a repository on a folder which will enable source control features powered by git.\n[Initialize Repository](command:git.init)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 	"view.workbench.scm.emptyWorkspace": "The workspace currently open doesn't have any folders containing git repositories.\n[Add Folder to Workspace](command:workbench.action.addRootFolder)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
-	"view.workbench.cloneRepository": "You can also clone a repository from a URL. To learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).\n[Clone Repository](command:git.clone)"
+	"view.workbench.cloneRepository": "You can also clone a repository from a URL. To learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')"
 }

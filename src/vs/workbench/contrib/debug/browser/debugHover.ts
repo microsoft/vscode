@@ -32,6 +32,7 @@ import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -103,6 +104,8 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
+		const tip = dom.append(this.complexValueContainer, $('.tip'));
+		tip.textContent = nls.localize('quickTip', 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
 		const dataSource = new DebugHoverDataSource();
 
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],

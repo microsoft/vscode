@@ -25,7 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { forEach } from 'vs/base/common/collections';
+import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 interface IExtensionResourceMergeResult extends IAcceptResult {
@@ -363,9 +363,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				// Builtin Extension Sync: Enablement & State
 				if (installedExtension && installedExtension.isBuiltin) {
 					if (e.state && installedExtension.manifest.version === e.version) {
-						const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
-						forEach(e.state, ({ key, value }) => extensionState[key] = value);
-						this.storageService.store2(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+						this.updateExtensionState(e.state, e.identifier.id, installedExtension.manifest.version);
 					}
 					if (e.disabled) {
 						this.logService.trace(`${this.syncResourceLogLabel}: Disabling extension...`, e.identifier.id);
@@ -391,9 +389,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					(installedExtension ? installedExtension.manifest.version === e.version /* Installed and has same version */
 						: !!extension /* Installable */)
 				) {
-					const extensionState = JSON.parse(this.storageService.get(e.identifier.id, StorageScope.GLOBAL) || '{}');
-					forEach(e.state, ({ key, value }) => extensionState[key] = value);
-					this.storageService.store2(e.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.updateExtensionState(e.state, e.identifier.id, installedExtension?.manifest.version);
 				}
 
 				if (extension) {
@@ -440,6 +436,17 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return newSkippedExtensions;
 	}
 
+	private updateExtensionState(state: IStringDictionary<any>, id: string, version?: string): void {
+		const extensionState = JSON.parse(this.storageService.get(id, StorageScope.GLOBAL) || '{}');
+		const keys = version ? this.extensionsStorageSyncService.getKeysForSync({ id, version }) : undefined;
+		if (keys) {
+			keys.forEach(key => extensionState[key] = state[key]);
+		} else {
+			forEach(state, ({ key, value }) => extensionState[key] = value);
+		}
+		this.storageService.store(id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	}
+
 	private parseExtensions(syncData: ISyncData): ISyncExtension[] {
 		return JSON.parse(syncData.content);
 	}
@@ -456,9 +463,16 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					syncExntesion.installed = true;
 				}
 				try {
-					const state = this.extensionsStorageSyncService.getStorageForSync({ id: identifier.id, version: manifest.version });
-					if (state) {
-						syncExntesion.state = state;
+					const keys = this.extensionsStorageSyncService.getKeysForSync({ id: identifier.id, version: manifest.version });
+					if (keys) {
+						const extensionStorageValue = this.storageService.get(identifier.id, StorageScope.GLOBAL) || '{}';
+						const extensionStorageState = JSON.parse(extensionStorageValue);
+						syncExntesion.state = Object.keys(extensionStorageState).reduce((state: IStringDictionary<any>, key) => {
+							if (keys.includes(key)) {
+								state[key] = extensionStorageState[key];
+							}
+							return state;
+						}, {});
 					}
 				} catch (error) {
 					this.logService.info(`${this.syncResourceLogLabel}: Error while parsing extension state`, getErrorMessage(error));
@@ -490,6 +504,11 @@ export class ExtensionsInitializer extends AbstractInitializer {
 			return;
 		}
 
+		await this.initializeRemoteExtensions(remoteExtensions);
+	}
+
+	protected async initializeRemoteExtensions(remoteExtensions: ISyncExtension[]): Promise<ILocalExtension[]> {
+		const newlyEnabledExtensions: ILocalExtension[] = [];
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const newExtensionsToSync = new Map<string, ISyncExtension>();
 		const installedExtensionsToSync: ISyncExtension[] = [];
@@ -519,10 +538,13 @@ export class ExtensionsInitializer extends AbstractInitializer {
 				try {
 					const extensionToSync = newExtensionsToSync.get(galleryExtension.identifier.id.toLowerCase())!;
 					if (extensionToSync.state) {
-						this.storageService.store2(extensionToSync.identifier.id, JSON.stringify(extensionToSync.state), StorageScope.GLOBAL, StorageTarget.MACHINE);
+						this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionToSync.state), StorageScope.GLOBAL, StorageTarget.MACHINE);
 					}
 					this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
-					await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false } /* pass options to prevent install and sync dialog in web */);
+					const local = await this.extensionManagementService.installFromGallery(galleryExtension, { isMachineScoped: false } /* pass options to prevent install and sync dialog in web */);
+					if (!toDisable.some(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
+						newlyEnabledExtensions.push(local);
+					}
 					this.logService.info(`Installed extension.`, galleryExtension.identifier.id);
 				} catch (error) {
 					this.logService.error(error);
@@ -542,9 +564,11 @@ export class ExtensionsInitializer extends AbstractInitializer {
 			if (extensionToSync.state) {
 				const extensionState = JSON.parse(this.storageService.get(extensionToSync.identifier.id, StorageScope.GLOBAL) || '{}');
 				forEach(extensionToSync.state, ({ key, value }) => extensionState[key] = value);
-				this.storageService.store2(extensionToSync.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
+
+		return newlyEnabledExtensions;
 	}
 
 }

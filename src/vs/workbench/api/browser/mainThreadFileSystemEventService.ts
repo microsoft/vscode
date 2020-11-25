@@ -54,11 +54,13 @@ export class MainThreadFileSystemEventService {
 
 
 		// BEFORE file operation
-		workingCopyFileService.addFileOperationParticipant({
-			participate: (files, operation, progress, timeout, token) => {
-				return proxy.$onWillRunFileOperation(operation, files, timeout, token);
+		this._listener.add(workingCopyFileService.addFileOperationParticipant({
+			participate: async (files, operation, undoRedoGroupId, isUndoing, _progress, timeout, token) => {
+				if (!isUndoing) {
+					return proxy.$onWillRunFileOperation(operation, files, undoRedoGroupId, timeout, token);
+				}
 			}
-		});
+		}));
 
 		// AFTER file operation
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.files)));

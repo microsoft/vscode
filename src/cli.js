@@ -16,7 +16,7 @@ bootstrap.avoidMonkeyPatchFromAppInsights();
 bootstrap.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport();
+bootstrap.enableASARSupport(undefined);
 
 // Load CLI through AMD loader
 require('./bootstrap-amd').load('vs/code/node/cli');

@@ -19,7 +19,8 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { basename } from 'vs/base/common/resources';
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;
@@ -43,7 +44,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@ICommandService private commandService: ICommandService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService private themeService: IThemeService,
-		@ILabelService private labelService: ILabelService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
@@ -76,8 +77,15 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
 		if (repository.provider.rootUri) {
+			const folder = this.workspaceContextService.getWorkspaceFolder(repository.provider.rootUri);
+
+			if (folder?.uri.toString() === repository.provider.rootUri.toString()) {
+				templateData.name.textContent = folder.name;
+			} else {
+				templateData.name.textContent = basename(repository.provider.rootUri);
+			}
+
 			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
-			templateData.name.textContent = this.labelService.getUriLabel(repository.provider.rootUri, { relative: true });
 			templateData.description.textContent = repository.provider.label;
 		} else {
 			templateData.label.title = repository.provider.label;

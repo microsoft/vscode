@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
@@ -271,6 +270,7 @@ enum PushType {
 	Push,
 	PushTo,
 	PushFollowTags,
+	PushTags
 }
 
 interface PushOptions {
@@ -356,167 +356,14 @@ export class CommandCenter {
 	}
 
 	@command('git.openResource')
-	async openResource(resource: Resource, preserveFocus: boolean): Promise<void> {
+	async openResource(resource: Resource): Promise<void> {
 		const repository = this.model.getRepository(resource.resourceUri);
 
 		if (!repository) {
 			return;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const openDiffOnClick = config.get<boolean>('openDiffOnClick');
-
-		if (openDiffOnClick) {
-			await this._openResource(resource, undefined, preserveFocus, false);
-		} else {
-			await this.openFile(resource);
-		}
-	}
-
-	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
-		let stat: Stats | undefined;
-
-		try {
-			stat = await new Promise<Stats>((c, e) => lstat(resource.resourceUri.fsPath, (err, stat) => err ? e(err) : c(stat)));
-		} catch (err) {
-			// noop
-		}
-
-		let left: Uri | undefined;
-		let right: Uri | undefined;
-
-		if (stat && stat.isDirectory()) {
-			const repository = this.model.getRepositoryForSubmodule(resource.resourceUri);
-
-			if (repository) {
-				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
-			}
-		} else {
-			if (resource.type === Status.DELETED_BY_US || resource.type === Status.DELETED_BY_THEM) {
-				left = toGitUri(resource.resourceUri, '~1');
-			} else {
-				left = this.getLeftResource(resource);
-			}
-
-			right = this.getRightResource(resource);
-		}
-
-		const title = this.getTitle(resource);
-
-		if (!right) {
-			// TODO
-			console.error('oh no');
-			return;
-		}
-
-		const opts: TextDocumentShowOptions = {
-			preserveFocus,
-			preview,
-			viewColumn: ViewColumn.Active
-		};
-
-		const activeTextEditor = window.activeTextEditor;
-
-		// Check if active text editor has same path as other editor. we cannot compare via
-		// URI.toString() here because the schemas can be different. Instead we just go by path.
-		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.path === right.path) {
-			opts.selection = activeTextEditor.selection;
-		}
-
-		if (!left) {
-			await commands.executeCommand<void>('vscode.open', right, opts, title);
-		} else {
-			await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
-		}
-	}
-
-	private getLeftResource(resource: Resource): Uri | undefined {
-		switch (resource.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
-				return toGitUri(resource.original, 'HEAD');
-
-			case Status.MODIFIED:
-			case Status.UNTRACKED:
-				return toGitUri(resource.resourceUri, '~');
-
-			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '');
-		}
-		return undefined;
-	}
-
-	private getRightResource(resource: Resource): Uri | undefined {
-		switch (resource.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.INDEX_ADDED:
-			case Status.INDEX_COPIED:
-			case Status.INDEX_RENAMED:
-				return toGitUri(resource.resourceUri, '');
-
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return toGitUri(resource.resourceUri, 'HEAD');
-
-			case Status.DELETED_BY_US:
-				return toGitUri(resource.resourceUri, '~3');
-
-			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~2');
-
-			case Status.MODIFIED:
-			case Status.UNTRACKED:
-			case Status.IGNORED:
-			case Status.INTENT_TO_ADD:
-				const repository = this.model.getRepository(resource.resourceUri);
-
-				if (!repository) {
-					return;
-				}
-
-				const uriString = resource.resourceUri.toString();
-				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-
-				if (indexStatus && indexStatus.renameResourceUri) {
-					return indexStatus.renameResourceUri;
-				}
-
-				return resource.resourceUri;
-
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return resource.resourceUri;
-		}
-		return undefined;
-	}
-
-	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.resourceUri.fsPath);
-
-		switch (resource.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
-				return localize('git.title.index', '{0} (Index)', basename);
-
-			case Status.MODIFIED:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return localize('git.title.workingTree', '{0} (Working Tree)', basename);
-
-			case Status.DELETED_BY_US:
-				return localize('git.title.theirs', '{0} (Theirs)', basename);
-
-			case Status.DELETED_BY_THEM:
-				return localize('git.title.ours', '{0} (Ours)', basename);
-
-			case Status.UNTRACKED:
-				return localize('git.title.untracked', '{0} (Untracked)', basename);
-
-			default:
-				return '';
-		}
+		await resource.open();
 	}
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
@@ -827,7 +674,10 @@ export class CommandCenter {
 			try {
 				document = await workspace.openTextDocument(uri);
 			} catch (error) {
-				await commands.executeCommand('vscode.open', uri, opts);
+				await commands.executeCommand('vscode.open', uri, {
+					...opts,
+					override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
+				});
 				continue;
 			}
 
@@ -867,7 +717,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const HEAD = this.getLeftResource(resource);
+		const HEAD = resource.leftUri;
 		const basename = path.basename(resource.resourceUri.fsPath);
 		const title = `${basename} (HEAD)`;
 
@@ -885,10 +735,6 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const preserveFocus = arg instanceof Resource;
-		const preview = !(arg instanceof Resource);
-
-		const preserveSelection = arg instanceof Uri || !arg;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -915,12 +761,14 @@ export class CommandCenter {
 		}
 
 		for (const resource of resources) {
-			await this._openResource(resource, preview, preserveFocus, preserveSelection);
+			await resource.openChange();
 		}
 	}
 
 	@command('git.rename', { repository: true })
-	async rename(repository: Repository, fromUri: Uri): Promise<void> {
+	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
+		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
+
 		if (!fromUri) {
 			return;
 		}
@@ -1105,6 +953,10 @@ export class CommandCenter {
 
 	@command('git.stageChange')
 	async stageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
 		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
 
 		if (!textEditor) {
@@ -1155,6 +1007,10 @@ export class CommandCenter {
 
 	@command('git.revertChange')
 	async revertChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
+		if (!uri) {
+			return;
+		}
+
 		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
 
 		if (!textEditor) {
@@ -1484,7 +1340,7 @@ export class CommandCenter {
 					? localize('unsaved files single', "The following file has unsaved changes which won't be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
 					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
 				const saveAndCommit = localize('save and commit', "Save All & Commit");
-				const commit = localize('commit', "Commit Anyway");
+				const commit = localize('commit', "Commit Staged Changes");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
@@ -1496,8 +1352,14 @@ export class CommandCenter {
 			}
 		}
 
+		if (!opts) {
+			opts = { all: noStagedChanges };
+		} else if (!opts.all && noStagedChanges && !opts.empty) {
+			opts = { ...opts, all: true };
+		}
+
 		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty) {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
@@ -1521,13 +1383,7 @@ export class CommandCenter {
 			}
 		}
 
-		if (!opts) {
-			opts = { all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges) {
-			opts = { ...opts, all: true };
-		}
-
-		// enable signing of commits if configurated
+		// enable signing of commits if configured
 		opts.signCommit = enableCommitSigning;
 
 		if (config.get<boolean>('alwaysSignOff')) {
@@ -1579,9 +1435,9 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await getCommitMessage();
+		let message = await getCommitMessage();
 
-		if (!message) {
+		if (!message && !opts.amend) {
 			return false;
 		}
 
@@ -1618,7 +1474,7 @@ export class CommandCenter {
 				let value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					value = (await repository.getCommit(repository.HEAD.commit)).message;
+					return undefined;
 				}
 
 				const branchName = repository.headShortName;
@@ -1985,8 +1841,8 @@ export class CommandCenter {
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string>('checkoutType') || 'all';
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+		const checkoutType = config.get<string | string[]>('checkoutType');
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.filter(ref => ref.name || ref.commit)
@@ -2010,8 +1866,8 @@ export class CommandCenter {
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string>('checkoutType') || 'all';
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+		const checkoutType = config.get<string | string[]>('checkoutType');
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.filter(ref => ref.name !== repository.HEAD?.name)
@@ -2204,7 +2060,7 @@ export class CommandCenter {
 			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
-				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertedly overwrite changes made by others.\n\nAre you sure to continue?");
+				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?");
 				const yes = localize('ok', "OK");
 				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -2220,6 +2076,10 @@ export class CommandCenter {
 		if (pushOptions.pushType === PushType.PushFollowTags) {
 			await repository.pushFollowTags(undefined, forcePushMode);
 			return;
+		}
+
+		if (pushOptions.pushType === PushType.PushTags) {
+			await repository.pushTags(undefined, forcePushMode);
 		}
 
 		if (!repository.HEAD || !repository.HEAD.name) {
@@ -2293,6 +2153,21 @@ export class CommandCenter {
 		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
 	}
 
+	@command('git.cherryPick', { repository: true })
+	async cherryPick(repository: Repository): Promise<void> {
+		const hash = await window.showInputBox({
+			placeHolder: localize('commit hash', "Commit Hash"),
+			prompt: localize('provide commit hash', "Please provide the commit hash"),
+			ignoreFocusOut: true
+		});
+
+		if (!hash) {
+			return;
+		}
+
+		await repository.cherryPick(hash);
+	}
+
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo });
@@ -2301,6 +2176,11 @@ export class CommandCenter {
 	@command('git.pushToForce', { repository: true })
 	async pushToForce(repository: Repository): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
+	}
+
+	@command('git.pushTags', { repository: true })
+	async pushTags(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTags });
 	}
 
 	@command('git.addRemote', { repository: true })
@@ -2578,20 +2458,23 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await this.getStashMessage();
+		let message: string | undefined;
+
+		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.sourceControl.commitTemplate || repository.inputBox.value !== repository.sourceControl.commitTemplate)) {
+			message = repository.inputBox.value;
+		}
+
+		message = await window.showInputBox({
+			value: message,
+			prompt: localize('provide stash message', "Optionally provide a stash message"),
+			placeHolder: localize('stash message', "Stash message")
+		});
 
 		if (typeof message === 'undefined') {
 			return;
 		}
 
 		await repository.createStash(message, includeUntracked);
-	}
-
-	private async getStashMessage(): Promise<string | undefined> {
-		return await window.showInputBox({
-			prompt: localize('provide stash message', "Optionally provide a stash message"),
-			placeHolder: localize('stash message', "Stash message")
-		});
 	}
 
 	@command('git.stash', { repository: true })

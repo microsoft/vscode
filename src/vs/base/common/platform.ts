@@ -34,7 +34,6 @@ export interface INodeProcess {
 		electron?: string;
 	};
 	type?: string;
-	getuid(): number;
 	cwd(): string;
 }
 declare const process: INodeProcess;
@@ -55,7 +54,7 @@ if (typeof process !== 'undefined') {
 	// Native environment (non-sandboxed)
 	nodeProcess = process;
 } else if (typeof _globals.vscode !== 'undefined') {
-	// Native envionment (sandboxed)
+	// Native environment (sandboxed)
 	nodeProcess = _globals.vscode.process;
 }
 
@@ -132,10 +131,6 @@ export const isWeb = _isWeb;
 export const isIOS = _isIOS;
 export const platform = _platform;
 export const userAgent = _userAgent;
-
-export function isRootUser(): boolean {
-	return !!nodeProcess && !_isWindows && (nodeProcess.getuid() === 0);
-}
 
 /**
  * The language used for the user interface. The format of

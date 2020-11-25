@@ -6,7 +6,7 @@
 import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
 
 export const terminalConfiguration: IConfigurationNode = {
@@ -15,6 +15,11 @@ export const terminalConfiguration: IConfigurationNode = {
 	title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 	type: 'object',
 	properties: {
+		'terminal.integrated.sendKeybindingsToShell': {
+			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
+			type: 'boolean',
+			default: false
+		},
 		'terminal.integrated.automationShell.linux': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
@@ -357,6 +362,15 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'integer',
 			minimum: -1,
 			default: 30,
+		},
+		'terminal.integrated.localEchoExcludePrograms': {
+			description: localize('terminal.integrated.localEchoExcludePrograms', "Experimental: local echo will be disabled when any of these program names are found in the terminal title."),
+			type: 'array',
+			items: {
+				type: 'string',
+				uniqueItems: true
+			},
+			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
 		},
 		'terminal.integrated.localEchoStyle': {
 			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),

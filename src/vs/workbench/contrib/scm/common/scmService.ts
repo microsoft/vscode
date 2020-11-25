@@ -97,7 +97,7 @@ class SCMInput implements ISCMInput {
 			}
 
 			if (this.repository.provider.rootUri) {
-				this.storageService.store2(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL, StorageTarget.USER);
 			}
 		});
 	}
