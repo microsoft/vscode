@@ -156,6 +156,7 @@ let DIFF_EDITOR_ID = 0;
 
 const diffInsertIcon = registerIcon('diff-insert', Codicon.add);
 const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove);
+const ttPolicy = window.trustedTypes?.createPolicy('diffEditorWidget', { createHTML: value => value });
 
 export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffEditor {
 
@@ -2383,7 +2384,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 			maxCharsPerLine += scrollBeyondLastColumn;
 
-			domNode.innerHTML = sb.build();
+			const html = sb.build();
+			const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+			domNode.innerHTML = trustedhtml as unknown as string;
 			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
 
 			if (viewLineCounts) {
