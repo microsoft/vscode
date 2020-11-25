@@ -243,8 +243,6 @@ export class BulkFileEdits {
 				break;
 			}
 
-			this._progress.report(undefined);
-
 			const options = edit.options || {};
 			let op: IFileOperation | undefined;
 			if (edit.newResource && edit.oldResource && !options.copy) {
@@ -263,6 +261,8 @@ export class BulkFileEdits {
 				const undoOp = await op.perform(this._token);
 				undoOperations.push(undoOp);
 			}
+
+			this._progress.report(undefined);
 		}
 
 		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup, this._undoRedoSource);
