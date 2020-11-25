@@ -25,7 +25,7 @@ interface IFileOperationUndoRedoInfo {
 
 interface IFileOperation {
 	uris: URI[];
-	perform(): Promise<IFileOperation>;
+	perform(token: CancellationToken): Promise<IFileOperation>;
 }
 
 class Noop implements IFileOperation {
@@ -51,13 +51,13 @@ class RenameOperation implements IFileOperation {
 		return [this.newUri, this.oldUri];
 	}
 
-	async perform(): Promise<IFileOperation> {
+	async perform(token: CancellationToken): Promise<IFileOperation> {
 		// rename
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 
-		await this._workingCopyFileService.move([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo });
+		await this._workingCopyFileService.move([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
 		return new RenameOperation(this.oldUri, this.newUri, this.options, { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
@@ -87,13 +87,13 @@ class CopyOperation implements IFileOperation {
 		return [this.newUri, this.oldUri];
 	}
 
-	async perform(): Promise<IFileOperation> {
+	async perform(token: CancellationToken): Promise<IFileOperation> {
 		// copy
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 
-		await this._workingCopyFileService.copy([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo });
+		await this._workingCopyFileService.copy([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
 		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, { isUndoing: true }, true);
 	}
 
@@ -118,15 +118,15 @@ class CreateOperation implements IFileOperation {
 		return [this.newUri];
 	}
 
-	async perform(): Promise<IFileOperation> {
+	async perform(token: CancellationToken): Promise<IFileOperation> {
 		// create file
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 		if (this.options.folder) {
-			await this._workingCopyFileService.createFolder(this.newUri, { ...this.undoRedoInfo });
+			await this._workingCopyFileService.createFolder(this.newUri, { ...this.undoRedoInfo }, token);
 		} else {
-			await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite, ...this.undoRedoInfo });
+			await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
 		}
 		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, { isUndoing: true }, !this.options.folder && !this.contents);
 	}
@@ -155,7 +155,7 @@ class DeleteOperation implements IFileOperation {
 		return [this.oldUri];
 	}
 
-	async perform(): Promise<IFileOperation> {
+	async perform(token: CancellationToken): Promise<IFileOperation> {
 		// delete file
 		if (!await this._fileService.exists(this.oldUri)) {
 			if (!this.options.ignoreIfNotExists) {
@@ -174,7 +174,7 @@ class DeleteOperation implements IFileOperation {
 		}
 
 		const useTrash = !this.options.skipTrashBin && this._fileService.hasCapability(this.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash');
-		await this._workingCopyFileService.delete([this.oldUri], { useTrash, recursive: this.options.recursive, ...this.undoRedoInfo });
+		await this._workingCopyFileService.delete([this.oldUri], { useTrash, recursive: this.options.recursive, ...this.undoRedoInfo }, token);
 
 		if (typeof this.options.maxSize === 'number' && fileContent && (fileContent?.size > this.options.maxSize)) {
 			return new Noop();
@@ -211,7 +211,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 	private async _reverse() {
 		for (let i = 0; i < this.operations.length; i++) {
 			const op = this.operations[i];
-			const undo = await op.perform();
+			const undo = await op.perform(CancellationToken.None);
 			this.operations[i] = undo;
 		}
 	}
@@ -260,7 +260,7 @@ export class BulkFileEdits {
 				op = this._instaService.createInstance(CreateOperation, edit.newResource, options, undoRedoInfo, undefined);
 			}
 			if (op) {
-				const undoOp = await op.perform();
+				const undoOp = await op.perform(this._token);
 				undoOperations.push(undoOp);
 			}
 		}
