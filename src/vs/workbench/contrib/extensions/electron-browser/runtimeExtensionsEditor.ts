@@ -9,12 +9,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -22,8 +20,11 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-browser/reportExtensionIssueAction';
-import { SaveExtensionHostProfileAction } from 'vs/workbench/contrib/extensions/electron-browser/saveExtensionHostProfileAction';
 import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -122,22 +123,6 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 	}
 }
 
-export class ShowRuntimeExtensionsAction extends Action {
-	static readonly ID = 'workbench.action.showRuntimeExtensions';
-	static readonly LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
-
-	constructor(
-		id: string, label: string,
-		@IEditorService private readonly _editorService: IEditorService
-	) {
-		super(id, label);
-	}
-
-	public async run(e?: any): Promise<any> {
-		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
-	}
-}
-
 export class StartExtensionHostProfileAction extends Action {
 	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
 	static readonly LABEL = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
@@ -169,5 +154,63 @@ export class StopExtensionHostProfileAction extends Action {
 	run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
 		return Promise.resolve();
+	}
+}
+
+export class SaveExtensionHostProfileAction extends Action {
+
+	static readonly LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
+	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
+
+	constructor(
+		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IFileService private readonly _fileService: IFileService
+	) {
+		super(id, label, undefined, false);
+		this._extensionHostProfileService.onDidChangeLastProfile(() => {
+			this.enabled = (this._extensionHostProfileService.lastProfile !== null);
+		});
+	}
+
+	run(): Promise<any> {
+		return Promise.resolve(this._asyncRun());
+	}
+
+	private async _asyncRun(): Promise<any> {
+		let picked = await this._nativeHostService.showSaveDialog({
+			title: 'Save Extension Host Profile',
+			buttonLabel: 'Save',
+			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
+			filters: [{
+				name: 'CPU Profiles',
+				extensions: ['cpuprofile', 'txt']
+			}]
+		});
+
+		if (!picked || !picked.filePath || picked.canceled) {
+			return;
+		}
+
+		const profileInfo = this._extensionHostProfileService.lastProfile;
+		let dataToWrite: object = profileInfo ? profileInfo.data : {};
+
+		let savePath = picked.filePath;
+
+		if (this._environmentService.isBuilt) {
+			const profiler = await import('v8-inspect-profiler');
+			// when running from a not-development-build we remove
+			// absolute filenames because we don't want to reveal anything
+			// about users. We also append the `.txt` suffix to make it
+			// easier to attach these files to GH issues
+			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
+			dataToWrite = tmp.profile;
+
+			savePath = savePath + '.txt';
+		}
+
+		return this._fileService.writeFile(URI.file(savePath), VSBuffer.fromString(JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t')));
 	}
 }
