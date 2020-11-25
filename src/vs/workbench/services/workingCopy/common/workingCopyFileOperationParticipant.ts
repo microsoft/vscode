@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { raceTimeout } from 'vs/base/common/async';
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -40,10 +40,13 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 		}
 
 		const cts = new CancellationTokenSource();
+		const timer = setTimeout(() => cts.cancel(), timeout);
 
 		return this.progressService.withProgress({
-			location: ProgressLocation.Window,
-			title: this.progressLabel(operation)
+			location: ProgressLocation.Notification,
+			title: this.progressLabel(operation),
+			cancellable: true,
+			delay: Math.min(timeout / 2, 3000)
 		}, async progress => {
 
 			// For each participant
@@ -51,14 +54,21 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 				if (cts.token.isCancellationRequested) {
 					break;
 				}
-
 				try {
 					const promise = participant.participate(files, operation, undoRedoGroupId, isUndoing, progress, timeout, cts.token);
-					await raceTimeout(promise, timeout, () => cts.dispose(true /* cancel */));
+					await raceCancellation(promise, cts.token);
 				} catch (err) {
 					this.logService.warn(err);
 				}
 			}
+		}, () => {
+			// user cancel
+			cts.cancel();
+
+		}).finally(() => {
+			// cleanup
+			cts.dispose();
+			clearTimeout(timer);
 		});
 	}
 
