@@ -12,7 +12,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, INotebookEditor, MarkdownCellRenderTemplate, ICellViewModel, getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, MarkdownCellRenderTemplate, ICellViewModel, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -34,7 +34,7 @@ export class StatefulMarkdownCell extends Disposable {
 	private _activeCellRunPlaceholder: IDisposable | null = null;
 
 	constructor(
-		private readonly notebookEditor: INotebookEditor,
+		private readonly notebookEditor: IActiveNotebookEditor,
 		private readonly viewCell: MarkdownCellViewModel,
 		private readonly templateData: MarkdownCellRenderTemplate,
 		private editorOptions: IEditorOptions,
@@ -136,8 +136,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		const updatePlaceholder = () => {
 			if (
-				this.notebookEditor.viewModel
-				&& this.notebookEditor.getActiveCell() === this.viewCell
+				this.notebookEditor.getActiveCell() === this.viewCell
 				&& !!this.notebookEditor.viewModel.metadata.trusted
 			) {
 				// active cell and no run status
@@ -161,7 +160,7 @@ export class StatefulMarkdownCell extends Disposable {
 			updatePlaceholder();
 		}));
 
-		this._register(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+		this._register(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {
 			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
 				updatePlaceholder();
 			}
@@ -198,13 +197,13 @@ export class StatefulMarkdownCell extends Disposable {
 		this.templateData.container.classList.toggle('collapsed', false);
 
 		if (this.editor) {
-			editorHeight = this.editor!.getContentHeight();
+			editorHeight = this.editor.getContentHeight();
 
 			// not first time, we don't need to create editor or bind listeners
 			this.viewCell.attachTextEditor(this.editor);
 			this.focusEditorIfNeeded();
 
-			this.bindEditorListeners();
+			this.bindEditorListeners(this.editor);
 
 			this.editor.layout({
 				width: this.viewCell.layoutInfo.editorWidth,
@@ -260,7 +259,7 @@ export class StatefulMarkdownCell extends Disposable {
 					this.focusEditorIfNeeded();
 				}
 
-				this.bindEditorListeners();
+				this.bindEditorListeners(this.editor!);
 
 				this.viewCell.editorHeight = editorHeight;
 			});
@@ -365,13 +364,13 @@ export class StatefulMarkdownCell extends Disposable {
 		}
 	}
 
-	private bindEditorListeners() {
-		this.localDisposables.add(this.editor!.onDidContentSizeChange(e => {
-			const viewLayout = this.editor!.getLayoutInfo();
+	private bindEditorListeners(editor: CodeEditorWidget) {
+		this.localDisposables.add(editor.onDidContentSizeChange(e => {
+			const viewLayout = editor.getLayoutInfo();
 
 			if (e.contentHeightChanged) {
 				this.viewCell.editorHeight = e.contentHeight;
-				this.editor!.layout(
+				editor.layout(
 					{
 						width: viewLayout.width,
 						height: e.contentHeight
@@ -380,25 +379,25 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		}));
 
-		this.localDisposables.add(this.editor!.onDidChangeCursorSelection((e) => {
+		this.localDisposables.add(editor.onDidChangeCursorSelection((e) => {
 			if (e.source === 'restoreState') {
 				// do not reveal the cell into view if this selection change was caused by restoring editors...
 				return;
 			}
 
-			const primarySelection = this.editor!.getSelection();
+			const primarySelection = editor.getSelection();
 
 			if (primarySelection) {
 				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection!.positionLineNumber);
 			}
 		}));
 
-		const updateFocusMode = () => this.viewCell.focusMode = this.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
-		this.localDisposables.add(this.editor!.onDidFocusEditorWidget(() => {
+		const updateFocusMode = () => this.viewCell.focusMode = editor.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		this.localDisposables.add(editor.onDidFocusEditorWidget(() => {
 			updateFocusMode();
 		}));
 
-		this.localDisposables.add(this.editor!.onDidBlurEditorWidget(() => {
+		this.localDisposables.add(editor.onDidBlurEditorWidget(() => {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly

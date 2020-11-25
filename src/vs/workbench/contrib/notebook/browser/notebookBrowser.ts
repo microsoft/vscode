@@ -207,7 +207,7 @@ export interface INotebookEditorCreationOptions {
 	readonly contributions?: INotebookEditorContributionDescription[];
 }
 
-export interface IActiveNotebookEditor {
+export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
 	uri: URI;
 }

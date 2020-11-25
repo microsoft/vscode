@@ -12,7 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -28,7 +28,7 @@ export class CodeCell extends Disposable {
 	private _untrustedStatusItem: IDisposable | null = null;
 
 	constructor(
-		private notebookEditor: INotebookEditor,
+		private notebookEditor: IActiveNotebookEditor,
 		private viewCell: CodeCellViewModel,
 		private templateData: CodeCellRenderTemplate,
 		@INotebookService notebookService: INotebookService,

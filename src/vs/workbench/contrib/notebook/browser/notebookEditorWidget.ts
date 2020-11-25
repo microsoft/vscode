@@ -662,7 +662,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._currentKernelTokenSource = new CancellationTokenSource();
 		this._localStore.add(this._currentKernelTokenSource);
 		// we don't await for it, otherwise it will slow down the file opening
-		this._setKernels(textModel, this._currentKernelTokenSource);
+		this._setKernels(this._currentKernelTokenSource);
 
 		this._localStore.add(this.notebookService.onDidChangeKernels(async (e) => {
 			if (e && e.toString() !== this.textModel?.uri.toString()) {
@@ -671,7 +671,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 			this._currentKernelTokenSource?.cancel();
 			this._currentKernelTokenSource = new CancellationTokenSource();
-			await this._setKernels(textModel, this._currentKernelTokenSource);
+			await this._setKernels(this._currentKernelTokenSource);
 		}));
 
 		this._localStore.add(this._list.onDidChangeFocus(() => {
@@ -746,8 +746,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return result;
 	}
 
-	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
-		const provider = this.notebookService.getContributedNotebookProvider(textModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+	private async _setKernels(tokenSource: CancellationTokenSource) {
+		if (!this.viewModel) {
+			return;
+		}
+
+		const provider = this.notebookService.getContributedNotebookProvider(this.viewModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel.uri)[0];
 		const availableKernels = await this.beginComputeContributedKernels();
 
 		if (tokenSource.token.isCancellationRequested) {
@@ -874,9 +878,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _updateForMetadata(): void {
-		const notebookMetadata = this.viewModel!.metadata;
+		if (!this.viewModel) {
+			return;
+		}
+
+		const notebookMetadata = this.viewModel.metadata;
 		this._editorEditable?.set(!!notebookMetadata?.editable);
-		this._editorRunnable?.set(this.viewModel!.runnable);
+		this._editorRunnable?.set(this.viewModel.runnable);
 		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 
@@ -899,8 +907,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._webviewResolvePromise = new Promise(async resolve => {
-			await this._webview!.createWebview();
-			this._webview!.webview!.onDidBlur(() => {
+			if (!this._webview) {
+				throw new Error('Notebook output webview object is not created successfully.');
+			}
+
+			await this._webview.createWebview();
+			if (!this._webview.webview) {
+				throw new Error('Notebook output webview elemented is not created successfully.');
+			}
+
+			this._webview.webview.onDidBlur(() => {
 				this._outputFocus?.set(false);
 				this.updateEditorFocus();
 
@@ -908,7 +924,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					this._webiewFocused = false;
 				}
 			});
-			this._webview!.webview!.onDidFocus(() => {
+			this._webview.webview.onDidFocus(() => {
 				this._outputFocus?.set(true);
 				this.updateEditorFocus();
 				this._onDidFocusEmitter.fire();
@@ -918,7 +934,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			});
 
-			this._localStore.add(this._webview!.onMessage(({ message, forRenderer }) => {
+			this._localStore.add(this._webview.onMessage(({ message, forRenderer }) => {
 				if (this.viewModel) {
 					this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), forRenderer, message);
 				}
@@ -926,7 +942,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			this._webviewResolved = true;
 
-			resolve(this._webview!);
+			resolve(this._webview);
 		});
 
 		return this._webviewResolvePromise;
