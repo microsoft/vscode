@@ -252,7 +252,10 @@ export class CellLanguageStatusBarItem extends Disposable {
 
 	private run() {
 		this.instantiationService.invokeFunction(accessor => {
-			new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor!, cell: this.cell! });
+			if (!this.editor || !this.editor.hasModel() || !this.cell) {
+				return;
+			}
+			new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor, cell: this.cell });
 		});
 	}
 

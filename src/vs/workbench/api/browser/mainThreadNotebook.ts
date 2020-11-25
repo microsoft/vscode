@@ -420,9 +420,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		const editors = new Map<string, IEditor>();
 		this._notebookService.listNotebookEditors().forEach(editor => {
-			if (editor.hasModel()) {
+			if (editor.textModel) {
 				editors.set(editor.getId(), editor);
-				documentEditorsMap.set(editor.textModel!.uri.toString(), editor);
+				documentEditorsMap.set(editor.textModel.uri.toString(), editor);
 			}
 		});
 
@@ -441,7 +441,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			documents.add(document);
 		});
 
-		if (!activeEditor && focusedNotebookEditor && focusedNotebookEditor.hasModel()) {
+		if (!activeEditor && focusedNotebookEditor && focusedNotebookEditor.textModel) {
 			activeEditor = focusedNotebookEditor.getId();
 		}
 
@@ -666,8 +666,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const editor = this._notebookService.listNotebookEditors().find(editor => editor.getId() === id);
 		if (editor && editor.isNotebookEditor) {
 			const notebookEditor = editor as INotebookEditor;
+			if (!notebookEditor.hasModel()) {
+				return;
+			}
 			const viewModel = notebookEditor.viewModel;
-			const cell = viewModel?.viewCells[range.start];
+			const cell = viewModel.viewCells[range.start];
 			if (!cell) {
 				return;
 			}
