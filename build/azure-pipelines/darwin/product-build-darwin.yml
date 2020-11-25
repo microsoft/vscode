@@ -3,11 +3,13 @@ steps:
       mkdir -p .build
       echo -n $BUILD_SOURCEVERSION > .build/commit
       echo -n $VSCODE_QUALITY > .build/quality
+      echo -n $ENABLE_TERRAPIN > .build/terrapin
+      echo -n $VSCODE_ARCH > .build/arch
     displayName: Prepare cache flag
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      keyfile: "build/.cachesalt, .build/commit, .build/quality"
+      keyfile: "build/.cachesalt, .build/commit, .build/quality, .build/terrapin"
       targetfolder: ".build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min"
       vstsFeed: "npm-vscode"
       platformIndependent: true
@@ -48,30 +50,28 @@ steps:
 
   - script: |
       set -e
+      sudo xcode-select -s /Applications/Xcode_12.2.app
+    displayName: Switch to Xcode 12
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
       git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
       git fetch distro
       git merge $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
-  - script: |
-      echo -n $VSCODE_ARCH > .build/arch
-    displayName: Prepare arch cache flag
-
-  - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
-      keyfile: ".build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
 
   - script: |
-      set -e
-      sudo xcode-select -s /Applications/Xcode_12.2.app
-    displayName: Switch to Xcode 12
-    condition: eq(variables['VSCODE_ARCH'], 'arm64')
+      npx https://aka.ms/enablesecurefeed standAlone
+    displayName: Switch to Terrapin packages
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
 
   - script: |
       set -e
@@ -97,7 +97,7 @@ steps:
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
     inputs:
-      keyfile: ".build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))

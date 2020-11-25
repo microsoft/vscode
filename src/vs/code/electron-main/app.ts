@@ -531,7 +531,7 @@ export class CodeApplication extends Disposable {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
-			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
+			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -731,11 +731,11 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager({
+		const activeWindowManager = this._register(new ActiveWindowManager({
 			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
 			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
 			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
-		});
+		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);

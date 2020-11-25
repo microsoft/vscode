@@ -93,7 +93,7 @@ export class Main {
 		} else if (argv['locate-extension']) {
 			await this.locateExtension(argv['locate-extension']);
 		} else if (argv['telemetry']) {
-			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath ? this.environmentService.extensionsPath : undefined));
+			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath));
 		}
 	}
 
@@ -425,7 +425,7 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 				appender: combinedAppender(...appenders),
 				sendErrorTelemetry: false,
 				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
-				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
+				piiPaths: [appRoot, extensionsPath]
 			};
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
