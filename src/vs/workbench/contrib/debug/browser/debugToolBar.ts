@@ -367,36 +367,36 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
 	if (debugIconDisconnectColor) {
-		collector.addRule(`.monaco-workbench .debug-view-content ${icons.debugDisconnect.cssSelector}, .monaco-workbench .debug-toolbar ${icons.debugDisconnect.cssSelector}, { color: ${debugIconDisconnectColor} !important; }`);
+		collector.addRule(`.monaco-workbench .debug-view-content ${icons.debugDisconnect.cssSelector}, .monaco-workbench .debug-toolbar ${icons.debugDisconnect.cssSelector} { color: ${debugIconDisconnectColor} !important; }`);
 	}
 
 	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
 	if (debugIconRestartColor) {
-		collector.addRule(`.monaco-workbench ${icons.debugRestart.cssSelector},, .monaco-workbench ${icons.debugRestartFrame.cssSelector}, { color: ${debugIconRestartColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugRestart.cssSelector}, .monaco-workbench ${icons.debugRestartFrame.cssSelector} { color: ${debugIconRestartColor} !important; }`);
 	}
 
 	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
 	if (debugIconStepOverColor) {
-		collector.addRule(`.monaco-workbench ${icons.debugStepOver.cssSelector}, { color: ${debugIconStepOverColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepOver.cssSelector} { color: ${debugIconStepOverColor} !important; }`);
 	}
 
 	const debugIconStepIntoColor = theme.getColor(debugIconStepIntoForeground);
 	if (debugIconStepIntoColor) {
-		collector.addRule(`.monaco-workbench ${icons.debugStepInto.cssSelector}, { color: ${debugIconStepIntoColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepInto.cssSelector} { color: ${debugIconStepIntoColor} !important; }`);
 	}
 
 	const debugIconStepOutColor = theme.getColor(debugIconStepOutForeground);
 	if (debugIconStepOutColor) {
-		collector.addRule(`.monaco-workbench ${icons.debugStepOut.cssSelector}, { color: ${debugIconStepOutColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepOut.cssSelector} { color: ${debugIconStepOutColor} !important; }`);
 	}
 
 	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
 	if (debugIconContinueColor) {
-		collector.addRule(`.monaco-workbench ${icons.debugContinue.cssSelector},,.monaco-workbench ${icons.debugReverseContinue.cssSelector}, { color: ${debugIconContinueColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugContinue.cssSelector}, .monaco-workbench ${icons.debugReverseContinue.cssSelector} { color: ${debugIconContinueColor} !important; }`);
 	}
 
 	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
 	if (debugIconStepBackColor) {
-		collector.addRule(`.monaco-workbench ${icons.debugStepBack.cssSelector}, { color: ${debugIconStepBackColor} !important; }`);
+		collector.addRule(`.monaco-workbench ${icons.debugStepBack.cssSelector} { color: ${debugIconStepBackColor} !important; }`);
 	}
 });
