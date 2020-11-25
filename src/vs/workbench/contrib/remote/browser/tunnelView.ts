@@ -368,9 +368,16 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 		return false;
 	}
 
-	getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
+	async getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			return element.groups();
+			const groups = await element.groups();
+			if (groups.length === 1) {
+				const items = await groups[0].items;
+				if (items && (items.length > 0) && (items[0].tunnelType === TunnelType.Forwarded)) {
+					return items;
+				}
+			}
+			return groups;
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
