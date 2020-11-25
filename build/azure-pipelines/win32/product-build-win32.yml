@@ -4,6 +4,7 @@ steps:
       "$env:BUILD_SOURCEVERSION" | Out-File -Encoding ascii -NoNewLine .build\commit
       "$env:VSCODE_QUALITY" | Out-File -Encoding ascii -NoNewLine .build\quality
       "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
+      "$env:VSCODE_ARCH" | Out-File -Encoding ascii -NoNewLine .build\arch
     displayName: Prepare cache flag
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
@@ -46,9 +47,6 @@ steps:
 
       exec { git config user.email "vscode@microsoft.com" }
       exec { git config user.name "VSCode" }
-
-      mkdir .build -ea 0
-      "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
     displayName: Prepare tooling
 
   - powershell: |
@@ -107,8 +105,6 @@ steps:
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
-      exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min-ci" }
-      exec { yarn gulp "vscode-reh-web-win32-$env:VSCODE_ARCH-min-ci" }
       exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-code-helper" }
       exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
     displayName: Build
@@ -116,17 +112,26 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
+      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+      exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min-ci" }
+      exec { yarn gulp "vscode-reh-web-win32-$env:VSCODE_ARCH-min-ci" }
+    displayName: Build Server
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
       exec { yarn electron $(VSCODE_ARCH) }
       exec { .\scripts\test.bat --build --tfs "Unit Tests" }
     displayName: Run unit tests (Electron)
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { yarn test-browser --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
     displayName: Run unit tests (Browser)
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       # Figure out the full absolute path of the product we just built
@@ -139,14 +144,14 @@ steps:
       $AppNameShort = $AppProductJson.nameShort
       exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-integration.bat --build --tfs "Integration Tests" }
     displayName: Run integration tests (Electron)
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
     displayName: Run integration tests (Browser)
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -156,7 +161,7 @@ steps:
       $AppNameShort = $AppProductJson.nameShort
       exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-remote-integration.bat }
     displayName: Run remote integration tests (Electron)
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - task: PublishPipelineArtifact@0
     inputs:
@@ -171,7 +176,7 @@ steps:
     inputs:
       testResultsFiles: "*-results.xml"
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
