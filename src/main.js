@@ -15,6 +15,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
 const paths = require('./paths');
 /** @type {any} */
 const product = require('../product.json');
@@ -25,7 +26,7 @@ const { app, protocol, crashReporter } = require('electron');
 app.allowRendererProcessReuse = false;
 
 // Enable portable support
-const portable = bootstrap.configurePortable(product);
+const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
 bootstrap.enableASARSupport(undefined);
