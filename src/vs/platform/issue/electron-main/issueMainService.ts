@@ -203,18 +203,8 @@ export class IssueMainService implements ICommonIssueService {
 							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
-							...this.environmentService.sandbox ?
-
-								// Sandbox
-								{
-									sandbox: true,
-									contextIsolation: true
-								} :
-
-								// No Sandbox
-								{
-									nodeIntegration: true
-								}
+							sandbox: true,
+							contextIsolation: true
 						}
 					});
 
@@ -269,18 +259,8 @@ export class IssueMainService implements ICommonIssueService {
 							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
-							...this.environmentService.sandbox ?
-
-								// Sandbox
-								{
-									sandbox: true,
-									contextIsolation: true
-								} :
-
-								// No Sandbox
-								{
-									nodeIntegration: true
-								}
+							sandbox: true,
+							contextIsolation: true
 						}
 					});
 
