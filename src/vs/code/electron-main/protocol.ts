@@ -40,7 +40,6 @@ export class FileProtocolHandler extends Disposable {
 		// Cleanup
 		this._register(toDisposable(() => {
 			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
-			defaultSession.protocol.uninterceptProtocol(Schemas.file);
 		}));
 	}
 
