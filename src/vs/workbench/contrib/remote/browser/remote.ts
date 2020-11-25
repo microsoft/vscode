@@ -13,7 +13,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -584,7 +584,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 				return;
 			}
 		},
-		icon: ThemeIcon.fromCodicon(remoteExplorerViewIcon),
+		icon: remoteExplorerViewIcon,
 		order: 4
 	}, ViewContainerLocation.Sidebar);
 

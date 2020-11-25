@@ -51,6 +51,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class TreeViewPane extends ViewPane {
 
@@ -366,7 +367,7 @@ export class TreeView extends Disposable implements ITreeView {
 						group: 'navigation',
 						order: Number.MAX_SAFE_INTEGER - 1,
 					},
-					icon: { id: 'codicon/refresh' }
+					icon: Codicon.refresh
 				});
 			}
 			async run(): Promise<void> {
@@ -385,7 +386,7 @@ export class TreeView extends Disposable implements ITreeView {
 						order: Number.MAX_SAFE_INTEGER,
 					},
 					precondition: that.collapseAllToggleContextKey,
-					icon: { id: 'codicon/collapse-all' }
+					icon: Codicon.collapseAll
 				});
 			}
 			async run(): Promise<void> {

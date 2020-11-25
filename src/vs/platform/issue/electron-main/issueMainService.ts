@@ -55,7 +55,7 @@ export class IssueMainService implements ICommonIssueService {
 				.then(result => {
 					const [info, remoteData] = result;
 					this.diagnosticsService.getSystemInfo(info, remoteData).then(msg => {
-						event.sender.send('vscode:issueSystemInfoResponse', msg);
+						this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
 					});
 				});
 		});
@@ -86,7 +86,7 @@ export class IssueMainService implements ICommonIssueService {
 				this.logService.error(`Listing processes failed: ${e}`);
 			}
 
-			event.sender.send('vscode:listProcessesResponse', processes);
+			this.safeSend(event, 'vscode:listProcessesResponse', processes);
 		});
 
 		ipcMain.on('vscode:issueReporterClipboard', (event: IpcMainEvent) => {
@@ -102,14 +102,14 @@ export class IssueMainService implements ICommonIssueService {
 			if (this._issueWindow) {
 				this.dialogMainService.showMessageBox(messageOptions, this._issueWindow)
 					.then(result => {
-						event.sender.send('vscode:issueReporterClipboardResponse', result.response === 0);
+						this.safeSend(event, 'vscode:issueReporterClipboardResponse', result.response === 0);
 					});
 			}
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: IpcMainEvent) => {
 			this.getPerformanceInfo().then(msg => {
-				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
+				this.safeSend(event, 'vscode:issuePerformanceInfoResponse', msg);
 			});
 		});
 
@@ -174,9 +174,15 @@ export class IssueMainService implements ICommonIssueService {
 
 		ipcMain.on('vscode:windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
-				event.sender.send('vscode:windowsInfoResponse', info.windows);
+				this.safeSend(event, 'vscode:windowsInfoResponse', info.windows);
 			});
 		});
+	}
+
+	private safeSend(event: IpcMainEvent, channel: string, ...args: unknown[]): void {
+		if (!event.sender.isDestroyed()) {
+			event.sender.send(channel, ...args);
+		}
 	}
 
 	openReporter(data: IssueReporterData): Promise<void> {

@@ -62,7 +62,7 @@ stages:
         variables:
           VSCODE_ARCH: arm64
         steps:
-          - template: win32/product-build-win32-arm64.yml
+          - template: win32/product-build-win32.yml
 
   - stage: Linux
     dependsOn:
@@ -99,6 +99,16 @@ stages:
         steps:
           - template: linux/product-build-linux.yml
 
+      - job: LinuxSnapArmhf
+        dependsOn:
+          - LinuxArmhf
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+        container: snapcraft
+        variables:
+          VSCODE_ARCH: armhf
+        steps:
+          - template: linux/snap-build-linux.yml
+
       - job: LinuxArm64
         condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
         container: vscode-arm64
@@ -107,6 +117,16 @@ stages:
           NPM_ARCH: arm64
         steps:
           - template: linux/product-build-linux.yml
+
+      - job: LinuxSnapArm64
+        dependsOn:
+          - LinuxArm64
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+        container: snapcraft
+        variables:
+          VSCODE_ARCH: arm64
+        steps:
+          - template: linux/snap-build-linux.yml
 
       - job: LinuxAlpine
         condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))

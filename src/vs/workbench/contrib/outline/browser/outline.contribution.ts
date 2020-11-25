@@ -12,7 +12,6 @@ import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymb
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const PANEL_ID = 'panel.view.outline';
 
@@ -21,7 +20,7 @@ const outlineViewIcon = registerIcon('outline-view-icon', Codicon.symbolClass, l
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
-	containerIcon: ThemeIcon.fromCodicon(outlineViewIcon),
+	containerIcon: outlineViewIcon,
 	ctorDescriptor: new SyncDescriptor(OutlinePane),
 	canToggleVisibility: true,
 	canMoveView: true,

@@ -107,7 +107,7 @@ export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, I
 	}
 }
 
-export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult, FuzzyScore, IReplEvaluationResultTemplateData> {
+export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult | Variable, FuzzyScore, IReplEvaluationResultTemplateData> {
 	static readonly ID = 'replEvaluationResult';
 
 	get templateId(): string {
@@ -123,7 +123,7 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 		return { value };
 	}
 
-	renderElement(element: ITreeNode<ReplEvaluationResult, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
+	renderElement(element: ITreeNode<ReplEvaluationResult | Variable, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
 			showHover: false,
@@ -187,7 +187,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root);
 		templateData.value.appendChild(result);
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
@@ -320,14 +320,14 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		if (element instanceof Variable && element.name) {
 			return ReplVariablesRenderer.ID;
 		}
-		if (element instanceof ReplEvaluationResult) {
+		if (element instanceof ReplEvaluationResult || (element instanceof Variable && !element.name)) {
+			// Variable with no name is a top level variable which should be rendered like a repl element #17404
 			return ReplEvaluationResultsRenderer.ID;
 		}
 		if (element instanceof ReplEvaluationInput) {
 			return ReplEvaluationInputsRenderer.ID;
 		}
-		if (element instanceof SimpleReplElement || (element instanceof Variable && !element.name)) {
-			// Variable with no name is a top level variable which should be rendered like a repl element #17404
+		if (element instanceof SimpleReplElement) {
 			return ReplSimpleElementsRenderer.ID;
 		}
 		if (element instanceof ReplGroup) {

@@ -42,6 +42,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Codicon } from 'vs/base/common/codicons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -367,9 +368,16 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 		return false;
 	}
 
-	getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
+	async getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			return element.groups();
+			const groups = await element.groups();
+			if (groups.length === 1) {
+				const items = await groups[0].items;
+				if (items && (items.length > 0) && (items[0].tunnelType === TunnelType.Forwarded)) {
+					return items;
+				}
+			}
+			return groups;
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
@@ -517,6 +525,7 @@ export class TunnelPanel extends ViewPane {
 
 		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
 		const treeContainer = dom.append(panelContainer, dom.$('.customview-tree'));
+		treeContainer.classList.add('ports-view');
 		treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
@@ -1036,7 +1045,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
 	command: {
 		id: ForwardPortAction.INLINE_ID,
 		title: ForwardPortAction.LABEL,
-		icon: { id: 'codicon/plus' }
+		icon: Codicon.plus
 	}
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
@@ -1099,7 +1108,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: OpenPortInBrowserAction.ID,
 		title: OpenPortInBrowserAction.LABEL,
-		icon: { id: 'codicon/globe' }
+		icon: Codicon.globe
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
 }));
@@ -1108,7 +1117,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ForwardPortAction.INLINE_ID,
 		title: ForwardPortAction.TREEITEM_LABEL,
-		icon: { id: 'codicon/plus' }
+		icon: Codicon.plus
 	},
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
 }));
@@ -1117,7 +1126,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,
-		icon: { id: 'codicon/x' }
+		icon: Codicon.x
 	},
 	when: TunnelCloseableContextKey
 }));

@@ -121,7 +121,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 
 	sharedIPCHandle: string = undefined!;
 
-	extensionsPath?: string | undefined;
+	extensionsPath: string = undefined!;
 	extensionsDownloadPath: string = undefined!;
 	builtinExtensionsPath: string = undefined!;
 

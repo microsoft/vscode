@@ -36,6 +36,7 @@ import { IStorageMainService } from 'vs/platform/storage/node/storageMainService
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -518,11 +519,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Window Fullscreen
 		this._win.on('enter-full-screen', () => {
-			this.sendWhenReady('vscode:enterFullScreen');
+			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 		});
 
 		this._win.on('leave-full-screen', () => {
-			this.sendWhenReady('vscode:leaveFullScreen');
+			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 		});
 
 		// Window Failed to load
@@ -1100,7 +1101,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Events
-		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen');
+		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen', CancellationToken.None);
 
 		// Respect configured menu bar visibility or default to toggle if not set
 		if (this.currentMenuBarVisibility) {
@@ -1241,11 +1242,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	sendWhenReady(channel: string, ...args: any[]): void {
+	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void {
 		if (this.isReady) {
 			this.send(channel, ...args);
 		} else {
-			this.ready().then(() => this.send(channel, ...args));
+			this.ready().then(() => {
+				if (!token.isCancellationRequested) {
+					this.send(channel, ...args);
+				}
+			});
 		}
 	}
 
@@ -1295,7 +1300,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			mode: 'buttons',
 			segmentStyle: 'automatic',
 			change: (selectedIndex) => {
-				this.sendWhenReady('vscode:runAction', { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
+				this.sendWhenReady('vscode:runAction', CancellationToken.None, { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
 			}
 		});
 
