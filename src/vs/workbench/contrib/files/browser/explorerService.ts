@@ -20,6 +20,7 @@ import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/b
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -93,21 +94,22 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string }): Promise<void> {
+		const cancellationTokenSource = new CancellationTokenSource();
 		const promise = this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			delay: 500,
-			title: options.progressLabel
+			title: options.progressLabel,
+			cancellable: true
 		}, async progress => {
-
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
-				progress
+				progress,
+				token: cancellationTokenSource.token
 			});
-		});
-		this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
-
-		return promise;
+		}, () => cancellationTokenSource.cancel());
+		await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
+		cancellationTokenSource.dispose();
 	}
 
 	hasViewFocus(): boolean {
