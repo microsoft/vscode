@@ -5,9 +5,9 @@
 import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Extensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { PORT_AUTO_FORWARD_SETTING, forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -25,18 +25,23 @@ import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Codicon } from 'vs/base/common/codicons';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private contextKeyListener?: IDisposable;
+	private _activityBadge?: IDisposable;
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
@@ -64,7 +69,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				order: 5
 			}, ViewContainerLocation.Panel);
 
-			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
+			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.configurationService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
@@ -82,16 +87,33 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		const disposable = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
 			if (e.find(view => view.views.find(viewDescriptor => viewDescriptor.id === TUNNEL_VIEW_ID))) {
 				this._register(this.remoteExplorerService.tunnelModel.onForwardPort(() => {
+					this.updateActivityBadge();
 					this.updateStatusBar();
 				}));
 				this._register(this.remoteExplorerService.tunnelModel.onClosePort(() => {
+					this.updateActivityBadge();
 					this.updateStatusBar();
 				}));
 
+				this.updateActivityBadge();
 				this.updateStatusBar();
 				disposable.dispose();
 			}
 		});
+	}
+
+	private updateActivityBadge() {
+		if (this._activityBadge) {
+			this._activityBadge.dispose();
+		}
+		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
+			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(TUNNEL_VIEW_ID);
+			if (viewContainer) {
+				this._activityBadge = this.activityService.showViewContainerActivity(viewContainer.id, {
+					badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
+				});
+			}
+		}
 	}
 
 	private updateStatusBar() {
@@ -106,15 +128,10 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		let text: string;
 		let tooltip: string;
 		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
+		text = `${count}`;
 		if (count === 0) {
-			text = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Forwarded");
-			tooltip = text;
+			tooltip = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Forwarded");
 		} else {
-			if (count === 1) {
-				text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Forwarded");
-			} else {
-				text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Forwarded", count);
-			}
 			const allTunnels = Array.from(this.remoteExplorerService.tunnelModel.forwarded.values());
 			allTunnels.push(...Array.from(this.remoteExplorerService.tunnelModel.detected.values()));
 			tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Forwarded Ports: {0}",
@@ -131,7 +148,6 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 
 export class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
-	static AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
 	constructor(
 		@ITerminalService readonly terminalService: ITerminalService,
@@ -218,7 +234,7 @@ class WindowsAutomaticPortForwarding extends Disposable {
 		super();
 		this.notifier = new ForwardedPortNotifier(notificationService, remoteExplorerService, openerService);
 		this._register(configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
 				this.tryStartStopUrlFinder();
 			}
 		}));
@@ -232,7 +248,7 @@ class WindowsAutomaticPortForwarding extends Disposable {
 	}
 
 	private tryStartStopUrlFinder() {
-		if (this.configurationService.getValue(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
 			this.startUrlFinder();
 		} else {
 			this.stopUrlFinder();
@@ -281,7 +297,7 @@ class LinuxAutomaticPortForwarding extends Disposable {
 		super();
 		this.notifier = new ForwardedPortNotifier(notificationService, remoteExplorerService, openerService);
 		this._register(configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
 				this.startStopCandidateListener();
 			}
 		}));
@@ -290,7 +306,7 @@ class LinuxAutomaticPortForwarding extends Disposable {
 	}
 
 	private startStopCandidateListener() {
-		if (this.configurationService.getValue(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
 			this.startCandidateListener();
 		} else {
 			this.stopCandidateListener();
