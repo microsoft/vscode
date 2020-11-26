@@ -107,6 +107,7 @@ export class TunnelModel extends Disposable {
 	// onCandidateChanged returns the removed candidates
 	public onCandidatesChanged: Event<Map<string, { host: string, port: number }>> = this._onCandidatesChanged.event;
 	private _candidateFilter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined;
+	private tunnelRestoreValue: string | undefined;
 
 	constructor(
 		@ITunnelService private readonly tunnelService: ITunnelService,
@@ -116,6 +117,7 @@ export class TunnelModel extends Disposable {
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
+		this.tunnelRestoreValue = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
 		this._candidates = new Map();
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
@@ -147,8 +149,8 @@ export class TunnelModel extends Disposable {
 					closeable: true,
 					runningProcess: mapHasAddressLocalhostOrAllInterfaces(this._candidates, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)?.detail
 				});
-				this.storeForwarded();
 			}
+			this.storeForwarded();
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
@@ -164,9 +166,8 @@ export class TunnelModel extends Disposable {
 
 	async restoreForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const tunnelsString = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
-			if (tunnelsString) {
-				(<Tunnel[] | undefined>JSON.parse(tunnelsString))?.forEach(tunnel => {
+			if (this.tunnelRestoreValue) {
+				(<Tunnel[] | undefined>JSON.parse(this.tunnelRestoreValue))?.forEach(tunnel => {
 					this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name);
 				});
 			}
@@ -213,11 +214,13 @@ export class TunnelModel extends Disposable {
 	}
 
 	name(host: string, port: number, name: string) {
+		const existingForwarded = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, host, port);
 		const key = makeAddress(host, port);
-		if (this.forwarded.has(key)) {
-			this.forwarded.get(key)!.name = name;
+		if (existingForwarded) {
+			existingForwarded.name = name;
 			this.storeForwarded();
 			this._onPortName.fire({ host, port });
+			return;
 		} else if (this.detected.has(key)) {
 			this.detected.get(key)!.name = name;
 			this._onPortName.fire({ host, port });
