@@ -26,6 +26,10 @@
 	cursor: pointer;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::after {
+	padding-right: 0;
+}
+
 /* Title Actions */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label:not(span),
