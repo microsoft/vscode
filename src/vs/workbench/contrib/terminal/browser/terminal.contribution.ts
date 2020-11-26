@@ -36,8 +36,7 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { terminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -60,8 +59,6 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 // Register configurations
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration(terminalConfiguration);
-
-const terminalViewIcon = registerIcon('terminal-view-icon', Codicon.terminal, nls.localize('terminalViewIcon', 'View icon of the terminal view.'));
 
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
