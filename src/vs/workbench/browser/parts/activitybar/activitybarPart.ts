@@ -42,6 +42,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -67,6 +68,9 @@ interface ICachedViewContainer {
 	visible: boolean;
 	views?: { when?: string }[];
 }
+
+const settingsViewBarIcon = registerIcon('settings-view-bar-icon', Codicon.settingsGear, nls.localize('settingsViewBarIcon', 'Settings icon in the view bar.'));
+const accountsViewBarIcon = registerIcon('accounts-view-bar-icon', Codicon.account, nls.localize('accountsViewBarIcon', 'Accounts icon in the view bar.'));
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
@@ -602,14 +606,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityAction = this._register(new ActivityAction({
 			id: 'workbench.actions.manage',
 			name: nls.localize('manage', "Manage"),
-			cssClass: Codicon.settingsGear.classNames
+			cssClass: ThemeIcon.asClassName(settingsViewBarIcon)
 		}));
 
 		if (this.accountsVisibilityPreference) {
 			this.accountsActivityAction = this._register(new ActivityAction({
 				id: 'workbench.actions.accounts',
 				name: nls.localize('accounts', "Accounts"),
-				cssClass: Codicon.account.classNames
+				cssClass: ThemeIcon.asClassName(accountsViewBarIcon)
 			}));
 
 			this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
