@@ -20,6 +20,16 @@
   {
     "kind": 1,
     "language": "markdown",
+    "value": "## Open Pull Requests on the Milestone"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$REPOS $MILESTONE $MINE is:pr is:open"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
     "value": "## Open Issues on the Milestone",
     "editable": true
   },
