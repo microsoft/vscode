@@ -107,17 +107,17 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		let tooltip: string;
 		const count = this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
 		if (count === 0) {
-			text = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Available");
+			text = nls.localize('remote.forwardedPorts.statusbarTextNone', "No Ports Forwarded");
 			tooltip = text;
 		} else {
 			if (count === 1) {
-				text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Available");
+				text = nls.localize('remote.forwardedPorts.statusbarTextSingle', "1 Port Forwarded");
 			} else {
-				text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Available", count);
+				text = nls.localize('remote.forwardedPorts.statusbarTextMultiple', "{0} Ports Forwarded", count);
 			}
 			const allTunnels = Array.from(this.remoteExplorerService.tunnelModel.forwarded.values());
 			allTunnels.push(...Array.from(this.remoteExplorerService.tunnelModel.detected.values()));
-			tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Available Ports: {0}",
+			tooltip = nls.localize('remote.forwardedPorts.statusbarTooltip', "Forwarded Ports: {0}",
 				allTunnels.map(forwarded => forwarded.remotePort).join(', '));
 		}
 		return {
@@ -187,7 +187,7 @@ class ForwardedPortNotifier extends Disposable {
 		tunnels = tunnels.sort((a, b) => a.tunnelRemotePort - b.tunnelRemotePort);
 		const firstTunnel = tunnels.shift()!;
 		const address = makeAddress(firstTunnel.tunnelRemoteHost, firstTunnel.tunnelRemotePort);
-		const message = nls.localize('remote.tunnelsView.automaticForward', "Your service running on port {0} is available. [See all available ports](command:{1}.focus)",
+		const message = nls.localize('remote.tunnelsView.automaticForward', "Your service running on port {0} is available. [See all forwarded ports](command:{1}.focus)",
 			firstTunnel.tunnelRemotePort, TunnelPanel.ID);
 		const browserChoice: IPromptChoice = {
 			label: OpenPortInBrowserAction.LABEL,

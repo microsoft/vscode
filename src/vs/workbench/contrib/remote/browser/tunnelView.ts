@@ -85,7 +85,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			tunnelType: TunnelType.Add,
 			remoteHost: 'localhost',
 			remotePort: 0,
-			description: ''
+			description: '',
+			iconClasses: undefined
 		};
 	}
 
@@ -176,6 +177,7 @@ interface ITunnelTemplateData {
 	elementDisposable: IDisposable;
 	container: HTMLElement;
 	iconLabel: IconLabel;
+	icon: HTMLElement;
 	actionBar: ActionBar;
 }
 
@@ -208,6 +210,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 
 	renderTemplate(container: HTMLElement): ITunnelTemplateData {
 		container.classList.add('custom-view-tree-node-item');
+		const icon = dom.append(container, dom.$('.custom-view-tree-node-item-icon'));
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		// dom.addClass(iconLabel.element, 'tunnel-view-label');
 		const actionsContainer = dom.append(iconLabel.element, dom.$('.actions'));
@@ -223,7 +226,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			}
 		});
 
-		return { iconLabel, actionBar, container, elementDisposable: Disposable.None };
+		return { icon, iconLabel, actionBar, container, elementDisposable: Disposable.None };
 	}
 
 	private isTunnelItem(item: ITunnelGroup | ITunnelItem): item is ITunnelItem {
@@ -236,6 +239,9 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 
 		// reset
 		templateData.actionBar.clear();
+		templateData.icon.className = 'custom-view-tree-node-item-icon';
+		templateData.icon.hidden = true;
+
 		let editableData: IEditableData | undefined;
 		if (this.isTunnelItem(node)) {
 			editableData = this.remoteExplorerService.getEditableData(node);
@@ -258,6 +264,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
 		const label = node.label + (node.description ? (' - ' + node.description) : '');
 		templateData.iconLabel.setLabel(node.label, node.description, { title: label, extraClasses: ['tunnel-view-label'] });
+
 		templateData.actionBar.context = node;
 		const contextKeyService = this._register(this.contextKeyService.createScoped());
 		contextKeyService.createKey('view', this.viewId);
@@ -273,6 +280,13 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			if (this._actionRunner) {
 				templateData.actionBar.actionRunner = this._actionRunner;
 			}
+		}
+		if (node.iconClasses) {
+			templateData.icon.className = `custom-view-tree-node-item-icon ${node.iconClasses}`;
+			templateData.icon.hidden = false;
+		} else {
+			templateData.icon.className = 'custom-view-tree-node-item-icon';
+			templateData.icon.hidden = true;
 		}
 	}
 
@@ -455,6 +469,10 @@ class TunnelItem implements ITunnelItem {
 		}
 
 		return undefined;
+	}
+
+	get iconClasses(): string | undefined {
+		return this.tunnelType === TunnelType.Detected || this.tunnelType === TunnelType.Forwarded ? Codicon.plug.classNames : undefined;
 	}
 }
 
