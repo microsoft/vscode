@@ -1091,41 +1091,48 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			// namespaces
 			authentication,
 			commands,
+			comment,
+			comments,
 			debug,
 			env,
 			extensions,
 			languages,
-			scm,
-			test,
-			comment,
-			comments,
-			tasks,
 			notebook,
+			scm,
+			tasks,
+			test,
 			window,
 			workspace,
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
+			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
+			CallHierarchyItem: extHostTypes.CallHierarchyItem,
+			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
 			CancellationTokenSource: CancellationTokenSource,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
 			CodeActionTrigger: extHostTypes.CodeActionTrigger,
-			CodeLens: extHostTypes.CodeLens,
 			CodeInset: extHostTypes.CodeInset,
+			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorInformation: extHostTypes.ColorInformation,
 			ColorPresentation: extHostTypes.ColorPresentation,
-			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
+			ColorThemeKind: extHostTypes.ColorThemeKind,
 			CommentMode: extHostTypes.CommentMode,
+			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionItemTag: extHostTypes.CompletionItemTag,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
+			CustomExecution: extHostTypes.CustomExecution,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
-			DebugAdapterServer: extHostTypes.DebugAdapterServer,
-			DebugAdapterNamedPipeServer: extHostTypes.DebugAdapterNamedPipeServer,
 			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
+			DebugAdapterNamedPipeServer: extHostTypes.DebugAdapterNamedPipeServer,
+			DebugAdapterServer: extHostTypes.DebugAdapterServer,
+			DebugConfigurationProviderTriggerKind: extHostTypes.DebugConfigurationProviderTriggerKind,
+			DebugConsoleMode: extHostTypes.DebugConsoleMode,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
@@ -1143,8 +1150,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
 			ExtensionRuntime: extHostTypes.ExtensionRuntime,
-			CustomExecution: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
+			FileDecoration: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
 			FoldingRange: extHostTypes.FoldingRange,
@@ -1163,19 +1170,19 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
-			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
-			SemanticTokensLegend: extHostTypes.SemanticTokensLegend,
-			SemanticTokensBuilder: extHostTypes.SemanticTokensBuilder,
-			SemanticTokens: extHostTypes.SemanticTokens,
-			SemanticTokensEdits: extHostTypes.SemanticTokensEdits,
-			SemanticTokensEdit: extHostTypes.SemanticTokensEdit,
+			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
+			SemanticTokens: extHostTypes.SemanticTokens,
+			SemanticTokensBuilder: extHostTypes.SemanticTokensBuilder,
+			SemanticTokensEdit: extHostTypes.SemanticTokensEdit,
+			SemanticTokensEdits: extHostTypes.SemanticTokensEdits,
+			SemanticTokensLegend: extHostTypes.SemanticTokensLegend,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
-			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
 			SignatureHelp: extHostTypes.SignatureHelp,
+			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
@@ -1201,31 +1208,63 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TreeItem: extHostTypes.TreeItem,
 			TreeItem2: extHostTypes.TreeItem,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
+			UIKind: UIKind,
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
-			// proposed
-			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
-			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
-			CallHierarchyItem: extHostTypes.CallHierarchyItem,
-			DebugConsoleMode: extHostTypes.DebugConsoleMode,
-			DebugConfigurationProviderTriggerKind: extHostTypes.DebugConfigurationProviderTriggerKind,
-			FileDecoration: extHostTypes.FileDecoration,
-			UIKind: UIKind,
-			ColorThemeKind: extHostTypes.ColorThemeKind,
-			TimelineItem: extHostTypes.TimelineItem,
-			CellKind: extHostTypes.CellKind,
-			CellOutputKind: extHostTypes.CellOutputKind,
-			NotebookCellRunState: extHostTypes.NotebookCellRunState,
-			NotebookRunState: extHostTypes.NotebookRunState,
-			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment,
-			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
-			NotebookCellOutput: extHostTypes.NotebookCellOutput,
-			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
-			OnTypeRenameRanges: extHostTypes.OnTypeRenameRanges,
-			TestRunState: extHostTypes.TestRunState,
-			TestMessageSeverity: extHostTypes.TestMessageSeverity,
-			TestState: extHostTypes.TestState,
+			// proposed api types
+			get TimelineItem() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.TimelineItem;
+			},
+			get CellKind() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.CellKind;
+			},
+			get CellOutputKind() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.CellOutputKind;
+			},
+			get NotebookCellRunState() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.NotebookCellRunState;
+			},
+			get NotebookRunState() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.NotebookRunState;
+			},
+			get NotebookCellStatusBarAlignment() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.NotebookCellStatusBarAlignment;
+			},
+			get NotebookEditorRevealType() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.NotebookEditorRevealType;
+			},
+			get NotebookCellOutput() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.NotebookCellOutput;
+			},
+			get NotebookCellOutputItem() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.NotebookCellOutputItem;
+			},
+			get OnTypeRenameRanges() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.OnTypeRenameRanges;
+			},
+			get TestRunState() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.TestRunState;
+			},
+			get TestMessageSeverity() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.TestMessageSeverity;
+			},
+			get TestState() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.TestState;
+			},
 		};
 	};
 }
