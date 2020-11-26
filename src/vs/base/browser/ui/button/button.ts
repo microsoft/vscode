@@ -15,8 +15,7 @@ import { renderCodicons } from 'vs/base/browser/codicons';
 import { addDisposableListener, IFocusTracker, EventType, EventHelper, trackFocus, reset, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon, CSSIcon, registerIcon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 
 export interface IButtonOptions extends IButtonStyles {
 	readonly title?: boolean | string;
@@ -238,8 +237,6 @@ export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly actionRunner?: IActionRunner;
 }
 
-const dropdownIcon = registerIcon('button-drow-down', Codicon.chevronDown, localize('dropdownIcon', 'Icon for button with dropdowns'));
-
 export class ButtonWithDropdown extends Disposable implements IButton {
 
 	private readonly button: Button;
@@ -260,7 +257,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportCodicons: true }));
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
-		this.dropdownButton.icon = dropdownIcon;
+		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(() => {
 			options.contextMenuProvider.showContextMenu({
 				getAnchor: () => this.dropdownButton.element,
