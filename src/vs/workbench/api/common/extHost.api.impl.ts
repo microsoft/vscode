@@ -1112,7 +1112,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
 			CodeActionTrigger: extHostTypes.CodeActionTrigger,
-			CodeInset: extHostTypes.CodeInset,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorInformation: extHostTypes.ColorInformation,
@@ -1149,7 +1148,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
-			ExtensionRuntime: extHostTypes.ExtensionRuntime,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileDecoration: extHostTypes.FileDecoration,
 			FileSystemError: extHostTypes.FileSystemError,
@@ -1160,7 +1158,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,
-			LogLevel: extHostTypes.LogLevel,
 			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: OverviewRulerLane,
 			ParameterInformation: extHostTypes.ParameterInformation,
@@ -1170,8 +1167,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
 			RelativePattern: extHostTypes.RelativePattern,
-			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
-			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
 			SemanticTokens: extHostTypes.SemanticTokens,
@@ -1186,7 +1181,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
-			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			StandardTokenType: extHostTypes.StandardTokenType,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
@@ -1206,13 +1200,36 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
 			TreeItem: extHostTypes.TreeItem,
-			TreeItem2: extHostTypes.TreeItem,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
 			UIKind: UIKind,
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
+			get LogLevel() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.LogLevel;
+			},
+			get TreeItem2() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.TreeItem;
+			},
+			get RemoteAuthorityResolverError() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.RemoteAuthorityResolverError;
+			},
+			get ResolvedAuthority() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.ResolvedAuthority;
+			},
+			get SourceControlInputBoxValidationType() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.SourceControlInputBoxValidationType;
+			},
+			get ExtensionRuntime() {
+				checkProposedApiEnabled(extension);
+				return extHostTypes.ExtensionRuntime;
+			},
 			get TimelineItem() {
 				checkProposedApiEnabled(extension);
 				return extHostTypes.TimelineItem;
