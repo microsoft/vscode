@@ -194,6 +194,7 @@ class ForwardedPortNotifier extends Disposable {
 			run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address)
 		};
 		this.lastNotification = this.notificationService.prompt(Severity.Info, message, [browserChoice], { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
+		this.lastNotifyTime = new Date();
 		this.lastNotification.onDidClose(() => {
 			this.lastNotification = undefined;
 		});
