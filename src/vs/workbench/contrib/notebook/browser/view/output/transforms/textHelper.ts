@@ -20,7 +20,7 @@ const LINES_LIMIT = 500;
 
 function generateViewMoreElement(outputs: string[], openerService: IOpenerService, textFileService: ITextFileService) {
 	const md: IMarkdownString = {
-		value: '[show more ...](command:workbench.action.openLargeOutput)',
+		value: '[show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)',
 		isTrusted: true,
 		supportThemeIcons: true
 	};

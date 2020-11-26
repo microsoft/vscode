@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IFilesConfiguration, SortOrder, IExplorerView } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, SortOrder } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -16,13 +16,18 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
+import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+
+export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
 export class ExplorerService implements IExplorerService {
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
-	private static readonly UNDO_REDO_SOURCE = new UndoRedoSource();
 
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
@@ -37,7 +42,9 @@ export class ExplorerService implements IExplorerService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IEditorService private editorService: IEditorService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 
@@ -86,8 +93,23 @@ export class ExplorerService implements IExplorerService {
 		return this.view.getContext(respectMultiSelection);
 	}
 
-	get undoRedoSource(): UndoRedoSource {
-		return ExplorerService.UNDO_REDO_SOURCE;
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string }): Promise<void> {
+		const cancellationTokenSource = new CancellationTokenSource();
+		const promise = this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			delay: 500,
+			title: options.progressLabel,
+			cancellable: edit.length > 1 // Only allow cancellation when there is more than one edit. Since cancelling will not actually stop the current edit that is in progress.
+		}, async progress => {
+			await this.bulkEditService.apply(edit, {
+				undoRedoSource: UNDO_REDO_SOURCE,
+				label: options.undoLabel,
+				progress,
+				token: cancellationTokenSource.token
+			});
+		}, () => cancellationTokenSource.cancel());
+		await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);
+		cancellationTokenSource.dispose();
 	}
 
 	hasViewFocus(): boolean {

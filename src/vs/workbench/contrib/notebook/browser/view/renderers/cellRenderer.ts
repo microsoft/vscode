@@ -480,6 +480,10 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+		if (!this.notebookEditor.hasModel()) {
+			throw new Error('The notebook editor is not attached with view model yet.');
+		}
+
 		const removedClassNames: string[] = [];
 		templateData.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {
@@ -522,7 +526,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}
 		}));
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel?.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
 
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
@@ -802,7 +806,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
+		if (!this.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel.notebookDocument.metadata);
 		templateData.container.classList.toggle('runnable', !!metadata.runnable);
 		this.updateExecutionOrder(metadata, templateData);
 		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
@@ -857,6 +865,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
+		if (!this.notebookEditor.hasModel()) {
+			throw new Error('The notebook editor is not attached with view model yet.');
+		}
+
 		const removedClassNames: string[] = [];
 		templateData.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {
@@ -903,7 +915,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel?.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
@@ -922,7 +934,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				this.updateForHover(element, templateData);
 			}
 		}));
-		elementDisposables.add(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+		elementDisposables.add(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {
 			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
 				this.updateForMetadata(element, templateData);
 			}

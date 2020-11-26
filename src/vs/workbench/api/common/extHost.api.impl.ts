@@ -688,6 +688,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
 			},
+			showNotebookDocument(document, options?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.showNotebookDocument(document, options);
+			}
 		};
 
 		// namespace: workspace

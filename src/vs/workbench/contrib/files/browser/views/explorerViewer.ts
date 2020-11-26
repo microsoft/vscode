@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, basename, distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -40,7 +40,7 @@ import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { ITask, RunOnceWorker, sequence } from 'vs/base/common/async';
+import { RunOnceWorker } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -57,7 +57,8 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -812,8 +813,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IHostService private hostService: IHostService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IBulkEditService private readonly bulkEditService: IBulkEditService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.toDispose = [];
 
@@ -1014,25 +1014,24 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const cts = new CancellationTokenSource();
 
 			// Indicate progress globally
-			const dropPromise = this.progressService.withProgress({
-				location: ProgressLocation.Window,
-				delay: 800,
-				cancellable: true,
-				title: isWeb ? localize('uploadingFiles', "Uploading") : localize('copyingFiles', "Copying")
-			}, async progress => {
-				try {
-					if (isWeb) {
-						await this.handleWebExternalDrop(data, resolvedTarget, originalEvent, progress, cts.token);
-					} else {
-						await this.handleExternalDrop(data, resolvedTarget, originalEvent, progress, cts.token);
-					}
-				} catch (error) {
-					this.notificationService.warn(error);
+			try {
+				if (isWeb) {
+					const dropPromise = this.progressService.withProgress({
+						location: ProgressLocation.Window,
+						delay: 800,
+						cancellable: true,
+						title: localize('uploadingFiles', "Uploading")
+					}, async progress => {
+						this.handleWebExternalDrop(resolvedTarget, originalEvent, progress, cts.token);
+					}, () => cts.dispose(true));
+					// Also indicate progress in the files view
+					this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => dropPromise);
+				} else {
+					this.handleExternalDrop(resolvedTarget, originalEvent, cts.token);
 				}
-			}, () => cts.dispose(true));
-
-			// Also indicate progress in the files view
-			this.progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => dropPromise);
+			} catch (error) {
+				this.notificationService.warn(error);
+			}
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
@@ -1040,7 +1039,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async handleWebExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	private async handleWebExternalDrop(target: ExplorerItem, originalEvent: DragEvent, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		const items = (originalEvent.dataTransfer as unknown as IWebkitDataTransfer).items;
 
 		// Somehow the items thing is being modified at random, maybe as a security
@@ -1074,9 +1073,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					continue;
 				}
 
-				await this.bulkEditService.apply([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
-					undoRedoSource: this.explorerService.undoRedoSource,
-					label: localize('overwrite', "Overwrite {0}", entry.name)
+				await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
+					undoLabel: localize('overwrite', "Overwriting {0}", entry.name),
+					progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
 				});
 
 				if (token.isCancellationRequested) {
@@ -1265,7 +1264,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		});
 	}
 
-	private async handleExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	private async handleExternalDrop(target: ExplorerItem, originalEvent: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Check for dropped external files to be folders
 		const droppedResources = extractResources(originalEvent, true);
@@ -1299,7 +1298,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return this.workspaceEditingService.addFolders(folders);
 			}
 			if (choice === buttons.length - 2) {
-				return this.addResources(target, droppedResources.map(res => res.resource), progress, token);
+				return this.addResources(target, droppedResources.map(res => res.resource), token);
 			}
 
 			return undefined;
@@ -1307,11 +1306,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.addResources(target, droppedResources.map(res => res.resource), progress, token);
+			return this.addResources(target, droppedResources.map(res => res.resource), token);
 		}
 	}
 
-	private async addResources(target: ExplorerItem, resources: URI[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	private async addResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
@@ -1330,41 +1329,33 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				});
 			}
 
-			// Run add in sequence
-			const addPromisesFactory: ITask<Promise<void>>[] = [];
-			await Promise.all(resources.map(async resource => {
+			const resourcesFiltered = (await Promise.all(resources.map(async resource => {
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
-						return;
+						return undefined;
 					}
 				}
+				return resource;
+			}))).filter(r => r instanceof URI) as URI[];
+			const resourceFileEdits = resourcesFiltered.map(resource => {
+				const sourceFileName = basename(resource);
+				const targetFile = joinPath(target.resource, sourceFileName);
+				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
+			});
 
-				addPromisesFactory.push(async () => {
-					if (token.isCancellationRequested) {
-						return;
-					}
+			await this.explorerService.applyBulkEdit(resourceFileEdits, {
+				undoLabel: resourcesFiltered.length === 1 ? localize('copyFile', "Copy {0}", basename(resourcesFiltered[0])) : localize('copynFile', "Copy {0} files", resourcesFiltered.length),
+				progressLabel: resourcesFiltered.length === 1 ? localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) : localize('copyingnFile', "Copying {0} files", resourcesFiltered.length)
+			});
 
-					const sourceFile = resource;
-					const sourceFileName = basename(sourceFile);
-					const targetFile = joinPath(target.resource, sourceFileName);
-
-					progress.report({ message: sourceFileName });
-
-					await this.bulkEditService.apply([new ResourceFileEdit(sourceFile, targetFile, { overwrite: true, copy: true })], {
-						undoRedoSource: this.explorerService.undoRedoSource,
-						label: localize('copyFile', "Copy {0}", sourceFileName)
-					});
-					// if we only add one file, just open it directly
-
-					const item = this.explorerService.findClosest(targetFile);
-					if (resources.length === 1 && item && !item.isDirectory) {
-						this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
-					}
-				});
-			}));
-
-			await sequence(addPromisesFactory);
+			// if we only add one file, just open it directly
+			if (resourceFileEdits.length === 1) {
+				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
+				if (item) {
+					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
+				}
+			}
 		}
 	}
 
@@ -1449,9 +1440,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action when user copies
 		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 		const resourceFileEdits = sources.map(({ resource, isDirectory }) => (new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming), { copy: true })));
-		await this.bulkEditService.apply(resourceFileEdits, {
-			undoRedoSource: this.explorerService.undoRedoSource,
-			label: resourceFileEdits.length > 1 ? localize('copy', "Copy {0} files", resourceFileEdits.length) : localize('copyOneFile', "Copy {0}", basenameOrAuthority(resourceFileEdits[0].newResource!))
+		await this.explorerService.applyBulkEdit(resourceFileEdits, {
+			undoLabel: resourceFileEdits.length > 1 ? localize('copy', "Copy {0} files", resourceFileEdits.length) : localize('copyOneFile', "Copy {0}", basenameOrAuthority(resourceFileEdits[0].newResource!)),
+			progressLabel: resourceFileEdits.length > 1 ? localize('copying', "Copying {0} files", resourceFileEdits.length) : localize('copyingOneFile', "Copying {0}", basenameOrAuthority(resourceFileEdits[0].newResource!)),
 		});
 
 		const editors = resourceFileEdits.filter(edit => {
@@ -1466,10 +1457,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Do not allow moving readonly items
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
-		const label = sources.length > 1 ? localize('move', "Move {0} files", sources.length) : localize('moveOneFile', "Move {0}", sources[0].name);
+		const options = {
+			undoLabel: sources.length > 1 ? localize('move', "Move {0} files", sources.length) : localize('moveOneFile', "Move {0}", sources[0].name),
+			progressLabel: sources.length > 1 ? localize('moving', "Moving {0} files", sources.length) : localize('movingOneFile', "Moving {0}", sources[0].name),
+		};
 
 		try {
-			await this.bulkEditService.apply(resourceFileEdits, { undoRedoSource: this.explorerService.undoRedoSource, label });
+			await this.explorerService.applyBulkEdit(resourceFileEdits, options);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1486,10 +1480,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.bulkEditService.apply(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), {
-							undoRedoSource: this.explorerService.undoRedoSource,
-							label
-						});
+						await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
 					} catch (error) {
 						this.notificationService.error(error);
 					}

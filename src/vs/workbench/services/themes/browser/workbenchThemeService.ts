@@ -36,9 +36,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 // implementation
 
@@ -179,12 +179,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
+		const iconRegistry = getIconRegistry();
 		function updateAll() {
-			codiconStyleSheet.textContent = CodiconStyles.getCSS();
+			codiconStyleSheet.textContent = iconRegistry.getCSS();
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		CodiconStyles.onDidChange(() => delayer.schedule());
+		iconRegistry.onDidChange(() => delayer.schedule());
 		delayer.schedule();
 	}
 

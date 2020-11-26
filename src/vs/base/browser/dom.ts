@@ -1373,8 +1373,8 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	const options = _extInsaneOptions({
 		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 		allowedAttributes: {
-			'a': ['href'],
-			'button': ['data-href'],
+			'a': ['href', 'x-dispatch'],
+			'button': ['data-href', 'x-dispatch'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
 			'label': ['for'],
 			'select': ['required'],

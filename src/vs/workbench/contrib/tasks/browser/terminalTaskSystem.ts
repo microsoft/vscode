@@ -174,6 +174,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	};
 
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
+	private dependencyCycleCheck: Set<string>;
 	private instances: IStringDictionary<InstanceManager>;
 	private busyTasks: IStringDictionary<Task>;
 	private terminals: IStringDictionary<TerminalData>;
@@ -210,6 +211,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	) {
 
 		this.activeTasks = Object.create(null);
+		this.dependencyCycleCheck = new Set();
 		this.instances = Object.create(null);
 		this.busyTasks = Object.create(null);
 		this.terminals = Object.create(null);
@@ -437,7 +439,31 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Promise.all<TaskTerminateResponse>(promises);
 	}
 
+	private hasDependencyCycle(task: Task): boolean {
+		const key = task.getCommonTaskId();
+		if (this.dependencyCycleCheck.has(key)) {
+			this.showDependencyCycleMessage(task);
+			return true;
+		} else {
+			this.dependencyCycleCheck.add(key);
+			return false;
+		}
+	}
+
+	private showDependencyCycleMessage(task: Task) {
+		this.log(nls.localize('dependencyCycle',
+			'There is a dependency cycle. See task {0}.',
+			task._label
+		));
+		this.showOutput();
+	}
+
 	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+		if (this.hasDependencyCycle(task)) {
+			this.dependencyCycleCheck.delete(task.getCommonTaskId());
+			return {};
+		}
+
 		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
@@ -480,6 +506,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 						return { exitCode: summary.exitCode };
 					}
 				}
+				this.dependencyCycleCheck.delete(task.getCommonTaskId());
 				if (this.isRerun) {
 					return this.reexecuteCommand(task, trigger, alreadyResolved!);
 				} else {
@@ -487,6 +514,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			});
 		} else {
+			this.dependencyCycleCheck.delete(task.getCommonTaskId());
 			return Promise.all(promises).then((summaries): ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {

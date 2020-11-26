@@ -237,7 +237,7 @@ export class UserDataSyncDataViews extends Disposable {
 				super({
 					id: `workbench.actions.sync.replaceCurrent`,
 					title: localize('workbench.actions.sync.replaceCurrent', "Restore"),
-					icon: { id: 'codicon/discard' },
+					icon: Codicon.discard,
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i)),

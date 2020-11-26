@@ -72,7 +72,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 
-const backButtonIcon = registerIcon('quick-input-back', Codicon.arrowLeft);
+const backButtonIcon = registerIcon('quick-input-back', Codicon.arrowLeft, localize('backButtonIcon', 'Icon for the back button in the quick input dialog.'));
 
 const backButton = {
 	iconClass: backButtonIcon.classNames,

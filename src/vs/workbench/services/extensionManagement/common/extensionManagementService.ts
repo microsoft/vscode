@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
-import { prefersExecuteOnUI, canExecuteOnWorkspace, prefersExecuteOnWorkspace, canExecuteOnUI, prefersExecuteOnWeb, canExecuteOnWeb } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { prefersExecuteOnUI, getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -282,44 +282,28 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject(error);
 	}
 
-	private getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | undefined {
+	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null {
 
 		// Only local server
 		if (this.servers.length === 1 && this.extensionManagementServerService.localExtensionManagementServer) {
 			return this.extensionManagementServerService.localExtensionManagementServer;
 		}
 
-		// 1. Install on preferred location
-
-		// Install UI preferred extension on local server
-		if (prefersExecuteOnUI(manifest, this.productService, this.configurationService) && this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer;
-		}
-		// Install Workspace preferred extension on remote server
-		if (prefersExecuteOnWorkspace(manifest, this.productService, this.configurationService) && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.extensionManagementServerService.remoteExtensionManagementServer;
-		}
-		// Install Web preferred extension on web server
-		if (prefersExecuteOnWeb(manifest, this.productService, this.configurationService) && this.extensionManagementServerService.webExtensionManagementServer) {
-			return this.extensionManagementServerService.webExtensionManagementServer;
+		const extensionKind = getExtensionKind(manifest, this.productService, this.configurationService);
+		for (const kind of extensionKind) {
+			if (kind === 'ui' && this.extensionManagementServerService.localExtensionManagementServer) {
+				return this.extensionManagementServerService.localExtensionManagementServer;
+			}
+			if (kind === 'workspace' && this.extensionManagementServerService.remoteExtensionManagementServer) {
+				return this.extensionManagementServerService.remoteExtensionManagementServer;
+			}
+			if (kind === 'web' && this.extensionManagementServerService.webExtensionManagementServer) {
+				return this.extensionManagementServerService.webExtensionManagementServer;
+			}
 		}
 
-		// 2. Install on supported location
-
-		// Install UI supported extension on local server
-		if (canExecuteOnUI(manifest, this.productService, this.configurationService) && this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer;
-		}
-		// Install Workspace supported extension on remote server
-		if (canExecuteOnWorkspace(manifest, this.productService, this.configurationService) && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.extensionManagementServerService.remoteExtensionManagementServer;
-		}
-		// Install Web supported extension on web server
-		if (canExecuteOnWeb(manifest, this.productService, this.configurationService) && this.extensionManagementServerService.webExtensionManagementServer) {
-			return this.extensionManagementServerService.webExtensionManagementServer;
-		}
-
-		return undefined;
+		// Local server can accept any extension. So return local server if not compatible server found.
+		return this.extensionManagementServerService.localExtensionManagementServer;
 	}
 
 	private async hasToFlagExtensionsMachineScoped(extensions: IGalleryExtension[]): Promise<boolean> {

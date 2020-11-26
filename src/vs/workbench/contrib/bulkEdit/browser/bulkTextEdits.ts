@@ -19,6 +19,7 @@ import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/edit
 import { ResourceMap } from 'vs/base/common/map';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
@@ -136,6 +137,7 @@ export class BulkTextEdits {
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
+		private readonly _token: CancellationToken,
 		edits: ResourceTextEdit[],
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@IModelService private readonly _modelService: IModelService,
@@ -223,6 +225,9 @@ export class BulkTextEdits {
 		this._validateBeforePrepare();
 		const tasks = await this._createEditsTasks();
 
+		if (this._token.isCancellationRequested) {
+			return;
+		}
 		try {
 
 			const validation = this._validateTasks(tasks);

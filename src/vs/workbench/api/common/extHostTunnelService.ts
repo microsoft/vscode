@@ -6,7 +6,7 @@
 import { ExtHostTunnelServiceShape, MainContext, MainThreadTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as vscode from 'vscode';
-import { RemoteTunnel, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { RemoteTunnel, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -61,7 +61,7 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 		await this._proxy.$tunnelServiceReady();
 		return { dispose: () => { } };
 	}
-	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined { return undefined; }
+	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto> | undefined { return undefined; }
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
 	async $onDidTunnelsChange(): Promise<void> { }
 }

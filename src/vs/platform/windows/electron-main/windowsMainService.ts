@@ -39,6 +39,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
@@ -758,7 +759,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			params.termProgram = configuration.userEnv['TERM_PROGRAM'];
 		}
 
-		window.sendWhenReady('vscode:openFiles', params);
+		window.sendWhenReady('vscode:openFiles', CancellationToken.None, params);
 
 		return window;
 	}
@@ -767,7 +768,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.focus(); // make sure window has focus
 
 		const request: IAddFoldersRequest = { foldersToAdd };
-		window.sendWhenReady('vscode:addFolders', request);
+		window.sendWhenReady('vscode:addFolders', CancellationToken.None, request);
 
 		return window;
 	}
@@ -1679,7 +1680,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		if (focusedWindow) {
-			focusedWindow.sendWhenReady(channel, ...args);
+			focusedWindow.sendWhenReady(channel, CancellationToken.None, ...args);
 		}
 	}
 
@@ -1689,7 +1690,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				continue; // do not send if we are instructed to ignore it
 			}
 
-			window.sendWhenReady(channel, payload);
+			window.sendWhenReady(channel, CancellationToken.None, payload);
 		}
 	}
 

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
-import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
+import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
@@ -35,6 +35,7 @@ import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSe
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { ProxyAuthHandler2 } from 'vs/code/electron-main/auth2';
+import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
@@ -52,7 +53,7 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { sep, posix } from 'vs/base/common/path';
+import { sep, posix, join, isAbsolute } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
@@ -86,6 +87,8 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { isEqualOrParent } from 'vs/base/common/extpath';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -100,7 +103,8 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -264,7 +268,9 @@ export class CodeApplication extends Disposable {
 			this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
+		//#region Bootstrap IPC Handlers
+
+		ipcMain.on('vscode:fetchShellEnv', async event => {
 			const webContents = event.sender;
 			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 
@@ -286,9 +292,11 @@ export class CodeApplication extends Disposable {
 			// Handle slow shell environment resolve calls:
 			// - a warning after 3s but continue to resolve
 			// - an error after 10s and stop trying to resolve
-			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning'), 3000);
+			const cts = new CancellationTokenSource();
+			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning', cts.token), 3000);
 			const shellEnvTimeoutErrorHandle = setTimeout(function () {
-				window?.sendWhenReady('vscode:showShellEnvTimeoutError');
+				cts.dispose(true);
+				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
 				acceptShellEnv({});
 			}, 10000);
 
@@ -312,10 +320,50 @@ export class CodeApplication extends Disposable {
 			acceptShellEnv(shellEnv);
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: IpcMainEvent) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: IpcMainEvent) => event.sender.openDevTools());
+		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
+			const uri = this.validateNlsPath([path]);
+			if (!uri || typeof data !== 'string') {
+				return Promise.reject('Invalid operation (vscode:writeNlsFile)');
+			}
 
-		ipc.on('vscode:reloadWindow', (event: IpcMainEvent) => event.sender.reload());
+			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
+		});
+
+		ipcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
+			const uri = this.validateNlsPath(paths);
+			if (!uri) {
+				return Promise.reject('Invalid operation (vscode:readNlsFile)');
+			}
+
+			return (await this.fileService.readFile(uri)).value.toString();
+		});
+
+		ipcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
+		ipcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
+
+		ipcMain.on('vscode:reloadWindow', event => event.sender.reload());
+
+		//#endregion
+	}
+
+	private validateNlsPath(pathSegments: unknown[]): URI | undefined {
+		let path: string | undefined = undefined;
+
+		for (const pathSegment of pathSegments) {
+			if (typeof pathSegment === 'string') {
+				if (typeof path !== 'string') {
+					path = pathSegment;
+				} else {
+					path = join(path, pathSegment);
+				}
+			}
+		}
+
+		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentService.cachedLanguagesPath, !isLinux)) {
+			return undefined;
+		}
+
+		return URI.file(path);
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -365,6 +413,9 @@ export class CodeApplication extends Disposable {
 			this.logService.error(error);
 		}
 
+		// Setup Protocol Handler
+		const fileProtocolHandler = this._register(this.instantiationService.createInstance(FileProtocolHandler));
+
 		// Create Electron IPC Server
 		const electronIpcServer = new ElectronIPCServer();
 
@@ -410,7 +461,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
@@ -487,7 +538,7 @@ export class CodeApplication extends Disposable {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
-			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
+			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -536,7 +587,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
@@ -598,8 +649,10 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
-		// ExtensionHost Debug broadcast service
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		fileProtocolHandler.injectWindowsMainService(windowsMainService);
+
+		// ExtensionHost Debug broadcast service
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
@@ -687,11 +740,11 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager({
+		const activeWindowManager = this._register(new ActiveWindowManager({
 			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
 			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
 			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
-		});
+		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
@@ -856,8 +909,7 @@ export class CodeApplication extends Disposable {
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
 		// will be used as crash reporter id and also update the json file.
 		try {
-			const fileService = accessor.get(IFileService);
-			const argvContent = await fileService.readFile(this.environmentService.argvResource);
+			const argvContent = await this.fileService.readFile(this.environmentService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
 			if (argvJSON['enable-crash-reporter'] === undefined) {
@@ -874,7 +926,7 @@ export class CodeApplication extends Disposable {
 					'}'
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
-				await fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
+				await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {
 			this.logService.error(error);
