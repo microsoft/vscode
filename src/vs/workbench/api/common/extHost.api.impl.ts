@@ -639,7 +639,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
-				checkProposedApiEnabled(extension);
 				return extHostDecorations.registerFileDecorationProvider(provider, extension.identifier);
 			},
 			registerUriHandler(handler: vscode.UriHandler) {
