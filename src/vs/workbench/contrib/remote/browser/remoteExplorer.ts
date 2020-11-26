@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { PORT_AUTO_FORWARD_SETTING, forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -40,7 +40,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
@@ -68,7 +69,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				order: 5
 			}, ViewContainerLocation.Panel);
 
-			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
+			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.configurationService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
@@ -147,7 +148,6 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 
 export class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
-	static AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
 	constructor(
 		@ITerminalService readonly terminalService: ITerminalService,
@@ -234,7 +234,7 @@ class WindowsAutomaticPortForwarding extends Disposable {
 		super();
 		this.notifier = new ForwardedPortNotifier(notificationService, remoteExplorerService, openerService);
 		this._register(configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
 				this.tryStartStopUrlFinder();
 			}
 		}));
@@ -248,7 +248,7 @@ class WindowsAutomaticPortForwarding extends Disposable {
 	}
 
 	private tryStartStopUrlFinder() {
-		if (this.configurationService.getValue(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
 			this.startUrlFinder();
 		} else {
 			this.stopUrlFinder();
@@ -297,7 +297,7 @@ class LinuxAutomaticPortForwarding extends Disposable {
 		super();
 		this.notifier = new ForwardedPortNotifier(notificationService, remoteExplorerService, openerService);
 		this._register(configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
 				this.startStopCandidateListener();
 			}
 		}));
@@ -306,7 +306,7 @@ class LinuxAutomaticPortForwarding extends Disposable {
 	}
 
 	private startStopCandidateListener() {
-		if (this.configurationService.getValue(AutomaticPortForwarding.AUTO_FORWARD_SETTING)) {
+		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
 			this.startCandidateListener();
 		} else {
 			this.stopCandidateListener();

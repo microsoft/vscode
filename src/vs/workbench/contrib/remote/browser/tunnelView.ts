@@ -45,6 +45,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
+export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
@@ -73,7 +74,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
@@ -106,13 +108,15 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 				items: this.detected
 			});
 		}
-		const candidates = await this.candidates;
-		if (candidates.length > 0) {
-			groups.push({
-				label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
-				tunnelType: TunnelType.Candidate,
-				items: candidates
-			});
+		if (!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
+			const candidates = await this.candidates;
+			if (candidates.length > 0) {
+				groups.push({
+					label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
+					tunnelType: TunnelType.Candidate,
+					items: candidates
+				});
+			}
 		}
 		if (groups.length === 0) {
 			groups.push(this._input);
