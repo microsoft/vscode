@@ -384,7 +384,7 @@ interface ITunnelGroup {
 
 class TunnelItem implements ITunnelItem {
 	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
-		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description ?? tunnel.runningProcess);
+		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description ?? tunnel.runningProcess, tunnel.source);
 	}
 
 	constructor(
@@ -396,6 +396,7 @@ class TunnelItem implements ITunnelItem {
 		public closeable?: boolean,
 		public name?: string,
 		private _description?: string,
+		private source?: string
 	) { }
 	get label(): string {
 		if (this.name) {
@@ -435,11 +436,24 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	get description(): string | undefined {
-		if (this._description) {
-			return this._description;
-		} else if (this.name && this.localAddress) {
-			return nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress));
+		const description: string[] = [];
+
+		if (this.name && this.localAddress) {
+			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress)));
 		}
+
+		if (this._description) {
+			description.push(this._description);
+		}
+
+		if (this.source) {
+			description.push(this.source);
+		}
+
+		if (description.length > 0) {
+			return description.join('  \u2022  ');
+		}
+
 		return undefined;
 	}
 }

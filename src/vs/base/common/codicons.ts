@@ -498,7 +498,7 @@ export namespace Codicon {
 	export const circleLargeFilled = new Codicon('circle-large-filled', { character: '\\ebb4' });
 	export const circleLargeOutline = new Codicon('circle-large-outline', { character: '\\ebb5' });
 
-	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
+	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition, localize('dropDownButton', 'Icon for drop down buttons.'));
 }
 
 // common icons

@@ -859,7 +859,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			openTunnel: (forward: vscode.TunnelOptions) => {
 				checkProposedApiEnabled(extension);
-				return extHostTunnelService.openTunnel(forward).then(value => {
+				return extHostTunnelService.openTunnel(extension, forward).then(value => {
 					if (!value) {
 						throw new Error('cannot open tunnel');
 					}

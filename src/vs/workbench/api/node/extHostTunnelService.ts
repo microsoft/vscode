@@ -17,6 +17,7 @@ import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHos
 import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -53,8 +54,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 	}
 
-	async openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
-		const tunnel = await this._proxy.$openTunnel(forward);
+	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
+		const tunnel = await this._proxy.$openTunnel(forward, extension.displayName);
 		if (tunnel) {
 			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remoteAddress, tunnel.localAddress, () => {
 				return this._proxy.$closeTunnel(tunnel.remoteAddress);

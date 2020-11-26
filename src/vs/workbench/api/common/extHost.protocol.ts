@@ -955,7 +955,7 @@ export interface MainThreadWindowShape extends IDisposable {
 }
 
 export interface MainThreadTunnelServiceShape extends IDisposable {
-	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
+	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
 	$setTunnelProvider(): Promise<void>;
