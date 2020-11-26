@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private static ID_GEN = 0;
-	private static ALLOWED_BACKGROUND_COLORS = ['statusBar.errorBackground'];
+	private static ALLOWED_BACKGROUND_COLORS = ['statusBarItem.errorBackground'];
 
 	private _id: number;
 	private _alignment: number;
