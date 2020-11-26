@@ -77,6 +77,10 @@
 	text-align: center;
 }
 
+.monaco-icon-label.italic::after {
+	font-style: italic;
+}
+
 /* make sure selection color wins when a label is being selected */
 .monaco-list:focus .selected .monaco-icon-label, /* list */
 .monaco-list:focus .selected .monaco-icon-label::after
