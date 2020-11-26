@@ -286,7 +286,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		try {
-			await extensionManagementService.uninstall(extensionToUninstall, true);
+			await extensionManagementService.uninstall(extensionToUninstall);
 		} catch (e) {
 			onUnexpectedError(e);
 			throw e;
