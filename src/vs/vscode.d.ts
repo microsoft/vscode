@@ -5547,6 +5547,72 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A file decoration represents metadata that can be rendered with a file.
+	 */
+	export class FileDecoration {
+
+		/**
+		 * A very short string that represents this decoration.
+		 */
+		badge?: string;
+
+		/**
+		 * A human-readable tooltip for this decoration.
+		 */
+		tooltip?: string;
+
+		/**
+		 * The color of this decoration.
+		 */
+		color?: ThemeColor;
+
+		/**
+		 * A flag expressing that this decoration should be
+		 * propagated to its parents.
+		 */
+		propagate?: boolean;
+
+		/**
+		 * Creates a new decoration.
+		 *
+		 * @param badge A letter that represents the decoration.
+		 * @param tooltip The tooltip of the decoration.
+		 * @param color The color of the decoration.
+		 */
+		constructor(badge?: string, tooltip?: string, color?: ThemeColor);
+	}
+
+	/**
+	 * The decoration provider interfaces defines the contract between extensions and
+	 * file decorations.
+	 */
+	export interface FileDecorationProvider {
+
+		/**
+		 * An optional event to signal that decorations for one or many files have changed.
+		 *
+		 * *Note* that this event should be used to propagate information about children.
+		 *
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeFileDecorations?: Event<undefined | Uri | Uri[]>;
+
+		/**
+		 * Provide decorations for a given uri.
+		 *
+		 * *Note* that this function is only called when a file gets rendered in the UI.
+		 * This means a decoration from a descendent that propagates upwards must be signaled
+		 * to the editor via the [onDidChangeFileDecorations](#FileDecorationProvider.onDidChangeFileDecorations)-event.
+		 *
+		 * @param uri The uri of the file to provide a decoration for.
+		 * @param token A cancellation token.
+		 * @returns A decoration or a thenable that resolves to such.
+		 */
+		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration>;
+	}
+
+
+	/**
 	 * In a remote window the extension kind describes if an extension
 	 * runs where the UI (window) runs or if an extension runs remotely.
 	 */
@@ -8558,6 +8624,14 @@ declare module 'vscode' {
 		 * @return Disposable that unregisters the provider.
 		 */
 		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
+
+		/**
+		 * Register a file decoration provider.
+		 *
+		 * @param provider A [FileDecorationProvider](#FileDecorationProvider).
+		 * @return A [disposable](#Disposable) that unregisters the provider.
+		 */
+		export function registerFileDecorationProvider(provider: FileDecorationProvider): Disposable;
 
 		/**
 		 * The currently active color theme as configured in the settings. The active
