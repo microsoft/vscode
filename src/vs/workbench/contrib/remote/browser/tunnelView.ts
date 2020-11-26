@@ -62,7 +62,7 @@ export interface ITunnelViewModel {
 	readonly detected: TunnelItem[];
 	readonly candidates: TunnelItem[];
 	readonly input: TunnelItem;
-	groups(): Promise<ITunnelGroup[]>;
+	groupsAndForwarded(): Promise<ITunnelGroup[]>;
 }
 
 export class TunnelViewModel extends Disposable implements ITunnelViewModel {
@@ -89,18 +89,14 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		};
 	}
 
-	async groups(): Promise<ITunnelGroup[]> {
-		const groups: ITunnelGroup[] = [];
+	async groupsAndForwarded(): Promise<ITunnelGroup[]> {
+		const groups: (ITunnelGroup | TunnelItem)[] = [];
 		this._candidates = new Map();
 		(await this.model.candidates).forEach(candidate => {
 			this._candidates.set(makeAddress(candidate.host, candidate.port), candidate);
 		});
 		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
-			groups.push({
-				label: nls.localize('remote.tunnelsView.forwarded', "Forwarded"),
-				tunnelType: TunnelType.Forwarded,
-				items: this.forwarded
-			});
+			groups.push(...this.forwarded);
 		}
 		if (this.model.detected.size > 0) {
 			groups.push({
@@ -370,14 +366,7 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 
 	async getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			const groups = await element.groups();
-			if (groups.length === 1) {
-				const items = await groups[0].items;
-				if (items && (items.length > 0) && (items[0].tunnelType === TunnelType.Forwarded)) {
-					return items;
-				}
-			}
-			return groups;
+			return element.groupsAndForwarded();
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
