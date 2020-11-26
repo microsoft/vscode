@@ -88,6 +88,9 @@ import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/ele
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
+import { ExtensionUrlTrustChannel } from 'vs/platform/extensionManagement/common/extensionUrlTrustIpc';
+import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -520,6 +523,7 @@ export class CodeApplication extends Disposable {
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
+		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
@@ -634,6 +638,10 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
+
+		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
+		const extensionUrlTrustChannel = new ExtensionUrlTrustChannel(extensionUrlTrustService);
+		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
 
 		const webviewManagerService = accessor.get(IWebviewManagerService);
 		const webviewChannel = createChannelReceiver(webviewManagerService);
