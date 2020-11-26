@@ -171,7 +171,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 				this._register(new WindowsAutomaticPortForwarding(terminalService, notificationService, openerService,
 					remoteExplorerService, contextKeyService, configurationService, debugService));
 			} else if (environment?.os === OperatingSystem.Linux) {
-				this._register(new LinuxAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService, openerService));
+				this._register(new LinuxAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService, openerService, contextKeyService));
 			}
 		});
 	}
@@ -287,17 +287,25 @@ class LinuxAutomaticPortForwarding extends Disposable {
 	private autoForwarded: Set<string> = new Set();
 	private notifier: ForwardedPortNotifier;
 	private initialCandidates: Set<string> = new Set();
+	private contextServiceListener: IDisposable | undefined;
 
 	constructor(
 		private readonly configurationService: IConfigurationService,
 		readonly remoteExplorerService: IRemoteExplorerService,
 		readonly notificationService: INotificationService,
-		readonly openerService: IOpenerService
+		readonly openerService: IOpenerService,
+		readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.notifier = new ForwardedPortNotifier(notificationService, remoteExplorerService, openerService);
 		this._register(configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
+				this.startStopCandidateListener();
+			}
+		}));
+
+		this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
 				this.startStopCandidateListener();
 			}
 		}));
@@ -321,9 +329,11 @@ class LinuxAutomaticPortForwarding extends Disposable {
 	}
 
 	private startCandidateListener() {
-		if (this.candidateListener) {
-			// already started
+		if (this.candidateListener || !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
 			return;
+		}
+		if (this.contextServiceListener) {
+			this.contextServiceListener.dispose();
 		}
 
 		this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
