@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -48,6 +48,7 @@ import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
+import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -246,8 +247,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'codicon-arrow-up');
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'codicon-arrow-down');
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), ThemeIcon.asClassName(gotoNextLocation));
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
