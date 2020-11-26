@@ -36,6 +36,7 @@ export interface ITunnelItem {
 	name?: string;
 	closeable?: boolean;
 	description?: string;
+	readonly iconClasses?: string;
 	readonly label: string;
 }
 
