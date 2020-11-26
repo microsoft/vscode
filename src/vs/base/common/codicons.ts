@@ -5,7 +5,6 @@
 
 import { codiconStartMarker } from 'vs/base/common/codicon';
 import { Emitter, Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
 
 export interface IIconRegistry {
 	readonly all: IterableIterator<Codicon>;
