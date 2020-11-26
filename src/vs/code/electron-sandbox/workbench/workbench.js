@@ -28,8 +28,6 @@
 
 			// Mark start of workbench
 			perf.mark('didLoadWorkbenchMain');
-			performance.mark('workbench-start');
-			perf.mark('main/startup');
 
 			// @ts-ignore
 			return require('vs/workbench/electron-sandbox/desktop.main').main(configuration);
