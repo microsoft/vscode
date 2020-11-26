@@ -50,7 +50,7 @@ export function registerIcon(id: string, def: Codicon, description?: string) {
 	return new Codicon(id, def, description);
 }
 
-export class Codicon {
+export class Codicon implements CSSIcon {
 	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
 		_registry.add(this);
 	}
@@ -58,9 +58,13 @@ export class Codicon {
 	// classNamesArray is useful for migrating to ES6 classlist
 	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
-
-	public get classNameIdentifier() { return 'codicon-' + this.id; }
 }
+
+export interface CSSIcon {
+	readonly classNames: string;
+}
+
+
 
 interface IconDefinition {
 	character: string;

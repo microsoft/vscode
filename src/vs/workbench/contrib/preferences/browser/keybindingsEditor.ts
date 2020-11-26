@@ -26,7 +26,7 @@ import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDIN
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -926,7 +926,7 @@ class ActionsColumn extends Column {
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
 		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
-			class: preferencesEditIcon.classNames,
+			class: ThemeIcon.asClassName(preferencesEditIcon),
 			enabled: true,
 			id: 'editKeybinding',
 			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),

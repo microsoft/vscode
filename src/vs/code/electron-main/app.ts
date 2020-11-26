@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -270,7 +270,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
-		ipc.on('vscode:fetchShellEnv', async event => {
+		ipcMain.on('vscode:fetchShellEnv', async event => {
 			const webContents = event.sender;
 			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 
@@ -320,7 +320,7 @@ export class CodeApplication extends Disposable {
 			acceptShellEnv(shellEnv);
 		});
 
-		ipc.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
+		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
 			const uri = this.validateNlsPath([path]);
 			if (!uri || typeof data !== 'string') {
 				return Promise.reject('Invalid operation (vscode:writeNlsFile)');
@@ -329,7 +329,7 @@ export class CodeApplication extends Disposable {
 			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
 		});
 
-		ipc.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
+		ipcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
 			const uri = this.validateNlsPath(paths);
 			if (!uri) {
 				return Promise.reject('Invalid operation (vscode:readNlsFile)');
@@ -338,10 +338,10 @@ export class CodeApplication extends Disposable {
 			return (await this.fileService.readFile(uri)).value.toString();
 		});
 
-		ipc.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', event => event.sender.openDevTools());
+		ipcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
+		ipcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
-		ipc.on('vscode:reloadWindow', event => event.sender.reload());
+		ipcMain.on('vscode:reloadWindow', event => event.sender.reload());
 
 		//#endregion
 	}

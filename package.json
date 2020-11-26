@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.52.0",
-  "distro": "7acf21eaff37c77f31a9174a64954ef71b484f1e",
+  "distro": "19950a29d290a699141f8328af0c457dc0a9f204",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -37,7 +37,7 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "tsec-compile-check": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit",
+    "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit",
     "valid-layers-check": "node build/lib/layersChecker.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
@@ -55,7 +55,7 @@
     "https-proxy-agent": "^2.2.3",
     "iconv-lite-umd": "0.6.8",
     "jschardet": "2.2.1",
-    "keytar": "7.2.0",
+    "keytar": "deepak1556/node-keytar#b36cc753e645ad72a39f8dd6348994e0c4f4905c",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.2.1",

@@ -27,7 +27,8 @@ import type { ServicesAccessor } from 'vs/platform/instantiation/common/instanti
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);

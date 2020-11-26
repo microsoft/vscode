@@ -38,6 +38,7 @@ import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/e
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -226,7 +227,7 @@ export class ConfigurationManager implements IConfigurationManager {
 								description: launch.name,
 								config,
 								buttons: [{
-									iconClass: debugConfigure.classNames,
+									iconClass: ThemeIcon.asClassName(debugConfigure),
 									tooltip: nls.localize('editLaunchConfig', "Edit Debug Configuration in launch.json")
 								}],
 								launch

@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBorder, focusBorder, foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusBackground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 
 const $ = DOM.$;
@@ -496,7 +496,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 	protected getActionsForItem(item: IListDataItem, idx: number): IAction[] {
 		return [
 			{
-				class: preferencesEditIcon.classNames,
+				class: ThemeIcon.asClassName(preferencesEditIcon),
 				enabled: true,
 				id: 'workbench.action.editListItem',
 				tooltip: this.getLocalizedStrings().editActionTooltip,
@@ -740,7 +740,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
 		const actions = [
 			{
-				class: preferencesEditIcon.classNames,
+				class: ThemeIcon.asClassName(preferencesEditIcon),
 				enabled: true,
 				id: 'workbench.action.editListItem',
 				tooltip: this.getLocalizedStrings().editActionTooltip,

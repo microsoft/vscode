@@ -86,7 +86,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
-			editorWidth: initialNotebookLayoutInfo ? this.computeEditorWidth(initialNotebookLayoutInfo!.width) : 0,
+			editorWidth: initialNotebookLayoutInfo ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			outputShowMoreContainerHeight: 0,

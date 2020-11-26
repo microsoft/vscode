@@ -266,6 +266,7 @@
 			 */
 			mark(name) {
 				globalThis.MonacoPerformanceMarks.push(name, Date.now());
+				performance.mark(name);
 			}
 		};
 	}

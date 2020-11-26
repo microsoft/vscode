@@ -11,7 +11,7 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CompletionItem } from './suggest';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CompletionItemKind, completionKindToCssClass, CompletionItemTag } from 'vs/editor/common/modes';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -21,14 +21,15 @@ import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { flatten } from 'vs/base/common/arrays';
 import { canExpandCompletionItem } from './suggestWidgetDetails';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;
 }
 
-export const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight);
+export const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 
@@ -116,7 +117,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
-		data.readMore = append(data.right, $('span.readMore' + suggestMoreInfoIcon.cssSelector));
+		data.readMore = append(data.right, $('span.readMore' + ThemeIcon.asCSSSelector(suggestMoreInfoIcon)));
 		data.readMore.title = nls.localize('readMore', "Read More");
 
 		const configureFont = () => {

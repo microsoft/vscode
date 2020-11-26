@@ -7,7 +7,7 @@ import { Constants } from 'vs/base/common/uint';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
@@ -24,7 +24,7 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 // we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-	glyphMarginClassName: debugStackframe.classNames,
+	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -32,7 +32,7 @@ const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	}
 };
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-	glyphMarginClassName: debugStackframeFocused.classNames,
+	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,

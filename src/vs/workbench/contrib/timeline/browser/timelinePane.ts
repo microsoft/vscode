@@ -42,7 +42,8 @@ import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuReg
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 const ItemHeight = 22;
 

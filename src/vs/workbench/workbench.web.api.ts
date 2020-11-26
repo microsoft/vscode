@@ -462,7 +462,6 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 	// Mark start of workbench
 	mark('didLoadWorkbenchMain');
-	performance.mark('workbench-start');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.

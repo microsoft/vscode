@@ -32,7 +32,8 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 

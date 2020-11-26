@@ -25,7 +25,8 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const testViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));

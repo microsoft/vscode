@@ -328,7 +328,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._undoRedoService = undoRedoService;
 		this._attachedEditorCount = 0;
 
-		this._buffer = this._register(createTextBuffer(source, creationOptions.defaultEOL));
+		this._buffer = createTextBuffer(source, creationOptions.defaultEOL);
 
 		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
 
@@ -387,6 +387,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._isDisposed = true;
 		super.dispose();
 		this._isDisposing = false;
+		// Manually release reference to previous text buffer to avoid large leaks
+		// in case someone leaks a TextModel reference
+		this._buffer = createTextBuffer('', this._options.defaultEOL);
 	}
 
 	private _assertNotDisposed(): void {
