@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
+//A uuid pattern to match against all uuids are of 8-4-4-4-12 in format
 const _UUIDPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
+const crypto = require('crypto');
 export function isUUID(value: string): boolean {
 	return _UUIDPattern.test(value);
 }
@@ -17,13 +17,14 @@ for (let i = 0; i < 256; i++) {
 	_hex.push(i.toString(16).padStart(2, '0'));
 }
 
-// todo@jrieken
+// todo@jay::done
 // 1. node nodejs use`crypto#randomBytes`, see: https://nodejs.org/docs/latest/api/crypto.html#crypto_crypto_randombytes_size_callback
 // 2. use browser-crypto
 const _fillRandomValues = function (bucket: Uint8Array): Uint8Array {
 	for (let i = 0; i < bucket.length; i++) {
-		bucket[i] = Math.floor(Math.random() * 256);
+		bucket[i] = Math.floor(crypto.randomBytes(256)*256);
 	}
+
 	return bucket;
 };
 
