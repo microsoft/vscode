@@ -31,23 +31,30 @@ export function getAriaId(index: number): string {
 
 export const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
 
-const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
+const _completionItemColor = new class ColorExtractor {
 
-function extractColor(item: CompletionItem, out: string[]): boolean {
-	const label = typeof item.completion.label === 'string'
-		? item.completion.label
-		: item.completion.label.name;
+	private static _regexRelaxed = /(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))/;
+	private static _regexStrict = new RegExp(`^${ColorExtractor._regexRelaxed.source}$`, 'i');
 
-	if (label.match(colorRegExp)) {
-		out[0] = label;
-		return true;
+	extract(item: CompletionItem, out: string[]): boolean {
+		if (item.textLabel.match(ColorExtractor._regexStrict)) {
+			out[0] = item.textLabel;
+			return true;
+		}
+		if (item.completion.detail && item.completion.detail.match(ColorExtractor._regexStrict)) {
+			out[0] = item.completion.detail;
+			return true;
+		}
+		if (typeof item.completion.documentation === 'string') {
+			const match = ColorExtractor._regexRelaxed.exec(item.completion.documentation);
+			if (match && (match.index === 0 || match.index + match[0].length === item.completion.documentation.length)) {
+				out[0] = match[0];
+				return true;
+			}
+		}
+		return false;
 	}
-	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
-		out[0] = item.completion.documentation;
-		return true;
-	}
-	return false;
-}
+};
 
 
 export interface ISuggestionTemplateData {
@@ -166,7 +173,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		};
 
 		let color: string[] = [];
-		if (completion.kind === CompletionItemKind.Color && extractColor(element, color)) {
+		if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
 			data.iconContainer.className = 'icon hide';
