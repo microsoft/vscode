@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-export const terminalViewIcon = registerIcon('terminal-view-icon', Codicon.terminal, nls.localize('terminalViewIcon', 'View icon of the terminal view.'));
+export const terminalViewIcon = registerIcon('terminal-view-icon', Codicon.terminal, localize('terminalViewIcon', 'View icon of the terminal view.'));
 
 export const renameTerminalIcon = registerIcon('terminal-rename', Codicon.gear, localize('renameTerminalIcon', 'Icon for rename in the terminal quick menu.'));
 export const killTerminalIcon = registerIcon('terminal-kill', Codicon.trash, localize('killTerminalIcon', 'Icon for killing a terminal instance.'));
