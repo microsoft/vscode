@@ -37,9 +37,17 @@ export class FileProtocolHandler extends Disposable {
 		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback as unknown as ProtocolCallback));
 
+		// Block any file:// access (sandbox only)
+		if (environmentService.args.__sandbox) {
+			defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback as unknown as ProtocolCallback));
+		}
+
 		// Cleanup
 		this._register(toDisposable(() => {
 			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
+			if (environmentService.args.__sandbox) {
+				defaultSession.protocol.uninterceptProtocol(Schemas.file);
+			}
 		}));
 	}
 
@@ -72,6 +80,13 @@ export class FileProtocolHandler extends Disposable {
 		}
 
 		return Disposable.None;
+	}
+
+	private async handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
+		const uri = URI.parse(request.url);
+
+		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol`);
+		callback({ error: -3 /* ABORTED */ });
 	}
 
 	private async handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {

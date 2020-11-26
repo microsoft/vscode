@@ -848,11 +848,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		const browserUri = this.environmentService.sandbox ?
+		return (this.environmentService.sandbox ?
 			FileAccess._asCodeFileUri(workbench, require) :
-			FileAccess.asBrowserUri(workbench, require);
-
-		return browserUri.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` }).toString(true);
+			FileAccess.asBrowserUri(workbench, require))
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` }).toString(true);
 	}
 
 	serializeWindowState(): IWindowState {
