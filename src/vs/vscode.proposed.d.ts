@@ -2413,78 +2413,16 @@ declare module 'vscode' {
 	export interface StatusBarItem {
 
 		/**
-		 * The alignment of this item.
-		 */
-		readonly alignment: StatusBarAlignment;
-
-		/**
-		 * The priority of this item. Higher value means the item should
-		 * be shown more to the left.
-		 */
-		readonly priority?: number;
-
-		/**
-		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
-		 *
-		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
-		 *
-		 * Where the icon-name is taken from the ThemeIcon [icon set](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing), e.g.
-		 * `light-bulb`, `thumbsup`, `zap` etc.
-		 */
-		text: string;
-
-		/**
-		 * The tooltip text when you hover over this entry.
-		 */
-		tooltip: string | undefined;
-
-		/**
-		 * The foreground color for this entry.
-		 */
-		color: string | ThemeColor | undefined;
-
-		/**
 		 * The background color for this entry.
 		 *
 		 * Note: the supported colors for background are currently limited to
-		 * `ThemeColors` with id `statusBar.errorBackground`. Other `ThemeColors`
+		 * `ThemeColors` with id `statusBarItem.errorBackground`. Other `ThemeColors`
 		 * will be ignored.
 		 *
-		 * When setting the background color to `statusBar.errorBackground`, it is
-		 * recommended to also set `color` to `statusBar.errorForeground`.
+		 * When setting the background color to `statusBarItem.errorBackground`, it is
+		 * recommended to also set `color` to `statusBarItem.errorForeground`.
 		 */
 		backgroundColor: ThemeColor | undefined;
-
-		/**
-		 * [`Command`](#Command) or identifier of a command to run on click.
-		 *
-		 * The command must be [known](#commands.getCommands).
-		 *
-		 * Note that if this is a [`Command`](#Command) object, only the [`command`](#Command.command) and [`arguments`](#Command.arguments)
-		 * are used by VS Code.
-		 */
-		command: string | Command | undefined;
-
-		/**
-		 * Accessibility information used when screen reader interacts with this StatusBar item
-		 */
-		accessibilityInformation?: AccessibilityInformation;
-
-		/**
-		 * Shows the entry in the status bar.
-		 */
-		show(): void;
-
-		/**
-		 * Hide the entry in the status bar.
-		 */
-		hide(): void;
-
-		/**
-		 * Dispose and free associated resources. Call
-		 * [hide](#StatusBarItem.hide).
-		 */
-		dispose(): void;
 	}
 
 	//#endregion
