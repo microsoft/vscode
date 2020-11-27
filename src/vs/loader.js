@@ -198,6 +198,9 @@ var AMDLoader;
             if (!obj || typeof obj !== 'object' || obj instanceof RegExp) {
                 return obj;
             }
+            if (!Array.isArray(obj) && Object.getPrototypeOf(obj) !== Object.prototype) {
+                return obj;
+            }
             var result = Array.isArray(obj) ? [] : {};
             Utilities.forEachProperty(obj, function (key, value) {
                 if (value && typeof value === 'object') {
@@ -618,37 +621,8 @@ var AMDLoader;
         };
         return OnlyOnceScriptLoader;
     }());
-    var trustedTypesPolyfill = new /** @class */ (function () {
-        function class_1() {
-        }
-        class_1.prototype.installIfNeeded = function () {
-            if (typeof globalThis.trustedTypes !== 'undefined') {
-                return; // already defined
-            }
-            var _defaultRules = {
-                createHTML: function () { throw new Error('Policy\'s TrustedTypePolicyOptions did not specify a \'createHTML\' member'); },
-                createScript: function () { throw new Error('Policy\'s TrustedTypePolicyOptions did not specify a \'createScript\' member'); },
-                createScriptURL: function () { throw new Error('Policy\'s TrustedTypePolicyOptions did not specify a \'createScriptURL\' member'); },
-            };
-            globalThis.trustedTypes = {
-                createPolicy: function (name, rules) {
-                    var _a, _b, _c;
-                    return {
-                        name: name,
-                        createHTML: (_a = rules.createHTML) !== null && _a !== void 0 ? _a : _defaultRules.createHTML,
-                        createScript: (_b = rules.createScript) !== null && _b !== void 0 ? _b : _defaultRules.createScript,
-                        createScriptURL: (_c = rules.createScriptURL) !== null && _c !== void 0 ? _c : _defaultRules.createScriptURL,
-                    };
-                }
-            };
-        };
-        return class_1;
-    }());
-    //#endregion
     var BrowserScriptLoader = /** @class */ (function () {
         function BrowserScriptLoader() {
-            // polyfill trustedTypes-support if missing
-            trustedTypesPolyfill.installIfNeeded();
         }
         /**
          * Attach load / error listeners to a script element and remove them when either one has fired.
@@ -691,12 +665,9 @@ var AMDLoader;
                 script.setAttribute('async', 'async');
                 script.setAttribute('type', 'text/javascript');
                 this.attachListeners(script, callback, errorback);
-                var createTrustedScriptURL = moduleManager.getConfig().getOptionsLiteral().createTrustedScriptURL;
-                if (createTrustedScriptURL) {
-                    if (!this.scriptSourceURLPolicy) {
-                        this.scriptSourceURLPolicy = trustedTypes.createPolicy('amdLoader', { createScriptURL: createTrustedScriptURL });
-                    }
-                    scriptSrc = this.scriptSourceURLPolicy.createScriptURL(scriptSrc);
+                var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+                if (trustedTypesPolicy) {
+                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
                 }
                 script.setAttribute('src', scriptSrc);
                 // Propagate CSP nonce to dynamically created script tag.
@@ -711,16 +682,11 @@ var AMDLoader;
     }());
     var WorkerScriptLoader = /** @class */ (function () {
         function WorkerScriptLoader() {
-            // polyfill trustedTypes-support if missing
-            trustedTypesPolyfill.installIfNeeded();
         }
         WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var createTrustedScriptURL = moduleManager.getConfig().getOptionsLiteral().createTrustedScriptURL;
-            if (createTrustedScriptURL) {
-                if (!this.scriptSourceURLPolicy) {
-                    this.scriptSourceURLPolicy = trustedTypes.createPolicy('amdLoader', { createScriptURL: createTrustedScriptURL });
-                }
-                scriptSrc = this.scriptSourceURLPolicy.createScriptURL(scriptSrc);
+            var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+            if (trustedTypesPolicy) {
+                scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
             }
             try {
                 importScripts(scriptSrc);
