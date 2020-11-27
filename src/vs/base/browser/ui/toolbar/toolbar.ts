@@ -11,12 +11,12 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, CSSIcon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon, registerCodicon } from 'vs/base/common/codicons';
 import { EventMultiplexer } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
-const toolBarMoreIcon = registerIcon('toolbar-more', Codicon.more);
+const toolBarMoreIcon = registerCodicon('toolbar-more', Codicon.more);
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
