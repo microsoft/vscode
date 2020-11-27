@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isLocalhost, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -65,18 +65,29 @@ export function parseAddress(address: string): { host: string, port: number } | 
 }
 
 export function mapHasAddress<T>(map: Map<string, T>, host: string, port: number): T | undefined {
-	if (!isLocalhost(host)) {
-		return map.get(makeAddress(host, port));
+	const initialAddress = map.get(makeAddress(host, port));
+	if (initialAddress) {
+		return initialAddress;
 	}
 
-	const stringAddress = makeAddress('localhost', port);
-	if (map.has(stringAddress)) {
-		return map.get(stringAddress);
+	if (isLocalhost(host)) {
+		// Do localhost checks
+		for (const testHost of LOCALHOST_ADDRESSES) {
+			const testAddress = makeAddress(testHost, port);
+			if (map.has(testAddress)) {
+				return map.get(testAddress);
+			}
+		}
+	} else if (isAllInterfaces(host)) {
+		// Do all interfaces checks
+		for (const testHost of ALL_INTERFACES_ADDRESSES) {
+			const testAddress = makeAddress(testHost, port);
+			if (map.has(testAddress)) {
+				return map.get(testAddress);
+			}
+		}
 	}
-	const numberAddress = makeAddress('127.0.0.1', port);
-	if (map.has(numberAddress)) {
-		return map.get(numberAddress);
-	}
+
 	return undefined;
 }
 
@@ -85,7 +96,7 @@ export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, ho
 	if (originalAddress) {
 		return originalAddress;
 	}
-	const otherHost = host === '0.0.0.0' ? 'localhost' : (host === 'localhost' ? '0.0.0.0' : undefined);
+	const otherHost = isAllInterfaces(host) ? 'localhost' : (host === 'localhost' ? '0.0.0.0' : undefined);
 	if (otherHost) {
 		return mapHasAddress(map, otherHost, port);
 	}
