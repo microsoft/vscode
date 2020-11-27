@@ -943,29 +943,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
-
-	// https://github.com/microsoft/vscode/issues/100741
-	export interface TreeDataProvider<T> {
-		/**
-		 * Called only on hover to resolve the TreeItem2#tooltip property if it is undefined.
-		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
-		 * Will only ever be called once per TreeItem.
-		 * Functionality may be expanded later to include being called to resolve other missing
-		 * properties on selection and/or on open.
-		 *
-		 * @param element
-		 * @param item Undefined properties of `item` should be set then `item` should be returned.
-		 */
-		resolveTreeItem?(item: TreeItem2, element: T): ProviderResult<TreeItem2>;
-	}
-
-	export class TreeItem2 extends TreeItem {
-		/**
-		 * Content to be shown when you hover over the tree item.
-		 */
-		tooltip?: string | MarkdownString | /* for compilation */ any;
-	}
-
 	export interface TreeView<T> extends Disposable {
 		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
