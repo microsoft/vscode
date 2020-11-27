@@ -73,10 +73,9 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
+      $env:npm_config_arch="$(VSCODE_ARCH)"
+      $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile } }
-    env:
-      npm_config_arch: $(VSCODE_ARCH)
-      CHILD_CONCURRENCY: 1
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
