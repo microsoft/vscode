@@ -88,11 +88,25 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		}
 
 		const octokit = await getOctokit();
-		const branches = await octokit.repos.listBranches(repository);
+
+		const branches: string[] = [];
+		let page = 1;
+
+		while (true) {
+			let res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
+
+			if (res.data.length === 0) {
+				break;
+			}
+
+			branches.push(...res.data.map(b => b.name));
+			page++;
+		}
+
 		const repo = await octokit.repos.get(repository);
 		const defaultBranch = repo.data.default_branch;
 
-		return branches.data.map(b => b.name).sort((a, b) => a === defaultBranch ? -1 : b === defaultBranch ? 1 : 0);
+		return branches.sort((a, b) => a === defaultBranch ? -1 : b === defaultBranch ? 1 : 0);
 	}
 
 	publishRepository(repository: Repository): Promise<void> {
