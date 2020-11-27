@@ -15,6 +15,7 @@ import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/wo
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { splitLines } from 'vs/base/common/strings';
+import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from 'vs/workbench/contrib/tags/common/javaWorkspaceTags';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -117,49 +118,6 @@ const PyModulesToLookFor = [
 	'botframework-connector',
 	'playwright'
 ];
-
-let JavaLibrariesToLookFor: { groupId: string, artifactId: string, tag: string }[] = [
-	// spring boot
-	{ 'groupId': 'org.springframework.boot', 'artifactId': '.*', 'tag': 'springboot' },
-	// sql
-	{ 'groupId': 'mysql', 'artifactId': 'mysql-connector-java', 'tag': 'jdbc' },
-	{ 'groupId': 'com.microsoft.sqlserver', 'artifactId': 'mssql-jdbc', 'tag': 'jdbc' },
-	{ 'groupId': 'com.oracle.database.jdbc', 'artifactId': 'ojdbc10', 'tag': 'jdbc' },
-	// library
-	{ 'groupId': 'org.jooq', 'artifactId': 'jooq', 'tag': 'sql' },
-	{ 'groupId': 'org.mybatis', 'artifactId': 'mybatis', 'tag': 'sql' },
-	// jpa
-	{ 'groupId': 'org.hibernate', 'artifactId': 'hibernate-core', 'tag': 'jpa' },
-	{ 'groupId': 'org.eclipse.persistence', 'artifactId': 'eclipselink', 'tag': 'jpa' },
-	// java ee
-	{ 'groupId': 'javax', 'artifactId': 'javaee-api', 'tag': 'javaee' },
-	{ 'groupId': 'javax.xml.bind', 'artifactId': 'jaxb-api', 'tag': 'javaee' },
-	// unit test
-	{ 'groupId': 'org.junit.jupiter', 'artifactId': 'junit-jupiter-api', 'tag': 'unitTest' },
-	{ 'groupId': 'junit', 'artifactId': 'junit', 'tag': 'unitTest' },
-	{ 'groupId': 'org.testng', 'artifactId': 'testng', 'tag': 'unitTest' },
-	// mockito
-	{ 'groupId': 'org.mockito', 'artifactId': 'mockito-core', 'tag': 'mockito' },
-	{ 'groupId': 'org.powermock', 'artifactId': 'powermock-core', 'tag': 'mockito' },
-	// redis
-	{ 'groupId': 'org.springframework.data', 'artifactId': 'spring-data-redis', 'tag': 'redis' },
-	{ 'groupId': 'redis.clients', 'artifactId': 'jedis', 'tag': 'redis' },
-	{ 'groupId': 'org.redisson', 'artifactId': 'redisson', 'tag': 'redis' },
-	{ 'groupId': 'io.lettuce', 'artifactId': 'lettuce-core', 'tag': 'redis' },
-	// azure
-	{ 'groupId': 'com.microsoft.azure', 'artifactId': 'azure', 'tag': 'azure' },
-	{ 'groupId': 'com.microsoft.azure', 'artifactId': 'azure-mgmt-.*', 'tag': 'azure' },
-	{ 'groupId': 'com\\.microsoft\\.azure\\..*', 'artifactId': 'azure-mgmt-.*', 'tag': 'azure' },
-	// lombok
-	{ 'groupId': 'org.projectlombok', 'artifactId': 'lombok', 'tag': 'lombok' }
-];
-
-const dependenciesRegex = /<dependencies>([\s\S]*?)<\/dependencies>/g;
-const dependencyRegex = /<dependency>([\s\S]*?)<\/dependency>/g;
-const groupIdRegex = /<groupId>([\s\S]*?)<\/groupId>/;
-const artifactIdRegex = /<artifactId>([\s\S]*?)<\/artifactId>/;
-const gradleLooseRegex = /group\s*:\s*[\'\"](.*?)[\'\"]\s*,\s*name\s*:\s*[\'\"](.*?)[\'\"]\s*,\s*version\s*:\s*[\'\"](.*?)[\'\"]/g;
-const gradleCompactRegex = /[\'\"]([^\'\"\s]*?)\:([^\'\"\s]*?)\:([^\'\"\s]*?)[\'\"]/g;
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
@@ -376,7 +334,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
 			tags['workspace.java.pom'] = nameSet.has('pom.xml');
-			tags['workspace.java.gradle'] = nameSet.has('build.gradle');
+			tags['workspace.java.gradle'] = nameSet.has('build.gradle') || nameSet.has('settings.gradle');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
@@ -516,11 +474,11 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
 				try {
 					let dependenciesContent;
-					while (dependenciesContent = dependenciesRegex.exec(content.value)) {
+					while (dependenciesContent = MavenDependenciesRegex.exec(content.value)) {
 						let dependencyContent;
-						while (dependencyContent = dependencyRegex.exec(dependenciesContent[1])) {
-							const groupIdContent = groupIdRegex.exec(dependencyContent[1]);
-							const artifactIdContent = artifactIdRegex.exec(dependencyContent[1]);
+						while (dependencyContent = MavenDependencyRegex.exec(dependenciesContent[1])) {
+							const groupIdContent = MavenGroupIdRegex.exec(dependencyContent[1]);
+							const artifactIdContent = MavenArtifactIdRegex.exec(dependencyContent[1]);
 							if (groupIdContent && artifactIdContent) {
 								this.tagJavaDependency(groupIdContent[1], artifactIdContent[1], 'workspace.pom.', tags);
 							}
@@ -534,8 +492,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 			const gradlePromises = getFilePromises('build.gradle', this.fileService, this.textFileService, content => {
 				try {
-					this.processGradleDependencies(content.value, gradleLooseRegex, tags);
-					this.processGradleDependencies(content.value, gradleCompactRegex, tags);
+					this.processGradleDependencies(content.value, GradleDependencyLooseRegex, tags);
+					this.processGradleDependencies(content.value, GradleDependencyCompactRegex, tags);
 				}
 				catch (e) {
 					// Ignore errors when resolving gradle dependencies
@@ -572,6 +530,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			if ((groupId === javaLibrary.groupId || new RegExp(javaLibrary.groupId).test(groupId)) &&
 				(artifactId === javaLibrary.artifactId || new RegExp(javaLibrary.artifactId).test(artifactId))) {
 				tags[prefix + javaLibrary.tag] = true;
+				return;
 			}
 		}
 	}
