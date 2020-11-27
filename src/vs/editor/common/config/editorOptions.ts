@@ -144,8 +144,12 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
-	 * Rename matching regions on type.
+	 * Enable linked editing.
 	 * Defaults to false.
+	 */
+	linkedEditing?: boolean;
+	/**
+	 * deprecated, use linkedEditing instead
 	 */
 	renameOnType?: boolean;
 	/**
@@ -3682,6 +3686,7 @@ export const enum EditorOption {
 	lineHeight,
 	lineNumbers,
 	lineNumbersMinChars,
+	linkedEditing,
 	links,
 	matchBrackets,
 	minimap,
@@ -4033,6 +4038,10 @@ export const EditorOptions = {
 		EditorOption.lineNumbersMinChars, 'lineNumbersMinChars',
 		5, 1, 300
 	)),
+	linkedEditing: register(new EditorBooleanOption(
+		EditorOption.linkedEditing, 'linkedEditing', false,
+		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols, e.g. HTML tags, are updated while editing.") }
+	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,
 		{ description: nls.localize('links', "Controls whether the editor should detect links and make them clickable.") }
@@ -4134,7 +4143,7 @@ export const EditorOptions = {
 	)),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
-		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
+		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,

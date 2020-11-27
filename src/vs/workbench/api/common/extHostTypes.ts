@@ -2879,7 +2879,7 @@ export enum StandardTokenType {
 }
 
 
-export class OnTypeRenameRanges {
+export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
 	}
 }

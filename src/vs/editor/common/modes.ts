@@ -819,24 +819,24 @@ export interface DocumentHighlightProvider {
 }
 
 /**
- * The rename range provider interface defines the contract between extensions and
- * the live-rename feature.
+ * The linked editing range provider interface defines the contract between extensions and
+ * the linked editing feature.
  */
-export interface OnTypeRenameRangeProvider {
+export interface LinkedEditingRangeProvider {
 
 	/**
-	 * Provide a list of ranges that can be live-renamed together.
+	 * Provide a list of ranges that can be edited together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
+	provideLinkedEditingRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
 }
 
 /**
- * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
+ * Represents a list of ranges that can be edited together along with a word pattern to describe valid contents.
  */
-export interface OnTypeRenameRanges {
+export interface LinkedEditingRanges {
 	/**
-	 * A list of ranges that can be renamed together. The ranges must have
-	 * identical length and contain identical text content. The ranges cannot overlap
+	 * A list of ranges that can be edited together. The ranges must have
+	 * identical length and text content. The ranges cannot overlap
 	 */
 	ranges: IRange[];
 
@@ -1737,7 +1737,7 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
 /**
  * @internal
  */
-export const OnTypeRenameRangeProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameRangeProvider>();
+export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
 
 /**
  * @internal

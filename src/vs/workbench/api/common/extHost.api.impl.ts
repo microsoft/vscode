@@ -420,9 +420,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
 			},
-			registerOnTypeRenameRangeProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameRangeProvider): vscode.Disposable {
+			registerLinkedEditingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.LinkedEditingRangeProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerOnTypeRenameRangeProvider(extension, checkSelector(selector), provider);
+				return extHostLanguageFeatures.registerLinkedEditingRangeProvider(extension, checkSelector(selector), provider);
 			},
 			registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerReferenceProvider(extension, checkSelector(selector), provider);
@@ -1259,9 +1259,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellOutputItem;
 			},
-			get OnTypeRenameRanges() {
+			get LinkedEditingRanges() {
 				checkProposedApiEnabled(extension);
-				return extHostTypes.OnTypeRenameRanges;
+				return extHostTypes.LinkedEditingRanges;
 			},
 			get TestRunState() {
 				checkProposedApiEnabled(extension);
