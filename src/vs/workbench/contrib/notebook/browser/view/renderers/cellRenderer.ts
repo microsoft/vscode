@@ -50,7 +50,7 @@ import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/n
 import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, NotebookCellsChangeType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 
 const $ = DOM.$;
 
@@ -1050,9 +1050,9 @@ export class RunStateRenderer {
 		}
 
 		if (runState === NotebookCellRunState.Success) {
-			DOM.reset(this.element, ...renderCodicons('$(check)'));
+			DOM.reset(this.element, ...renderCodicons(ThemeIcon.asCodiconLabel(successStateIcon)));
 		} else if (runState === NotebookCellRunState.Error) {
-			DOM.reset(this.element, ...renderCodicons('$(error)'));
+			DOM.reset(this.element, ...renderCodicons(ThemeIcon.asCodiconLabel(errorStateIcon)));
 		} else if (runState === NotebookCellRunState.Running) {
 			DOM.reset(this.element, ...renderCodicons('$(sync~spin)'));
 

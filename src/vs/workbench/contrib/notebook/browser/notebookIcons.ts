@@ -7,7 +7,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-
 export const configureKernelIcon = registerIcon('notebook-kernel-configure', Codicon.settingsGear, localize('configureKernel', 'Configure icon in kernel configuation widget in notebook editors.'));
 export const selectKernelIcon = registerIcon('notebook-kernel-select', Codicon.serverEnvironment, localize('selectKernelIcon', 'Configure icon to select a kernel in notebook editors.'));
 
@@ -22,6 +21,9 @@ export const moveDownIcon = registerIcon('notebook-move-down', Codicon.arrowDown
 export const clearIcon = registerIcon('notebook-clear', Codicon.clearAll, localize('clearIcon', 'Icon to clear cell outputs in notebook editors.'));
 export const splitCellIcon = registerIcon('notebook-split-cell', Codicon.splitVertical, localize('splitCellIcon', 'Icon to split a cell in notebook editors.'));
 export const unfoldIcon = registerIcon('notebook-unfold', Codicon.unfold, localize('unfoldIcon', 'Icon to unfold a cell in notebook editors.'));
+
+export const successStateIcon = registerIcon('notebook-state-success', Codicon.check, localize('successStateIcon', 'Icon to indicate a success state in notebook editors.'));
+export const errorStateIcon = registerIcon('notebook-state-error', Codicon.error, localize('errorStateIcon', 'Icon to indicate a error state in notebook editors.'));
 
 export const collapsedIcon = registerIcon('notebook-collapsed', Codicon.chevronRight, localize('collapsedIcon', 'Icon to annotated a collapsed section in notebook editors.'));
 export const expandedIcon = registerIcon('notebook-expanded', Codicon.chevronDown, localize('expandedIcon', 'Icon to annotated a expanded section in notebook editors.'));
