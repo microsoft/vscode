@@ -1219,10 +1219,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTypes.LogLevel;
 			},
-			get TreeItem2() {
-				checkProposedApiEnabled(extension);
-				return extHostTypes.TreeItem;
-			},
 			get RemoteAuthorityResolverError() {
 				checkProposedApiEnabled(extension);
 				return extHostTypes.RemoteAuthorityResolverError;
