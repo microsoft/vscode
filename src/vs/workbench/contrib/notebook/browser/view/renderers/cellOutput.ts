@@ -21,6 +21,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 
 const OUTPUT_COUNT_LIMIT = 500;
 
@@ -69,7 +71,7 @@ export class OutputElement extends Disposable {
 			if (mimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
-				mimeTypePicker.classList.add('codicon', 'codicon-code');
+				mimeTypePicker.classList.add(...ThemeIcon.asClassNameArray(mimetypeIcon));
 				mimeTypePicker.tabIndex = 0;
 				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", mimeTypes.map(mimeType => mimeType.mimeType).join(', '));
 				outputItemDiv.appendChild(mimeTypePicker);
