@@ -58,7 +58,7 @@ export class ExtensionUrlTrustService implements IExtensionUrlTrustService {
 		const timestamp = fragmentBuffer.readUIntBE(0, 6);
 		const diff = Date.now() - timestamp;
 
-		if (diff < 0 || diff > 600_000) { // 10 minutes
+		if (diff < 0 || diff > 3_600_000) { // 1 hour
 			this.logService.trace('ExtensionUrlTrustService#isExtensionUrlTrusted', 'Signed uri has expired', url);
 			return false;
 		}
