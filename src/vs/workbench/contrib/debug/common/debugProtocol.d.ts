@@ -712,9 +712,9 @@ declare module DebugProtocol {
 
 	/** Arguments for 'setExceptionBreakpoints' request. */
 	export interface SetExceptionBreakpointsArguments {
-		/** Set of exception filters specified by their ID. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. */
+		/** Set of exception filters specified by their ID. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. The 'filter' and 'filterOptions' sets are additive. */
 		filters: string[];
-		/** Set of exception filters and their options. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. This attribute is only honored by a debug adapter if the capability 'supportsExceptionFilterOptions' is true. */
+		/** Set of exception filters and their options. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. This attribute is only honored by a debug adapter if the capability 'supportsExceptionFilterOptions' is true. The 'filter' and 'filterOptions' sets are additive. */
 		filterOptions?: ExceptionFilterOptions[];
 		/** Configuration options for selected exceptions.
 			The attribute is only honored by a debug adapter if the capability 'supportsExceptionOptions' is true.
@@ -1011,7 +1011,8 @@ declare module DebugProtocol {
 	}
 
 	/** StackTrace request; value of command field is 'stackTrace'.
-		The request returns a stacktrace from the current execution state.
+		The request returns a stacktrace from the current execution state of a given thread.
+		A client can request all stack frames by omitting the startFrame and levels arguments. For performance conscious clients stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive less frames than requested, which is an indication that the end of the stack has been reached.
 	*/
 	export interface StackTraceRequest extends Request {
 		// command: 'stackTrace';
@@ -1039,7 +1040,7 @@ declare module DebugProtocol {
 				This means that there is no location information available.
 			*/
 			stackFrames: StackFrame[];
-			/** The total number of frames available. */
+			/** The total number of frames available in the stack. If omitted or if totalFrames is larger than the available frames, a client is expected to request frames until a request returns less frames than requested (which indicates the end of the stack). Returning monotonically increasing totalFrames values for subsequent requests can be used to enforce paging in the client. */
 			totalFrames?: number;
 		};
 	}
