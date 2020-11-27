@@ -2403,4 +2403,27 @@ declare module 'vscode' {
 		location?: Location;
 	}
 	//#endregion
+
+	//#region Statusbar Item Background Color (https://github.com/microsoft/vscode/issues/110214)
+
+	/**
+	 * A status bar item is a status bar contribution that can
+	 * show text and icons and run a command on click.
+	 */
+	export interface StatusBarItem {
+
+		/**
+		 * The background color for this entry.
+		 *
+		 * Note: the supported colors for background are currently limited to
+		 * `ThemeColors` with id `statusBarItem.errorBackground`. Other `ThemeColors`
+		 * will be ignored.
+		 *
+		 * When setting the background color to `statusBarItem.errorBackground`, it is
+		 * recommended to also set `color` to `statusBarItem.errorForeground`.
+		 */
+		backgroundColor: ThemeColor | undefined;
+	}
+
+	//#endregion
 }
