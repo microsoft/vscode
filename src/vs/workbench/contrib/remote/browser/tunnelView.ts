@@ -951,7 +951,11 @@ namespace OpenPortInBrowserCommandPaletteAction {
 			});
 			if (options.length === 0) {
 				options.push({
-					label: nls.localize('remote.tunnel.openCommandPaletteNone', "No ports currently forwarded. Open the ports view to get started.")
+					label: nls.localize('remote.tunnel.openCommandPaletteNone', "No ports currently forwarded. Open the Ports view to get started.")
+				});
+			} else {
+				options.push({
+					label: nls.localize('remote.tunnel.openCommandPaletteView', "Open the Ports view...")
 				});
 			}
 			const picked = await quickPickService.pick<QuickPickTunnel>(options, { placeHolder: nls.localize('remote.tunnel.openCommandPalettePick', "Choose the port to open") });
