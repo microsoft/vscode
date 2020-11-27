@@ -305,14 +305,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot?.fsPath ?? ''; },
 			get uriScheme() { return initData.environment.appUriScheme; },
-			get logLevel() {
-				checkProposedApiEnabled(extension);
-				return typeConverters.LogLevel.to(extHostLogService.getLevel());
-			},
-			get onDidChangeLogLevel() {
-				checkProposedApiEnabled(extension);
-				return Event.map(extHostLogService.onDidChangeLogLevel, l => typeConverters.LogLevel.to(l));
-			},
 			get clipboard(): vscode.Clipboard {
 				return extHostClipboard;
 			},
@@ -1215,10 +1207,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
-			get LogLevel() {
-				checkProposedApiEnabled(extension);
-				return extHostTypes.LogLevel;
-			},
 			get RemoteAuthorityResolverError() {
 				checkProposedApiEnabled(extension);
 				return extHostTypes.RemoteAuthorityResolverError;
