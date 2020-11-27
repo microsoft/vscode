@@ -660,7 +660,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
-			this.openSettingsFile({ editSetting: settingKey });
+			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });
 		}));
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
