@@ -47,7 +47,7 @@ const _registry = new Registry();
 
 export const iconRegistry: IIconRegistry = _registry;
 
-export function registerIcon(id: string, def: Codicon, description?: string) {
+export function registerCodicon(id: string, def: Codicon, description?: string): Codicon {
 	return new Codicon(id, def, description);
 }
 

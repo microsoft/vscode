@@ -17,7 +17,7 @@ import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { SimpleCheckbox, ISimpleCheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 
 export interface IDialogInputOptions {
@@ -60,10 +60,10 @@ interface ButtonMapEntry {
 	readonly index: number;
 }
 
-const dialogErrorIcon = registerIcon('dialog-error', Codicon.error);
-const dialogWarningIcon = registerIcon('dialog-warning', Codicon.warning);
-const dialogInfoIcon = registerIcon('dialog-info', Codicon.info);
-const dialogCloseIcon = registerIcon('dialog-close', Codicon.close);
+const dialogErrorIcon = registerCodicon('dialog-error', Codicon.error);
+const dialogWarningIcon = registerCodicon('dialog-warning', Codicon.warning);
+const dialogInfoIcon = registerCodicon('dialog-info', Codicon.info);
+const dialogCloseIcon = registerCodicon('dialog-close', Codicon.close);
 
 export class Dialog extends Disposable {
 	private readonly element: HTMLElement;
