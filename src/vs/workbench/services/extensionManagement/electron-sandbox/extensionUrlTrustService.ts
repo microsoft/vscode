@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { ExtensionUrlTrustChannelClient } from 'vs/platform/extensionManagement/common/extensionUrlTrustIpc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 
-class ExtensionUrlTrustService extends ExtensionUrlTrustChannelClient {
+class ExtensionUrlTrustService implements IExtensionUrlTrustService {
 
 	declare readonly _serviceBrand: undefined;
+	private service: IExtensionUrlTrustService;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		super(mainProcessService.getChannel('extensionUrlTrust'));
+		this.service = createChannelSender<IExtensionUrlTrustService>(mainProcessService.getChannel('extensionUrlTrust'));
+	}
+
+	isExtensionUrlTrusted(extensionId: string, url: string): Promise<boolean> {
+		return this.service.isExtensionUrlTrusted(extensionId, url);
 	}
 }
 

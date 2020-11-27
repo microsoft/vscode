@@ -89,7 +89,6 @@ import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { ExtensionUrlTrustChannel } from 'vs/platform/extensionManagement/common/extensionUrlTrustIpc';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 
 export class CodeApplication extends Disposable {
@@ -640,7 +639,7 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('url', urlChannel);
 
 		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
-		const extensionUrlTrustChannel = new ExtensionUrlTrustChannel(extensionUrlTrustService);
+		const extensionUrlTrustChannel = createChannelReceiver(extensionUrlTrustService);
 		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
 
 		const webviewManagerService = accessor.get(IWebviewManagerService);
