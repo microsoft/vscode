@@ -858,7 +858,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
 
-	constructor(public filter: string, public label: string, enabled: boolean) {
+	constructor(public filter: string, public label: string, enabled: boolean, public supportsCondition: boolean, public condition: string | undefined) {
 		super(enabled, generateUuid());
 	}
 
@@ -867,6 +867,8 @@ export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpo
 		result.filter = this.filter;
 		result.label = this.label;
 		result.enabled = this.enabled;
+		result.supportsCondition = this.supportsCondition;
+		result.condition = this.condition;
 
 		return result;
 	}
@@ -1060,17 +1062,22 @@ export class DebugModel implements IDebugModel {
 
 	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
-			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) => exbp.filter === data[i].filter && exbp.label === data[i].label)) {
+			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) => exbp.filter === data[i].filter && exbp.label === data[i].label && exbp.supportsCondition === data[i].supportsCondition)) {
 				// No change
 				return;
 			}
 
 			this.exceptionBreakpoints = data.map(d => {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default);
+				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default, !!d.supportsCondition, ebp?.condition);
 			});
 			this._onDidChangeBreakpoints.fire(undefined);
 		}
+	}
+
+	setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): void {
+		(exceptionBreakpoint as ExceptionBreakpoint).condition = condition;
+		this._onDidChangeBreakpoints.fire(undefined);
 	}
 
 	areBreakpointsActivated(): boolean {

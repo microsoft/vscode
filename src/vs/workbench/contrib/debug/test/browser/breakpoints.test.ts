@@ -259,7 +259,7 @@ suite('Debug - Breakpoints', () => {
 		const breakpoints = model.getBreakpoints();
 
 		let result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[0]);
-		assert.equal(result.message, 'Expression: x > 5');
+		assert.equal(result.message, 'Expression condition: x > 5');
 		assert.equal(result.icon.id, 'debug-breakpoint-conditional');
 
 		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[1]);
@@ -337,7 +337,7 @@ suite('Debug - Breakpoints', () => {
 		assert.equal(decorations[0].options.beforeContentClassName, undefined);
 		assert.equal(decorations[1].options.beforeContentClassName, `debug-breakpoint-placeholder`);
 		assert.equal(decorations[0].options.overviewRuler?.position, OverviewRulerLane.Left);
-		const expected = new MarkdownString().appendCodeblock(languageIdentifier.language, 'Expression: x > 5');
+		const expected = new MarkdownString().appendCodeblock(languageIdentifier.language, 'Expression condition: x > 5');
 		assert.deepEqual(decorations[0].options.glyphMarginHoverMessage, expected);
 
 		decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, false);

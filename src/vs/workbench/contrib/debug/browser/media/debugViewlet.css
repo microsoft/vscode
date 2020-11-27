@@ -318,10 +318,10 @@
 	justify-content: center;
 }
 
-.debug-pane .debug-breakpoints .breakpoint > .file-path {
+.debug-pane .debug-breakpoints .breakpoint > .file-path,
+.debug-pane .debug-breakpoints .breakpoint.exception > .condition {
 	opacity: 0.7;
-	font-size: 0.9em;
-	margin-left: 0.8em;
+	margin-left: 0.9em;
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
