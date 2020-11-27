@@ -393,6 +393,7 @@ export class Thread implements IThread {
 	private callStackCancellationTokens: CancellationTokenSource[] = [];
 	public stoppedDetails: IRawStoppedDetails | undefined;
 	public stopped: boolean;
+	public reachedEndOfCallStack = false;
 
 	constructor(public session: IDebugSession, public name: string, public threadId: number) {
 		this.callStack = [];
@@ -445,6 +446,7 @@ export class Thread implements IThread {
 		if (this.stopped) {
 			const start = this.callStack.length;
 			const callStack = await this.getCallStackImpl(start, levels);
+			this.reachedEndOfCallStack = callStack.length < levels;
 			if (start < this.callStack.length) {
 				// Set the stack frames for exact position we requested. To make sure no concurrent requests create duplicate stack frames #30660
 				this.callStack.splice(start, this.callStack.length - start);
