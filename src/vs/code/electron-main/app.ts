@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IURLService } from 'vs/platform/url/common/url';
+import { IOpenURLOptions, IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -73,7 +73,6 @@ import { INativeHostMainService, NativeHostMainService } from 'vs/platform/nativ
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { coalesce } from 'vs/base/common/arrays';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
@@ -89,6 +88,8 @@ import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/ele
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
+import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -521,6 +522,7 @@ export class CodeApplication extends Disposable {
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
+		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
@@ -636,6 +638,10 @@ export class CodeApplication extends Disposable {
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
 
+		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
+		const extensionUrlTrustChannel = createChannelReceiver(extensionUrlTrustService);
+		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
+
 		const webviewManagerService = accessor.get(IWebviewManagerService);
 		const webviewChannel = createChannelReceiver(webviewManagerService);
 		electronIpcServer.registerChannel('webview', webviewChannel);
@@ -663,30 +669,32 @@ export class CodeApplication extends Disposable {
 
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
-		const pendingProtocolLinksToHandle = coalesce([
-
+		const pendingProtocolLinksToHandle = [
 			// Windows/Linux: protocol handler invokes CLI with --open-url
 			...this.environmentService.args['open-url'] ? this.environmentService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
-		].map(pendingUrlToHandle => {
+		].map(url => {
 			try {
-				return URI.parse(pendingUrlToHandle);
-			} catch (error) {
-				return undefined;
+				return { uri: URI.parse(url), url };
+			} catch {
+				return null;
 			}
-		})).filter(pendingUriToHandle => {
+		}).filter((obj): obj is { uri: URI, url: string } => {
+			if (!obj) {
+				return false;
+			}
 
 			// If URI should be blocked, filter it out
-			if (this.shouldBlockURI(pendingUriToHandle)) {
+			if (this.shouldBlockURI(obj.uri)) {
 				return false;
 			}
 
 			// Filter out any protocol link that wants to open as window so that
 			// we open the right set of windows on startup and not restore the
 			// previous workspace too.
-			const windowOpenable = this.getWindowOpenableFromProtocolLink(pendingUriToHandle);
+			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
 			if (windowOpenable) {
 				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
 
@@ -700,7 +708,7 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		const environmentService = this.environmentService;
 		urlService.registerHandler({
-			async handleURL(uri: URI): Promise<boolean> {
+			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 
 				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
@@ -732,7 +740,7 @@ export class CodeApplication extends Disposable {
 
 					await window.ready();
 
-					return urlService.open(uri);
+					return urlService.open(uri, options);
 				}
 
 				return false;
