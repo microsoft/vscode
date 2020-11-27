@@ -8,17 +8,12 @@ import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/commo
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 
-class ExtensionUrlTrustService implements IExtensionUrlTrustService {
+class ExtensionUrlTrustService {
 
 	declare readonly _serviceBrand: undefined;
-	private service: IExtensionUrlTrustService;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		this.service = createChannelSender<IExtensionUrlTrustService>(mainProcessService.getChannel('extensionUrlTrust'));
-	}
-
-	isExtensionUrlTrusted(extensionId: string, url: string): Promise<boolean> {
-		return this.service.isExtensionUrlTrusted(extensionId, url);
+		return createChannelSender<IExtensionUrlTrustService>(mainProcessService.getChannel('extensionUrlTrust'));
 	}
 }
 
