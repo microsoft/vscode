@@ -64,9 +64,8 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { Schemas } from 'vs/base/common/network';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
+import { extensionsViewIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -105,7 +104,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		new SyncDescriptor(ExtensionsInput)
 	]);
 
-const extensionsViewIcon = registerIcon('extensions-view-icon', Codicon.extensions, localize('extensionsViewIcon', 'View icon of the extensions view.'));
 
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
