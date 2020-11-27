@@ -8809,6 +8809,25 @@ declare module 'vscode' {
 		 * @return Parent of `element`.
 		 */
 		getParent?(element: T): ProviderResult<T>;
+
+		/**
+		 * Called only on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
+		 * Functionality may be expanded later to include being called to resolve other missing
+		 * properties on selection and/or on open.
+		 *
+		 * Will only ever be called once per TreeItem.
+		 *
+		 * *Note* that this function is called when tree items are already showing in the UI.
+		 * Because of that, no property that changes the presentation (label, description, command, etc.)
+		 * can be changed.
+		 *
+		 * @param element The object associated with the TreeItem
+		 * @param item Undefined properties of `item` should be set then `item` should be returned.
+		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
+		 * `item`. When no result is returned, the given `item` will be used.
+		 */
+		resolveTreeItem?(item: TreeItem, element: T): ProviderResult<TreeItem>;
 	}
 
 	export class TreeItem {
@@ -8848,7 +8867,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this item.
 		 */
-		tooltip?: string | undefined;
+		tooltip?: string | MarkdownString | undefined;
 
 		/**
 		 * The [command](#Command) that should be executed when the tree item is selected.
