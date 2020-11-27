@@ -983,52 +983,51 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/109923 @aeschli
+	//#region LinkedEditing: https://github.com/microsoft/vscode/issues/109923 @aeschli
 
 	/**
-	 * The 'on type' rename range provider interface defines the contract between extensions and
-	 * the 'on type' rename feature.
+	 * The linked editing range provider interface defines the contract between extensions and
+	 * the linked editing feature.
 	 */
-	export interface OnTypeRenameRangeProvider {
+	export interface LinkedEditingRangeProvider {
 		/**
 		 * For a given position in a document, returns the range of the symbol at the position and all ranges
-		 * that have the same content and can be renamed together. Optionally a word pattern can be returned
-		 * to describe valid contents. A rename to one of the ranges can be applied to all other ranges if the new content
-		 * is valid.
+		 * that have the same content. A change to one of the ranges can be applied to all other ranges if the new content
+		 * is valid. An optional word pattern can be returned with the result to describe valid contents.
 		 * If no result-specific word pattern is provided, the word pattern from the language configuration is used.
 		 *
 		 * @param document The document in which the provider was invoked.
 		 * @param position The position at which the provider was invoked.
 		 * @param token A cancellation token.
-		 * @return A list of ranges that can be renamed together
+		 * @return A list of ranges that can be edited together
 		 */
-		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
+		provideLinkedEditingRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
 	}
 
 	namespace languages {
 		/**
-		 * Register a 'on type' rename range provider.
+		 * Register a linked editing range provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider that has a result is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An 'on type' rename range provider.
+		 * @param provider A linked editing range provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerOnTypeRenameRangeProvider(selector: DocumentSelector, provider: OnTypeRenameRangeProvider): Disposable;
+		export function registerLinkedEditingRangeProvider(selector: DocumentSelector, provider: LinkedEditingRangeProvider): Disposable;
 	}
 
 	/**
-	 * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
+	 * Represents a list of ranges that can be edited together along with a word pattern to describe valid range contents.
 	 */
-	export class OnTypeRenameRanges {
+	export class LinkedEditingRanges {
 		constructor(ranges: Range[], wordPattern?: RegExp);
 
 		/**
-		 * A list of ranges that can be renamed together. The ranges must have
-		 * identical length and contain identical text content. The ranges cannot overlap.
+		 * A list of ranges that can be edited together. The ranges must have
+		 * identical length and text content. The ranges cannot overlap.
 		 */
 		readonly ranges: Range[];
 
