@@ -11,10 +11,11 @@ import { localize } from 'vs/nls';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private static ID_GEN = 0;
-	private static ALLOWED_BACKGROUND_COLORS = ['statusBarItem.errorBackground'];
+	private static ALLOWED_BACKGROUND_COLORS = new Set<string>(['statusBarItem.errorBackground']);
 
 	private _id: number;
 	private _alignment: number;
@@ -78,8 +79,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	}
 
 	public get backgroundColor(): ThemeColor | undefined {
-		if (this._extension && !this._extension?.enableProposedApi) {
-			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
+		if (this._extension) {
+			checkProposedApiEnabled(this._extension);
 		}
 
 		return this._backgroundColor;
@@ -109,11 +110,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	}
 
 	public set backgroundColor(color: ThemeColor | undefined) {
-		if (this._extension && !this._extension?.enableProposedApi) {
-			throw new Error(`[${this._extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
+		if (this._extension) {
+			checkProposedApiEnabled(this._extension);
 		}
 
-		if (color && !ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.includes(color.id)) {
+		if (color && !ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.has(color.id)) {
 			color = undefined;
 		}
 
