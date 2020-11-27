@@ -43,11 +43,11 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { Color, RGBA } from 'vs/base/common/color';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IKeybindingsEditorPane } from 'vs/workbench/services/preferences/common/preferences';
+import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 
 const $ = DOM.$;
 
@@ -135,12 +135,12 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
 		const recordKeysActionLabel = localize('recordKeysLabel', "Record Keys");
-		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'codicon-record-keys');
+		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, ThemeIcon.asClassName(keybindingsRecordKeysIcon));
 		this.recordKeysAction.checked = false;
 
 		const sortByPrecedenceActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE);
 		const sortByPrecedenceActionLabel = localize('sortByPrecedeneLabel', "Sort by Precedence");
-		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, 'codicon-sort-precedence');
+		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', sortByPrecedenceActionKeybinding ? localize('sortByPrecedeneLabelWithKeybinding', "{0} ({1})", sortByPrecedenceActionLabel, sortByPrecedenceActionKeybinding.getLabel()) : sortByPrecedenceActionLabel, ThemeIcon.asClassName(keybindingsSortIcon));
 		this.sortByPrecedenceAction.checked = false;
 	}
 
@@ -345,7 +345,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
 		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Recording Keys. Press Escape to exit");
 
-		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), 'codicon-clear-all', false, () => { this.clearSearchResults(); return Promise.resolve(null); });
+		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, () => { this.clearSearchResults(); return Promise.resolve(null); });
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, <KeybindingsSearchOptions>{
@@ -926,7 +926,7 @@ class ActionsColumn extends Column {
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
 		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
-			class: ThemeIcon.asClassName(preferencesEditIcon),
+			class: ThemeIcon.asClassName(keybindingsEditIcon),
 			enabled: true,
 			id: 'editKeybinding',
 			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
@@ -937,7 +937,7 @@ class ActionsColumn extends Column {
 	private createAddAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
 		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
-			class: 'codicon-add',
+			class: ThemeIcon.asClassName(keybindingsAddIcon),
 			enabled: true,
 			id: 'addKeybinding',
 			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),
