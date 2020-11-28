@@ -308,7 +308,6 @@ const newCommands: ApiCommand[] = [
 				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
 			).optional(),
 			ApiCommandArgument.String.with('label', '').optional()
-
 		],
 		ApiCommandResult.Void
 	),
