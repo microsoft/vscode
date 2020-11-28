@@ -126,7 +126,6 @@ export class CursorWordLeft extends WordLeftCommand {
 			id: 'cursorWordLeft',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -165,7 +164,6 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 			id: 'cursorWordLeftSelect',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -183,7 +181,7 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 			id: 'cursorWordAccessibilityLeft',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				win: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
@@ -203,7 +201,7 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 			id: 'cursorWordAccessibilityLeftSelect',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
@@ -234,7 +232,6 @@ export class CursorWordEndRight extends WordRightCommand {
 			id: 'cursorWordEndRight',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -273,7 +270,6 @@ export class CursorWordEndRightSelect extends WordRightCommand {
 			id: 'cursorWordEndRightSelect',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -301,7 +297,7 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 			id: 'cursorWordAccessibilityRight',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				win: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
@@ -321,7 +317,7 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 			id: 'cursorWordAccessibilityRightSelect',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib + 1
 			}
@@ -432,7 +428,6 @@ export class DeleteWordLeft extends DeleteWordLeftCommand {
 			id: 'deleteWordLeft',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				mac: { primary: KeyMod.Alt | KeyCode.Backspace },
 				weight: KeybindingWeight.EditorContrib
@@ -471,7 +466,6 @@ export class DeleteWordRight extends DeleteWordRightCommand {
 			id: 'deleteWordRight',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Delete,
 				mac: { primary: KeyMod.Alt | KeyCode.Delete },
 				weight: KeybindingWeight.EditorContrib

@@ -19,7 +19,6 @@ import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeServic
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI as uri } from 'vs/base/common/uri';
 import { CompletionProviderRegistry, CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
@@ -367,7 +366,6 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 			id: 'closeBreakpointWidget',
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyCode.Escape,
 				secondary: [KeyMod.Shift | KeyCode.Escape],
 				weight: KeybindingWeight.EditorContrib

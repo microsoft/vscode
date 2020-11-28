@@ -136,7 +136,6 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 			alias: 'Copy With Syntax Highlighting',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
 				primary: 0,
 				weight: KeybindingWeight.EditorContrib
 			}
