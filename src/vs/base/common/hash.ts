@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
 import * as strings from 'vs/base/common/strings';
 
 /**
@@ -107,9 +106,9 @@ function leftPad(value: string, length: number, char: string = '0'): string {
 	return value;
 }
 
-function toHexString(buffer: ArrayBuffer): string;
-function toHexString(value: number, bitsize?: number): string;
-function toHexString(bufferOrValue: ArrayBuffer | number, bitsize: number = 32): string {
+export function toHexString(buffer: ArrayBuffer): string;
+export function toHexString(value: number, bitsize?: number): string;
+export function toHexString(bufferOrValue: ArrayBuffer | number, bitsize: number = 32): string {
 	if (bufferOrValue instanceof ArrayBuffer) {
 		return Array.from(new Uint8Array(bufferOrValue)).map(b => b.toString(16).padStart(2, '0')).join('');
 	}
@@ -313,23 +312,5 @@ export class StringSHA1 {
 		this._h2 = (this._h2 + c) & 0xffffffff;
 		this._h3 = (this._h3 + d) & 0xffffffff;
 		this._h4 = (this._h4 + e) & 0xffffffff;
-	}
-}
-
-export async function sha1Hex(str: string): Promise<string> {
-
-	// Prefer to use browser's crypto module
-	if (globalThis?.crypto?.subtle) {
-		const hash = await globalThis.crypto.subtle.digest({ name: 'sha-1' }, VSBuffer.fromString(str).buffer);
-
-		return toHexString(hash);
-	}
-
-	// Otherwise fallback to `StringSHA1`
-	else {
-		const computer = new StringSHA1();
-		computer.update(str);
-
-		return computer.digest();
 	}
 }
