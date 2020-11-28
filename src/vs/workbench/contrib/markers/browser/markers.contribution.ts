@@ -18,8 +18,7 @@ import { ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/ma
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IMarkersWorkbenchService, MarkersWorkbenchService, ActivityUpdater } from 'vs/workbench/contrib/markers/browser/markers';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ActivityUpdater } from 'vs/workbench/contrib/markers/browser/markers';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -34,8 +33,6 @@ import type { ServicesAccessor } from 'vs/platform/instantiation/common/instanti
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-
-registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_OPEN_ACTION_ID,
