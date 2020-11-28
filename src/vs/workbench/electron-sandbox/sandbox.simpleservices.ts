@@ -742,7 +742,7 @@ class SimpleWorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
 
 	async getTags(): Promise<Tags> { return Object.create(null); }
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined { return undefined; }
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> { return undefined; }
 	async getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> { return []; }
 }
 

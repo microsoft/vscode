@@ -79,10 +79,6 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	}
 
 	public get backgroundColor(): ThemeColor | undefined {
-		if (this._extension) {
-			checkProposedApiEnabled(this._extension);
-		}
-
 		return this._backgroundColor;
 	}
 
