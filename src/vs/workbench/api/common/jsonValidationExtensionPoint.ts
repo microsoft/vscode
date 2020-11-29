@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import * as strings from 'vs/base/common/strings';
 import * as resources from 'vs/base/common/resources';
 import { isString } from 'vs/base/common/types';
 
@@ -64,7 +63,7 @@ export class JSONValidationExtensionPoint {
 						collector.error(nls.localize('invalid.url', "'configuration.jsonValidation.url' must be a URL or relative path"));
 						return;
 					}
-					if (strings.startsWith(uri, './')) {
+					if (uri.startsWith('./')) {
 						try {
 							const colorThemeLocation = resources.joinPath(extensionLocation, uri);
 							if (!resources.isEqualOrParent(colorThemeLocation, extensionLocation)) {

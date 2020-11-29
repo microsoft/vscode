@@ -14,18 +14,22 @@ import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspac
 import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from 'vs/workbench/api/common/extHost.protocol';
 import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IPatternInfo } from 'vs/workbench/services/search/common/search';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
 		new ExtHostRpcService(mainContext),
 		new class extends mock<IExtHostInitDataService>() { workspace = data; },
-		logService
+		new class extends mock<IExtHostFileSystemInfo>() { getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
+		logService,
 	);
 	result.$initializeWorkspace(data);
 	return result;
@@ -41,6 +45,7 @@ suite('ExtHostWorkspace', function () {
 		engines: undefined!,
 		extensionLocation: undefined!,
 		isBuiltin: false,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		version: undefined!
 	};
@@ -297,7 +302,8 @@ suite('ExtHostWorkspace', function () {
 		const protocol: IMainContext = {
 			getProxy: () => { return undefined!; },
 			set: () => { return undefined!; },
-			assertRegistered: () => { }
+			assertRegistered: () => { },
+			drain: () => { return undefined!; },
 		};
 
 		const ws = createExtHostWorkspace(protocol, { id: 'foo', name: 'Test', folders: [] }, new NullLogService());
@@ -552,14 +558,17 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('`vscode.workspace.getWorkspaceFolder(file)` don\'t return workspace folder when file open from command line. #36221', function () {
-		let ws = createExtHostWorkspace(new TestRPCProtocol(), {
-			id: 'foo', name: 'Test', folders: [
-				aWorkspaceFolderData(URI.file('c:/Users/marek/Desktop/vsc_test/'), 0)
-			]
-		}, new NullLogService());
+		if (isWindows) {
 
-		assert.ok(ws.getWorkspaceFolder(URI.file('c:/Users/marek/Desktop/vsc_test/a.txt')));
-		assert.ok(ws.getWorkspaceFolder(URI.file('C:/Users/marek/Desktop/vsc_test/b.txt')));
+			let ws = createExtHostWorkspace(new TestRPCProtocol(), {
+				id: 'foo', name: 'Test', folders: [
+					aWorkspaceFolderData(URI.file('c:/Users/marek/Desktop/vsc_test/'), 0)
+				]
+			}, new NullLogService());
+
+			assert.ok(ws.getWorkspaceFolder(URI.file('c:/Users/marek/Desktop/vsc_test/a.txt')));
+			assert.ok(ws.getWorkspaceFolder(URI.file('C:/Users/marek/Desktop/vsc_test/b.txt')));
+		}
 	});
 
 	function aWorkspaceFolderData(uri: URI, index: number, name: string = ''): IWorkspaceFolderData {
@@ -596,7 +605,7 @@ suite('ExtHostWorkspace', function () {
 		});
 	});
 
-	test('findFiles - RelativePattern include', () => {
+	function testFindFilesInclude(pattern: RelativePattern) {
 		const root = '/project/foo';
 		const rpcProtocol = new TestRPCProtocol();
 
@@ -605,16 +614,24 @@ suite('ExtHostWorkspace', function () {
 			$startFileSearch(includePattern: string, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Promise<URI[] | null> {
 				mainThreadCalled = true;
 				assert.equal(includePattern, 'glob/**');
-				assert.deepEqual(_includeFolder, URI.file('/other/folder').toJSON());
+				assert.deepEqual(_includeFolder ? URI.from(_includeFolder).toJSON() : null, URI.file('/other/folder').toJSON());
 				assert.equal(excludePatternOrDisregardExcludes, null);
 				return Promise.resolve(null);
 			}
 		});
 
 		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), undefined, 10, new ExtensionIdentifier('test')).then(() => {
+		return ws.findFiles(pattern, undefined, 10, new ExtensionIdentifier('test')).then(() => {
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
+	}
+
+	test('findFiles - RelativePattern include (string)', () => {
+		return testFindFilesInclude(new RelativePattern('/other/folder', 'glob/**'));
+	});
+
+	test('findFiles - RelativePattern include (URI)', () => {
+		return testFindFilesInclude(new RelativePattern(URI.file('/other/folder'), 'glob/**'));
 	});
 
 	test('findFiles - no excludes', () => {

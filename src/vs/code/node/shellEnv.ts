@@ -3,14 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import { assign } from 'vs/base/common/objects';
+import { spawn } from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
-function getUnixShellEnvironment(logService: ILogService): Promise<typeof process.env> {
+/**
+ * We need to get the environment from a user's shell.
+ * This should only be done when Code itself is not launched
+ * from within a shell.
+ */
+export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: NodeJS.ProcessEnv): Promise<typeof process.env> {
+
+	// Skip if --force-disable-user-env
+	if (args['force-disable-user-env']) {
+		logService.trace('resolveShellEnv(): skipped (--force-disable-user-env)');
+
+		return {};
+	}
+
+	// Skip on windows
+	else if (isWindows) {
+		logService.trace('resolveShellEnv(): skipped (Windows)');
+
+		return {};
+	}
+
+	// Skip if running from CLI already
+	else if (isLaunchedFromCli(env) && !args['force-user-env']) {
+		logService.trace('resolveShellEnv(): skipped (VSCODE_CLI is set)');
+
+		return {};
+	}
+
+	// Otherwise resolve (macOS, Linux)
+	else {
+		if (isLaunchedFromCli(env)) {
+			logService.trace('resolveShellEnv(): running (--force-user-env)');
+		} else {
+			logService.trace('resolveShellEnv(): running (macOS/Linux)');
+		}
+
+		if (!unixShellEnvPromise) {
+			unixShellEnvPromise = doResolveUnixShellEnv(logService);
+		}
+
+		return unixShellEnvPromise;
+	}
+}
+
+let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
+
+async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof process.env> {
 	const promise = new Promise<typeof process.env>((resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
@@ -21,16 +68,17 @@ function getUnixShellEnvironment(logService: ILogService): Promise<typeof proces
 		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
 		const regex = new RegExp(mark + '(.*)' + mark);
 
-		const env = assign({}, process.env, {
+		const env = {
+			...process.env,
 			ELECTRON_RUN_AS_NODE: '1',
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
-		});
+		};
 
 		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		logService.trace('getUnixShellEnvironment#env', env);
 		logService.trace('getUnixShellEnvironment#spawn', command);
 
-		const child = cp.spawn(process.env.SHELL!, ['-ilc', command], {
+		const child = spawn(process.env.SHELL!, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
 			env
@@ -66,7 +114,7 @@ function getUnixShellEnvironment(logService: ILogService): Promise<typeof proces
 					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
 				}
 
-				// https://github.com/Microsoft/vscode/issues/22593#issuecomment-336050758
+				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];
 
 				logService.trace('getUnixShellEnvironment#result', env);
@@ -78,34 +126,11 @@ function getUnixShellEnvironment(logService: ILogService): Promise<typeof proces
 		});
 	});
 
-	// swallow errors
-	return promise.catch(() => ({}));
-}
+	try {
+		return await promise;
+	} catch (error) {
+		logService.error('getUnixShellEnvironment#error', toErrorMessage(error));
 
-
-let _shellEnv: Promise<typeof process.env>;
-
-/**
- * We need to get the environment from a user's shell.
- * This should only be done when Code itself is not launched
- * from within a shell.
- */
-export function getShellEnvironment(logService: ILogService, environmentService: IEnvironmentService): Promise<typeof process.env> {
-	if (_shellEnv === undefined) {
-		if (environmentService.args['disable-user-env-probe']) {
-			logService.trace('getShellEnvironment: disable-user-env-probe set, skipping');
-			_shellEnv = Promise.resolve({});
-		} else if (isWindows) {
-			logService.trace('getShellEnvironment: running on Windows, skipping');
-			_shellEnv = Promise.resolve({});
-		} else if (process.env['VSCODE_CLI'] === '1' && process.env['VSCODE_FORCE_USER_ENV'] !== '1') {
-			logService.trace('getShellEnvironment: running on CLI, skipping');
-			_shellEnv = Promise.resolve({});
-		} else {
-			logService.trace('getShellEnvironment: running on Unix');
-			_shellEnv = getUnixShellEnvironment(logService);
-		}
+		return {}; // ignore any errors
 	}
-
-	return _shellEnv;
 }

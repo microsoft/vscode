@@ -16,7 +16,7 @@ declare module DebugProtocol {
 		/** Message type.
 			Values: 'request', 'response', 'event', etc.
 		*/
-		type: string;
+		type: 'request' | 'response' | 'event' | string;
 	}
 
 	/** A client or debug adapter initiated request. */
@@ -56,7 +56,7 @@ declare module DebugProtocol {
 			'cancelled': request was cancelled.
 			etc.
 		*/
-		message?: string;
+		message?: 'cancelled' | string;
 		/** Contains request result if success is true and optional error details if success is false. */
 		body?: any;
 	}
@@ -120,16 +120,16 @@ declare module DebugProtocol {
 
 	/** Event message for 'stopped' event type.
 		The event indicates that the execution of the debuggee has stopped due to some condition.
-		This can be caused by a break point previously set, a stepping action has completed, by executing a debugger statement etc.
+		This can be caused by a break point previously set, a stepping request has completed, by executing a debugger statement etc.
 	*/
 	export interface StoppedEvent extends Event {
 		// event: 'stopped';
 		body: {
 			/** The reason for the event.
 				For backward compatibility this string is shown in the UI if the 'description' attribute is missing (but it must not be translated).
-				Values: 'step', 'breakpoint', 'exception', 'pause', 'entry', 'goto', 'function breakpoint', 'data breakpoint', etc.
+				Values: 'step', 'breakpoint', 'exception', 'pause', 'entry', 'goto', 'function breakpoint', 'data breakpoint', 'instruction breakpoint', etc.
 			*/
-			reason: string;
+			reason: 'step' | 'breakpoint' | 'exception' | 'pause' | 'entry' | 'goto' | 'function breakpoint' | 'data breakpoint' | 'instruction breakpoint' | string;
 			/** The full reason for the event, e.g. 'Paused on exception'. This string is shown in the UI as is and must be translated. */
 			description?: string;
 			/** The thread which was stopped. */
@@ -194,7 +194,7 @@ declare module DebugProtocol {
 			/** The reason for the event.
 				Values: 'started', 'exited', etc.
 			*/
-			reason: string;
+			reason: 'started' | 'exited' | string;
 			/** The identifier of the thread. */
 			threadId: number;
 		};
@@ -209,7 +209,7 @@ declare module DebugProtocol {
 			/** The output category. If not specified, 'console' is assumed.
 				Values: 'console', 'stdout', 'stderr', 'telemetry', etc.
 			*/
-			category?: string;
+			category?: 'console' | 'stdout' | 'stderr' | 'telemetry' | string;
 			/** The output to report. */
 			output: string;
 			/** Support for keeping an output log organized by grouping related messages.
@@ -221,7 +221,7 @@ declare module DebugProtocol {
 				A non empty 'output' attribute is shown as the unindented end of the group.
 			*/
 			group?: 'start' | 'startCollapsed' | 'end';
-			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31 - 1). */
+			/** If an attribute 'variablesReference' exists and its value is > 0, the output contains objects which can be retrieved by passing 'variablesReference' to the 'variables' request. The value should be less than or equal to 2147483647 (2^31-1). */
 			variablesReference?: number;
 			/** An optional source location where the output was produced. */
 			source?: Source;
@@ -243,7 +243,7 @@ declare module DebugProtocol {
 			/** The reason for the event.
 				Values: 'changed', 'new', 'removed', etc.
 			*/
-			reason: string;
+			reason: 'changed' | 'new' | 'removed' | string;
 			/** The 'id' attribute is used to find the target breakpoint and the other attributes are used as the new values. */
 			breakpoint: Breakpoint;
 		};
@@ -375,6 +375,23 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Event message for 'invalidated' event type.
+		This event signals that some state in the debug adapter has changed and requires that the client needs to re-render the data snapshot previously requested.
+		Debug adapters do not have to emit this event for runtime changes like stopped or thread events because in that case the client refetches the new state anyway. But the event can be used for example to refresh the UI after rendering formatting has changed in the debug adapter.
+		This event should only be sent if the debug adapter has received a value true for the 'supportsInvalidatedEvent' capability of the 'initialize' request.
+	*/
+	export interface InvalidatedEvent extends Event {
+		// event: 'invalidated';
+		body: {
+			/** Optional set of logical areas that got invalidated. This property has a hint characteristic: a client can only be expected to make a 'best effort' in honouring the areas but there are no guarantees. If this property is missing, empty, or if values are not understand the client should assume a single value 'all'. */
+			areas?: InvalidatedAreas[];
+			/** If specified, the client only needs to refetch data related to this thread. */
+			threadId?: number;
+			/** If specified, the client only needs to refetch data related to this stack frame (and the 'threadId' is ignored). */
+			stackFrameId?: number;
+		};
+	}
+
 	/** RunInTerminal request; value of command field is 'runInTerminal'.
 		This optional request is sent from the debug adapter to the client to run a command in a terminal.
 		This is typically used to launch the debuggee in a terminal provided by the client.
@@ -391,7 +408,7 @@ declare module DebugProtocol {
 		kind?: 'integrated' | 'external';
 		/** Optional title of the terminal. */
 		title?: string;
-		/** Working directory of the command. */
+		/** Working directory for the command. For non-empty, valid paths this typically results in execution of a change directory command. */
 		cwd: string;
 		/** List of arguments. The first argument is the command to run. */
 		args: string[];
@@ -402,9 +419,9 @@ declare module DebugProtocol {
 	/** Response to 'runInTerminal' request. */
 	export interface RunInTerminalResponse extends Response {
 		body: {
-			/** The process ID. The value should be less than or equal to 2147483647 (2^31 - 1). */
+			/** The process ID. The value should be less than or equal to 2147483647 (2^31-1). */
 			processId?: number;
-			/** The process ID of the terminal shell. The value should be less than or equal to 2147483647 (2^31 - 1). */
+			/** The process ID of the terminal shell. The value should be less than or equal to 2147483647 (2^31-1). */
 			shellProcessId?: number;
 		};
 	}
@@ -438,7 +455,7 @@ declare module DebugProtocol {
 		/** Determines in what format paths are specified. The default is 'path', which is the native format.
 			Values: 'path', 'uri', etc.
 		*/
-		pathFormat?: string;
+		pathFormat?: 'path' | 'uri' | string;
 		/** Client supports the optional type attribute for variables. */
 		supportsVariableType?: boolean;
 		/** Client supports the paging of variables. */
@@ -449,6 +466,8 @@ declare module DebugProtocol {
 		supportsMemoryReferences?: boolean;
 		/** Client supports progress reporting. */
 		supportsProgressReporting?: boolean;
+		/** Client supports the invalidated event. */
+		supportsInvalidatedEvent?: boolean;
 	}
 
 	/** Response to 'initialize' request. */
@@ -693,8 +712,10 @@ declare module DebugProtocol {
 
 	/** Arguments for 'setExceptionBreakpoints' request. */
 	export interface SetExceptionBreakpointsArguments {
-		/** IDs of checked exception options. The set of IDs is returned via the 'exceptionBreakpointFilters' capability. */
+		/** Set of exception filters specified by their ID. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. The 'filter' and 'filterOptions' sets are additive. */
 		filters: string[];
+		/** Set of exception filters and their options. The set of all possible exception filters is defined by the 'exceptionBreakpointFilters' capability. This attribute is only honored by a debug adapter if the capability 'supportsExceptionFilterOptions' is true. The 'filter' and 'filterOptions' sets are additive. */
+		filterOptions?: ExceptionFilterOptions[];
 		/** Configuration options for selected exceptions.
 			The attribute is only honored by a debug adapter if the capability 'supportsExceptionOptions' is true.
 		*/
@@ -765,6 +786,31 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** SetInstructionBreakpoints request; value of command field is 'setInstructionBreakpoints'.
+		Replaces all existing instruction breakpoints. Typically, instruction breakpoints would be set from a diassembly window.
+		To clear all instruction breakpoints, specify an empty array.
+		When an instruction breakpoint is hit, a 'stopped' event (with reason 'instruction breakpoint') is generated.
+		Clients should only call this request if the capability 'supportsInstructionBreakpoints' is true.
+	*/
+	export interface SetInstructionBreakpointsRequest extends Request {
+		// command: 'setInstructionBreakpoints';
+		arguments: SetInstructionBreakpointsArguments;
+	}
+
+	/** Arguments for 'setInstructionBreakpoints' request */
+	export interface SetInstructionBreakpointsArguments {
+		/** The instruction references of the breakpoints */
+		breakpoints: InstructionBreakpoint[];
+	}
+
+	/** Response to 'setInstructionBreakpoints' request */
+	export interface SetInstructionBreakpointsResponse extends Response {
+		body: {
+			/** Information about the breakpoints. The array elements correspond to the elements of the 'breakpoints' array. */
+			breakpoints: Breakpoint[];
+		};
+	}
+
 	/** Continue request; value of command field is 'continue'.
 		The request starts the debuggee to run again.
 	*/
@@ -804,6 +850,8 @@ declare module DebugProtocol {
 	export interface NextArguments {
 		/** Execute 'next' for this thread. */
 		threadId: number;
+		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
+		granularity?: SteppingGranularity;
 	}
 
 	/** Response to 'next' request. This is just an acknowledgement, so no body field is required. */
@@ -829,6 +877,8 @@ declare module DebugProtocol {
 		threadId: number;
 		/** Optional id of the target to step into. */
 		targetId?: number;
+		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
+		granularity?: SteppingGranularity;
 	}
 
 	/** Response to 'stepIn' request. This is just an acknowledgement, so no body field is required. */
@@ -848,6 +898,8 @@ declare module DebugProtocol {
 	export interface StepOutArguments {
 		/** Execute 'stepOut' for this thread. */
 		threadId: number;
+		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
+		granularity?: SteppingGranularity;
 	}
 
 	/** Response to 'stepOut' request. This is just an acknowledgement, so no body field is required. */
@@ -868,6 +920,8 @@ declare module DebugProtocol {
 	export interface StepBackArguments {
 		/** Execute 'stepBack' for this thread. */
 		threadId: number;
+		/** Optional granularity to step. If no granularity is specified, a granularity of 'statement' is assumed. */
+		granularity?: SteppingGranularity;
 	}
 
 	/** Response to 'stepBack' request. This is just an acknowledgement, so no body field is required. */
@@ -957,7 +1011,8 @@ declare module DebugProtocol {
 	}
 
 	/** StackTrace request; value of command field is 'stackTrace'.
-		The request returns a stacktrace from the current execution state.
+		The request returns a stacktrace from the current execution state of a given thread.
+		A client can request all stack frames by omitting the startFrame and levels arguments. For performance conscious clients stack frames can be retrieved in a piecemeal way with the startFrame and levels arguments. The response of the stackTrace request may contain a totalFrames property that hints at the total number of frames in the stack. If a client needs this total number upfront, it can issue a request for a single (first) frame and depending on the value of totalFrames decide how to proceed. In any case a client should be prepared to receive less frames than requested, which is an indication that the end of the stack has been reached.
 	*/
 	export interface StackTraceRequest extends Request {
 		// command: 'stackTrace';
@@ -985,7 +1040,7 @@ declare module DebugProtocol {
 				This means that there is no location information available.
 			*/
 			stackFrames: StackFrame[];
-			/** The total number of frames available. */
+			/** The total number of frames available in the stack. If omitted or if totalFrames is larger than the available frames, a client is expected to request frames until a request returns less frames than requested (which indicates the end of the stack). Returning monotonically increasing totalFrames values for subsequent requests can be used to enforce paging in the client. */
 			totalFrames?: number;
 		};
 	}
@@ -1073,17 +1128,17 @@ declare module DebugProtocol {
 			/** The type of the new value. Typically shown in the UI when hovering over the value. */
 			type?: string;
 			/** If variablesReference is > 0, the new value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			variablesReference?: number;
 			/** The number of named child variables.
 				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			namedVariables?: number;
 			/** The number of indexed child variables.
 				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			indexedVariables?: number;
 		};
@@ -1223,7 +1278,7 @@ declare module DebugProtocol {
 			The attribute is only honored by a debug adapter if the capability 'supportsClipboardContext' is true.
 			etc.
 		*/
-		context?: string;
+		context?: 'watch' | 'repl' | 'hover' | 'clipboard' | string;
 		/** Specifies details on how to format the Evaluate result.
 			The attribute is only honored by a debug adapter if the capability 'supportsValueFormattingOptions' is true.
 		*/
@@ -1242,17 +1297,17 @@ declare module DebugProtocol {
 			/** Properties of a evaluate result that can be used to determine how to render the result in the UI. */
 			presentationHint?: VariablePresentationHint;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			variablesReference: number;
 			/** The number of named child variables.
 				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			namedVariables?: number;
 			/** The number of indexed child variables.
 				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			indexedVariables?: number;
 			/** Optional memory reference to a location appropriate for this result.
@@ -1297,17 +1352,17 @@ declare module DebugProtocol {
 			/** Properties of a value that can be used to determine how to render the result in the UI. */
 			presentationHint?: VariablePresentationHint;
 			/** If variablesReference is > 0, the value is structured and its children can be retrieved by passing variablesReference to the VariablesRequest.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			variablesReference?: number;
 			/** The number of named child variables.
 				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			namedVariables?: number;
 			/** The number of indexed child variables.
 				The client can use this optional information to present the variables in a paged UI and fetch them in chunks.
-				The value should be less than or equal to 2147483647 (2^31 - 1).
+				The value should be less than or equal to 2147483647 (2^31-1).
 			*/
 			indexedVariables?: number;
 		};
@@ -1504,7 +1559,7 @@ declare module DebugProtocol {
 		supportsHitConditionalBreakpoints?: boolean;
 		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
 		supportsEvaluateForHovers?: boolean;
-		/** Available filters or options for the setExceptionBreakpoints request. */
+		/** Available exception filter options for the 'setExceptionBreakpoints' request. */
 		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
 		/** The debug adapter supports stepping back via the 'stepBack' and 'reverseContinue' requests. */
 		supportsStepBack?: boolean;
@@ -1560,16 +1615,24 @@ declare module DebugProtocol {
 		supportsBreakpointLocationsRequest?: boolean;
 		/** The debug adapter supports the 'clipboard' context value in the 'evaluate' request. */
 		supportsClipboardContext?: boolean;
+		/** The debug adapter supports stepping granularities (argument 'granularity') for the stepping requests. */
+		supportsSteppingGranularity?: boolean;
+		/** The debug adapter supports adding breakpoints based on instruction references. */
+		supportsInstructionBreakpoints?: boolean;
+		/** The debug adapter supports 'filterOptions' as an argument on the 'setExceptionBreakpoints' request. */
+		supportsExceptionFilterOptions?: boolean;
 	}
 
-	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
+	/** An ExceptionBreakpointsFilter is shown in the UI as an filter option for configuring how exceptions are dealt with. */
 	export interface ExceptionBreakpointsFilter {
-		/** The internal ID of the filter. This value is passed to the setExceptionBreakpoints request. */
+		/** The internal ID of the filter option. This value is passed to the 'setExceptionBreakpoints' request. */
 		filter: string;
-		/** The name of the filter. This will be shown in the UI. */
+		/** The name of the filter option. This will be shown in the UI. */
 		label: string;
-		/** Initial value of the filter. If not specified a value 'false' is assumed. */
+		/** Initial value of the filter option. If not specified a value 'false' is assumed. */
 		default?: boolean;
+		/** Controls whether a condition can be specified for this filter option. If false or missing, a condition can not be set. */
+		supportsCondition?: boolean;
 	}
 
 	/** A structured message object. Used to return errors from requests. */
@@ -1674,7 +1737,7 @@ declare module DebugProtocol {
 		path?: string;
 		/** If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified).
 			A sourceReference is only valid for a session, so it must not be used to persist a source.
-			The value should be less than or equal to 2147483647 (2^31 - 1).
+			The value should be less than or equal to 2147483647 (2^31-1).
 		*/
 		sourceReference?: number;
 		/** An optional hint for how to present the source in the UI.
@@ -1732,7 +1795,7 @@ declare module DebugProtocol {
 			'registers': Scope contains registers. Only a single 'registers' scope should be returned from a 'scopes' request.
 			etc.
 		*/
-		presentationHint?: string;
+		presentationHint?: 'arguments' | 'locals' | 'registers' | string;
 		/** The variables of this scope can be retrieved by passing the value of variablesReference to the VariablesRequest. */
 		variablesReference: number;
 		/** The number of named variables in this scope.
@@ -1811,7 +1874,7 @@ declare module DebugProtocol {
 			'dataBreakpoint': Indicates that a data breakpoint is registered for the object.
 			etc.
 		*/
-		kind?: string;
+		kind?: 'property' | 'method' | 'class' | 'data' | 'event' | 'baseClass' | 'innerClass' | 'interface' | 'mostDerivedClass' | 'virtual' | 'dataBreakpoint' | string;
 		/** Set of attributes represented as an array of strings. Before introducing additional values, try to use the listed values.
 			Values:
 			'static': Indicates that the object is static.
@@ -1823,11 +1886,11 @@ declare module DebugProtocol {
 			'hasSideEffects': Indicates that the evaluation had side effects.
 			etc.
 		*/
-		attributes?: string[];
+		attributes?: ('static' | 'constant' | 'readOnly' | 'rawString' | 'hasObjectId' | 'canHaveObjectId' | 'hasSideEffects' | string)[];
 		/** Visibility of variable. Before introducing additional values, try to use the listed values.
 			Values: 'public', 'private', 'protected', 'internal', 'final', etc.
 		*/
-		visibility?: string;
+		visibility?: 'public' | 'private' | 'protected' | 'internal' | 'final' | string;
 	}
 
 	/** Properties of a breakpoint location returned from the 'breakpointLocations' request. */
@@ -1896,7 +1959,28 @@ declare module DebugProtocol {
 		hitCondition?: string;
 	}
 
-	/** Information about a Breakpoint created in setBreakpoints or setFunctionBreakpoints. */
+	/** Properties of a breakpoint passed to the setInstructionBreakpoints request */
+	export interface InstructionBreakpoint {
+		/** The instruction reference of the breakpoint.
+			This should be a memory or instruction pointer reference from an EvaluateResponse, Variable, StackFrame, GotoTarget, or Breakpoint.
+		*/
+		instructionReference: string;
+		/** An optional offset from the instruction reference.
+			This can be negative.
+		*/
+		offset?: number;
+		/** An optional expression for conditional breakpoints.
+			It is only honored by a debug adapter if the capability 'supportsConditionalBreakpoints' is true.
+		*/
+		condition?: string;
+		/** An optional expression that controls how many hits of the breakpoint are ignored.
+			The backend is expected to interpret the expression as needed.
+			The attribute is only honored by a debug adapter if the capability 'supportsHitConditionalBreakpoints' is true.
+		*/
+		hitCondition?: string;
+	}
+
+	/** Information about a Breakpoint created in setBreakpoints, setFunctionBreakpoints, setInstructionBreakpoints, or setDataBreakpoints. */
 	export interface Breakpoint {
 		/** An optional identifier for the breakpoint. It is needed if breakpoint events are used to update or remove breakpoints. */
 		id?: number;
@@ -1918,7 +2002,22 @@ declare module DebugProtocol {
 			If no end line is given, then the end column is assumed to be in the start line.
 		*/
 		endColumn?: number;
+		/** An optional memory reference to where the breakpoint is set. */
+		instructionReference?: string;
+		/** An optional offset from the instruction reference.
+			This can be negative.
+		*/
+		offset?: number;
 	}
+
+	/** The granularity of one 'step' in the stepping requests 'next', 'stepIn', 'stepOut', and 'stepBack'.
+		'statement': The step should allow the program to run until the current statement has finished executing.
+		The meaning of a statement is determined by the adapter and it may be considered equivalent to a line.
+		For example 'for(int i = 0; i < 10; i++) could be considered to have 3 statements 'int i = 0', 'i < 10', and 'i++'.
+		'line': The step should allow the program to run until the current source line has executed.
+		'instruction': The step should allow one instruction to execute (e.g. one x86 instruction).
+	*/
+	export type SteppingGranularity = 'statement' | 'line' | 'instruction';
 
 	/** A StepInTarget can be used in the 'stepIn' request and determines into which single target the stepIn request should step. */
 	export interface StepInTarget {
@@ -2016,6 +2115,16 @@ declare module DebugProtocol {
 		includeAll?: boolean;
 	}
 
+	/** An ExceptionFilterOptions is used to specify an exception filter together with a condition for the setExceptionsFilter request. */
+	export interface ExceptionFilterOptions {
+		/** ID of an exception filter returned by the 'exceptionBreakpointFilters' capability. */
+		filterId: string;
+		/** An optional expression for conditional exceptions.
+			The exception will break into the debugger if the result of the condition is true.
+		*/
+		condition?: string;
+	}
+
 	/** An ExceptionOptions assigns configuration options to a set of exceptions. */
 	export interface ExceptionOptions {
 		/** A path that selects a single or multiple exceptions in a tree. If 'path' is missing, the whole tree is selected.
@@ -2085,5 +2194,15 @@ declare module DebugProtocol {
 		/** The end column of the range that corresponds to this instruction, if any. */
 		endColumn?: number;
 	}
+
+	/** Logical areas that can be invalidated by the 'invalidated' event.
+		Values:
+		'all': All previously fetched data has become invalid and needs to be refetched.
+		'stacks': Previously fetched stack related data has become invalid and needs to be refetched.
+		'threads': Previously fetched thread related data has become invalid and needs to be refetched.
+		'variables': Previously fetched variable data has become invalid and needs to be refetched.
+		etc.
+	*/
+	export type InvalidatedAreas = 'all' | 'stacks' | 'threads' | 'variables' | string;
 }
 

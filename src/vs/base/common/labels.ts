@@ -18,7 +18,7 @@ export interface IWorkspaceFolderProvider {
 }
 
 export interface IUserHomeProvider {
-	userHome: string;
+	userHome?: URI;
 }
 
 /**
@@ -63,8 +63,8 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 
 	// normalize and tildify (macOS, Linux only)
 	let res = normalize(resource.fsPath);
-	if (!isWindows && userHomeProvider) {
-		res = tildify(res, userHomeProvider.userHome);
+	if (!isWindows && userHomeProvider?.userHome) {
+		res = tildify(res, userHomeProvider.userHome.fsPath);
 	}
 
 	return res;
@@ -93,6 +93,10 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 
 function hasDriveLetter(path: string): boolean {
 	return !!(isWindows && path && path[1] === ':');
+}
+
+export function extractDriveLetter(path: string): string | undefined {
+	return hasDriveLetter(path) ? path[0] : undefined;
 }
 
 export function normalizeDriveLetter(path: string): string {

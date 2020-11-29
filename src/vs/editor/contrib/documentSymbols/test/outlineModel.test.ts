@@ -93,9 +93,9 @@ suite('OutlineModel', function () {
 		let e2 = new OutlineElement('foo3', null!, fakeSymbolInformation(new Range(6, 1, 10, 10)));
 
 		let group = new OutlineGroup('group', null!, null!, 1);
-		group.children[e0.id] = e0;
-		group.children[e1.id] = e1;
-		group.children[e2.id] = e2;
+		group.children.set(e0.id, e0);
+		group.children.set(e1.id, e1);
+		group.children.set(e2.id, e2);
 
 		const data = [fakeMarker(new Range(6, 1, 6, 7)), fakeMarker(new Range(1, 1, 1, 4)), fakeMarker(new Range(10, 2, 14, 1))];
 		data.sort(Range.compareRangesUsingStarts); // model does this
@@ -119,9 +119,9 @@ suite('OutlineModel', function () {
 		let c2 = new OutlineElement('A/C', null!, fakeSymbolInformation(new Range(6, 4, 9, 4)));
 
 		let group = new OutlineGroup('group', null!, null!, 1);
-		group.children[p.id] = p;
-		p.children[c1.id] = c1;
-		p.children[c2.id] = c2;
+		group.children.set(p.id, p);
+		p.children.set(c1.id, c1);
+		p.children.set(c2.id, c2);
 
 		let data = [
 			fakeMarker(new Range(2, 4, 5, 4))
@@ -162,13 +162,13 @@ suite('OutlineModel', function () {
 				this._groups = this.children as any;
 			}
 		};
-		model.children['g1'] = new OutlineGroup('g1', model, null!, 1);
-		model.children['g1'].children['c1'] = new OutlineElement('c1', model.children['g1'], fakeSymbolInformation(new Range(1, 1, 11, 1)));
+		model.children.set('g1', new OutlineGroup('g1', model, null!, 1));
+		model.children.get('g1')!.children.set('c1', new OutlineElement('c1', model.children.get('g1')!, fakeSymbolInformation(new Range(1, 1, 11, 1))));
 
-		model.children['g2'] = new OutlineGroup('g2', model, null!, 1);
-		model.children['g2'].children['c2'] = new OutlineElement('c2', model.children['g2'], fakeSymbolInformation(new Range(1, 1, 7, 1)));
-		model.children['g2'].children['c2'].children['c2.1'] = new OutlineElement('c2.1', model.children['g2'].children['c2'], fakeSymbolInformation(new Range(1, 3, 2, 19)));
-		model.children['g2'].children['c2'].children['c2.2'] = new OutlineElement('c2.2', model.children['g2'].children['c2'], fakeSymbolInformation(new Range(4, 1, 6, 10)));
+		model.children.set('g2', new OutlineGroup('g2', model, null!, 1));
+		model.children.get('g2')!.children.set('c2', new OutlineElement('c2', model.children.get('g2')!, fakeSymbolInformation(new Range(1, 1, 7, 1))));
+		model.children.get('g2')!.children.get('c2')!.children.set('c2.1', new OutlineElement('c2.1', model.children.get('g2')!.children.get('c2')!, fakeSymbolInformation(new Range(1, 3, 2, 19))));
+		model.children.get('g2')!.children.get('c2')!.children.set('c2.2', new OutlineElement('c2.2', model.children.get('g2')!.children.get('c2')!, fakeSymbolInformation(new Range(4, 1, 6, 10))));
 
 		model.readyForTesting();
 
@@ -179,9 +179,9 @@ suite('OutlineModel', function () {
 
 		model.updateMarker(data);
 
-		assert.equal(model.children['g1']!.children['c1'].marker!.count, 2);
-		assert.equal(model.children['g2']!.children['c2'].children['c2.1'].marker!.count, 1);
-		assert.equal(model.children['g2']!.children['c2'].children['c2.2'].marker!.count, 1);
+		assert.equal(model.children.get('g1')!.children.get('c1')!.marker!.count, 2);
+		assert.equal(model.children.get('g2')!.children.get('c2')!.children.get('c2.1')!.marker!.count, 1);
+		assert.equal(model.children.get('g2')!.children.get('c2')!.children.get('c2.2')!.marker!.count, 1);
 	});
 
 });

@@ -384,21 +384,21 @@ suite('ExtHostTypes', function () {
 		edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
 		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
 
-		const all = edit.allEntries();
+		const all = edit._allEntries();
 		assert.equal(all.length, 4);
 
 		const [first, second, third, fourth] = all;
-		assertType(first._type === 2);
+		assertType(first._type === types.FileEditType.Text);
 		assert.equal(first.uri.toString(), 'foo:a');
 
-		assertType(second._type === 1);
+		assertType(second._type === types.FileEditType.File);
 		assert.equal(second.from!.toString(), 'foo:a');
 		assert.equal(second.to!.toString(), 'foo:b');
 
-		assertType(third._type === 2);
+		assertType(third._type === types.FileEditType.Text);
 		assert.equal(third.uri.toString(), 'foo:a');
 
-		assertType(fourth._type === 2);
+		assertType(fourth._type === types.FileEditType.Text);
 		assert.equal(fourth.uri.toString(), 'foo:b');
 	});
 
@@ -408,11 +408,11 @@ suite('ExtHostTypes', function () {
 		edit.insert(uri, new types.Position(0, 0), 'Hello');
 		edit.insert(uri, new types.Position(0, 0), 'Foo');
 
-		assert.equal(edit.allEntries().length, 2);
-		let [first, second] = edit.allEntries();
+		assert.equal(edit._allEntries().length, 2);
+		let [first, second] = edit._allEntries();
 
-		assertType(first._type === 2);
-		assertType(second._type === 2);
+		assertType(first._type === types.FileEditType.Text);
+		assertType(second._type === types.FileEditType.Text);
 		assert.equal(first.edit.newText, 'Hello');
 		assert.equal(second.edit.newText, 'Foo');
 	});
@@ -525,6 +525,10 @@ suite('ExtHostTypes', function () {
 		assert.equal(string.value, '${1|b,a,r|}');
 
 		string = new types.SnippetString();
+		string.appendChoice(['b,1', 'a,2', 'r,3']);
+		assert.equal(string.value, '${1|b\\,1,a\\,2,r\\,3|}');
+
+		string = new types.SnippetString();
 		string.appendChoice(['b', 'a', 'r'], 0);
 		assert.equal(string.value, '${0|b,a,r|}');
 
@@ -584,6 +588,18 @@ suite('ExtHostTypes', function () {
 			1, 0, 5, 1, 1,
 			0, 10, 4, 2, 2,
 			1, 2, 3, 2, 2
+		]);
+	});
+
+	test('SemanticTokensBuilder no modifier', () => {
+		const builder = new types.SemanticTokensBuilder();
+		builder.push(1, 0, 5, 1);
+		builder.push(1, 10, 4, 2);
+		builder.push(2, 2, 3, 2);
+		assert.deepEqual(toArr(builder.build().data), [
+			1, 0, 5, 1, 0,
+			0, 10, 4, 2, 0,
+			1, 2, 3, 2, 0
 		]);
 	});
 

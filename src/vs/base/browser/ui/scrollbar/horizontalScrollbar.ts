@@ -9,6 +9,11 @@ import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/s
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+
+
+const scrollbarButtonLeftIcon = registerCodicon('scrollbar-button-left', Codicon.triangleLeft);
+const scrollbarButtonRightIcon = registerCodicon('scrollbar-button-right', Codicon.triangleRight);
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
@@ -28,7 +33,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			),
 			visibility: options.horizontal,
 			extraScrollbarClassName: 'horizontal',
-			scrollable: scrollable
+			scrollable: scrollable,
+			scrollByPage: options.scrollByPage
 		});
 
 		if (options.horizontalHasArrows) {
@@ -36,7 +42,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			let scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
-				className: 'scra codicon codicon-triangle-left',
+				className: 'scra',
+				icon: scrollbarButtonLeftIcon,
 				top: scrollbarDelta,
 				left: arrowDelta,
 				bottom: undefined,
@@ -47,7 +54,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			});
 
 			this._createArrow({
-				className: 'scra codicon codicon-triangle-right',
+				className: 'scra',
+				icon: scrollbarButtonRightIcon,
 				top: scrollbarDelta,
 				left: undefined,
 				bottom: undefined,

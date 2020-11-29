@@ -6,23 +6,18 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import { DebugModel, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { NullOpenerService } from 'vs/platform/opener/common/opener';
-import { getExpandedBodySize, getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { getExpandedBodySize, getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { IBreakpointData, IDebugSessionOptions, IBreakpointUpdateData, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpointData, IBreakpointUpdateData, State } from 'vs/workbench/contrib/debug/common/debug';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { generateUuid } from 'vs/base/common/uuid';
-
-function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
-}
+import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 
 function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
 	let eventCount = 0;
@@ -48,7 +43,7 @@ suite('Debug - Breakpoints', () => {
 	let model: DebugModel;
 
 	setup(() => {
-		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
+		model = createMockDebugModel();
 	});
 
 	// Breakpoints
@@ -98,10 +93,10 @@ suite('Debug - Breakpoints', () => {
 		const modelUri1 = uri.file('/myfolder/my file first.js');
 		const modelUri2 = uri.file('/secondfolder/second/second file.js');
 		addBreakpointsAndCheckEvents(model, modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		assert.equal(getExpandedBodySize(model), 44);
+		assert.equal(getExpandedBodySize(model, 9), 44);
 
 		addBreakpointsAndCheckEvents(model, modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
-		assert.equal(getExpandedBodySize(model), 110);
+		assert.equal(getExpandedBodySize(model, 9), 110);
 
 		assert.equal(model.getBreakpoints().length, 5);
 		assert.equal(model.getBreakpoints({ uri: modelUri1 }).length, 2);
@@ -135,7 +130,7 @@ suite('Debug - Breakpoints', () => {
 		assert.equal(bp.enabled, true);
 
 		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
-		assert.equal(getExpandedBodySize(model), 66);
+		assert.equal(getExpandedBodySize(model, 9), 66);
 
 		assert.equal(model.getBreakpoints().length, 3);
 	});
@@ -263,40 +258,40 @@ suite('Debug - Breakpoints', () => {
 		]);
 		const breakpoints = model.getBreakpoints();
 
-		let result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[0]);
-		assert.equal(result.message, 'Expression: x > 5');
-		assert.equal(result.className, 'codicon-debug-breakpoint-conditional');
+		let result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[0]);
+		assert.equal(result.message, 'Expression condition: x > 5');
+		assert.equal(result.icon.id, 'debug-breakpoint-conditional');
 
-		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[1]);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[1]);
 		assert.equal(result.message, 'Disabled Breakpoint');
-		assert.equal(result.className, 'codicon-debug-breakpoint-disabled');
+		assert.equal(result.icon.id, 'debug-breakpoint-disabled');
 
-		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[2]);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[2]);
 		assert.equal(result.message, 'Log Message: hello');
-		assert.equal(result.className, 'codicon-debug-breakpoint-log');
+		assert.equal(result.icon.id, 'debug-breakpoint-log');
 
-		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[3]);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[3]);
 		assert.equal(result.message, 'Hit Count: 12');
-		assert.equal(result.className, 'codicon-debug-breakpoint-conditional');
+		assert.equal(result.icon.id, 'debug-breakpoint-conditional');
 
-		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[4]);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[4]);
 		assert.equal(result.message, 'Breakpoint');
-		assert.equal(result.className, 'codicon-debug-breakpoint');
+		assert.equal(result.icon.id, 'debug-breakpoint');
 
-		result = getBreakpointMessageAndClassName(State.Stopped, false, breakpoints[2]);
+		result = getBreakpointMessageAndIcon(State.Stopped, false, breakpoints[2]);
 		assert.equal(result.message, 'Disabled Logpoint');
-		assert.equal(result.className, 'codicon-debug-breakpoint-log-disabled');
+		assert.equal(result.icon.id, 'debug-breakpoint-log-disabled');
 
 		model.addDataBreakpoint('label', 'id', true, ['read']);
 		const dataBreakpoints = model.getDataBreakpoints();
-		result = getBreakpointMessageAndClassName(State.Stopped, true, dataBreakpoints[0]);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, dataBreakpoints[0]);
 		assert.equal(result.message, 'Data Breakpoint');
-		assert.equal(result.className, 'codicon-debug-breakpoint-data');
+		assert.equal(result.icon.id, 'debug-breakpoint-data');
 
 		const functionBreakpoint = model.addFunctionBreakpoint('foo', '1');
-		result = getBreakpointMessageAndClassName(State.Stopped, true, functionBreakpoint);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, functionBreakpoint);
 		assert.equal(result.message, 'Function Breakpoint');
-		assert.equal(result.className, 'codicon-debug-breakpoint-function');
+		assert.equal(result.icon.id, 'debug-breakpoint-function');
 
 		const data = new Map<string, DebugProtocol.Breakpoint>();
 		data.set(breakpoints[0].getId(), { verified: false, line: 10 });
@@ -305,17 +300,17 @@ suite('Debug - Breakpoints', () => {
 		data.set(functionBreakpoint.getId(), { verified: true });
 		model.setBreakpointSessionData('mocksessionid', { supportsFunctionBreakpoints: false, supportsDataBreakpoints: true, supportsLogPoints: true }, data);
 
-		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[0]);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[0]);
 		assert.equal(result.message, 'Unverified Breakpoint');
-		assert.equal(result.className, 'codicon-debug-breakpoint-unverified');
+		assert.equal(result.icon.id, 'debug-breakpoint-unverified');
 
-		result = getBreakpointMessageAndClassName(State.Stopped, true, functionBreakpoint);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, functionBreakpoint);
 		assert.equal(result.message, 'Function breakpoints not supported by this debug type');
-		assert.equal(result.className, 'codicon-debug-breakpoint-function-unverified');
+		assert.equal(result.icon.id, 'debug-breakpoint-function-unverified');
 
-		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[2]);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[2]);
 		assert.equal(result.message, 'Log Message: hello, world');
-		assert.equal(result.className, 'codicon-debug-breakpoint-log');
+		assert.equal(result.icon.id, 'debug-breakpoint-log');
 	});
 
 	test('decorations', () => {
@@ -342,7 +337,7 @@ suite('Debug - Breakpoints', () => {
 		assert.equal(decorations[0].options.beforeContentClassName, undefined);
 		assert.equal(decorations[1].options.beforeContentClassName, `debug-breakpoint-placeholder`);
 		assert.equal(decorations[0].options.overviewRuler?.position, OverviewRulerLane.Left);
-		const expected = new MarkdownString().appendCodeblock(languageIdentifier.language, 'Expression: x > 5');
+		const expected = new MarkdownString().appendCodeblock(languageIdentifier.language, 'Expression condition: x > 5');
 		assert.deepEqual(decorations[0].options.glyphMarginHoverMessage, expected);
 
 		decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, false);

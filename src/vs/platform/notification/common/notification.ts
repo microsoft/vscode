@@ -114,6 +114,8 @@ export interface INotificationActions {
 	/**
 	 * Primary actions show up as buttons as part of the message and will close
 	 * the notification once clicked.
+	 *
+	 * Pass `ActionWithMenuAction` for an action that has additional menu actions.
 	 */
 	readonly primary?: ReadonlyArray<IAction>;
 
@@ -209,18 +211,12 @@ export interface INotificationHandle {
 	close(): void;
 }
 
-export interface IPromptChoice {
+interface IBasePromptChoice {
 
 	/**
 	 * Label to show for the choice to the user.
 	 */
 	readonly label: string;
-
-	/**
-	 * Primary choices show up as buttons in the notification below the message.
-	 * Secondary choices show up under the gear icon in the header of the notification.
-	 */
-	readonly isSecondary?: boolean;
 
 	/**
 	 * Whether to keep the notification open after the choice was selected
@@ -232,6 +228,28 @@ export interface IPromptChoice {
 	 * Triggered when the user selects the choice.
 	 */
 	run: () => void;
+}
+
+export interface IPromptChoice extends IBasePromptChoice {
+
+	/**
+	 * Primary choices show up as buttons in the notification below the message.
+	 * Secondary choices show up under the gear icon in the header of the notification.
+	 */
+	readonly isSecondary?: boolean;
+}
+
+export interface IPromptChoiceWithMenu extends IPromptChoice {
+
+	/**
+	 * Additional choices those will be shown in the dropdown menu for this choice.
+	 */
+	readonly menu: IBasePromptChoice[];
+
+	/**
+	 * Menu is not supported on secondary choices
+	 */
+	readonly isSecondary: false | undefined;
 }
 
 export interface IPromptOptions extends INotificationProperties {
@@ -284,7 +302,7 @@ export enum NotificationsFilter {
  */
 export interface INotificationService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -320,12 +338,14 @@ export interface INotificationService {
 	 * Shows a prompt in the notification area with the provided choices. The prompt
 	 * is non-modal. If you want to show a modal dialog instead, use `IDialogService`.
 	 *
-	 * @param onCancel will be called if the user closed the notification without picking
-	 * any of the provided choices.
+	 * @param severity the severity of the notification. Either `Info`, `Warning` or `Error`.
+	 * @param message the message to show as status.
+	 * @param choices options to be choosen from.
+	 * @param options provides some optional configuration options.
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle;
+	prompt(severity: Severity, message: string, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: IPromptOptions): INotificationHandle;
 
 	/**
 	 * Shows a status message in the status area with the provided text.

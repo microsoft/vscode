@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -35,16 +36,20 @@ export interface IAction extends IDisposable {
 export interface IActionRunner extends IDisposable {
 	run(action: IAction, context?: any): Promise<any>;
 	readonly onDidRun: Event<IRunEvent>;
-	readonly onDidBeforeRun: Event<IRunEvent>;
+	readonly onBeforeRun: Event<IRunEvent>;
 }
 
 export interface IActionViewItem extends IDisposable {
-	readonly actionRunner: IActionRunner;
+	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
 	isEnabled(): boolean;
-	focus(): void;
+	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
+}
+
+export interface IActionViewItemProvider {
+	(action: IAction): IActionViewItem | undefined;
 }
 
 export interface IActionChangeEvent {
@@ -173,8 +178,8 @@ export interface IRunEvent {
 
 export class ActionRunner extends Disposable implements IActionRunner {
 
-	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
+	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
+	readonly onBeforeRun: Event<IRunEvent> = this._onBeforeRun.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
@@ -184,7 +189,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 			return Promise.resolve(null);
 		}
 
-		this._onDidBeforeRun.fire({ action: action });
+		this._onBeforeRun.fire({ action: action });
 
 		try {
 			const result = await this.runAction(action, context);
@@ -216,5 +221,45 @@ export class RadioGroup extends Disposable {
 				}
 			}));
 		}
+	}
+}
+
+export class Separator extends Action {
+
+	static readonly ID = 'vs.actions.separator';
+
+	constructor(label?: string) {
+		super(Separator.ID, label, label ? 'separator text' : 'separator');
+		this.checked = false;
+		this.enabled = false;
+	}
+}
+
+export class ActionWithMenuAction extends Action {
+
+	get actions(): IAction[] {
+		return this._actions;
+	}
+
+	constructor(id: string, private _actions: IAction[], label?: string, cssClass?: string, enabled?: boolean, actionCallback?: (event?: any) => Promise<any>) {
+		super(id, label, cssClass, enabled, actionCallback);
+	}
+}
+
+export class SubmenuAction extends Action {
+
+	get actions(): IAction[] {
+		return this._actions;
+	}
+
+	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
+		super(id, label, cssClass, !!_actions?.length);
+	}
+}
+
+export class EmptySubmenuAction extends Action {
+	static readonly ID = 'vs.actions.empty';
+	constructor() {
+		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
 	}
 }

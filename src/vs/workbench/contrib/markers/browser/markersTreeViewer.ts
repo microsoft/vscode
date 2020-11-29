@@ -14,7 +14,7 @@ import { ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/contri
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
@@ -25,7 +25,7 @@ import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -52,6 +52,9 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -71,9 +74,13 @@ interface IRelatedInformationTemplateData {
 	description: HighlightedLabel;
 }
 
-export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider<TreeElement> {
+export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('problemsView', "Problems View");
+	}
 
 	public getAriaLabel(element: TreeElement): string | null {
 		if (element instanceof ResourceMarkers) {
@@ -250,6 +257,31 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 }
 
+const expandedIcon = registerIcon('markers-view-multi-line-expanded', Codicon.chevronUp, localize('expandedIcon', 'Icon indicating that multiple lines are shown in the markers view.'));
+const collapsedIcon = registerIcon('markers-view-multi-line-collapsed', Codicon.chevronDown, localize('collapsedIcon', 'Icon indicating that multiple lines are collapsed in the markers view.'));
+
+const toggleMultilineAction = 'problems.action.toggleMultiline';
+
+class ToggleMultilineActionViewItem extends ActionViewItem {
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		this.updateExpandedAttribute();
+	}
+
+	updateClass(): void {
+		super.updateClass();
+		this.updateExpandedAttribute();
+	}
+
+	private updateExpandedAttribute(): void {
+		if (this.element) {
+			this.element.setAttribute('aria-expanded', `${this._action.class === ThemeIcon.asClassName(expandedIcon)}`);
+		}
+	}
+
+}
+
 type ModifierKey = 'meta' | 'ctrl' | 'alt';
 
 class MarkerWidget extends Disposable {
@@ -275,7 +307,14 @@ class MarkerWidget extends Disposable {
 			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$(''));
-		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
+		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
+			actionViewItemProvider: (action) => {
+				if (action.id === toggleMultilineAction) {
+					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
+				}
+				return undefined;
+			}
+		}));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
 
 		this._clickModifierKey = this._getClickModifierKey();
@@ -310,10 +349,10 @@ class MarkerWidget extends Disposable {
 		if (viewModel) {
 			const quickFixAction = viewModel.quickFixAction;
 			this.actionBar.push([quickFixAction], { icon: true, label: false });
-			dom.toggleClass(this.icon, 'quickFix', quickFixAction.enabled);
+			this.icon.classList.toggle('quickFix', quickFixAction.enabled);
 			quickFixAction.onDidChange(({ enabled }) => {
 				if (!isUndefinedOrNull(enabled)) {
-					dom.toggleClass(this.icon, 'quickFix', enabled);
+					this.icon.classList.toggle('quickFix', enabled);
 				}
 			}, this, this.disposables);
 			quickFixAction.onShowQuickFixes(() => {
@@ -328,10 +367,10 @@ class MarkerWidget extends Disposable {
 	private renderMultilineActionbar(marker: Marker): void {
 		const viewModel = this.markersViewModel.getViewModel(marker);
 		const multiline = viewModel && viewModel.multiline;
-		const action = new Action('problems.action.toggleMultiline');
+		const action = new Action(toggleMultilineAction);
 		action.enabled = !!viewModel && marker.lines.length > 1;
 		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
-		action.class = multiline ? 'codicon codicon-chevron-up' : 'codicon codicon-chevron-down';
+		action.class = ThemeIcon.asClassName(multiline ? expandedIcon : collapsedIcon);
 		action.run = () => { if (viewModel) { viewModel.multiline = !viewModel.multiline; } return Promise.resolve(); };
 		this.multilineActionbar.push([action], { icon: true, label: false });
 	}
@@ -357,7 +396,7 @@ class MarkerWidget extends Disposable {
 	}
 
 	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
-		dom.addClass(parent, 'details-container');
+		parent.classList.add('details-container');
 
 		if (marker.source || marker.code) {
 			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')), false);
@@ -655,14 +694,14 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.validActions.map(codeAction => new Action(
-			codeAction.command ? codeAction.command.id : codeAction.title,
-			codeAction.title,
+		return codeActions.validActions.map(item => new Action(
+			item.action.command ? item.action.command.id : item.action.title,
+			item.action.title,
 			undefined,
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item));
 			}));
 	}
 
@@ -845,7 +884,7 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
 		}
 	}
 

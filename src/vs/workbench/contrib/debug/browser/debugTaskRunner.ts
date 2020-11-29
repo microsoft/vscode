@@ -69,7 +69,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 			if (onTaskErrors === 'showErrors') {
-				await this.viewsService.openView(Constants.MARKERS_VIEW_ID);
+				await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 			if (onTaskErrors === 'abort') {
@@ -106,7 +106,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 
-			await this.viewsService.openView(Constants.MARKERS_VIEW_ID);
+			await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
 			return Promise.resolve(TaskRunResult.Failure);
 		} catch (err) {
 			await onError(err.message, [this.taskService.configureAction()]);
@@ -146,10 +146,10 @@ export class DebugTaskRunner {
 		}));
 
 		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
-			if (tasks.filter(t => t._id === task._id).length) {
+			if (tasks.find(t => t._id === task._id)) {
 				// Check that the task isn't busy and if it is, wait for it
 				const busyTasks = await this.taskService.getBusyTasks();
-				if (busyTasks.filter(t => t._id === task._id).length) {
+				if (busyTasks.find(t => t._id === task._id)) {
 					taskStarted = true;
 					return inactivePromise;
 				}

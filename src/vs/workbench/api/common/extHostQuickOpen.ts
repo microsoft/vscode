@@ -159,17 +159,16 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- workspace folder picker
 
-	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder | undefined> {
-		return this._commands.executeCommand<WorkspaceFolder>('_workbench.pickWorkspaceFolder', [options]).then(async (selectedFolder: WorkspaceFolder) => {
-			if (!selectedFolder) {
-				return undefined;
-			}
-			const workspaceFolders = await this._workspace.getWorkspaceFolders2();
-			if (!workspaceFolders) {
-				return undefined;
-			}
-			return workspaceFolders.filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
-		});
+	async showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder | undefined> {
+		const selectedFolder = await this._commands.executeCommand<WorkspaceFolder>('_workbench.pickWorkspaceFolder', [options]);
+		if (!selectedFolder) {
+			return undefined;
+		}
+		const workspaceFolders = await this._workspace.getWorkspaceFolders2();
+		if (!workspaceFolders) {
+			return undefined;
+		}
+		return workspaceFolders.find(folder => folder.uri.toString() === selectedFolder.uri.toString());
 	}
 
 	// ---- QuickInput
@@ -447,24 +446,21 @@ function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light
 	if (iconPath instanceof ThemeIcon) {
 		return { id: iconPath.id };
 	}
-	const dark = getDarkIconUri(iconPath as any);
-	const light = getLightIconUri(iconPath as any);
-	return { dark, light };
+	const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
+	const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
+	// Tolerate strings: https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556
+	return {
+		dark: typeof dark === 'string' ? URI.file(dark) : dark,
+		light: typeof light === 'string' ? URI.file(light) : light
+	};
 }
 
-function getLightIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
-	return getIconUri(typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath);
+function getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
 }
 
-function getDarkIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
-	return getIconUri(typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath);
-}
-
-function getIconUri(iconPath: string | URI) {
-	if (URI.isUri(iconPath)) {
-		return iconPath;
-	}
-	return URI.file(iconPath);
+function getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 }
 
 class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implements QuickPick<T> {

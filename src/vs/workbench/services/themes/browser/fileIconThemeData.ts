@@ -12,11 +12,12 @@ import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-
-const PERSISTED_FILE_ICON_THEME_STORAGE_KEY = 'iconThemeData';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
+
+	static readonly STORAGE_KEY = 'iconThemeData';
+
 	id: string;
 	label: string;
 	settingsId: string | null;
@@ -108,7 +109,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 
 	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
-		const input = storageService.get(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
 		if (!input) {
 			return undefined;
 		}
@@ -121,7 +122,6 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 					case 'label':
 					case 'description':
 					case 'settingsId':
-					case 'extensionData':
 					case 'styleSheetContent':
 					case 'hasFileIcons':
 					case 'hidesExplorerArrows':
@@ -130,7 +130,10 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
-						theme.location = URI.revive(data.location);
+						// ignore, no longer restore
+						break;
+					case 'extensionData':
+						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
 				}
 			}
@@ -146,14 +149,14 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location,
 			styleSheetContent: this.styleSheetContent,
 			hasFileIcons: this.hasFileIcons,
 			hasFolderIcons: this.hasFolderIcons,
 			hidesExplorerArrows: this.hidesExplorerArrows,
+			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
-		storageService.store(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);
+		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -374,5 +377,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	return result;
 }
 function escapeCSS(str: string) {
-	return (<any>window)['CSS'].escape(str);
+	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+	return window.CSS.escape(str);
 }

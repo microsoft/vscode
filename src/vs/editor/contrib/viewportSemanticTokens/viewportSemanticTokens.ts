@@ -103,7 +103,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			return;
 		}
 		const styling = this._modelService.getSemanticTokensProviderStyling(provider);
-		const visibleRanges = this._editor.getVisibleRanges();
+		const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
 
 		this._outstandingRequests = this._outstandingRequests.concat(visibleRanges.map(range => this._requestRange(model, range, provider, styling)));
 	}

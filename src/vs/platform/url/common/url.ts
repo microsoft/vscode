@@ -18,6 +18,8 @@ export interface IOpenURLOptions {
 	 * might be shown to the user.
 	 */
 	trusted?: boolean;
+
+	originalUrl?: string;
 }
 
 export interface IURLHandler {
@@ -26,7 +28,7 @@ export interface IURLHandler {
 
 export interface IURLService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Create a URL that can be called to trigger IURLhandlers.

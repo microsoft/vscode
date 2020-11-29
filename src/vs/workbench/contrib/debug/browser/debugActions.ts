@@ -8,11 +8,14 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable, Breakpoint, FunctionBreakpoint, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { deepClone } from 'vs/base/common/objects';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -63,7 +66,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(id, label, 'debug-action codicon codicon-gear', debugService, keybindingService);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.debugConfigure), debugService, keybindingService);
 		this._register(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
 		this.updateClass();
 	}
@@ -78,11 +81,11 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	private updateClass(): void {
 		const configurationManager = this.debugService.getConfigurationManager();
-		this.class = configurationManager.selectedConfiguration.name ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
+		this.class = configurationManager.selectedConfiguration.name ? 'debug-action' + ThemeIcon.asClassName(icons.debugConfigure) : 'debug-action ' + ThemeIcon.asClassName(icons.debugConfigure) + ' notification';
 	}
 
-	async run(event?: any): Promise<any> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+	async run(): Promise<any> {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.contextService.getWorkspace().folders.length === 0) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return;
 		}
@@ -92,12 +95,15 @@ export class ConfigureAction extends AbstractDebugAction {
 		if (configurationManager.selectedConfiguration.name) {
 			launch = configurationManager.selectedConfiguration.launch;
 		} else {
-			const launches = configurationManager.getLaunches().filter(l => !!l.workspace);
+			const launches = configurationManager.getLaunches().filter(l => !l.hidden);
 			if (launches.length === 1) {
 				launch = launches[0];
 			} else {
 				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in") });
+				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, {
+					activeItem: picks[0],
+					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
+				});
 				if (picked) {
 					launch = picked.launch;
 				}
@@ -105,8 +111,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		if (launch) {
-			const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-			return launch.openConfigFile(sideBySide, false);
+			return launch.openConfigFile(false);
 		}
 	}
 }
@@ -128,9 +133,11 @@ export class StartAction extends AbstractDebugAction {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	run(): Promise<boolean> {
-		const { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
-		return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
+	async run(): Promise<boolean> {
+		let { launch, name, getConfig } = this.debugService.getConfigurationManager().selectedConfiguration;
+		const config = await getConfig();
+		const clonedConfig = deepClone(config);
+		return this.debugService.startDebugging(launch, clonedConfig || name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {
@@ -143,7 +150,10 @@ export class StartAction extends AbstractDebugAction {
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if ((sessions.length > 0) && !debugService.getConfigurationManager().selectedConfiguration.name) {
+		let { name, launch } = debugService.getConfigurationManager().selectedConfiguration;
+		let nameToStart = name;
+
+		if (sessions.some(s => s.configuration.name === nameToStart && s.root === launch?.workspace)) {
 			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}
@@ -202,7 +212,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	static readonly LABEL = nls.localize('removeAllBreakpoints', "Remove All Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action codicon-close-all', debugService, keybindingService);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.breakpointsRemoveAll), debugService, keybindingService);
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
@@ -260,7 +270,7 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 	static readonly DEACTIVATE_LABEL = nls.localize('deactivateBreakpoints', "Deactivate Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action codicon-activate-breakpoints', debugService, keybindingService);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.breakpointsActivate), debugService, keybindingService);
 		this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
 
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => {
@@ -303,7 +313,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	static readonly LABEL = nls.localize('addFunctionBreakpoint', "Add Function Breakpoint");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action codicon-add', debugService, keybindingService);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.watchExpressionsAddFuncBreakpoint), debugService, keybindingService);
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
@@ -312,7 +322,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(_: State): boolean {
-		return !this.debugService.getViewModel().getSelectedFunctionBreakpoint()
+		return !this.debugService.getViewModel().getSelectedBreakpoint()
 			&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
 	}
 }
@@ -322,7 +332,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	static readonly LABEL = nls.localize('addWatchExpression', "Add Expression");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action codicon-add', debugService, keybindingService);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.watchExpressionsAdd), debugService, keybindingService);
 		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
 		this._register(this.debugService.getViewModel().onDidSelectExpression(() => this.updateEnablement()));
 	}
@@ -342,7 +352,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	static readonly LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action codicon-close-all', debugService, keybindingService);
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(icons.watchExpressionsRemoveAll), debugService, keybindingService);
 		this._register(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
 	}
 
@@ -381,12 +391,12 @@ export class CopyValueAction extends Action {
 	static readonly LABEL = nls.localize('copyValue', "Copy Value");
 
 	constructor(
-		id: string, label: string, private value: Variable | string, private context: string,
+		id: string, label: string, private value: Variable | Expression, private context: string,
 		@IDebugService private readonly debugService: IDebugService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
-		super(id, label, 'debug-action copy-value');
-		this._enabled = typeof this.value === 'string' || (this.value instanceof Variable && !!this.value.evaluateName);
+		super(id, label);
+		this._enabled = (this.value instanceof Expression) || (this.value instanceof Variable && !!this.value.evaluateName);
 	}
 
 	async run(): Promise<any> {
@@ -397,11 +407,13 @@ export class CopyValueAction extends Action {
 		}
 
 		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
-		const toEvaluate = typeof this.value === 'string' ? this.value : this.value.evaluateName || this.value.value;
+		const toEvaluate = this.value instanceof Variable ? (this.value.evaluateName || this.value.value) : this.value.name;
 
 		try {
 			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
-			this.clipboardService.writeText(evaluation.body.result);
+			if (evaluation) {
+				this.clipboardService.writeText(evaluation.body.result);
+			}
 		} catch (e) {
 			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
 		}

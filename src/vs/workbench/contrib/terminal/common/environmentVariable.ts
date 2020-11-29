@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
 
@@ -51,16 +52,17 @@ export interface IMergedEnvironmentVariableCollection {
 	applyToProcessEnvironment(env: IProcessEnvironment): void;
 
 	/**
-	 * Generates a diff of this connection against another.
+	 * Generates a diff of this connection against another. Returns undefined if the collections are
+	 * the same.
 	 */
-	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff;
+	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined;
 }
 
 /**
  * Tracks and persists environment variable collections as defined by extensions.
  */
 export interface IEnvironmentVariableService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Gets a single collection constructed by merging all environment variable collections into
@@ -91,9 +93,12 @@ export interface IEnvironmentVariableService {
 	delete(extensionIdentifier: string): void;
 }
 
-/**
- * First: Variable
- * Second: Value
- * Third: Type
- */
+/** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
+
+export interface IEnvironmentVariableInfo {
+	readonly requiresAction: boolean;
+	getInfo(): string;
+	getIcon(): ThemeIcon;
+	getActions?(): { label: string, iconClass?: string, run: () => void, commandId: string }[];
+}

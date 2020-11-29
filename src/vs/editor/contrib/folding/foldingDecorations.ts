@@ -7,14 +7,20 @@ import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeA
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Codicon } from 'vs/base/common/codicons';
+import { localize } from 'vs/nls';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
+export const foldingExpandedIcon = registerIcon('folding-expanded', Codicon.chevronDown, localize('foldingExpandedIcon', 'Icon for expanded ranges in the editor glyph margin.'));
+export const foldingCollapsedIcon = registerIcon('folding-collapsed', Codicon.chevronRight, localize('foldingCollapsedIcon', 'Icon for collapsed ranges in the editor glyph margin.'));
 export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
-		firstLineDecorationClassName: 'codicon codicon-chevron-right'
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
 	});
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
@@ -22,19 +28,19 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
 		isWholeLine: true,
-		firstLineDecorationClassName: 'codicon codicon-chevron-right'
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
 	});
 
 	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
-		firstLineDecorationClassName: 'codicon codicon-chevron-down'
+		firstLineDecorationClassName: ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
-		firstLineDecorationClassName: 'codicon codicon-chevron-down alwaysShowFoldIcons'
+		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
 	private static readonly HIDDEN_RANGE_DECORATION = ModelDecorationOptions.register({

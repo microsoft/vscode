@@ -10,13 +10,13 @@ import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/wo
 
 export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	getTags(): Promise<Tags> {
 		return Promise.resolve({});
 	}
 
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
 		return undefined;
 	}
 

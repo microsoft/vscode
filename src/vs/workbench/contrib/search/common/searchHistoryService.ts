@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isEmptyObject } from 'vs/base/common/types';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface ISearchHistoryService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onDidClearHistory: Event<void>;
 	clearHistory(): void;
 	load(): ISearchHistoryValues;
@@ -26,7 +26,7 @@ export interface ISearchHistoryValues {
 }
 
 export class SearchHistoryService implements ISearchHistoryService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly SEARCH_HISTORY_KEY = 'workbench.search.history';
 
@@ -61,7 +61,7 @@ export class SearchHistoryService implements ISearchHistoryService {
 		if (isEmptyObject(history)) {
 			this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.store(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE);
+			this.storageService.store(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 	}
 }

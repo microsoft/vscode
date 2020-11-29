@@ -4,23 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
-
-export interface ITOCEntry {
+export interface ITOCEntry<T> {
 	id: string;
 	label: string;
-
-	children?: ITOCEntry[];
-	settings?: Array<string | ISetting>;
+	children?: ITOCEntry<T>[];
+	settings?: Array<T>;
 }
 
-export const commonlyUsedData: ITOCEntry = {
+export const commonlyUsedData: ITOCEntry<string> = {
 	id: 'commonlyUsed',
 	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations']
+	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
 };
 
-export const tocData: ITOCEntry = {
+export const tocData: ITOCEntry<string> = {
 	id: 'root',
 	label: 'root',
 	children: [
@@ -184,6 +181,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/timeline',
 					label: localize('timeline', "Timeline"),
 					settings: ['timeline.*']
+				},
+				{
+					id: 'features/notebook',
+					label: localize('notebook', 'Notebook'),
+					settings: ['notebook.*']
 				}
 			]
 		},
@@ -212,9 +214,9 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				},
 				{
-					id: 'application/sync',
-					label: localize('sync', "Sync"),
-					settings: ['sync.*']
+					id: 'application/settingsSync',
+					label: localize('settingsSync', "Settings Sync"),
+					settings: ['settingsSync.*', 'sync.*']
 				}
 			]
 		}
@@ -233,6 +235,7 @@ export const knownAcronyms = new Set<string>();
 	'ie',
 	'id',
 	'php',
+	'scm',
 ].forEach(str => knownAcronyms.add(str));
 
 export const knownTermMappings = new Map<string, string>();

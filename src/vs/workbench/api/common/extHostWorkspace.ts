@@ -16,10 +16,12 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
@@ -58,6 +60,11 @@ function delta(oldFolders: vscode.WorkspaceFolder[], newFolders: vscode.Workspac
 	return arrayDelta(oldSortedFolders, newSortedFolders, compare);
 }
 
+function ignorePathCasing(uri: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): boolean {
+	const capabilities = extHostFileSystemInfo.getCapabilities(uri.scheme);
+	return !(capabilities && (capabilities & FileSystemProviderCapabilities.PathCaseSensitive));
+}
+
 interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 	name: string;
 	index: number;
@@ -65,7 +72,7 @@ interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 
 class ExtHostWorkspaceImpl extends Workspace {
 
-	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace?: ExtHostWorkspaceImpl, previousUnconfirmedWorkspace?: ExtHostWorkspaceImpl): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
+	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo): { workspace: ExtHostWorkspaceImpl | null, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
 			return { workspace: null, added: [], removed: [] };
 		}
@@ -98,7 +105,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		// make sure to restore sort order based on index
 		newWorkspaceFolders.sort((f1, f2) => f1.index < f2.index ? -1 : 1);
 
-		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders, configuration ? URI.revive(configuration) : null, !!isUntitled);
+		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders, configuration ? URI.revive(configuration) : null, !!isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo));
 		const { added, removed } = delta(oldWorkspace ? oldWorkspace.workspaceFolders : [], workspace.workspaceFolders, compareWorkspaceFolderByUri);
 
 		return { workspace, added, removed };
@@ -116,15 +123,16 @@ class ExtHostWorkspaceImpl extends Workspace {
 	}
 
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
-	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
+	private readonly _structure: TernarySearchTree<URI, vscode.WorkspaceFolder>;
 
-	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null, private _isUntitled: boolean) {
-		super(id, folders.map(f => new WorkspaceFolder(f)), configuration);
+	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null, private _isUntitled: boolean, ignorePathCasing: (key: URI) => boolean) {
+		super(id, folders.map(f => new WorkspaceFolder(f)), configuration, ignorePathCasing);
+		this._structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(ignorePathCasing);
 
 		// setup the workspace folder data structure
 		folders.forEach(folder => {
 			this._workspaceFolders.push(folder);
-			this._structure.set(folder.uri.toString(), folder);
+			this._structure.set(folder.uri, folder);
 		});
 	}
 
@@ -141,15 +149,15 @@ class ExtHostWorkspaceImpl extends Workspace {
 	}
 
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
-		if (resolveParent && this._structure.get(uri.toString())) {
+		if (resolveParent && this._structure.get(uri)) {
 			// `uri` is a workspace folder so we check for its parent
 			uri = dirname(uri);
 		}
-		return this._structure.findSubstr(uri.toString());
+		return this._structure.findSubstr(uri);
 	}
 
 	resolveWorkspaceFolder(uri: URI): vscode.WorkspaceFolder | undefined {
-		return this._structure.get(uri.toString());
+		return this._structure.get(uri);
 	}
 }
 
@@ -169,22 +177,25 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private readonly _proxy: MainThreadWorkspaceShape;
 	private readonly _messageService: MainThreadMessageServiceShape;
+	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
 
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo,
 		@ILogService logService: ILogService,
 	) {
 		this._logService = logService;
+		this._extHostFileSystemInfo = extHostFileSystemInfo;
 		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWorkspace);
 		this._messageService = extHostRpc.getProxy(MainContext.MainThreadMessageService);
 		const data = initData.workspace;
-		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled) : undefined;
+		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
 	}
 
 	$initializeWorkspace(data: IWorkspaceData | null): void {
@@ -390,13 +401,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				configuration: this._actualWorkspace.configuration,
 				folders,
 				isUntitled: this._actualWorkspace.isUntitled
-			} as IWorkspaceData, this._actualWorkspace).workspace || undefined;
+			} as IWorkspaceData, this._actualWorkspace, undefined, this._extHostFileSystemInfo).workspace || undefined;
 		}
 	}
 
 	$acceptWorkspaceData(data: IWorkspaceData | null): void {
 
-		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace);
+		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo);
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
 		// unconfirmed workspace.
@@ -456,17 +467,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			} :
 			options.previewOptions;
 
-		let includePattern: string | undefined;
-		let folder: URI | undefined;
-		if (options.include) {
-			if (typeof options.include === 'string') {
-				includePattern = options.include;
-			} else {
-				includePattern = options.include.pattern;
-				folder = (options.include as RelativePattern).baseFolder || URI.file(options.include.base);
-			}
-		}
-
+		const { includePattern, folder } = parseSearchInclude(options.include);
 		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
 			options.exclude ? options.exclude.pattern : undefined;
 		const queryOptions: ITextQueryBuilderOptions = {
@@ -561,14 +562,12 @@ function parseSearchInclude(include: RelativePattern | string | undefined): { in
 			includePattern = include;
 		} else {
 			includePattern = include.pattern;
-
-			// include.base must be an absolute path
 			includeFolder = include.baseFolder || URI.file(include.base);
 		}
 	}
 
 	return {
-		includePattern: includePattern,
+		includePattern,
 		folder: includeFolder
 	};
 }

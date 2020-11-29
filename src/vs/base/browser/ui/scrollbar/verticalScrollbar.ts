@@ -9,6 +9,10 @@ import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/s
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+
+const scrollbarButtonUpIcon = registerCodicon('scrollbar-button-up', Codicon.triangleUp);
+const scrollbarButtonDownIcon = registerCodicon('scrollbar-button-down', Codicon.triangleDown);
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
@@ -29,7 +33,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			),
 			visibility: options.vertical,
 			extraScrollbarClassName: 'vertical',
-			scrollable: scrollable
+			scrollable: scrollable,
+			scrollByPage: options.scrollByPage
 		});
 
 		if (options.verticalHasArrows) {
@@ -37,7 +42,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			let scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
-				className: 'scra codicon codicon-triangle-up',
+				className: 'scra',
+				icon: scrollbarButtonUpIcon,
 				top: arrowDelta,
 				left: scrollbarDelta,
 				bottom: undefined,
@@ -48,7 +54,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			});
 
 			this._createArrow({
-				className: 'scra codicon codicon-triangle-down',
+				className: 'scra',
+				icon: scrollbarButtonDownIcon,
 				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,

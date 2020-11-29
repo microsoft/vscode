@@ -105,14 +105,27 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button-dropdown,
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button {
+	margin: 4px 5px; /* allows button focus outline to be visible */
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
+	outline-offset: 2px !important;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-text-button {
 	width: fit-content;
 	width: -moz-fit-content;
 	padding: 5px 10px;
-	margin: 4px 5px; /* allows button focus outline to be visible */
+	display: inline-block;	/* to enable ellipsis in text overflow */
 	font-size: 12px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-dropdown-button {
+	padding: 5px
 }
 
 /** Notification: Progress */
@@ -120,4 +133,16 @@
 .monaco-workbench .notifications-list-container .progress-bit {
 	height: 2px;
 	bottom: 0;
+}
+
+.monaco-workbench.mac:not(.web) .notifications-list-container .monaco-progress-container.infinite .progress-bit {
+	/** macOS native: reduce animation steps for reduced CPU load (https://github.com/microsoft/vscode/issues/97900) */
+	animation-timing-function: steps(100);
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+	/** macOS native: do not change the animation-timing-function on highDPI screens to reduce stutter */
+	.monaco-workbench.mac:not(.web) .notifications-list-container .monaco-progress-container.infinite .progress-bit {
+		animation-timing-function: linear;
+	}
 }

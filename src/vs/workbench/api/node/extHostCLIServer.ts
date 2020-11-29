@@ -3,26 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';
 	fileURIs?: string[];
-	folderURIs: string[];
+	folderURIs?: string[];
 	forceNewWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
 	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
 	waitMarkerFilePath?: string;
+}
+
+export interface OpenExternalCommandPipeArgs {
+	type: 'openExternal';
+	uris: string[];
 }
 
 export interface StatusPipeArgs {
@@ -35,12 +39,20 @@ export interface RunCommandPipeArgs {
 	args: any[];
 }
 
-export class CLIServer {
+export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | RunCommandPipeArgs | OpenExternalCommandPipeArgs;
 
-	private _server: http.Server;
-	private _ipcHandlePath: string | undefined;
+export interface ICommandsExecuter {
+	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
+}
 
-	constructor(@IExtHostCommands private _commands: IExtHostCommands, @ILogService private logService: ILogService) {
+export class CLIServerBase {
+	private readonly _server: http.Server;
+
+	constructor(
+		private readonly _commands: ICommandsExecuter,
+		private readonly logService: ILogService,
+		private readonly _ipcHandlePath: string,
+	) {
 		this._server = http.createServer((req, res) => this.onRequest(req, res));
 		this.setup().catch(err => {
 			logService.error(err);
@@ -53,8 +65,6 @@ export class CLIServer {
 	}
 
 	private async setup(): Promise<string> {
-		this._ipcHandlePath = generateRandomPipeName();
-
 		try {
 			this._server.listen(this.ipcHandlePath);
 			this._server.on('error', err => this.logService.error(err));
@@ -70,10 +80,13 @@ export class CLIServer {
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('end', () => {
-			const data: OpenCommandPipeArgs | StatusPipeArgs | RunCommandPipeArgs | any = JSON.parse(chunks.join(''));
+			const data: PipeCommand | any = JSON.parse(chunks.join(''));
 			switch (data.type) {
 				case 'open':
 					this.open(data, res);
+					break;
+				case 'openExternal':
+					this.openExternal(data, res);
 					break;
 				case 'status':
 					this.getStatus(data, res);
@@ -123,8 +136,16 @@ export class CLIServer {
 		if (urisToOpen.length) {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
 			const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
-			const windowOpenArgs: INativeOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI };
+			const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI };
 			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
+		}
+		res.writeHead(200);
+		res.end();
+	}
+
+	private openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
+		for (const uri of data.uris) {
+			this._commands.executeCommand('_workbench.openExternal', URI.parse(uri), { allowTunneling: true });
 		}
 		res.writeHead(200);
 		res.end();
@@ -175,5 +196,14 @@ export class CLIServer {
 		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
 			fs.unlinkSync(this._ipcHandlePath);
 		}
+	}
+}
+
+export class CLIServer extends CLIServerBase {
+	constructor(
+		@IExtHostCommands commands: IExtHostCommands,
+		@ILogService logService: ILogService
+	) {
+		super(commands, logService, createRandomIPCHandle());
 	}
 }

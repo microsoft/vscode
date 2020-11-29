@@ -19,12 +19,13 @@ suite('Processes', () => {
 			VSCODE_CLI: 'x',
 			VSCODE_DEV: 'x',
 			VSCODE_IPC_HOOK: 'x',
-			VSCODE_LOGS: 'x',
 			VSCODE_NLS_CONFIG: 'x',
 			VSCODE_PORTABLE: 'x',
 			VSCODE_PID: 'x',
 			VSCODE_NODE_CACHED_DATA_DIR: 'x',
-			VSCODE_NEW_VAR: 'x'
+			VSCODE_NEW_VAR: 'x',
+			GDK_PIXBUF_MODULE_FILE: 'x',
+			GDK_PIXBUF_MODULEDIR: 'x',
 		};
 		processes.sanitizeProcessEnvironment(env);
 		assert.equal(env['FOO'], 'bar');

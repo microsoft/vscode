@@ -12,18 +12,18 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import product from 'vs/platform/product/common/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { checksum } from 'vs/base/node/crypto';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
-import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -49,7 +49,7 @@ function getUpdateType(): UpdateType {
 
 export class Win32UpdateService extends AbstractUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private availableUpdate: IAvailableUpdate | undefined;
 
@@ -63,10 +63,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentMainService environmentService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 	}
@@ -92,8 +93,8 @@ export class Win32UpdateService extends AbstractUpdateService {
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		let platform = 'win32';
 
-		if (process.arch === 'x64') {
-			platform += '-x64';
+		if (process.arch !== 'ia32') {
+			platform += `-${process.arch}`;
 		}
 
 		if (getUpdateType() === UpdateType.Archive) {
@@ -177,7 +178,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		if (state.update.url) {
-			shell.openExternal(state.update.url);
+			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
 		this.setState(State.Idle(getUpdateType()));
 	}

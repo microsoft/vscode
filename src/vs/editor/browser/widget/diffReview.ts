@@ -29,8 +29,10 @@ import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -72,6 +74,10 @@ class Diff {
 	}
 }
 
+const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add, nls.localize('diffReviewInsertIcon', 'Icon for \'Insert\' in diff review.'));
+const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, nls.localize('diffReviewRemoveIcon', 'Icon for \'Remove\' in diff review.'));
+const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls.localize('diffReviewCloseIcon', 'Icon for \'Close\' in diff review.'));
+
 export class DiffReview extends Disposable {
 
 	private readonly _diffEditor: DiffEditorWidget;
@@ -99,7 +105,7 @@ export class DiffReview extends Disposable {
 			this.actionBarContainer.domNode
 		));
 
-		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review codicon-close', true, () => {
+		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon), true, () => {
 			this.hide();
 			return Promise.resolve(null);
 		}), { label: false, icon: true });
@@ -109,6 +115,7 @@ export class DiffReview extends Disposable {
 
 		this._content = createFastDomNode(document.createElement('div'));
 		this._content.setClassName('diff-review-content');
+		this._content.setAttribute('role', 'code');
 		this.scrollbar = this._register(new DomScrollableElement(this._content.domNode, {}));
 		this.domNode.domNode.appendChild(this.scrollbar.getDomNode());
 
@@ -263,6 +270,7 @@ export class DiffReview extends Disposable {
 
 	private hide(): void {
 		this._isVisible = false;
+		this._diffEditor.updateOptions({ readOnly: false });
 		this._diffEditor.focus();
 		this._diffEditor.doLayout();
 		this._render();
@@ -535,6 +543,7 @@ export class DiffReview extends Disposable {
 			return;
 		}
 
+		this._diffEditor.updateOptions({ readOnly: true });
 		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
 
 		if (this._diffs[diffIndex] === this._currentDiff) {
@@ -639,17 +648,17 @@ export class DiffReview extends Disposable {
 		let rowClassName: string = 'diff-review-row';
 		let lineNumbersExtraClassName: string = '';
 		const spacerClassName: string = 'diff-review-spacer';
-		let spacerCodiconName: string | null = null;
+		let spacerIcon: ThemeIcon | null = null;
 		switch (type) {
 			case DiffEntryType.Insert:
 				rowClassName = 'diff-review-row line-insert';
 				lineNumbersExtraClassName = ' char-insert';
-				spacerCodiconName = 'codicon codicon-add';
+				spacerIcon = diffReviewInsertIcon;
 				break;
 			case DiffEntryType.Delete:
 				rowClassName = 'diff-review-row line-delete';
 				lineNumbersExtraClassName = ' char-delete';
-				spacerCodiconName = 'codicon codicon-remove';
+				spacerIcon = diffReviewRemoveIcon;
 				break;
 		}
 
@@ -694,7 +703,7 @@ export class DiffReview extends Disposable {
 			if (originalLine !== 0) {
 				originalLineNumber.appendChild(document.createTextNode(String(originalLine)));
 			} else {
-				originalLineNumber.innerHTML = '&#160;';
+				originalLineNumber.innerText = '\u00a0';
 			}
 			cell.appendChild(originalLineNumber);
 
@@ -706,20 +715,20 @@ export class DiffReview extends Disposable {
 			if (modifiedLine !== 0) {
 				modifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
 			} else {
-				modifiedLineNumber.innerHTML = '&#160;';
+				modifiedLineNumber.innerText = '\u00a0';
 			}
 			cell.appendChild(modifiedLineNumber);
 
 			const spacer = document.createElement('span');
 			spacer.className = spacerClassName;
 
-			if (spacerCodiconName) {
+			if (spacerIcon) {
 				const spacerCodicon = document.createElement('span');
-				spacerCodicon.className = spacerCodiconName;
-				spacerCodicon.innerHTML = '&#160;&#160;';
+				spacerCodicon.className = ThemeIcon.asClassName(spacerIcon);
+				spacerCodicon.innerText = '\u00a0\u00a0';
 				spacer.appendChild(spacerCodicon);
 			} else {
-				spacer.innerHTML = '&#160;&#160;';
+				spacer.innerText = '\u00a0\u00a0';
 			}
 			cell.appendChild(spacer);
 
@@ -743,7 +752,11 @@ export class DiffReview extends Disposable {
 			let ariaLabel: string = '';
 			switch (type) {
 				case DiffEntryType.Equal:
-					ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+					if (originalLine === modifiedLine) {
+						ariaLabel = nls.localize({ key: 'unchangedLine', comment: ['The placeholders are contents of the line and should not be translated.'] }, "{0} unchanged line {1}", lineContent, originalLine);
+					} else {
+						ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+					}
 					break;
 				case DiffEntryType.Insert:
 					ariaLabel = nls.localize('insertLine', "+ {0} modified line {1}", lineContent, modifiedLine);

@@ -6,13 +6,14 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -21,7 +22,8 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHostService private readonly hostService: IHostService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -55,6 +57,10 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 			const model = this.textFileService.files.get(resource);
 			if (model?.hasState(TextFileEditorModelState.PENDING_SAVE)) {
 				return false; // resource must not be pending to save
+			}
+
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+				return false; // resource must not be pending to be auto saved
 			}
 
 			if (this.editorService.isOpen({ resource })) {

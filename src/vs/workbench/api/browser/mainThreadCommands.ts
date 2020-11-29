@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
@@ -28,29 +28,29 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	dispose() {
-		this._commandRegistrations.forEach(value => value.dispose());
+		dispose(this._commandRegistrations.values());
 		this._commandRegistrations.clear();
 
 		this._generateCommandsDocumentationRegistration.dispose();
 	}
 
-	private _generateCommandsDocumentation(): Promise<void> {
-		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
-			// add local commands
-			const commands = CommandsRegistry.getCommands();
-			for (const [id, command] of commands) {
-				if (command.description) {
-					result[id] = command.description;
-				}
-			}
+	private async _generateCommandsDocumentation(): Promise<void> {
+		const result = await this._proxy.$getContributedCommandHandlerDescriptions();
 
-			// print all as markdown
-			const all: string[] = [];
-			for (let id in result) {
-				all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
+		// add local commands
+		const commands = CommandsRegistry.getCommands();
+		for (const [id, command] of commands) {
+			if (command.description) {
+				result[id] = command.description;
 			}
-			console.log(all.join('\n'));
-		});
+		}
+
+		// print all as markdown
+		const all: string[] = [];
+		for (let id in result) {
+			all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
+		}
+		console.log(all.join('\n'));
 	}
 
 	$registerCommand(id: string): void {

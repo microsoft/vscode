@@ -24,7 +24,6 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -74,7 +73,7 @@ async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: C
 	if (isThreadContext(sessionAndThreadId)) {
 		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
 		if (session) {
-			thread = session.getAllThreads().filter(t => t.getId() === sessionAndThreadId.threadId).pop();
+			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
 		}
 	} else {
 		thread = debugService.getViewModel().focusedThread;
@@ -98,9 +97,9 @@ function getFrame(debugService: IDebugService, context: CallStackContext | unkno
 	if (isStackFrameContext(context)) {
 		const session = debugService.getModel().getSession(context.sessionId);
 		if (session) {
-			const thread = session.getAllThreads().filter(t => t.getId() === context.threadId).pop();
+			const thread = session.getAllThreads().find(t => t.getId() === context.threadId);
 			if (thread) {
-				return thread.getCallStack().filter(sf => sf.getId() === context.frameId).pop();
+				return thread.getCallStack().find(sf => sf.getId() === context.frameId);
 			}
 		}
 	}
@@ -114,9 +113,9 @@ function isSessionContext(obj: any): obj is CallStackContext {
 
 export function registerCommands(): void {
 
-	// These commands are used in call stack context menu, call stack inline actions, command pallete, debug toolbar, mac native touch bar
+	// These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
 	// When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
-	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command pallete) we do not pass any id and just take whatever is the focussed thread
+	// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command palette) we do not pass any id and just take whatever is the focussed thread
 	// Same for stackFrame commands and session commands.
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,
@@ -168,8 +167,8 @@ export function registerCommands(): void {
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
 					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
-					const targets = response.body.targets;
-					if (targets.length) {
+					const targets = response?.body.targets;
+					if (targets && targets.length) {
 						let id = targets[0].id;
 						if (targets.length > 1) {
 							const picks = targets.map(t => ({ label: t.label, _id: t.id }));
@@ -206,7 +205,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -217,10 +216,10 @@ export function registerCommands(): void {
 
 			if (!session) {
 				const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
-				debugService.startDebugging(launch, name, { noDebug: false });
+				await debugService.startDebugging(launch, name, { noDebug: false });
 			} else {
 				session.removeReplExpressions();
-				debugService.restartSession(session).then(undefined, onUnexpectedError);
+				await debugService.restartSession(session);
 			}
 		}
 	});
@@ -258,7 +257,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: PAUSE_ID,
-		weight: KeybindingWeight.WorkbenchContrib,
+		weight: KeybindingWeight.WorkbenchContrib + 2, // take priority over focus next part while we are debugging
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
 		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
@@ -268,10 +267,15 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: DISCONNECT_ID,
-		handler: (accessor: ServicesAccessor, sessionId: string | undefined) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			const session = debugService.getModel().getSession(sessionId) || debugService.getViewModel().focusedSession;
-			debugService.stopSession(session).then(undefined, onUnexpectedError);
+			let session: IDebugSession | undefined;
+			if (isSessionContext(context)) {
+				session = debugService.getModel().getSession(context.sessionId);
+			} else {
+				session = debugService.getViewModel().focusedSession;
+			}
+			await debugService.stopSession(session);
 		}
 	});
 
@@ -280,7 +284,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -296,7 +300,7 @@ export function registerCommands(): void {
 				session = session.parentSession;
 			}
 
-			debugService.stopSession(session).then(undefined, onUnexpectedError);
+			await debugService.stopSession(session);
 		}
 	});
 
@@ -336,9 +340,9 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: 'debug.startFromConfig',
-		handler: (accessor, config: IConfig) => {
+		handler: async (accessor, config: IConfig) => {
 			const debugService = accessor.get(IDebugService);
-			debugService.startDebugging(undefined, config).then(undefined, onUnexpectedError);
+			await debugService.startDebugging(undefined, config);
 		}
 	});
 
@@ -498,9 +502,9 @@ export function registerCommands(): void {
 				return;
 			}
 
-			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
+			const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
 			if (launch) {
-				const { editor, created } = await launch.openConfigFile(false, false);
+				const { editor, created } = await launch.openConfigFile(false);
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
@@ -517,13 +521,13 @@ export function registerCommands(): void {
 		const control = editorService.activeTextEditorControl;
 		if (isCodeEditor(control)) {
 			const position = control.getPosition();
-			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+			if (position && control.hasModel() && debugService.canSetBreakpointsIn(control.getModel())) {
 				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
 				if (!breakpointAlreadySet) {
-					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 				}
 			}
 		}
@@ -560,7 +564,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService));
+					return openBreakpointSource(focus[0], true, false, true, accessor.get(IDebugService), accessor.get(IEditorService));
 				}
 			}
 

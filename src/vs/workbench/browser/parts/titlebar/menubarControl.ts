@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action } from 'vs/base/common/actions';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
@@ -22,20 +21,22 @@ import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SEL
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
-import { SubmenuAction, Direction } from 'vs/base/browser/ui/menu/menu';
+import { Direction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -121,7 +122,7 @@ export abstract class MenubarControl extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		// Listen to update service
-		this.updateService.onStateChange(() => this.updateMenubar());
+		this.updateService.onStateChange(() => this.onUpdateStateChange());
 
 		// Listen for changes in recently opened menu
 		this._register(this.workspacesService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
@@ -145,6 +146,14 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		return label;
+	}
+
+	protected onUpdateStateChange(): void {
+		this.updateMenubar();
+	}
+
+	protected onUpdateKeybindings(): void {
+		this.updateMenubar();
 	}
 
 	protected getOpenRecentActions(): (Separator | IAction & { uri: URI })[] {
@@ -192,7 +201,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 	}
 
-	private onRecentlyOpenedChange(): void {
+	protected onRecentlyOpenedChange(): void {
 		this.workspacesService.getRecentlyOpened().then(recentlyOpened => {
 			this.recentlyOpened = recentlyOpened;
 			this.updateMenubar();
@@ -231,7 +240,7 @@ export abstract class MenubarControl extends Disposable {
 			});
 		});
 
-		return assign(ret, { uri: uri });
+		return Object.assign(ret, { uri });
 	}
 
 	private notifyUserOfCustomMenubarAccessibility(): void {
@@ -240,7 +249,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.GLOBAL, false);
-		const usingCustomMenubar = getTitleBarStyle(this.configurationService, this.environmentService) === 'custom';
+		const usingCustomMenubar = getTitleBarStyle(this.configurationService) === 'custom';
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
 			return;
@@ -256,7 +265,7 @@ export abstract class MenubarControl extends Disposable {
 			}
 		]);
 
-		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL);
+		this.storageService.store('menubar/accessibleMenubarNotified', true, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 }
 
@@ -265,6 +274,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private container: HTMLElement | undefined;
 	private alwaysOnMnemonics: boolean = false;
 	private focusInsideMenubar: boolean = false;
+	private visible: boolean = true;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -280,14 +290,12 @@ export class CustomMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IHostService protected readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
+		@IHostService protected readonly hostService: IHostService
 	) {
-
 		super(
 			menuService,
 			workspacesService,
@@ -312,6 +320,8 @@ export class CustomMenubarControl extends MenubarControl {
 		});
 
 		this.registerListeners();
+
+		this.registerActions();
 
 		registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
@@ -412,6 +422,33 @@ export class CustomMenubarControl extends MenubarControl {
 		this.setupCustomMenubar(firstTime);
 	}
 
+	private registerActions(): void {
+		const that = this;
+
+		if (isWeb) {
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.actions.menubar.focus`,
+						title: { value: nls.localize('focusMenu', "Focus Application Menu"), original: 'Focus Application Menu' },
+						keybinding: {
+							primary: KeyCode.F10,
+							weight: KeybindingWeight.WorkbenchContrib,
+							when: IsWebContext
+						},
+						f1: true
+					});
+				}
+
+				async run(): Promise<void> {
+					if (that.menubar) {
+						that.menubar.toggleFocus();
+					}
+				}
+			}));
+		}
+	}
+
 	private getUpdateAction(): IAction | null {
 		const state = this.updateService.state;
 
@@ -421,7 +458,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 			case StateType.Idle:
 				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId));
+					this.updateService.checkForUpdates(this.environmentService.sessionId));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
@@ -447,7 +484,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private get currentMenubarVisibility(): MenuBarVisibility {
-		return getMenuBarVisibility(this.configurationService, this.environmentService);
+		return getMenuBarVisibility(this.configurationService);
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
@@ -502,6 +539,12 @@ export class CustomMenubarControl extends MenubarControl {
 		return currentSidebarLocation === 'right' ? Direction.Left : Direction.Right;
 	}
 
+	private onDidVisibilityChange(visible: boolean): void {
+		this.visible = visible;
+		this.onRecentlyOpenedChange();
+		this._onVisibilityChange.fire(visible);
+	}
+
 	private setupCustomMenubar(firstTime: boolean): void {
 		// If there is no container, we cannot setup the menubar
 		if (!this.container) {
@@ -526,7 +569,7 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 			}));
 
-			this._register(this.menubar.onVisibilityChange(e => this._onVisibilityChange.fire(e)));
+			this._register(this.menubar.onVisibilityChange(e => this.onDidVisibilityChange(e)));
 
 			// Before we focus the menubar, stop updates to it so that focus-related context keys will work
 			this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_IN, () => {
@@ -568,7 +611,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions, topLevelTitle);
-						target.push(new SubmenuAction(mnemonicMenuLabel(action.label), submenuActions));
+						target.push(new SubmenuAction(action.id, mnemonicMenuLabel(action.label), submenuActions));
 					} else {
 						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
 						target.push(action);
@@ -617,41 +660,51 @@ export class CustomMenubarControl extends MenubarControl {
 			visibility: this.currentMenubarVisibility,
 			getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			alwaysOnMnemonics: this.alwaysOnMnemonics,
-			compactMode: this.currentCompactMenuMode,
-			getCompactMenuActions: () => {
-				if (!isWeb) {
-					return []; // only for web
-				}
-
-				const webNavigationActions: IAction[] = [];
-				const webNavigationMenu = this.menuService.createMenu(MenuId.MenubarWebNavigationMenu, this.contextKeyService);
-				for (const groups of webNavigationMenu.getActions()) {
-					const [, actions] = groups;
-					for (const action of actions) {
-						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
-						webNavigationActions.push(action);
-					}
-				}
-				webNavigationMenu.dispose();
-
-				return webNavigationActions;
-			}
+			compactMode: this.currentCompactMenuMode
 		};
 	}
 
 	protected onDidChangeWindowFocus(hasFocus: boolean): void {
+		if (!this.visible) {
+			return;
+		}
+
 		super.onDidChangeWindowFocus(hasFocus);
 
 		if (this.container) {
 			if (hasFocus) {
-				DOM.removeClass(this.container, 'inactive');
+				this.container.classList.remove('inactive');
 			} else {
-				DOM.addClass(this.container, 'inactive');
+				this.container.classList.add('inactive');
 				if (this.menubar) {
 					this.menubar.blur();
 				}
 			}
 		}
+	}
+
+	protected onUpdateStateChange(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		super.onUpdateStateChange();
+	}
+
+	protected onRecentlyOpenedChange(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		super.onRecentlyOpenedChange();
+	}
+
+	protected onUpdateKeybindings(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		super.onUpdateKeybindings();
 	}
 
 	protected registerListeners(): void {
@@ -702,5 +755,11 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		this.menubar?.update(this.getMenuBarOptions());
+	}
+
+	toggleFocus() {
+		if (this.menubar) {
+			this.menubar.toggleFocus();
+		}
 	}
 }

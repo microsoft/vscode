@@ -369,6 +369,8 @@ interface IRendererContext<T extends IVisibleLine> {
 
 class ViewLayerRenderer<T extends IVisibleLine> {
 
+	private static _ttPolicy = window.trustedTypes?.createPolicy('editorViewLayer', { createHTML: value => value });
+
 	readonly domNode: HTMLElement;
 	readonly host: IVisibleLinesHost<T>;
 	readonly viewportData: ViewportData;
@@ -505,6 +507,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
+		if (ViewLayerRenderer._ttPolicy) {
+			newLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(newLinesHTML) as unknown as string; // explains the ugly casts -> https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393
+		}
 		const lastChild = <HTMLElement>this.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
 			this.domNode.innerHTML = newLinesHTML;
@@ -525,6 +530,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
 		const hugeDomNode = document.createElement('div');
 
+		if (ViewLayerRenderer._ttPolicy) {
+			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML) as unknown as string;
+		}
 		hugeDomNode.innerHTML = invalidLinesHTML;
 
 		for (let i = 0; i < ctx.linesLength; i++) {

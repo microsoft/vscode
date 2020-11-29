@@ -63,6 +63,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/dialogs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
@@ -92,6 +96,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/issue",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/keybindings",
 			"project": "vscode-workbench"
 		},
 		{
@@ -136,6 +144,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/relauncher",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/sash",
 			"project": "vscode-workbench"
 		},
 		{
@@ -199,6 +211,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/webviewPanel",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/workspaces",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/customEditor",
 			"project": "vscode-workbench"
 		},
@@ -212,6 +232,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/views",
 			"project": "vscode-workbench"
 		},
 		{
@@ -236,10 +260,6 @@
 		},
 		{
 			"name": "vs/workbench/services/configurationResolver",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/crashReporter",
 			"project": "vscode-workbench"
 		},
 		{
@@ -339,11 +359,23 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/views",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/timeline",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/authentication",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/extensionRecommendations",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/gettingStarted",
 			"project": "vscode-workbench"
 		}
 	]
