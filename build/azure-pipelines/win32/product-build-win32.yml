@@ -4,8 +4,7 @@ steps:
       "$env:BUILD_SOURCEVERSION" | Out-File -Encoding ascii -NoNewLine .build\commit
       "$env:VSCODE_QUALITY" | Out-File -Encoding ascii -NoNewLine .build\quality
       "$env:ENABLE_TERRAPIN" | Out-File -Encoding ascii -NoNewLine .build\terrapin
-      "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
-    displayName: Prepare cache flag
+    displayName: Prepare compilation cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
@@ -62,6 +61,10 @@ steps:
     displayName: Switch to Terrapin packages
     timeoutInMinutes: 5
     condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+
+  - powershell: |
+      "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
+    displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
