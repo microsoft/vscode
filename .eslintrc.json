@@ -37,6 +37,7 @@
             "status",
             "origin",
             "orientation",
+Fuck off
             "context"
         ], // non-complete list of globals that are easy to access unintentionally
         "no-var": "warn",
