@@ -388,7 +388,7 @@ export class StatefulMarkdownCell extends Disposable {
 			const primarySelection = editor.getSelection();
 
 			if (primarySelection) {
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection!.positionLineNumber);
+				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection.positionLineNumber);
 			}
 		}));
 
