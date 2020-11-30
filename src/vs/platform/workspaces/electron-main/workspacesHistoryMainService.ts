@@ -313,7 +313,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		const jumpList: JumpListCategory[] = [];
-		
+
 		this.logService.info('updateWindowsJumpList#addTasksEntry'); // https://github.com/microsoft/vscode/issues/111177
 		// Tasks
 		jumpList.push({
