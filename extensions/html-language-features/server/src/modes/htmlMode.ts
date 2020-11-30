@@ -82,7 +82,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		},
 		async doLinkedEditing(document: TextDocument, position: Position) {
 			const htmlDocument = htmlDocuments.get(document);
-			return htmlLanguageService.findOnTypeRenameRanges(document, position, htmlDocument);
+			return htmlLanguageService.findLinkedEditingRanges(document, position, htmlDocument);
 		},
 		dispose() {
 			htmlDocuments.dispose();
