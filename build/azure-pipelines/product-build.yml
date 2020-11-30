@@ -30,6 +30,8 @@ stages:
         pool:
           vmImage: "Ubuntu-18.04"
         container: vscode-x64
+        variables:
+          VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
 
