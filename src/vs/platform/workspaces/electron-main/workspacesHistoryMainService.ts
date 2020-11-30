@@ -307,12 +307,14 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	updateWindowsJumpList(): void {
+		this.logService.info('updateWindowsJumpList#checkingOS'); // https://github.com/microsoft/vscode/issues/111177
 		if (!isWindows) {
 			return; // only on windows
 		}
 
 		const jumpList: JumpListCategory[] = [];
-
+		
+		this.logService.info('updateWindowsJumpList#addTasksEntry'); // https://github.com/microsoft/vscode/issues/111177
 		// Tasks
 		jumpList.push({
 			type: 'tasks',
@@ -331,6 +333,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Recent Workspaces
 		try {
+			this.logService.info('updateWindowsJumpList#checkingRecentlyOpened'); // https://github.com/microsoft/vscode/issues/111177
 			if (this.getRecentlyOpened().workspaces.length > 0) {
 
 				// The user might have meanwhile removed items from the jump list and we have to respect that
@@ -348,34 +351,40 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					}
 				}
 				this.removeRecentlyOpened(toRemove);
-
+				this.logService.info('updateWindowsJumpList#addRecentlyOpened'); // https://github.com/microsoft/vscode/issues/111177
 				// Add entries
 				jumpList.push({
 					type: 'custom',
 					name: nls.localize('recentFolders', "Recent Workspaces"),
 					items: arrays.coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
-						const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
-						const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
+						try {
+							this.logService.info('updateWindowsJumpList#coalesceRecentlyOpened'); // https://github.com/microsoft/vscode/issues/111177
+							const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
+							const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
 
-						let description;
-						let args;
-						if (isSingleFolderWorkspaceIdentifier(workspace)) {
-							description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
-							args = `--folder-uri "${workspace.toString()}"`;
-						} else {
-							description = nls.localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
-							args = `--file-uri "${workspace.configPath.toString()}"`;
+							let description;
+							let args;
+							if (isSingleFolderWorkspaceIdentifier(workspace)) {
+								description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
+								args = `--folder-uri "${workspace.toString()}"`;
+							} else {
+								description = nls.localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
+								args = `--file-uri "${workspace.configPath.toString()}"`;
+							}
+
+							return {
+								type: 'task',
+								title,
+								description,
+								program: process.execPath,
+								args,
+								iconPath: 'explorer.exe', // simulate folder icon
+								iconIndex: 0
+							};
+						} catch (error) {
+							this.logService.warn('updateWindowsJumpList#coalesceRecentlyOpened', error);
+							return null;
 						}
-
-						return {
-							type: 'task',
-							title,
-							description,
-							program: process.execPath,
-							args,
-							iconPath: 'explorer.exe', // simulate folder icon
-							iconIndex: 0
-						};
 					}))
 				});
 			}
