@@ -286,7 +286,7 @@ export class OutputContainer extends Disposable {
 				this._relayoutCell();
 			}
 
-			this.templateData.outputContainer!.style.display = 'block';
+			this.templateData.outputContainer.style.display = 'block';
 			// there are outputs, we need to calcualte their sizes and trigger relayout
 			// @TODO@rebornix, if there is no resizable output, we should not check their height individually, which hurts the performance
 			const outputsToRender = this._calcuateOutputsToRender();
@@ -312,7 +312,7 @@ export class OutputContainer extends Disposable {
 			// noop
 			this.viewCell.editorHeight = editorHeight;
 			this._relayoutCell();
-			this.templateData.outputContainer!.style.display = 'none';
+			this.templateData.outputContainer.style.display = 'none';
 		}
 
 		this.templateData.outputShowMoreContainer.innerText = '';
@@ -406,9 +406,9 @@ export class OutputContainer extends Disposable {
 		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
 
 		if (this.viewCell.outputs.length) {
-			this.templateData.outputContainer!.style.display = 'block';
+			this.templateData.outputContainer.style.display = 'block';
 		} else {
-			this.templateData.outputContainer!.style.display = 'none';
+			this.templateData.outputContainer.style.display = 'none';
 		}
 
 		const reversedSplices = splices.reverse();
@@ -457,7 +457,7 @@ export class OutputContainer extends Disposable {
 			this.templateData.outputShowMoreContainer.style.display = 'none';
 		}
 
-		const editorHeight = this.templateData.editor!.getContentHeight();
+		const editorHeight = this.templateData.editor.getContentHeight();
 		this.viewCell.editorHeight = editorHeight;
 
 		if (previousOutputHeight === 0 || this.viewCell.outputs.length === 0) {
