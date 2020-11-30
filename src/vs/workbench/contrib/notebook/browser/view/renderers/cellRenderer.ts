@@ -454,7 +454,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private getDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
-		if (templateData.currentRenderedCell!.editState === CellEditState.Editing) {
+		if (templateData.currentRenderedCell?.editState === CellEditState.Editing) {
 			return this.getEditDragImage(templateData);
 		} else {
 			return this.getMarkdownDragImage(templateData);
@@ -501,7 +501,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		templateData.currentRenderedCell = element;
 		templateData.currentEditor = undefined;
-		templateData.editorPart!.style.display = 'none';
+		templateData.editorPart.style.display = 'none';
 		templateData.cellContainer.innerText = '';
 
 		if (height === undefined) {
