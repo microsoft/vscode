@@ -78,7 +78,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if (!candidate) {
 			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		} else {
-			return candidate && resources.dirname(candidate);
+			return resources.dirname(candidate);
 		}
 	}
 
