@@ -384,6 +384,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 							};
 						} catch (error) {
 							this.logService.warn('updateWindowsJumpList#mappingFailed', error); // https://github.com/microsoft/vscode/issues/111177
+							throw error;
 						}
 					}))
 				});
