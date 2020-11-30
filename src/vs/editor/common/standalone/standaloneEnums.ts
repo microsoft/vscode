@@ -325,6 +325,14 @@ export enum EndOfLineSequence {
 	CRLF = 1
 }
 
+export enum InDiffEditorState {
+	None = 0,
+	SideBySideLeft = 1,
+	SideBySideRight = 2,
+	InlineLeft = 3,
+	InlineRight = 4
+}
+
 /**
  * Describes what to do with the indentation when pressing Enter.
  */

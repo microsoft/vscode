@@ -41,6 +41,14 @@ export const enum EditorAutoIndentStrategy {
 	Full = 4
 }
 
+export const enum InDiffEditorState {
+	None = 0,
+	SideBySideLeft = 1,
+	SideBySideRight = 2,
+	InlineLeft = 3,
+	InlineRight = 4
+}
+
 /**
  * Configuration options for the editor.
  */
@@ -48,7 +56,7 @@ export interface IEditorOptions {
 	/**
 	 * This editor is used inside a diff editor.
 	 */
-	inDiffEditor?: boolean;
+	inDiffEditor?: InDiffEditorState;
 	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
@@ -1960,7 +1968,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers,
 				EditorOption.lineNumbersMinChars, EditorOption.scrollBeyondLastLine,
 				EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified,
-				EditorOption.accessibilitySupport
+				EditorOption.accessibilitySupport, EditorOption.inDiffEditor
 			]
 		);
 	}
@@ -2174,6 +2182,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
 		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		const inDiffEditor = options.get(EditorOption.inDiffEditor);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
@@ -2224,11 +2233,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
+		if (accessibilitySupport !== AccessibilitySupport.Enabled && inDiffEditor !== InDiffEditorState.InlineLeft) {
 			// See https://github.com/microsoft/vscode/issues/27766
 			// Never enable wrapping when a screen reader is attached
 			// because arrow down etc. will not move the cursor in the way
 			// a screen reader expects.
+
+			// Also see https://github.com/microsoft/vscode/issues/110897
+			// Never enable wrapping for the left hand side editor of an inline diff editor.
 			if (wordWrapMinified && isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				isWordWrapMinified = true;
@@ -4022,8 +4034,8 @@ export const EditorOptions = {
 		{ description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide.") }
 	)),
 	hover: register(new EditorHover()),
-	inDiffEditor: register(new EditorBooleanOption(
-		EditorOption.inDiffEditor, 'inDiffEditor', false,
+	inDiffEditor: register(new EditorIntOption(
+		EditorOption.inDiffEditor, 'inDiffEditor', 0, 0, 4
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',
