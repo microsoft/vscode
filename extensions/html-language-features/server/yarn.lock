@@ -880,10 +880,10 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-vscode-css-languageservice@^4.3.6:
-  version "4.3.6"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.3.6.tgz#0e37c2d47724f895f36e1aad7e0a8f121591b22f"
-  integrity sha512-0xjY6ocBqDPbjHRqahWWE+AFtBb1LgO0PN9L2M0fY5IcsU2Eo/V2f/zrntIekXIYQl4cHS0XRkL7ZXSO6s19oA==
+vscode-css-languageservice@^4.4.0:
+  version "4.4.0"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.4.0.tgz#a7c5edf3057e707601ca18fa3728784a298513b4"
+  integrity sha512-jWi+297PJUUWTHwlcrZz0zIuEXuHOBJIQMapXmEzbosWGv/gMnNSAMV4hTKnl5wzxvZKZzV6j+WFdrSlKQ5qnw==
   dependencies:
     vscode-languageserver-textdocument "^1.0.1"
     vscode-languageserver-types "3.16.0-next.2"
