@@ -2588,6 +2588,14 @@ declare namespace monaco.editor {
 		Full = 4
 	}
 
+	export enum InDiffEditorState {
+		None = 0,
+		SideBySideLeft = 1,
+		SideBySideRight = 2,
+		InlineLeft = 3,
+		InlineRight = 4
+	}
+
 	/**
 	 * Configuration options for the editor.
 	 */
@@ -2595,7 +2603,7 @@ declare namespace monaco.editor {
 		/**
 		 * This editor is used inside a diff editor.
 		 */
-		inDiffEditor?: boolean;
+		inDiffEditor?: InDiffEditorState;
 		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
@@ -4072,7 +4080,7 @@ declare namespace monaco.editor {
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
 		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, boolean>;
 		hover: IEditorOption<EditorOption.hover, EditorHoverOptions>;
-		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
+		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, number>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, EditorLightbulbOptions>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, string | number>;
