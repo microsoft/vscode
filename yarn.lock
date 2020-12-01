@@ -5568,9 +5568,10 @@ just-debounce@^1.0.0:
   resolved "https://registry.yarnpkg.com/just-debounce/-/just-debounce-1.0.0.tgz#87fccfaeffc0b68cd19d55f6722943f929ea35ea"
   integrity sha1-h/zPrv/AtozRnVX2cilD+SnqNeo=
 
-keytar@deepak1556/node-keytar#b36cc753e645ad72a39f8dd6348994e0c4f4905c:
+keytar@7.2.0:
   version "7.2.0"
-  resolved "https://codeload.github.com/deepak1556/node-keytar/tar.gz/b36cc753e645ad72a39f8dd6348994e0c4f4905c"
+  resolved "https://registry.yarnpkg.com/keytar/-/keytar-7.2.0.tgz#4db2bec4f9700743ffd9eda22eebb658965c8440"
+  integrity sha512-ECSaWvoLKI5SI0pGpZQeUV1/lpBYfkaxvoSp3zkiPOz05VavwSfLi8DdEaa9N2ekQZv3Chy+o7aP6n9mairBgw==
   dependencies:
     node-addon-api "^3.0.0"
     prebuild-install "^6.0.0"
