@@ -486,7 +486,7 @@ function registerOpenEditorAPICommands(): void {
 		const configurationService = accessor.get(IConfigurationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const [columnArg, options] = columnAndOptions;
+		const [columnArg, optionsArg] = columnAndOptions;
 		let group: IEditorGroup | undefined = undefined;
 
 		if (columnArg === SIDE_GROUP) {
@@ -502,7 +502,7 @@ function registerOpenEditorAPICommands(): void {
 		}
 
 		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
-      
+
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
 		return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
 	});
