@@ -19,9 +19,9 @@ import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ContextKeyOrExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");

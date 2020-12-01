@@ -791,8 +791,8 @@ declare module 'vscode' {
 
 	/**
 	 * A reference to a named icon. Currently, [File](#ThemeIcon.File), [Folder](#ThemeIcon.Folder),
-	 * and [codicons](https://microsoft.github.io/vscode-codicons/dist/codicon.html) are supported.
-	 * Using a theme icon is preferred over a custom icon as it gives theme authors the possibility to change the icons.
+	 * and [ThemeIcon ids](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing) are supported.
+	 * Using a theme icon is preferred over a custom icon as it gives product theme authors the possibility to change the icons.
 	 *
 	 * *Note* that theme icons can also be rendered inside labels and descriptions. Places that support theme icons spell this out
 	 * and they use the `$(<name>)`-syntax, for instance `quickPick.label = "Hello World $(globe)"`.
@@ -809,7 +809,7 @@ declare module 'vscode' {
 		static readonly Folder: ThemeIcon;
 
 		/**
-		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * The id of the icon. The available icons are listed in https://code.visualstudio.com/api/references/icons-in-labels#icon-listing.
 		 */
 		readonly id: string;
 
@@ -820,7 +820,7 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a reference to a theme icon.
-		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param id id of the icon. The available icons are listed in https://code.visualstudio.com/api/references/icons-in-labels#icon-listing.
 		 * @param color optional `ThemeColor` for the icon. The color is currently only used in [TreeItem](#TreeItem).
 		 */
 		constructor(id: string, color?: ThemeColor);
@@ -1878,8 +1878,9 @@ declare module 'vscode' {
 
 	/**
 	 * A relative pattern is a helper to construct glob patterns that are matched
-	 * relatively to a base path. The base path can either be an absolute file path
-	 * or a [workspace folder](#WorkspaceFolder).
+	 * relatively to a base file path. The base path can either be an absolute file
+	 * path as string or uri or a [workspace folder](#WorkspaceFolder), which is the
+	 * preferred way of creating the relative pattern.
 	 */
 	export class RelativePattern {
 
@@ -1898,14 +1899,28 @@ declare module 'vscode' {
 		pattern: string;
 
 		/**
-		 * Creates a new relative pattern object with a base path and pattern to match. This pattern
-		 * will be matched on file paths relative to the base path.
+		 * Creates a new relative pattern object with a base file path and pattern to match. This pattern
+		 * will be matched on file paths relative to the base.
 		 *
-		 * @param base A base file path to which this pattern will be matched against relatively.
-		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on file paths
-		 * relative to the base path.
+		 * Example:
+		 * ```ts
+		 * const folder = vscode.workspace.workspaceFolders?.[0];
+		 * if (folder) {
+		 *
+		 *   // Match any TypeScript file in the root of this workspace folder
+		 *   const pattern1 = new vscode.RelativePattern(folder, '*.ts');
+		 *
+		 *   // Match any TypeScript file in `someFolder` inside this workspace folder
+		 *   const pattern2 = new vscode.RelativePattern(folder, 'someFolder/*.ts');
+		 * }
+		 * ```
+		 *
+		 * @param base A base to which this pattern will be matched against relatively. It is recommended
+		 * to pass in a [workspace folder](#WorkspaceFolder) if the pattern should match inside the workspace.
+		 * Otherwise, a uri or string should only be used if the pattern is for a file path outside the workspace.
+		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on paths relative to the base.
 		 */
-		constructor(base: WorkspaceFolder | string, pattern: string)
+		constructor(base: WorkspaceFolder | Uri | string, pattern: string)
 	}
 
 	/**
@@ -5345,7 +5360,7 @@ declare module 'vscode' {
 		 *
 		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
 		 *
-		 * Where the icon-name is taken from the [codicon](https://microsoft.github.io/vscode-codicons/dist/codicon.html) icon set, e.g.
+		 * Where the icon-name is taken from the ThemeIcon [icon set](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing), e.g.
 		 * `light-bulb`, `thumbsup`, `zap` etc.
 		 */
 		text: string;
@@ -5530,6 +5545,72 @@ declare module 'vscode' {
 		 */
 		tooltip?: string;
 	}
+
+	/**
+	 * A file decoration represents metadata that can be rendered with a file.
+	 */
+	export class FileDecoration {
+
+		/**
+		 * A very short string that represents this decoration.
+		 */
+		badge?: string;
+
+		/**
+		 * A human-readable tooltip for this decoration.
+		 */
+		tooltip?: string;
+
+		/**
+		 * The color of this decoration.
+		 */
+		color?: ThemeColor;
+
+		/**
+		 * A flag expressing that this decoration should be
+		 * propagated to its parents.
+		 */
+		propagate?: boolean;
+
+		/**
+		 * Creates a new decoration.
+		 *
+		 * @param badge A letter that represents the decoration.
+		 * @param tooltip The tooltip of the decoration.
+		 * @param color The color of the decoration.
+		 */
+		constructor(badge?: string, tooltip?: string, color?: ThemeColor);
+	}
+
+	/**
+	 * The decoration provider interfaces defines the contract between extensions and
+	 * file decorations.
+	 */
+	export interface FileDecorationProvider {
+
+		/**
+		 * An optional event to signal that decorations for one or many files have changed.
+		 *
+		 * *Note* that this event should be used to propagate information about children.
+		 *
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeFileDecorations?: Event<undefined | Uri | Uri[]>;
+
+		/**
+		 * Provide decorations for a given uri.
+		 *
+		 * *Note* that this function is only called when a file gets rendered in the UI.
+		 * This means a decoration from a descendent that propagates upwards must be signaled
+		 * to the editor via the [onDidChangeFileDecorations](#FileDecorationProvider.onDidChangeFileDecorations)-event.
+		 *
+		 * @param uri The uri of the file to provide a decoration for.
+		 * @param token A cancellation token.
+		 * @returns A decoration or a thenable that resolves to such.
+		 */
+		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration>;
+	}
+
 
 	/**
 	 * In a remote window the extension kind describes if an extension
@@ -6186,14 +6267,13 @@ declare module 'vscode' {
 	 */
 	export class CustomExecution {
 		/**
-		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * Constructs a CustomExecution task object. The callback will be executed when the task is run, at which point the
 		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
 		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
 		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
 		 * @param callback The callback that will be called when the task is started by a user. Any ${} style variables that
-		 * were in the task definition will be resolved and passed into the callback.
+		 * were in the task definition will be resolved and passed into the callback as `resolvedDefinition`.
 		 */
 		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
@@ -8546,6 +8626,14 @@ declare module 'vscode' {
 		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 		/**
+		 * Register a file decoration provider.
+		 *
+		 * @param provider A [FileDecorationProvider](#FileDecorationProvider).
+		 * @return A [disposable](#Disposable) that unregisters the provider.
+		 */
+		export function registerFileDecorationProvider(provider: FileDecorationProvider): Disposable;
+
+		/**
 		 * The currently active color theme as configured in the settings. The active
 		 * theme can be changed via the `workbench.colorTheme` setting.
 		 */
@@ -8721,6 +8809,25 @@ declare module 'vscode' {
 		 * @return Parent of `element`.
 		 */
 		getParent?(element: T): ProviderResult<T>;
+
+		/**
+		 * Called only on hover to resolve the [TreeItem](#TreeItem.tooltip) property if it is undefined.
+		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
+		 * Functionality may be expanded later to include being called to resolve other missing
+		 * properties on selection and/or on open.
+		 *
+		 * Will only ever be called once per TreeItem.
+		 *
+		 * *Note* that this function is called when tree items are already showing in the UI.
+		 * Because of that, no property that changes the presentation (label, description, command, etc.)
+		 * can be changed.
+		 *
+		 * @param element The object associated with the TreeItem
+		 * @param item Undefined properties of `item` should be set then `item` should be returned.
+		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
+		 * `item`. When no result is returned, the given `item` will be used.
+		 */
+		resolveTreeItem?(item: TreeItem, element: T): ProviderResult<TreeItem>;
 	}
 
 	export class TreeItem {
@@ -8760,7 +8867,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this item.
 		 */
-		tooltip?: string | undefined;
+		tooltip?: string | MarkdownString | undefined;
 
 		/**
 		 * The [command](#Command) that should be executed when the tree item is selected.
@@ -9966,7 +10073,7 @@ declare module 'vscode' {
 		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
-		 * *Note* that when watching for file changes such as '**​/*.js', notifications will not be sent when a parent folder is 
+		 * *Note* that when watching for file changes such as '**​/*.js', notifications will not be sent when a parent folder is
 		 * moved or deleted (this is a known limitation of the current implementation and may change in the future).
 		 *
 		 * @param globPattern A [glob pattern](#GlobPattern) that is applied to the absolute paths of created, changed,

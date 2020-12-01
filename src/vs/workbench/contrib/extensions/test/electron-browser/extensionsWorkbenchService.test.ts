@@ -222,8 +222,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.equal('1.1.0', actual.version);
 		assert.equal('1.1.0', actual.latestVersion);
 		assert.equal('localDescription1', actual.description);
-		assert.equal('file:///localPath1/localIcon1', actual.iconUrl);
-		assert.equal('file:///localPath1/localIcon1', actual.iconUrlFallback);
+		assert.ok(actual.iconUrl === 'file:///localPath1/localIcon1' || actual.iconUrl === 'vscode-file://vscode-app/localPath1/localIcon1');
+		assert.ok(actual.iconUrlFallback === 'file:///localPath1/localIcon1' || actual.iconUrlFallback === 'vscode-file://vscode-app/localPath1/localIcon1');
 		assert.equal(null, actual.licenseUrl);
 		assert.equal(ExtensionState.Installed, actual.state);
 		assert.equal(null, actual.installCount);

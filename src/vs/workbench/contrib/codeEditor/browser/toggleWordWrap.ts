@@ -19,6 +19,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { Codicon } from 'vs/base/common/codicons';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -262,9 +263,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		icon: {
-			id: 'codicon/word-wrap'
-		}
+		icon: Codicon.wordWrap
 	},
 	group: 'navigation',
 	order: 1,
@@ -277,9 +276,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		icon: {
-			id: 'codicon/word-wrap'
-		}
+		icon: Codicon.wordWrap
 	},
 	group: 'navigation',
 	order: 1,

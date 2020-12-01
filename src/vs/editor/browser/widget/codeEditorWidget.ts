@@ -21,7 +21,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations, InDiffEditorState } from 'vs/editor/common/config/editorOptions';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -1027,6 +1027,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._triggerEditorCommand(source, handlerId, payload)) {
 			return;
 		}
+
+		this._commandService.executeCommand(handlerId, payload);
 	}
 
 	private _startComposition(): void {
@@ -1772,7 +1774,7 @@ class EditorContextKeysManager extends Disposable {
 
 		this._editorTabMovesFocus.set(options.get(EditorOption.tabFocusMode));
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
-		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
+		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor) !== InDiffEditorState.None);
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
 	}
 

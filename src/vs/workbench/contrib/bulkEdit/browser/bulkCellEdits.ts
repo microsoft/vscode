@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { groupBy } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -31,6 +32,7 @@ export class BulkCellEdits {
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
+		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceNotebookCellEdit[],
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
@@ -40,6 +42,9 @@ export class BulkCellEdits {
 		const editsByNotebook = groupBy(this._edits, (a, b) => compare(a.resource.toString(), b.resource.toString()));
 
 		for (let group of editsByNotebook) {
+			if (this._token.isCancellationRequested) {
+				break;
+			}
 			const [first] = group;
 			const ref = await this._notebookModelService.resolve(first.resource);
 

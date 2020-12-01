@@ -163,7 +163,10 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
-	editSetting?: string;
+	revealSetting?: {
+		key: string;
+		edit?: boolean;
+	};
 }
 
 /**
@@ -174,7 +177,10 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
-	editSetting?: string;
+	revealSetting?: {
+		key: string;
+		edit?: boolean;
+	};
 
 	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
 		const options = new SettingsEditorOptions();
@@ -183,7 +189,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 		options.target = settings.target;
 		options.folderUri = settings.folderUri;
 		options.query = settings.query;
-		options.editSetting = settings.editSetting;
+		options.revealSetting = settings.revealSetting;
 
 		return options;
 	}

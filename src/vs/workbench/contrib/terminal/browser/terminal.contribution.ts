@@ -36,8 +36,7 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { terminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -61,13 +60,11 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration(terminalConfiguration);
 
-const terminalViewIcon = registerIcon('terminal-view-icon', Codicon.terminal, nls.localize('terminalViewIcon', 'View icon of the terminal view.'));
-
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
-	icon: ThemeIcon.fromCodicon(terminalViewIcon),
+	icon: terminalViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: TERMINAL_VIEW_ID,
 	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS },
@@ -78,7 +75,7 @@ Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERM
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
-	containerIcon: ThemeIcon.fromCodicon(terminalViewIcon),
+	containerIcon: terminalViewIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(TerminalViewPane)

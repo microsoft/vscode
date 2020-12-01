@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption, InDiffEditorState } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -39,7 +39,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { defaultInsertColor, defaultRemoveColor, diffBorder, diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, scrollbarShadow, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, diffDiagonalFill } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, getThemeTypeSelector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, getThemeTypeSelector, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -48,10 +48,11 @@ import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -154,8 +155,9 @@ class VisualEditorState {
 let DIFF_EDITOR_ID = 0;
 
 
-const diffInsertIcon = registerIcon('diff-insert', Codicon.add);
-const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove);
+const diffInsertIcon = registerIcon('diff-insert', Codicon.add, nls.localize('diffInsertIcon', 'Line decoration for inserts in the diff editor'));
+const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, nls.localize('diffRemoveIcon', 'Line decoration for removals in the diff editor'));
+const ttPolicy = window.trustedTypes?.createPolicy('diffEditorWidget', { createHTML: value => value });
 
 export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffEditor {
 
@@ -1106,7 +1108,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _adjustOptionsForSubEditor(options: editorBrowser.IDiffEditorConstructionOptions): editorBrowser.IDiffEditorConstructionOptions {
 		const clonedOptions: editorBrowser.IDiffEditorConstructionOptions = objects.deepClone(options || {});
-		clonedOptions.inDiffEditor = true;
 		clonedOptions.automaticLayout = false;
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
@@ -1124,6 +1125,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _adjustOptionsForLeftHandSide(options: editorBrowser.IDiffEditorConstructionOptions): editorBrowser.IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(options);
+		result.inDiffEditor = (this._renderSideBySide ? InDiffEditorState.SideBySideLeft : InDiffEditorState.InlineLeft);
 		if (!this._renderSideBySide) {
 			// do not wrap hidden editor
 			result.wordWrap = 'off';
@@ -1142,6 +1144,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _adjustOptionsForRightHandSide(options: editorBrowser.IDiffEditorConstructionOptions): editorBrowser.IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(options);
+		result.inDiffEditor = (this._renderSideBySide ? InDiffEditorState.SideBySideRight : InDiffEditorState.InlineRight);
 		if (this._diffWordWrap === 'inherit') {
 			result.wordWrap = this._wordWrap;
 		} else {
@@ -1759,7 +1762,7 @@ const DECORATIONS = {
 	}),
 	lineInsertWithSign: ModelDecorationOptions.register({
 		className: 'line-insert',
-		linesDecorationsClassName: 'insert-sign ' + diffInsertIcon.classNames,
+		linesDecorationsClassName: 'insert-sign ' + ThemeIcon.asClassName(diffInsertIcon),
 		marginClassName: 'line-insert',
 		isWholeLine: true
 	}),
@@ -1771,7 +1774,7 @@ const DECORATIONS = {
 	}),
 	lineDeleteWithSign: ModelDecorationOptions.register({
 		className: 'line-delete',
-		linesDecorationsClassName: 'delete-sign ' + diffRemoveIcon.classNames,
+		linesDecorationsClassName: 'delete-sign ' + ThemeIcon.asClassName(diffRemoveIcon),
 		marginClassName: 'line-delete',
 		isWholeLine: true
 
@@ -2383,7 +2386,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 			maxCharsPerLine += scrollBeyondLastColumn;
 
-			domNode.innerHTML = sb.build();
+			const html = sb.build();
+			const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+			domNode.innerHTML = trustedhtml as unknown as string;
 			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
 
 			if (viewLineCounts) {
@@ -2459,7 +2464,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		if (this._renderIndicators) {
 			const marginElement = document.createElement('div');
-			marginElement.className = `delete-sign ${diffRemoveIcon.classNames}`;
+			marginElement.className = `delete-sign ${ThemeIcon.asClassName(diffRemoveIcon)}`;
 			marginElement.setAttribute('style', `position:absolute;top:${renderedLineCount * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;`);
 			marginDomNode.appendChild(marginElement);
 		}
@@ -2488,6 +2493,9 @@ function createFakeLinesDiv(): HTMLElement {
 }
 
 function getViewRange(model: ITextModel, viewModel: IViewModel, startLineNumber: number, endLineNumber: number): Range {
+	const lineCount = model.getLineCount();
+	startLineNumber = Math.min(lineCount, Math.max(1, startLineNumber));
+	endLineNumber = Math.min(lineCount, Math.max(1, endLineNumber));
 	return viewModel.coordinatesConverter.convertModelRangeToViewRange(new Range(
 		startLineNumber, model.getLineMinColumn(startLineNumber),
 		endLineNumber, model.getLineMaxColumn(endLineNumber)
