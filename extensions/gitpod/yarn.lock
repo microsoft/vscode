@@ -20,10 +20,10 @@
     vscode-ws-jsonrpc "^0.2.0"
     ws "^5.2.2"
 
-"@gitpod/supervisor-api-grpc@cw-simplify-supervisor-ports-api":
-  version "0.1.5-cw-simplify-supervisor-ports-api.0"
-  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-cw-simplify-supervisor-ports-api.0.tgz#93fb0517551ed53a5a8b1cdfecede1c0604006cc"
-  integrity sha512-vgwIxm5sfpZDXuUbdQLQMhUkkiVYrIG8MeL4OoBaY8tmtH2it2cAIyGpIq0xLaVG1oEeH3BN14KYLcgFXy9jhQ==
+"@gitpod/supervisor-api-grpc@ak-git-token-in-supervisor":
+  version "0.1.5-ak-git-token-in-supervisor.17"
+  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-ak-git-token-in-supervisor.17.tgz#2062a29531d18f7c3c53e1290ed6e292a69f0273"
+  integrity sha512-D7lXEkeFDRWa06qbgzEUVT42kJgO64TwktKX8gAxjSIIMlecZYiYjDau4KsC8vlegCKES1CxuXPZnDwdnwPSNQ==
   dependencies:
     "@grpc/grpc-js" "^1.1.5"
     google-protobuf "^3.8.0-rc.1"
