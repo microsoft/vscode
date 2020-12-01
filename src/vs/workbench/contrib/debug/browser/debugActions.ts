@@ -322,7 +322,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(_: State): boolean {
-		return !this.debugService.getViewModel().getSelectedFunctionBreakpoint()
+		return !this.debugService.getViewModel().getSelectedBreakpoint()
 			&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
 	}
 }

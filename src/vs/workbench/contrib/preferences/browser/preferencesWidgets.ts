@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -21,7 +21,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -35,9 +35,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ISettingsGroup, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isEqual } from 'vs/base/common/resources';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { settingsEditIcon, settingsGroupCollapsedIcon, settingsGroupExpandedIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -172,11 +172,21 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this._register(focusTracker.onDidFocus(() => this.toggleFocus(true)));
 		this._register(focusTracker.onDidBlur(() => this.toggleFocus(false)));
 
-		this.icon = DOM.append(this.titleContainer, DOM.$('.codicon.codicon-chevron-down'));
+		this.icon = DOM.append(this.titleContainer, DOM.$(''));
 		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
 		this.title.textContent = this.settingsGroup.title + ` (${this.settingsGroup.sections.reduce((count, section) => count + section.settings.length, 0)})`;
 
+		this.updateTwisty(false);
 		this.layout();
+	}
+
+	private getTwistyIcon(isCollapsed: boolean): ThemeIcon {
+		return isCollapsed ? settingsGroupCollapsedIcon : settingsGroupExpandedIcon;
+	}
+
+	private updateTwisty(collapse: boolean) {
+		this.icon.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!collapse)));
+		this.icon.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(collapse)));
 	}
 
 	render() {
@@ -194,6 +204,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
 	toggleCollapse(collapse: boolean) {
 		this.titleContainer.classList.toggle('collapsed', collapse);
+		this.updateTwisty(collapse);
 	}
 
 	toggleFocus(focus: boolean): void {
@@ -258,6 +269,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private collapse(collapse: boolean) {
 		if (collapse !== this.isCollapsed()) {
 			this.titleContainer.classList.toggle('collapsed', collapse);
+			this.updateTwisty(collapse);
 			this._onToggled.fire(collapse);
 		}
 	}
@@ -346,7 +358,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		this.container = container;
 		this.labelElement = DOM.$('.action-title');
 		this.detailsElement = DOM.$('.action-details');
-		this.dropDownElement = DOM.$('.dropdown-icon.codicon.codicon-triangle-down.hide');
+		this.dropDownElement = DOM.$('.dropdown-icon.hide' + ThemeIcon.asCSSSelector(settingsScopeDropDownIcon));
 		this.anchorElement = DOM.$('a.action-label.folder-settings', {
 			role: 'button',
 			'aria-haspopup': 'true',
@@ -605,7 +617,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 }
 
-export interface SearchOptions extends IInputOptions {
+export interface SearchOptions extends IHistoryInputOptions {
 	focusKey?: IContextKey<boolean>;
 	showResultCount?: boolean;
 	ariaLive?: string;
@@ -618,7 +630,7 @@ export class SearchWidget extends Widget {
 
 	private countElement!: HTMLElement;
 	private searchContainer!: HTMLElement;
-	inputBox!: InputBox;
+	inputBox!: HistoryInputBox;
 	private controlsDiv!: HTMLElement;
 
 	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
@@ -630,7 +642,8 @@ export class SearchWidget extends Widget {
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.create(parent);
@@ -679,8 +692,8 @@ export class SearchWidget extends Widget {
 		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
 	}
 
-	protected createInputBox(parent: HTMLElement): InputBox {
-		const box = this._register(new InputBox(parent, this.contextViewService, this.options));
+	protected createInputBox(parent: HTMLElement): HistoryInputBox {
+		const box = this._register(new ContextScopedHistoryInputBox(parent, this.contextViewService, this.options, this.contextKeyService));
 		this._register(attachInputBoxStyler(box, this.themeService));
 
 		return box;
@@ -747,8 +760,6 @@ export class SearchWidget extends Widget {
 	}
 }
 
-export const preferencesEditIcon = registerIcon('preferences-edit', Codicon.edit, localize('preferencesEditIcon', 'Icon for the edit action in preferences.'));
-
 export class EditPreferenceWidget<T> extends Disposable {
 
 	private _line: number = -1;
@@ -786,7 +797,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		this._line = line;
 		newDecoration.push({
 			options: {
-				glyphMarginClassName: ThemeIcon.asClassName(preferencesEditIcon),
+				glyphMarginClassName: ThemeIcon.asClassName(settingsEditIcon),
 				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},

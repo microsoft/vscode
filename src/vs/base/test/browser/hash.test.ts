@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { hash, StringSHA1 } from 'vs/base/common/hash';
+import { sha1Hex } from 'vs/base/browser/hash';
 
 suite('Hash', () => {
 	test('string', () => {
@@ -71,28 +73,32 @@ suite('Hash', () => {
 	});
 
 
-	function checkSHA1(strings: string[], expected: string) {
+	async function checkSHA1(str: string, expected: string) {
+
+		// Test with StringSHA1
 		const hash = new StringSHA1();
-		for (const str of strings) {
-			hash.update(str);
-		}
-		const actual = hash.digest();
+		hash.update(str);
+		let actual = hash.digest();
+		assert.equal(actual, expected);
+
+		// Test with crypto.subtle
+		actual = await sha1Hex(str);
 		assert.equal(actual, expected);
 	}
 
 	test('sha1-1', () => {
-		checkSHA1(['\udd56'], '9bdb77276c1852e1fb067820472812fcf6084024');
+		return checkSHA1('\udd56', '9bdb77276c1852e1fb067820472812fcf6084024');
 	});
 
 	test('sha1-2', () => {
-		checkSHA1(['\udb52'], '9bdb77276c1852e1fb067820472812fcf6084024');
+		return checkSHA1('\udb52', '9bdb77276c1852e1fb067820472812fcf6084024');
 	});
 
 	test('sha1-3', () => {
-		checkSHA1(['\uda02ꑍ'], '9b483a471f22fe7e09d83f221871a987244bbd3f');
+		return checkSHA1('\uda02ꑍ', '9b483a471f22fe7e09d83f221871a987244bbd3f');
 	});
 
 	test('sha1-4', () => {
-		checkSHA1(['hello'], 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
+		return checkSHA1('hello', 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
 	});
 });

@@ -25,7 +25,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { DefaultSettingsHeaderWidget, EditPreferenceWidget, SettingsGroupTitleWidget, SettingsHeaderWidget, preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { DefaultSettingsHeaderWidget, EditPreferenceWidget, SettingsGroupTitleWidget, SettingsHeaderWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { IFilterResult, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
@@ -33,6 +33,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -738,7 +739,7 @@ class EditSettingRenderer extends Disposable {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(ThemeIcon.asClassName(preferencesEditIcon)) === -1) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(ThemeIcon.asClassName(settingsEditIcon)) === -1) {
 					return false;
 				}
 			}

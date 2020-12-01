@@ -14,7 +14,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { OnTypeRenameRangeProviderRegistry, OnTypeRenameRanges } from 'vs/editor/common/modes';
+import { LinkedEditingRangeProviderRegistry, LinkedEditingRanges } from 'vs/editor/common/modes';
 import { first, createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -30,19 +30,21 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { Color } from 'vs/base/common/color';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
+export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('LinkedEditingInputVisible', false);
 
-export class OnTypeRenameContribution extends Disposable implements IEditorContribution {
+const DECORATION_CLASS_NAME = 'linked-editing-decoration';
 
-	public static readonly ID = 'editor.contrib.onTypeRename';
+export class LinkedEditingContribution extends Disposable implements IEditorContribution {
+
+	public static readonly ID = 'editor.contrib.linkedEditing';
 
 	private static readonly DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		className: 'on-type-rename-decoration'
+		className: DECORATION_CLASS_NAME
 	});
 
-	static get(editor: ICodeEditor): OnTypeRenameContribution {
-		return editor.getContribution<OnTypeRenameContribution>(OnTypeRenameContribution.ID);
+	static get(editor: ICodeEditor): LinkedEditingContribution {
+		return editor.getContribution<LinkedEditingContribution>(LinkedEditingContribution.ID);
 	}
 
 	private _debounceDuration = 200;
@@ -91,11 +93,11 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		this._register(this._editor.onDidChangeModel(() => this.reinitialize()));
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.renameOnType)) {
+			if (e.hasChanged(EditorOption.linkedEditing) || e.hasChanged(EditorOption.renameOnType)) {
 				this.reinitialize();
 			}
 		}));
-		this._register(OnTypeRenameRangeProviderRegistry.onDidChange(() => this.reinitialize()));
+		this._register(LinkedEditingRangeProviderRegistry.onDidChange(() => this.reinitialize()));
 		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize()));
 
 		this.reinitialize();
@@ -103,7 +105,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 	private reinitialize() {
 		const model = this._editor.getModel();
-		const isEnabled = model !== null && this._editor.getOption(EditorOption.renameOnType) && OnTypeRenameRangeProviderRegistry.has(model);
+		const isEnabled = model !== null && (this._editor.getOption(EditorOption.linkedEditing) || this._editor.getOption(EditorOption.renameOnType)) && LinkedEditingRangeProviderRegistry.has(model);
 		if (isEnabled === this._enabled) {
 			return;
 		}
@@ -220,7 +222,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		try {
 			this._ignoreChangeEvent = true;
 			const prevEditOperationType = this._editor._getViewModel().getPrevEditOperationType();
-			this._editor.executeEdits('onTypeRename', edits);
+			this._editor.executeEdits('linkedEditing', edits);
 			this._editor._getViewModel().setPrevEditOperationType(prevEditOperationType);
 		} finally {
 			this._ignoreChangeEvent = false;
@@ -281,7 +283,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		this._currentRequestModelVersion = modelVersionId;
 		const request = createCancelablePromise(async token => {
 			try {
-				const response = await getOnTypeRenameRanges(model, position, token);
+				const response = await getLinkedEditingRanges(model, position, token);
 				if (request !== this._currentRequest) {
 					return;
 				}
@@ -311,12 +313,12 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 				}
 
 				if (!foundReferenceRange) {
-					// Cannot do on type rename if the ranges are not where the cursor is...
+					// Cannot do linked editing if the ranges are not where the cursor is...
 					this.clearRanges();
 					return;
 				}
 
-				const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
+				const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: LinkedEditingContribution.DECORATION }));
 				this._visibleContextKey.set(true);
 				this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
 			} catch (err) {
@@ -360,12 +362,12 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 	// }
 }
 
-export class OnTypeRenameAction extends EditorAction {
+export class LinkedEditingAction extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.onTypeRename',
-			label: nls.localize('onTypeRename.label', "On Type Rename Symbol"),
-			alias: 'On Type Rename Symbol',
+			id: 'editor.action.linkedEditing',
+			label: nls.localize('linkedEditing.label', "Start Linked Editing"),
+			alias: 'Start Linked Editing',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -396,7 +398,7 @@ export class OnTypeRenameAction extends EditorAction {
 	}
 
 	run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = OnTypeRenameContribution.get(editor);
+		const controller = LinkedEditingContribution.get(editor);
 		if (controller) {
 			return Promise.resolve(controller.updateRanges(true));
 		}
@@ -404,9 +406,9 @@ export class OnTypeRenameAction extends EditorAction {
 	}
 }
 
-const OnTypeRenameCommand = EditorCommand.bindToContribution<OnTypeRenameContribution>(OnTypeRenameContribution.get);
-registerEditorCommand(new OnTypeRenameCommand({
-	id: 'cancelOnTypeRenameInput',
+const LinkedEditingCommand = EditorCommand.bindToContribution<LinkedEditingContribution>(LinkedEditingContribution.get);
+registerEditorCommand(new LinkedEditingCommand({
+	id: 'cancelLinkedEditingInput',
 	precondition: CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE,
 	handler: x => x.clearRanges(),
 	kbOpts: {
@@ -418,15 +420,15 @@ registerEditorCommand(new OnTypeRenameCommand({
 }));
 
 
-function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<OnTypeRenameRanges | undefined | null> {
-	const orderedByScore = OnTypeRenameRangeProviderRegistry.ordered(model);
+function getLinkedEditingRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<LinkedEditingRanges | undefined | null> {
+	const orderedByScore = LinkedEditingRangeProviderRegistry.ordered(model);
 
-	// in order of score ask the on type rename provider
+	// in order of score ask the linked editing range provider
 	// until someone response with a good result
 	// (good = not null)
-	return first<OnTypeRenameRanges | undefined | null>(orderedByScore.map(provider => async () => {
+	return first<LinkedEditingRanges | undefined | null>(orderedByScore.map(provider => async () => {
 		try {
-			return await provider.provideOnTypeRenameRanges(model, position, token);
+			return await provider.provideLinkedEditingRanges(model, position, token);
 		} catch (e) {
 			onUnexpectedExternalError(e);
 			return undefined;
@@ -434,15 +436,15 @@ function getOnTypeRenameRanges(model: ITextModel, position: Position, token: Can
 	}), result => !!result && arrays.isNonEmptyArray(result?.ranges));
 }
 
-export const editorOnTypeRenameBackground = registerColor('editor.onTypeRenameBackground', { dark: Color.fromHex('#f00').transparent(0.3), light: Color.fromHex('#f00').transparent(0.3), hc: Color.fromHex('#f00').transparent(0.3) }, nls.localize('editorOnTypeRenameBackground', 'Background color when the editor auto renames on type.'));
+export const editorLinkedEditingBackground = registerColor('editor.linkedEditingBackground', { dark: Color.fromHex('#f00').transparent(0.3), light: Color.fromHex('#f00').transparent(0.3), hc: Color.fromHex('#f00').transparent(0.3) }, nls.localize('editorLinkedEditingBackground', 'Background color when the editor auto renames on type.'));
 registerThemingParticipant((theme, collector) => {
-	const editorOnTypeRenameBackgroundColor = theme.getColor(editorOnTypeRenameBackground);
-	if (editorOnTypeRenameBackgroundColor) {
-		collector.addRule(`.monaco-editor .on-type-rename-decoration { background: ${editorOnTypeRenameBackgroundColor}; border-left-color: ${editorOnTypeRenameBackgroundColor}; }`);
+	const editorLinkedEditingBackgroundColor = theme.getColor(editorLinkedEditingBackground);
+	if (editorLinkedEditingBackgroundColor) {
+		collector.addRule(`.monaco-editor .${DECORATION_CLASS_NAME} { background: ${editorLinkedEditingBackgroundColor}; border-left-color: ${editorLinkedEditingBackgroundColor}; }`);
 	}
 });
 
-registerModelAndPositionCommand('_executeRenameOnTypeProvider', (model, position) => getOnTypeRenameRanges(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeLinkedEditingProvider', (model, position) => getLinkedEditingRanges(model, position, CancellationToken.None));
 
-registerEditorContribution(OnTypeRenameContribution.ID, OnTypeRenameContribution);
-registerEditorAction(OnTypeRenameAction);
+registerEditorContribution(LinkedEditingContribution.ID, LinkedEditingContribution);
+registerEditorAction(LinkedEditingAction);

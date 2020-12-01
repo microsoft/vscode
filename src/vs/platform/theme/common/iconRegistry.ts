@@ -210,7 +210,7 @@ class IconRegistry implements IIconRegistry {
 		const contributions = Object.keys(this.iconsById).map(key => this.iconsById[key]);
 
 		for (const i of contributions.sort(sorter)) {
-			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defaults) ? i.defaults.id : ''}|`);
+			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defaults) ? i.defaults.id : ''}|${i.description || ''}|`);
 
 			if (!ThemeIcon.isThemeIcon((i.defaults))) {
 				docCss.push(`.codicon-${i.id}:before { content: "${i.defaults.character}" }`);
@@ -259,3 +259,6 @@ iconRegistry.onDidChange(() => {
 // common icons
 
 export const widgetClose = registerIcon('widget-close', Codicons.Codicon.close, localize('widgetClose', 'Icon for the close action in widgets.'));
+
+export const gotoPreviousLocation = registerIcon('goto-previous-location', Codicons.Codicon.arrowUp, localize('previousChangeIcon', 'Icon for goto previous editor location.'));
+export const gotoNextLocation = registerIcon('goto-next-location', Codicons.Codicon.arrowDown, localize('nextChangeIcon', 'Icon for goto next editor location.'));

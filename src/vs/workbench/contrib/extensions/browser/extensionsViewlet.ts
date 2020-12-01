@@ -32,7 +32,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -63,6 +63,7 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
+import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -582,7 +583,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}
 
 		return [
-			this._register(new SubmenuAction('workbench.extensions.action.filterExtensions', localize('filterExtensions', "Filter Extensions..."), filterActions, 'codicon-filter')),
+			this._register(new SubmenuAction('workbench.extensions.action.filterExtensions', localize('filterExtensions', "Filter Extensions..."), filterActions, ThemeIcon.asClassName(filterIcon))),
 			this._register(this.instantiationService.createInstance(RefreshExtensionsAction, RefreshExtensionsAction.ID, RefreshExtensionsAction.LABEL)),
 			this._register(this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange, () => this.searchBox!.getValue() || '')),
 		];
@@ -820,7 +821,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 					.filter(e => maliciousSet.has(e.identifier.id));
 
 				if (maliciousExtensions.length) {
-					return Promise.all(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
+					return Promise.all(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {
 						this.notificationService.prompt(
 							Severity.Warning,
 							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.identifier.id),

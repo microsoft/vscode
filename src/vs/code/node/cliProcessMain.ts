@@ -331,7 +331,7 @@ export class Main {
 				return;
 			}
 			console.log(localize('uninstalling', "Uninstalling {0}...", id));
-			await this.extensionManagementService.uninstall(extensionToUninstall, true);
+			await this.extensionManagementService.uninstall(extensionToUninstall);
 			uninstalledExtensions.push(extensionToUninstall);
 			console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
 		}

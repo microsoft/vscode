@@ -919,7 +919,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 			callStack = callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 		}
-		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
+		if (!thread.reachedEndOfCallStack && thread.stoppedDetails) {
 			callStack = callStack.concat([new ThreadAndSessionIds(thread.session.getId(), thread.threadId)]);
 		}
 

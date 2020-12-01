@@ -27,7 +27,7 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
-import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { registerCodicon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
 import { renderCodicons } from 'vs/base/browser/codicons';
@@ -72,7 +72,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 
-const backButtonIcon = registerIcon('quick-input-back', Codicon.arrowLeft, localize('backButtonIcon', 'Icon for the back button in the quick input dialog.'));
+const backButtonIcon = registerCodicon('quick-input-back', Codicon.arrowLeft, localize('backButtonIcon', 'Icon for the back button in the quick input dialog.'));
 
 const backButton = {
 	iconClass: backButtonIcon.classNames,

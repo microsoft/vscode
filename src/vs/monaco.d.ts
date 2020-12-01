@@ -2588,6 +2588,14 @@ declare namespace monaco.editor {
 		Full = 4
 	}
 
+	export enum InDiffEditorState {
+		None = 0,
+		SideBySideLeft = 1,
+		SideBySideRight = 2,
+		InlineLeft = 3,
+		InlineRight = 4
+	}
+
 	/**
 	 * Configuration options for the editor.
 	 */
@@ -2595,7 +2603,7 @@ declare namespace monaco.editor {
 		/**
 		 * This editor is used inside a diff editor.
 		 */
-		inDiffEditor?: boolean;
+		inDiffEditor?: InDiffEditorState;
 		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
@@ -2691,8 +2699,12 @@ declare namespace monaco.editor {
 		 */
 		readOnly?: boolean;
 		/**
-		 * Rename matching regions on type.
+		 * Enable linked editing.
 		 * Defaults to false.
+		 */
+		linkedEditing?: boolean;
+		/**
+		 * deprecated, use linkedEditing instead
 		 */
 		renameOnType?: boolean;
 		/**
@@ -2968,10 +2980,10 @@ declare namespace monaco.editor {
 		 */
 		autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 		/**
-		 * Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation.
-		 * This means selection will snap to indentation boundaries.
+		 * Emulate selection behaviour of tab characters when using spaces for indentation.
+		 * This means selection will stick to tab stops.
 		 */
-		atomicSoftTabs?: boolean;
+		stickyTabStops?: boolean;
 		/**
 		 * Enable format on type.
 		 * Defaults to false.
@@ -3903,52 +3915,52 @@ declare namespace monaco.editor {
 		autoIndent = 8,
 		automaticLayout = 9,
 		autoSurround = 10,
-		atomicSoftTabs = 11,
-		codeLens = 12,
-		codeLensFontFamily = 13,
-		codeLensFontSize = 14,
-		colorDecorators = 15,
-		columnSelection = 16,
-		comments = 17,
-		contextmenu = 18,
-		copyWithSyntaxHighlighting = 19,
-		cursorBlinking = 20,
-		cursorSmoothCaretAnimation = 21,
-		cursorStyle = 22,
-		cursorSurroundingLines = 23,
-		cursorSurroundingLinesStyle = 24,
-		cursorWidth = 25,
-		disableLayerHinting = 26,
-		disableMonospaceOptimizations = 27,
-		dragAndDrop = 28,
-		emptySelectionClipboard = 29,
-		extraEditorClassName = 30,
-		fastScrollSensitivity = 31,
-		find = 32,
-		fixedOverflowWidgets = 33,
-		folding = 34,
-		foldingStrategy = 35,
-		foldingHighlight = 36,
-		unfoldOnClickAfterEndOfLine = 37,
-		fontFamily = 38,
-		fontInfo = 39,
-		fontLigatures = 40,
-		fontSize = 41,
-		fontWeight = 42,
-		formatOnPaste = 43,
-		formatOnType = 44,
-		glyphMargin = 45,
-		gotoLocation = 46,
-		hideCursorInOverviewRuler = 47,
-		highlightActiveIndentGuide = 48,
-		hover = 49,
-		inDiffEditor = 50,
-		letterSpacing = 51,
-		lightbulb = 52,
-		lineDecorationsWidth = 53,
-		lineHeight = 54,
-		lineNumbers = 55,
-		lineNumbersMinChars = 56,
+		codeLens = 11,
+		codeLensFontFamily = 12,
+		codeLensFontSize = 13,
+		colorDecorators = 14,
+		columnSelection = 15,
+		comments = 16,
+		contextmenu = 17,
+		copyWithSyntaxHighlighting = 18,
+		cursorBlinking = 19,
+		cursorSmoothCaretAnimation = 20,
+		cursorStyle = 21,
+		cursorSurroundingLines = 22,
+		cursorSurroundingLinesStyle = 23,
+		cursorWidth = 24,
+		disableLayerHinting = 25,
+		disableMonospaceOptimizations = 26,
+		dragAndDrop = 27,
+		emptySelectionClipboard = 28,
+		extraEditorClassName = 29,
+		fastScrollSensitivity = 30,
+		find = 31,
+		fixedOverflowWidgets = 32,
+		folding = 33,
+		foldingStrategy = 34,
+		foldingHighlight = 35,
+		unfoldOnClickAfterEndOfLine = 36,
+		fontFamily = 37,
+		fontInfo = 38,
+		fontLigatures = 39,
+		fontSize = 40,
+		fontWeight = 41,
+		formatOnPaste = 42,
+		formatOnType = 43,
+		glyphMargin = 44,
+		gotoLocation = 45,
+		hideCursorInOverviewRuler = 46,
+		highlightActiveIndentGuide = 47,
+		hover = 48,
+		inDiffEditor = 49,
+		letterSpacing = 50,
+		lightbulb = 51,
+		lineDecorationsWidth = 52,
+		lineHeight = 53,
+		lineNumbers = 54,
+		lineNumbersMinChars = 55,
+		linkedEditing = 56,
 		links = 57,
 		matchBrackets = 58,
 		minimap = 59,
@@ -3991,30 +4003,31 @@ declare namespace monaco.editor {
 		snippetSuggestions = 96,
 		smartSelect = 97,
 		smoothScrolling = 98,
-		stopRenderingLineAfter = 99,
-		suggest = 100,
-		suggestFontSize = 101,
-		suggestLineHeight = 102,
-		suggestOnTriggerCharacters = 103,
-		suggestSelection = 104,
-		tabCompletion = 105,
-		tabIndex = 106,
-		unusualLineTerminators = 107,
-		useTabStops = 108,
-		wordSeparators = 109,
-		wordWrap = 110,
-		wordWrapBreakAfterCharacters = 111,
-		wordWrapBreakBeforeCharacters = 112,
-		wordWrapColumn = 113,
-		wordWrapMinified = 114,
-		wrappingIndent = 115,
-		wrappingStrategy = 116,
-		showDeprecated = 117,
-		editorClassName = 118,
-		pixelRatio = 119,
-		tabFocusMode = 120,
-		layoutInfo = 121,
-		wrappingInfo = 122
+		stickyTabStops = 99,
+		stopRenderingLineAfter = 100,
+		suggest = 101,
+		suggestFontSize = 102,
+		suggestLineHeight = 103,
+		suggestOnTriggerCharacters = 104,
+		suggestSelection = 105,
+		tabCompletion = 106,
+		tabIndex = 107,
+		unusualLineTerminators = 108,
+		useTabStops = 109,
+		wordSeparators = 110,
+		wordWrap = 111,
+		wordWrapBreakAfterCharacters = 112,
+		wordWrapBreakBeforeCharacters = 113,
+		wordWrapColumn = 114,
+		wordWrapMinified = 115,
+		wrappingIndent = 116,
+		wrappingStrategy = 117,
+		showDeprecated = 118,
+		editorClassName = 119,
+		pixelRatio = 120,
+		tabFocusMode = 121,
+		layoutInfo = 122,
+		wrappingInfo = 123
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4028,7 +4041,7 @@ declare namespace monaco.editor {
 		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
 		autoSurround: IEditorOption<EditorOption.autoSurround, EditorAutoSurroundStrategy>;
-		atomicSoftTabs: IEditorOption<EditorOption.atomicSoftTabs, boolean>;
+		stickyTabStops: IEditorOption<EditorOption.stickyTabStops, boolean>;
 		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
@@ -4067,13 +4080,14 @@ declare namespace monaco.editor {
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
 		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, boolean>;
 		hover: IEditorOption<EditorOption.hover, EditorHoverOptions>;
-		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
+		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, number>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, EditorLightbulbOptions>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, string | number>;
 		lineHeight: IEditorOption<EditorOption.lineHeight, number>;
 		lineNumbers: IEditorOption<EditorOption.lineNumbers, InternalEditorRenderLineNumbersOptions>;
 		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number>;
+		linkedEditing: IEditorOption<EditorOption.linkedEditing, boolean>;
 		links: IEditorOption<EditorOption.links, boolean>;
 		matchBrackets: IEditorOption<EditorOption.matchBrackets, 'always' | 'never' | 'near'>;
 		minimap: IEditorOption<EditorOption.minimap, EditorMinimapOptions>;
@@ -5093,9 +5107,9 @@ declare namespace monaco.languages {
 	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
 
 	/**
-	 * Register an on type rename range provider.
+	 * Register an linked editing range provider.
 	 */
-	export function registerOnTypeRenameRangeProvider(languageId: string, provider: OnTypeRenameRangeProvider): IDisposable;
+	export function registerLinkedEditingRangeProvider(languageId: string, provider: LinkedEditingRangeProvider): IDisposable;
 
 	/**
 	 * Register a definition provider (used by e.g. go to definition).
@@ -5839,23 +5853,23 @@ declare namespace monaco.languages {
 	}
 
 	/**
-	 * The rename range provider interface defines the contract between extensions and
-	 * the live-rename feature.
+	 * The linked editing range provider interface defines the contract between extensions and
+	 * the linked editing feature.
 	 */
-	export interface OnTypeRenameRangeProvider {
+	export interface LinkedEditingRangeProvider {
 		/**
-		 * Provide a list of ranges that can be live-renamed together.
+		 * Provide a list of ranges that can be edited together.
 		 */
-		provideOnTypeRenameRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<OnTypeRenameRanges>;
+		provideLinkedEditingRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
 	}
 
 	/**
-	 * Represents a list of ranges that can be renamed together along with a word pattern to describe valid range contents.
+	 * Represents a list of ranges that can be edited together along with a word pattern to describe valid contents.
 	 */
-	export interface OnTypeRenameRanges {
+	export interface LinkedEditingRanges {
 		/**
-		 * A list of ranges that can be renamed together. The ranges must have
-		 * identical length and contain identical text content. The ranges cannot overlap
+		 * A list of ranges that can be edited together. The ranges must have
+		 * identical length and text content. The ranges cannot overlap
 		 */
 		ranges: IRange[];
 		/**

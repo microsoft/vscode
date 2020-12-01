@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
@@ -888,7 +888,7 @@ class ViewModel {
 	}
 
 	private createGroupItem(group: ISCMResourceGroup): IGroupItem {
-		const tree = new ResourceTree<ISCMResource, ISCMResourceGroup>(group, group.provider.rootUri || URI.file('/'));
+		const tree = new ResourceTree<ISCMResource, ISCMResourceGroup>(group, group.provider.rootUri || URI.file('/'), this.uriIdentityService.extUri);
 		const resources: ISCMResource[] = [...group.elements];
 		const disposable = combinedDisposable(
 			group.onDidChange(() => this.tree.refilter()),
@@ -1049,7 +1049,7 @@ class ViewModel {
 			for (let j = item.groupItems.length - 1; j >= 0; j--) {
 				const groupItem = item.groupItems[j];
 				const resource = this.mode === ViewModelMode.Tree
-					? groupItem.tree.getNode(uri)?.element // TODO@Joao URI identity?
+					? groupItem.tree.getNode(uri)?.element
 					: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
 				if (resource) {
@@ -1229,7 +1229,7 @@ export class ToggleViewModeAction extends Action {
 	}
 
 	private onDidChangeMode(mode: ViewModelMode): void {
-		const iconClass = mode === ViewModelMode.List ? 'codicon-list-tree' : 'codicon-list-flat';
+		const iconClass = ThemeIcon.asClassName(mode === ViewModelMode.List ? Codicon.listTree : Codicon.listFlat);
 		this.class = `scm-action toggle-view-mode ${iconClass}`;
 		this.checked = this.viewModel.mode === this.mode;
 	}
@@ -1658,7 +1658,7 @@ class SCMCollapseAction extends Action {
 		this.enabled = isAnyProviderCollapsible;
 		this.allCollapsed = isAnyProviderCollapsible && this.viewModel.areAllProvidersCollapsed();
 		this.label = this.allCollapsed ? localize('expand all', "Expand All Repositories") : localize('collapse all', "Collapse All Repositories");
-		this.class = this.allCollapsed ? Codicon.expandAll.classNames : Codicon.collapseAll.classNames;
+		this.class = ThemeIcon.asClassName(this.allCollapsed ? Codicon.expandAll : Codicon.collapseAll);
 	}
 }
 

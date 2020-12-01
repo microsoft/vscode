@@ -1275,19 +1275,6 @@ export class CodeLens {
 	}
 }
 
-
-export class CodeInset {
-
-	range: Range;
-	height?: number;
-
-	constructor(range: Range, height?: number) {
-		this.range = range;
-		this.height = height;
-	}
-}
-
-
 @es5ClassCompat
 export class MarkdownString extends BaseMarkdownString implements vscode.MarkdownString {
 
@@ -2349,16 +2336,6 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	}
 }
 
-export enum LogLevel {
-	Trace = 1,
-	Debug = 2,
-	Info = 3,
-	Warning = 4,
-	Error = 5,
-	Critical = 6,
-	Off = 7
-}
-
 //#region file api
 
 export enum FileChangeType {
@@ -2902,7 +2879,7 @@ export enum StandardTokenType {
 }
 
 
-export class OnTypeRenameRanges {
+export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
 	}
 }

@@ -35,14 +35,14 @@ export interface IRemoteDiagnosticOptions {
 	includeWorkspaceMetadata?: boolean;
 }
 
-function parseOpenUrl(args: NativeParsedArgs): URI[] {
+function parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
 	if (args['open-url'] && args._urls && args._urls.length > 0) {
 		// --open-url must contain -- followed by the url(s)
 		// process.argv is used over args._ as args._ are resolved to file paths at this point
 		return coalesce(args._urls
 			.map(url => {
 				try {
-					return URI.parse(url);
+					return { uri: URI.parse(url), url };
 				} catch (err) {
 					return null;
 				}
@@ -101,8 +101,8 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Make sure a window is open, ready to receive the url event
 			whenWindowReady.then(() => {
-				for (const url of urlsToOpen) {
-					this.urlService.open(url);
+				for (const { uri, url } of urlsToOpen) {
+					this.urlService.open(uri, { originalUrl: url });
 				}
 			});
 		}

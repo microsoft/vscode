@@ -45,6 +45,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
+export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
@@ -62,7 +63,7 @@ export interface ITunnelViewModel {
 	readonly detected: TunnelItem[];
 	readonly candidates: TunnelItem[];
 	readonly input: TunnelItem;
-	groups(): Promise<ITunnelGroup[]>;
+	groupsAndForwarded(): Promise<ITunnelGroup[]>;
 }
 
 export class TunnelViewModel extends Disposable implements ITunnelViewModel {
@@ -73,7 +74,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
@@ -85,22 +87,19 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			tunnelType: TunnelType.Add,
 			remoteHost: 'localhost',
 			remotePort: 0,
-			description: ''
+			description: '',
+			iconClasses: undefined
 		};
 	}
 
-	async groups(): Promise<ITunnelGroup[]> {
-		const groups: ITunnelGroup[] = [];
+	async groupsAndForwarded(): Promise<ITunnelGroup[]> {
+		const groups: (ITunnelGroup | TunnelItem)[] = [];
 		this._candidates = new Map();
 		(await this.model.candidates).forEach(candidate => {
 			this._candidates.set(makeAddress(candidate.host, candidate.port), candidate);
 		});
 		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
-			groups.push({
-				label: nls.localize('remote.tunnelsView.forwarded', "Forwarded"),
-				tunnelType: TunnelType.Forwarded,
-				items: this.forwarded
-			});
+			groups.push(...this.forwarded);
 		}
 		if (this.model.detected.size > 0) {
 			groups.push({
@@ -109,13 +108,15 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 				items: this.detected
 			});
 		}
-		const candidates = await this.candidates;
-		if (candidates.length > 0) {
-			groups.push({
-				label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
-				tunnelType: TunnelType.Candidate,
-				items: candidates
-			});
+		if (!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
+			const candidates = await this.candidates;
+			if (candidates.length > 0) {
+				groups.push({
+					label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
+					tunnelType: TunnelType.Candidate,
+					items: candidates
+				});
+			}
 		}
 		if (groups.length === 0) {
 			groups.push(this._input);
@@ -180,6 +181,7 @@ interface ITunnelTemplateData {
 	elementDisposable: IDisposable;
 	container: HTMLElement;
 	iconLabel: IconLabel;
+	icon: HTMLElement;
 	actionBar: ActionBar;
 }
 
@@ -212,6 +214,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 
 	renderTemplate(container: HTMLElement): ITunnelTemplateData {
 		container.classList.add('custom-view-tree-node-item');
+		const icon = dom.append(container, dom.$('.custom-view-tree-node-item-icon'));
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		// dom.addClass(iconLabel.element, 'tunnel-view-label');
 		const actionsContainer = dom.append(iconLabel.element, dom.$('.actions'));
@@ -227,7 +230,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			}
 		});
 
-		return { iconLabel, actionBar, container, elementDisposable: Disposable.None };
+		return { icon, iconLabel, actionBar, container, elementDisposable: Disposable.None };
 	}
 
 	private isTunnelItem(item: ITunnelGroup | ITunnelItem): item is ITunnelItem {
@@ -240,6 +243,9 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 
 		// reset
 		templateData.actionBar.clear();
+		templateData.icon.className = 'custom-view-tree-node-item-icon';
+		templateData.icon.hidden = true;
+
 		let editableData: IEditableData | undefined;
 		if (this.isTunnelItem(node)) {
 			editableData = this.remoteExplorerService.getEditableData(node);
@@ -262,6 +268,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
 		const label = node.label + (node.description ? (' - ' + node.description) : '');
 		templateData.iconLabel.setLabel(node.label, node.description, { title: label, extraClasses: ['tunnel-view-label'] });
+
 		templateData.actionBar.context = node;
 		const contextKeyService = this._register(this.contextKeyService.createScoped());
 		contextKeyService.createKey('view', this.viewId);
@@ -277,6 +284,13 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			if (this._actionRunner) {
 				templateData.actionBar.actionRunner = this._actionRunner;
 			}
+		}
+		if (node.iconClasses) {
+			templateData.icon.className = `custom-view-tree-node-item-icon ${node.iconClasses}`;
+			templateData.icon.hidden = false;
+		} else {
+			templateData.icon.className = 'custom-view-tree-node-item-icon';
+			templateData.icon.hidden = true;
 		}
 	}
 
@@ -370,14 +384,7 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 
 	async getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			const groups = await element.groups();
-			if (groups.length === 1) {
-				const items = await groups[0].items;
-				if (items && (items.length > 0) && (items[0].tunnelType === TunnelType.Forwarded)) {
-					return items;
-				}
-			}
-			return groups;
+			return element.groupsAndForwarded();
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
@@ -395,7 +402,7 @@ interface ITunnelGroup {
 
 class TunnelItem implements ITunnelItem {
 	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
-		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description ?? tunnel.runningProcess);
+		return new TunnelItem(type, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.localPort, closeable === undefined ? tunnel.closeable : closeable, tunnel.name, tunnel.description ?? tunnel.runningProcess, tunnel.source);
 	}
 
 	constructor(
@@ -407,6 +414,7 @@ class TunnelItem implements ITunnelItem {
 		public closeable?: boolean,
 		public name?: string,
 		private _description?: string,
+		private source?: string
 	) { }
 	get label(): string {
 		if (this.name) {
@@ -446,12 +454,29 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	get description(): string | undefined {
-		if (this._description) {
-			return this._description;
-		} else if (this.name && this.localAddress) {
-			return nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress));
+		const description: string[] = [];
+
+		if (this.name && this.localAddress) {
+			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress)));
 		}
+
+		if (this._description) {
+			description.push(this._description);
+		}
+
+		if (this.source) {
+			description.push(this.source);
+		}
+
+		if (description.length > 0) {
+			return description.join('  \u2022  ');
+		}
+
 		return undefined;
+	}
+
+	get iconClasses(): string | undefined {
+		return this.tunnelType === TunnelType.Detected || this.tunnelType === TunnelType.Forwarded ? Codicon.plug.classNames : undefined;
 	}
 }
 
@@ -902,6 +927,47 @@ export namespace OpenPortInBrowserAction {
 	}
 }
 
+namespace OpenPortInBrowserCommandPaletteAction {
+	export const ID = 'remote.tunnel.openCommandPalette';
+	export const LABEL = nls.localize('remote.tunnel.openCommandPalette', "Open Port in Browser");
+
+	interface QuickPickTunnel extends IQuickPickItem {
+		tunnel?: TunnelItem;
+	}
+
+	export function handler(): ICommandHandler {
+		return async (accessor, arg) => {
+			const model = accessor.get(IRemoteExplorerService).tunnelModel;
+			const quickPickService = accessor.get(IQuickInputService);
+			const openerService = accessor.get(IOpenerService);
+			const commandService = accessor.get(ICommandService);
+			const options: QuickPickTunnel[] = [...model.forwarded, ...model.detected].map(value => {
+				const tunnelItem = TunnelItem.createFromTunnel(value[1]);
+				return {
+					label: tunnelItem.label,
+					description: tunnelItem.description,
+					tunnel: tunnelItem
+				};
+			});
+			if (options.length === 0) {
+				options.push({
+					label: nls.localize('remote.tunnel.openCommandPaletteNone', "No ports currently forwarded. Open the Ports view to get started.")
+				});
+			} else {
+				options.push({
+					label: nls.localize('remote.tunnel.openCommandPaletteView', "Open the Ports view...")
+				});
+			}
+			const picked = await quickPickService.pick<QuickPickTunnel>(options, { placeHolder: nls.localize('remote.tunnel.openCommandPalettePick', "Choose the port to open") });
+			if (picked && picked.tunnel) {
+				return OpenPortInBrowserAction.run(model, openerService, makeAddress(picked.tunnel.remoteHost, picked.tunnel.remotePort));
+			} else if (picked) {
+				return commandService.executeCommand(`${TUNNEL_VIEW_ID}.focus`);
+			}
+		};
+	}
+}
+
 namespace CopyAddressAction {
 	export const INLINE_ID = 'remote.tunnel.copyAddressInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.copyAddressCommandPalette';
@@ -969,7 +1035,7 @@ namespace ChangeLocalPortAction {
 							const numberValue = Number(value);
 							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue, context.name);
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
-								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort));
+								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort ?? newForward.localAddress));
 							}
 						}
 					},
@@ -1008,6 +1074,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 CommandsRegistry.registerCommand(ClosePortAction.COMMANDPALETTE_ID, ClosePortAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
+CommandsRegistry.registerCommand(OpenPortInBrowserCommandPaletteAction.ID, OpenPortInBrowserCommandPaletteAction.handler());
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CopyAddressAction.INLINE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
@@ -1036,6 +1103,13 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
 	command: {
 		id: CopyAddressAction.COMMANDPALETTE_ID,
 		title: CopyAddressAction.COMMANDPALETTE_LABEL
+	},
+	when: forwardedPortsViewEnabled
+}));
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+	command: {
+		id: OpenPortInBrowserCommandPaletteAction.ID,
+		title: OpenPortInBrowserCommandPaletteAction.LABEL
 	},
 	when: forwardedPortsViewEnabled
 }));

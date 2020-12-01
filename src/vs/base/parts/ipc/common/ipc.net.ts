@@ -275,7 +275,11 @@ class ProtocolWriter {
 	}
 
 	public dispose(): void {
-		this.flush();
+		try {
+			this.flush();
+		} catch (err) {
+			// ignore error, since the socket could be already closed
+		}
 		this._isDisposed = true;
 	}
 

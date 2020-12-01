@@ -41,6 +41,14 @@ export const enum EditorAutoIndentStrategy {
 	Full = 4
 }
 
+export const enum InDiffEditorState {
+	None = 0,
+	SideBySideLeft = 1,
+	SideBySideRight = 2,
+	InlineLeft = 3,
+	InlineRight = 4
+}
+
 /**
  * Configuration options for the editor.
  */
@@ -48,7 +56,7 @@ export interface IEditorOptions {
 	/**
 	 * This editor is used inside a diff editor.
 	 */
-	inDiffEditor?: boolean;
+	inDiffEditor?: InDiffEditorState;
 	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
@@ -144,8 +152,12 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
-	 * Rename matching regions on type.
+	 * Enable linked editing.
 	 * Defaults to false.
+	 */
+	linkedEditing?: boolean;
+	/**
+	 * deprecated, use linkedEditing instead
 	 */
 	renameOnType?: boolean;
 	/**
@@ -421,10 +433,10 @@ export interface IEditorOptions {
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
-	 * Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation.
-	 * This means selection will snap to indentation boundaries.
+	 * Emulate selection behaviour of tab characters when using spaces for indentation.
+	 * This means selection will stick to tab stops.
 	 */
-	atomicSoftTabs?: boolean;
+	stickyTabStops?: boolean;
 	/**
 	 * Enable format on type.
 	 * Defaults to false.
@@ -1956,7 +1968,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers,
 				EditorOption.lineNumbersMinChars, EditorOption.scrollBeyondLastLine,
 				EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified,
-				EditorOption.accessibilitySupport
+				EditorOption.accessibilitySupport, EditorOption.inDiffEditor
 			]
 		);
 	}
@@ -2170,6 +2182,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
 		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		const inDiffEditor = options.get(EditorOption.inDiffEditor);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
@@ -2220,11 +2233,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let isViewportWrapping = false;
 		let wrappingColumn = -1;
 
-		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
+		if (accessibilitySupport !== AccessibilitySupport.Enabled && inDiffEditor !== InDiffEditorState.InlineLeft) {
 			// See https://github.com/microsoft/vscode/issues/27766
 			// Never enable wrapping when a screen reader is attached
 			// because arrow down etc. will not move the cursor in the way
 			// a screen reader expects.
+
+			// Also see https://github.com/microsoft/vscode/issues/110897
+			// Never enable wrapping for the left hand side editor of an inline diff editor.
 			if (wordWrapMinified && isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				isWordWrapMinified = true;
@@ -3636,7 +3652,6 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
-	atomicSoftTabs,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -3682,6 +3697,7 @@ export const enum EditorOption {
 	lineHeight,
 	lineNumbers,
 	lineNumbersMinChars,
+	linkedEditing,
 	links,
 	matchBrackets,
 	minimap,
@@ -3724,6 +3740,7 @@ export const enum EditorOption {
 	snippetSuggestions,
 	smartSelect,
 	smoothScrolling,
+	stickyTabStops,
 	stopRenderingLineAfter,
 	suggest,
 	suggestFontSize,
@@ -3865,9 +3882,9 @@ export const EditorOptions = {
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
-	atomicSoftTabs: register(new EditorBooleanOption(
-		EditorOption.atomicSoftTabs, 'atomicSoftTabs', false,
-		{ description: nls.localize('atomicSoftTabs', "Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation. This means selection will snap to indentation boundaries.") }
+	stickyTabStops: register(new EditorBooleanOption(
+		EditorOption.stickyTabStops, 'stickyTabStops', false,
+		{ description: nls.localize('stickyTabStops', "Emulate selection behaviour of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,
@@ -4017,8 +4034,8 @@ export const EditorOptions = {
 		{ description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide.") }
 	)),
 	hover: register(new EditorHover()),
-	inDiffEditor: register(new EditorBooleanOption(
-		EditorOption.inDiffEditor, 'inDiffEditor', false,
+	inDiffEditor: register(new EditorIntOption(
+		EditorOption.inDiffEditor, 'inDiffEditor', 0, 0, 4
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',
@@ -4032,6 +4049,10 @@ export const EditorOptions = {
 	lineNumbersMinChars: register(new EditorIntOption(
 		EditorOption.lineNumbersMinChars, 'lineNumbersMinChars',
 		5, 1, 300
+	)),
+	linkedEditing: register(new EditorBooleanOption(
+		EditorOption.linkedEditing, 'linkedEditing', false,
+		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols, e.g. HTML tags, are updated while editing.") }
 	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,
@@ -4134,7 +4155,7 @@ export const EditorOptions = {
 	)),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
-		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
+		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,

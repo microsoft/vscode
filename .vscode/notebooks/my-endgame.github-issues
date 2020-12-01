@@ -20,13 +20,25 @@
   {
     "kind": 1,
     "language": "markdown",
+    "value": "## Open Pull Requests on the Milestone",
+    "editable": true
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$REPOS $MILESTONE $MINE is:pr is:open",
+    "editable": true
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
     "value": "## Open Issues on the Milestone",
     "editable": true
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE $MINE is:issue is:open -label:iteration-plan",
+    "value": "$REPOS $MILESTONE $MINE is:issue is:open -label:iteration-plan -label:endgame-plan -label:testplan-item",
     "editable": true
   },
   {
@@ -92,7 +104,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed -assignee:@me label:feature-request label:verification-needed",
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed -assignee:@me -label:verified label:feature-request label:verification-needed",
     "editable": true
   },
   {

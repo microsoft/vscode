@@ -878,7 +878,12 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const notificationService = accessor.get(INotificationService);
 	const commandService = accessor.get(ICommandService);
 
+	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
 	const view = await viewsService.openView(VIEW_ID, true);
+	if (wasHidden) {
+		// Give explorer some time to resolve itself #111218
+		await timeout(500);
+	}
 	if (!view) {
 		// Can happen in empty workspace case (https://github.com/microsoft/vscode/issues/100604)
 

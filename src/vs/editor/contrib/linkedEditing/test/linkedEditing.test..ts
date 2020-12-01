@@ -10,7 +10,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { OnTypeRenameContribution } from 'vs/editor/contrib/rename/onTypeRename';
+import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/linkedEditing';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
@@ -30,12 +30,12 @@ interface TestEditor {
 	redo(): void;
 }
 
-const languageIdentifier = new modes.LanguageIdentifier('onTypeRenameTestLangage', 74);
+const languageIdentifier = new modes.LanguageIdentifier('linkedEditingTestLangage', 74);
 LanguageConfigurationRegistry.register(languageIdentifier, {
 	wordPattern: /[a-zA-Z]+/
 });
 
-suite('On type rename', () => {
+suite('linked editing', () => {
 	const disposables = new DisposableStore();
 
 	setup(() => {
@@ -66,8 +66,8 @@ suite('On type rename', () => {
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
-			disposables.add(modes.OnTypeRenameRangeProviderRegistry.register(mockFileSelector, {
-				provideOnTypeRenameRanges(model: ITextModel, pos: IPosition) {
+			disposables.add(modes.LinkedEditingRangeProviderRegistry.register(mockFileSelector, {
+				provideLinkedEditingRanges(model: ITextModel, pos: IPosition) {
 					const wordAtPos = model.getWordAtPosition(pos);
 					if (wordAtPos) {
 						const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
@@ -78,25 +78,25 @@ suite('On type rename', () => {
 			}));
 
 			const editor = createMockEditor(initialState.text);
-			editor.updateOptions({ renameOnType: true });
-			const ontypeRenameContribution = editor.registerAndInstantiateContribution(
-				OnTypeRenameContribution.ID,
-				OnTypeRenameContribution
+			editor.updateOptions({ linkedEditing: true });
+			const linkedEditingContribution = editor.registerAndInstantiateContribution(
+				LinkedEditingContribution.ID,
+				LinkedEditingContribution
 			);
-			ontypeRenameContribution.setDebounceDuration(0);
+			linkedEditingContribution.setDebounceDuration(0);
 
 			const testEditor: TestEditor = {
 				setPosition(pos: Position) {
 					editor.setPosition(pos);
-					return ontypeRenameContribution.currentUpdateTriggerPromise;
+					return linkedEditingContribution.currentUpdateTriggerPromise;
 				},
 				setSelection(sel: IRange) {
 					editor.setSelection(sel);
-					return ontypeRenameContribution.currentUpdateTriggerPromise;
+					return linkedEditingContribution.currentUpdateTriggerPromise;
 				},
 				trigger(source: string | null | undefined, handlerId: string, payload: any) {
 					editor.trigger(source, handlerId, payload);
-					return ontypeRenameContribution.currentSyncTriggerPromise;
+					return linkedEditingContribution.currentSyncTriggerPromise;
 				},
 				undo() {
 					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
@@ -251,7 +251,7 @@ suite('On type rename', () => {
 	// testCase('Selection insert - across two boundary', state, async (editor) => {
 	// 	const pos = new Position(1, 2);
 	// 	await editor.setPosition(pos);
-	// 	await ontypeRenameContribution.updateLinkedUI(pos);
+	// 	await linkedEditingContribution.updateLinkedUI(pos);
 	// 	await editor.setSelection(new Range(1, 4, 1, 9));
 	// 	await editor.trigger('keyboard', Handler.Type, { text: 'i' });
 	// }, '<ooioo>');
@@ -383,7 +383,7 @@ suite('On type rename', () => {
 	// testCase('Delete - left all', state, async (editor) => {
 	// 	const pos = new Position(1, 3);
 	// 	await editor.setPosition(pos);
-	// 	await ontypeRenameContribution.updateLinkedUI(pos);
+	// 	await linkedEditingContribution.updateLinkedUI(pos);
 	// 	await editor.trigger('keyboard', 'deleteAllLeft', {});
 	// }, '></>');
 
@@ -393,7 +393,7 @@ suite('On type rename', () => {
 	// testCase('Delete - left all then undo', state, async (editor) => {
 	// 	const pos = new Position(1, 5);
 	// 	await editor.setPosition(pos);
-	// 	await ontypeRenameContribution.updateLinkedUI(pos);
+	// 	await linkedEditingContribution.updateLinkedUI(pos);
 	// 	await editor.trigger('keyboard', 'deleteAllLeft', {});
 	// 	editor.undo();
 	// }, '></ooo>');
