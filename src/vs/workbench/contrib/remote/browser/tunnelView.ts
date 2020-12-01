@@ -729,6 +729,7 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly group = 'details@0';
 	readonly remoteAuthority?: string | string[];
 	readonly canMoveView = true;
+	readonly containerIcon = Codicon.plug;
 
 	constructor(viewModel: ITunnelViewModel, environmentService: IWorkbenchEnvironmentService) {
 		this.ctorDescriptor = new SyncDescriptor(TunnelPanel, [viewModel]);

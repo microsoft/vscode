@@ -5,7 +5,7 @@
 import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Extensions, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { PORT_AUTO_FORWARD_SETTING, forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -56,18 +56,16 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		this.enableForwardedPortsView();
 	}
 
-	private async enableForwardedPortsView() {
-		if (this.contextKeyListener) {
-			this.contextKeyListener.dispose();
-			this.contextKeyListener = undefined;
-		}
-
-		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
+	private async usePanelTreatment(): Promise<boolean> {
 		if (this.tasExperimentService) {
-			await this.tasExperimentService.getTreatment<boolean>('remotedetailssidebar');
+			return !!(await this.tasExperimentService.getTreatment<boolean>('portspanel'));
 		}
-		if (this.environmentService.remoteAuthority && viewEnabled) {
-			const viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
+		return false;
+	}
+
+	private async getViewContainer(): Promise<ViewContainer | null> {
+		if (await this.usePanelTreatment()) {
+			return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 				id: TunnelPanel.ID,
 				name: nls.localize('ports', "Ports"),
 				icon: Codicon.plug,
@@ -76,7 +74,21 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				hideIfEmpty: true,
 				order: 5
 			}, ViewContainerLocation.Panel);
+		} else {
+			return this.viewDescriptorService.getViewContainerById(VIEWLET_ID);
+		}
+	}
 
+	private async enableForwardedPortsView() {
+		if (this.contextKeyListener) {
+			this.contextKeyListener.dispose();
+			this.contextKeyListener = undefined;
+		}
+
+		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
+
+		if (this.environmentService.remoteAuthority && viewEnabled) {
+			const viewContainer = await this.getViewContainer();
 			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.configurationService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
@@ -110,9 +122,12 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		});
 	}
 
-	private updateActivityBadge() {
+	private async updateActivityBadge() {
 		if (this._activityBadge) {
 			this._activityBadge.dispose();
+		}
+		if (!(await this.usePanelTreatment())) {
+			return;
 		}
 		if (this.remoteExplorerService.tunnelModel.forwarded.size > 0) {
 			const viewContainer = this.viewDescriptorService.getViewContainerByViewId(TUNNEL_VIEW_ID);
