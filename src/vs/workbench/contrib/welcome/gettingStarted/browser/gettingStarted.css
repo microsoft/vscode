@@ -21,7 +21,7 @@
 	width: 100%;
 	height: 100%;
 	position: absolute;
-	transition: left 0.25s;
+	transition: left 0.25s, opacity 0.25s;
 	left: 0;
 }
 
@@ -67,7 +67,7 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide .getting-started-category {
 	width: 330px;
-	height: 100px;
+	min-height: 100px;
 	text-align: left;
 	display: flex;
 }
@@ -234,8 +234,10 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.next {
 	left: 100%;
+	opacity: 0;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.prev {
 	left: -100%;
+	opacity: 0;
 }
