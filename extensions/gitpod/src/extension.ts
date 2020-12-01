@@ -3,6 +3,7 @@
 // TODO get rid of loading inversify and reflect-metadata
 require('reflect-metadata');
 import WebSocket = require('ws');
+import { GitpodHostUrl } from '@gitpod/gitpod-protocol/lib/util/gitpod-host-url';
 import { GitpodClient, GitpodServer, GitpodServiceImpl } from '@gitpod/gitpod-protocol/lib/gitpod-service';
 import { JsonRpcProxyFactory } from '@gitpod/gitpod-protocol/lib/messaging/proxy-factory';
 import * as workspaceInstance from '@gitpod/gitpod-protocol/lib/workspace-instance';
@@ -31,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
 	const workspaceId = workspaceInfoResponse.getWorkspaceId();
+	const gitpodHost = workspaceInfoResponse.getGitpodHost();
 
 	//#region server connection
 	const factory = new JsonRpcProxyFactory<GitpodServer>();
@@ -40,6 +42,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		const gitpodApi = workspaceInfoResponse.getGitpodApi()!;
 
 		const getTokenRequest = new GetTokenRequest();
+		getTokenRequest.setKind('gitpod');
 		getTokenRequest.setHost(gitpodApi.getHost());
 		getTokenRequest.addScope('function:openPort');
 		getTokenRequest.addScope('function:stopWorkspace');
@@ -51,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			constructor(address: string, protocols?: string | string[]) {
 				super(address, protocols, {
 					headers: {
-						'Origin': new URL(gitpodApi.getEndpoint()).origin,
+						'Origin': new URL(gitpodHost).origin,
 						'Authorization': `Bearer ${serverToken}`
 					}
 				});
@@ -80,6 +83,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	//#endregion
 
 	//#region workspace commands
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.openWorkspaces', () =>
+		vscode.env.openExternal(vscode.Uri.parse(gitpodHost))
+	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.openAccessControl', () =>
+		vscode.env.openExternal(vscode.Uri.parse(new GitpodHostUrl(gitpodHost).asAccessControl().toString()))
+	));
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.stopWorkspace', () =>
 		gitpodService.server.stopWorkspace(workspaceId)
 	));

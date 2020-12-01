@@ -152,6 +152,7 @@ async function doStart(): Promise<IDisposable> {
 		workspaceLocationFile?: string
 		workspaceLocationFolder?: string
 		userHome: string
+		gitpodHost: string
 	} = await infoResponse.json();
 
 
@@ -240,7 +241,7 @@ async function doStart(): Promise<IDisposable> {
 	const workspaceProvider = new WorkspaceProvider(workspace, payload);
 
 	const homeIndicator: IHomeIndicator = {
-		href: 'https://gitpod.io',
+		href: info.gitpodHost,
 		icon: 'code',
 		title: localize('home', "Home")
 	};
