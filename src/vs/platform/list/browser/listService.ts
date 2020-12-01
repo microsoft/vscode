@@ -457,8 +457,8 @@ abstract class ResourceNavigator<T> extends Disposable {
 		this.openOnFocus = options?.openOnFocus ?? false;
 
 		this._register(Event.filter(this.widget.onDidChangeSelection, e => e.browserEvent instanceof KeyboardEvent)(e => this.onSelectionFromKeyboard(e)));
-		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent }) => this.onPointer(e.browserEvent)));
-		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent }) => this.onMouseDblClick(e.browserEvent)));
+		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onPointer(e.element, e.browserEvent)));
+		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
 
 		if (this.openOnFocus) {
 			this._register(Event.filter(this.widget.onDidChangeFocus, e => e.browserEvent instanceof KeyboardEvent)(e => this.onFocusFromKeyboard(e)));
@@ -478,11 +478,12 @@ abstract class ResourceNavigator<T> extends Disposable {
 		const focus = this.widget.getFocus();
 		this.widget.setSelection(focus, event.browserEvent);
 
+		const element = this.widget.getSelection()[0];
 		const preserveFocus = typeof (event.browserEvent as SelectionKeyboardEvent).preserveFocus === 'boolean' ? (event.browserEvent as SelectionKeyboardEvent).preserveFocus! : true;
 		const pinned = !preserveFocus;
 		const sideBySide = false;
 
-		this._open(preserveFocus, pinned, sideBySide, event.browserEvent);
+		this._open(element, preserveFocus, pinned, sideBySide, event.browserEvent);
 	}
 
 	private onSelectionFromKeyboard(event: ITreeEvent<any>): void {
@@ -490,14 +491,15 @@ abstract class ResourceNavigator<T> extends Disposable {
 			return;
 		}
 
+		const element = this.widget.getSelection()[0];
 		const preserveFocus = typeof (event.browserEvent as SelectionKeyboardEvent).preserveFocus === 'boolean' ? (event.browserEvent as SelectionKeyboardEvent).preserveFocus! : true;
 		const pinned = !preserveFocus;
 		const sideBySide = false;
 
-		this._open(preserveFocus, pinned, sideBySide, event.browserEvent);
+		this._open(element, preserveFocus, pinned, sideBySide, event.browserEvent);
 	}
 
-	private onPointer(browserEvent: MouseEvent): void {
+	private onPointer(element: T | undefined, browserEvent: MouseEvent): void {
 		if (!this.openOnSingleClick) {
 			return;
 		}
@@ -513,10 +515,10 @@ abstract class ResourceNavigator<T> extends Disposable {
 		const pinned = isMiddleClick;
 		const sideBySide = browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey;
 
-		this._open(preserveFocus, pinned, sideBySide, browserEvent);
+		this._open(element, preserveFocus, pinned, sideBySide, browserEvent);
 	}
 
-	private onMouseDblClick(browserEvent?: MouseEvent): void {
+	private onMouseDblClick(element: T | undefined, browserEvent?: MouseEvent): void {
 		if (!browserEvent) {
 			return;
 		}
@@ -525,10 +527,14 @@ abstract class ResourceNavigator<T> extends Disposable {
 		const pinned = true;
 		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
 
-		this._open(preserveFocus, pinned, sideBySide, browserEvent);
+		this._open(element, preserveFocus, pinned, sideBySide, browserEvent);
 	}
 
-	private _open(preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
+	private _open(element: T | undefined, preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
+		if (!element) {
+			return;
+		}
+
 		this._onDidOpen.fire({
 			editorOptions: {
 				preserveFocus,
@@ -536,7 +542,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 				revealIfVisible: true
 			},
 			sideBySide,
-			element: this.widget.getSelection()[0],
+			element,
 			browserEvent
 		});
 	}
