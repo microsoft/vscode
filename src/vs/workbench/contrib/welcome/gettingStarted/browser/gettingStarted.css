@@ -181,6 +181,7 @@
 	background-image: url('../../../../browser/media/code-icon.svg');
 	width: 75px;
 	height: 75px;
+	background-size: contain;
 	display: inline-block;
 	margin-right: 20px;
 }
