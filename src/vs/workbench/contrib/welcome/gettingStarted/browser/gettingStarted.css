@@ -8,9 +8,18 @@
 	background-image: url('../../../../browser/media/code-icon.svg');
 }
 
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer {
+	height: 100%;
+	position: relative;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStarted {
+	height: 100%;
+}
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide {
 	width: 100%;
+	height: 100%;
 	position: absolute;
 	transition: left 0.25s;
 	left: 0;
@@ -88,6 +97,7 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-columns {
 	display: flex;
+	height: 100%;
 	justify-content: center;
 	padding: 30px;
 }
@@ -153,6 +163,7 @@
 	width: 66%;
 	text-align: center;
 	padding: 35px;
+	margin-bottom: 50px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button {
