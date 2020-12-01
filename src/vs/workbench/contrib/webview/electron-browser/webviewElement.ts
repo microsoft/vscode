@@ -233,7 +233,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 		// Clear the existing focus first if not already on the webview.
 		// This is required because the next part where we set the focus is async.
-		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement.tagName !== 'WEBVIEW') {
+		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
 			// Don't blur if on the webview because this will also happen async and may unset the focus
 			// after the focus trigger fires below.
 			document.activeElement.blur();
