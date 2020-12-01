@@ -26,6 +26,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -33,6 +35,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private contextKeyListener?: IDisposable;
 	private _activityBadge?: IDisposable;
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
+	private readonly tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -41,9 +44,11 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
+		this.tasExperimentService = tasExperimentService;
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
 			content: `Forwarded ports allow you to access your running services locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
 		}));
@@ -51,13 +56,16 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		this.enableForwardedPortsView();
 	}
 
-	private enableForwardedPortsView() {
+	private async enableForwardedPortsView() {
 		if (this.contextKeyListener) {
 			this.contextKeyListener.dispose();
 			this.contextKeyListener = undefined;
 		}
 
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
+		if (this.tasExperimentService) {
+			await this.tasExperimentService.getTreatment<boolean>('remotedetailssidebar');
+		}
 		if (this.environmentService.remoteAuthority && viewEnabled) {
 			const viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 				id: TunnelPanel.ID,
