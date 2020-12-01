@@ -8,15 +8,6 @@
 	background-image: url('../../../../browser/media/code-icon.svg');
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer {
-	height: 100%;
-	position: relative;
-}
-
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStarted {
-	height: 100%;
-}
-
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide {
 	width: 100%;
 	height: 100%;
