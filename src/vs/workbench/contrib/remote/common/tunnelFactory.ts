@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITunnelService, TunnelOptions, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -20,8 +20,8 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
 			this._register(tunnelService.setTunnelProvider({
-				forwardPort: (tunnelOptions: TunnelOptions): Promise<RemoteTunnel> | undefined => {
-					const tunnelPromise = tunnelFactory(tunnelOptions);
+				forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel> | undefined => {
+					const tunnelPromise = tunnelFactory(tunnelOptions, tunnelCreationOptions);
 					if (!tunnelPromise) {
 						return undefined;
 					}

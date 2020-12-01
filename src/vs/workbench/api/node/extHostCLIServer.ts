@@ -145,7 +145,7 @@ export class CLIServerBase {
 
 	private openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
 		for (const uri of data.uris) {
-			this._commands.executeCommand('_workbench.open', URI.parse(uri));
+			this._commands.executeCommand('_workbench.openExternal', URI.parse(uri), { allowTunneling: true });
 		}
 		res.writeHead(200);
 		res.end();

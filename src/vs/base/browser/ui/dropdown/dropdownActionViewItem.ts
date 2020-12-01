@@ -13,6 +13,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
@@ -169,7 +170,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 		super.render(container);
 		if (this.element) {
 			this.element.classList.add('action-dropdown-item');
-			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(new Action('dropdownAction', undefined), (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider, this.contextMenuProvider, { classNames: ['dropdown', 'codicon-chevron-down', ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
+			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(new Action('dropdownAction', undefined), (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
 			this.dropdownMenuActionViewItem.render(this.element);
 		}
 	}

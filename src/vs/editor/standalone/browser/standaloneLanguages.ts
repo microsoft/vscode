@@ -392,10 +392,10 @@ export function registerDocumentHighlightProvider(languageId: string, provider: 
 }
 
 /**
- * Register an on type rename range provider.
+ * Register an linked editing range provider.
  */
-export function registerOnTypeRenameRangeProvider(languageId: string, provider: modes.OnTypeRenameRangeProvider): IDisposable {
-	return modes.OnTypeRenameRangeProviderRegistry.register(languageId, provider);
+export function registerLinkedEditingRangeProvider(languageId: string, provider: modes.LinkedEditingRangeProvider): IDisposable {
+	return modes.LinkedEditingRangeProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -566,7 +566,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerHoverProvider: <any>registerHoverProvider,
 		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,
 		registerDocumentHighlightProvider: <any>registerDocumentHighlightProvider,
-		registerOnTypeRenameRangeProvider: <any>registerOnTypeRenameRangeProvider,
+		registerLinkedEditingRangeProvider: <any>registerLinkedEditingRangeProvider,
 		registerDefinitionProvider: <any>registerDefinitionProvider,
 		registerImplementationProvider: <any>registerImplementationProvider,
 		registerTypeDefinitionProvider: <any>registerTypeDefinitionProvider,

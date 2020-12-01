@@ -19,7 +19,7 @@ export const VIEWLET_ID = 'workbench.view.extensions';
 
 export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
 	search(text: string): void;
-	refresh(): void;
+	refresh(): Promise<void>;
 }
 
 export const enum ExtensionState {
@@ -130,10 +130,12 @@ export class ExtensionContainers extends Disposable {
 		for (const container of this.containers) {
 			if (extension && container.extension) {
 				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
-					if (!container.extension.server || !extension.server || container.extension.server === extension.server) {
+					if (container.extension.server && extension.server && container.extension.server !== extension.server) {
+						if (container.updateWhenCounterExtensionChanges) {
+							container.update();
+						}
+					} else {
 						container.extension = extension;
-					} else if (container.updateWhenCounterExtensionChanges) {
-						container.update();
 					}
 				}
 			} else {

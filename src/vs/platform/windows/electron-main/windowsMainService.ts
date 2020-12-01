@@ -7,14 +7,13 @@ import * as fs from 'fs';
 import { basename, normalize, join, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, app } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app, WebContents } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -40,6 +39,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
@@ -759,7 +759,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			params.termProgram = configuration.userEnv['TERM_PROGRAM'];
 		}
 
-		window.sendWhenReady('vscode:openFiles', params);
+		window.sendWhenReady('vscode:openFiles', CancellationToken.None, params);
 
 		return window;
 	}
@@ -768,7 +768,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.focus(); // make sure window has focus
 
 		const request: IAddFoldersRequest = { foldersToAdd };
-		window.sendWhenReady('vscode:addFolders', request);
+		window.sendWhenReady('vscode:addFolders', CancellationToken.None, request);
 
 		return window;
 	}
@@ -1369,7 +1369,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
 
 		// Build INativeWindowConfiguration from config and options
-		const configuration: INativeWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
+		const configuration = { ...options.cli } as INativeWindowConfiguration;
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.machineId = this.machineId;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
@@ -1680,7 +1680,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		if (focusedWindow) {
-			focusedWindow.sendWhenReady(channel, ...args);
+			focusedWindow.sendWhenReady(channel, CancellationToken.None, ...args);
 		}
 	}
 
@@ -1690,7 +1690,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				continue; // do not send if we are instructed to ignore it
 			}
 
-			window.sendWhenReady(channel, payload);
+			window.sendWhenReady(channel, CancellationToken.None, payload);
 		}
 	}
 
@@ -1698,6 +1698,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const res = WindowsMainService.WINDOWS.filter(window => window.id === windowId);
 
 		return arrays.firstOrDefault(res);
+	}
+
+	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {
+		const browserWindow = BrowserWindow.fromWebContents(webContents);
+		if (!browserWindow) {
+			return undefined;
+		}
+
+		return this.getWindowById(browserWindow.id);
 	}
 
 	getWindows(): ICodeWindow[] {

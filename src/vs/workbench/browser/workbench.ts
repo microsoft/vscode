@@ -415,8 +415,7 @@ export class Workbench extends Layout {
 			mark('didStartWorkbench');
 
 			// Perf reporting (devtools)
-			performance.mark('workbench-end');
-			performance.measure('perf: workbench create & restore', 'workbench-start', 'workbench-end');
+			performance.measure('perf: workbench create & restore', 'didLoadWorkbenchMain', 'didStartWorkbench');
 		}
 	}
 }

@@ -123,10 +123,6 @@ export async function main(argv: string[]): Promise<any> {
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		};
 
-		if (args['force-user-env']) {
-			env['VSCODE_FORCE_USER_ENV'] = '1';
-		}
-
 		delete env['ELECTRON_RUN_AS_NODE'];
 
 		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];

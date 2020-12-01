@@ -372,7 +372,7 @@ export class BackLayerWebView extends Disposable {
 			}());
 			</script>`;
 			const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
-			this.initialize(htmlContent);
+			this._initialize(htmlContent);
 			resolveFunc!();
 		} else {
 			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
@@ -396,7 +396,7 @@ var requirejs = (function() {
 `;
 
 				const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
-				this.initialize(htmlContent);
+				this._initialize(htmlContent);
 				resolveFunc!();
 			});
 		}
@@ -404,7 +404,7 @@ var requirejs = (function() {
 		await this._initalized;
 	}
 
-	async initialize(content: string) {
+	private async _initialize(content: string) {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}

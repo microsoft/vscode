@@ -94,7 +94,7 @@ export class HoverWidget extends Widget {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
 			},
-			codeBlockRenderCallback: () => {
+			asyncRenderCallback: () => {
 				contentsElement.classList.add('code-hover-contents');
 				// This changes the dimensions of the hover so trigger a layout
 				this._onRequestLayout.fire();
@@ -182,7 +182,6 @@ export class HoverWidget extends Widget {
 		} else {
 			const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
 			if (targetBottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
-				console.log(targetBottom, this._hover.containerDomNode.clientHeight, window.innerHeight);
 				const targetTop = Math.min(...targetBounds.map(e => e.top));
 				this._anchor = AnchorPosition.ABOVE;
 				this._y = targetTop;
