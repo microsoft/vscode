@@ -520,10 +520,10 @@ suite('markdown.SmartSelect', () => {
 				`paragraph`,
 				`## sub header`,
 				`- list`,
-				`- stuff here [text]**${CURSOR}items in here** and **here**`,
+				`- stuff here [text] **${CURSOR}items in here** and **here**`,
 				`- list`
 			));
-		assertNestedRangesEqual(ranges![0], [6, 21, 6, 44], [6, 19, 6, 46], [6, 0, 6, 59], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
+		assertNestedRangesEqual(ranges![0], [6, 22, 6, 45], [6, 20, 6, 47], [6, 0, 6, 60], [5, 0, 7, 6], [4, 0, 7, 6], [1, 0, 7, 6], [0, 0, 7, 6]);
 	});
 	test('Smart select link in paragraph with multiple links', async () => {
 		const ranges = await getSelectionRangesForDocument(
@@ -566,6 +566,27 @@ suite('markdown.SmartSelect', () => {
 				`*[extens${CURSOR}ion](https://google.com)*`
 			));
 		assertNestedRangesEqual(ranges![0], [0, 2, 0, 21], [0, 1, 0, 22], [0, 1, 0, 42], [0, 1, 0, 42], [0, 0, 0, 43], [0, 0, 0, 43]);
+	});
+	test('Smart select italic on end', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`*word1 word2 word3${CURSOR}*`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 1, 0, 28], [0, 0, 0, 29], [0, 0, 0, 29]);
+	});
+	test('Smart select italic then bold', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`outer text **bold words *italic ${CURSOR} words* bold words** outer text`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 25, 0, 48], [0, 24, 0, 49], [0, 13, 0, 60], [0, 11, 0, 62], [0, 0, 0, 73]);
+	});
+	test('Smart select bold then italic', async () => {
+		const ranges = await getSelectionRangesForDocument(
+			joinLines(
+				`outer text *italic words **bold ${CURSOR} words** italic words* outer text`
+			));
+		assertNestedRangesEqual(ranges![0], [0, 27, 0, 48], [0, 25, 0, 50], [0, 12, 0, 63], [0, 11, 0, 64], [0, 0, 0, 75]);
 	});
 });
 
