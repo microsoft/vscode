@@ -209,7 +209,7 @@ export class BreakpointsView extends ViewPane {
 			actions.push(new Separator());
 		}
 		if (element instanceof ExceptionBreakpoint && element.supportsCondition) {
-			actions.push(new Action('workbench.action.debug.editExceptionBreakpointCondition', nls.localize('editCondition', "Edit Condition..."), '', true, async () => {
+			actions.push(new Action('workbench.action.debug.editExceptionBreakpointCondition', nls.localize('editCondition', "Edit Condition"), '', true, async () => {
 				this.debugService.getViewModel().setSelectedBreakpoint(element);
 				this.onBreakpointsChange();
 			}));
