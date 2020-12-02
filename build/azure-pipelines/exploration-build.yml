@@ -38,3 +38,5 @@ steps:
       git push origin HEAD:electron-11.x.y
 
     displayName: Sync & Merge Exploration
+
+trigger: none
