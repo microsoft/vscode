@@ -14,7 +14,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { isString } from 'vs/base/common/types';
+import { isFunction, isString } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 
 export interface IIconLabelCreationOptions {
@@ -25,7 +25,7 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | string | undefined | Promise<IMarkdownString | string | undefined>;
+	markdown: IMarkdownString | string | undefined | (() => Promise<IMarkdownString | string | undefined>);
 	markdownNotSupportedFallback: string | undefined;
 }
 
@@ -192,7 +192,15 @@ export class IconLabel extends Disposable {
 
 	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString): void {
 		htmlElement.removeAttribute('title');
-		let tooltip = isString(markdownTooltip) ? markdownTooltip : markdownTooltip.markdown;
+		let tooltip: () => Promise<string | IMarkdownString | undefined>;
+		if (isString(markdownTooltip)) {
+			tooltip = async () => markdownTooltip;
+		} else if (isFunction(markdownTooltip.markdown)) {
+			tooltip = markdownTooltip.markdown;
+		} else {
+			const markdown = markdownTooltip.markdown;
+			tooltip = async () => markdown;
+		}
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
 		const hoverDelay = isMacintosh ? 1500 : 500;
@@ -217,7 +225,7 @@ export class IconLabel extends Disposable {
 							targetElements: [this],
 							dispose: () => { }
 						};
-						const resolvedTooltip = await tooltip;
+						const resolvedTooltip = await tooltip();
 						if (resolvedTooltip) {
 							hoverOptions = {
 								text: resolvedTooltip,
