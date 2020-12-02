@@ -266,12 +266,10 @@ export interface IEditorOptions {
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
 	 * Override the `wordWrap` setting.
-	 * @internal
 	 */
 	wordWrapOverride1?: 'off' | 'on' | 'inherit';
 	/**
 	 * Override the `wordWrapOverride1` setting.
-	 * @internal
 	 */
 	wordWrapOverride2?: 'off' | 'on' | 'inherit';
 	/**

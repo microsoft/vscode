@@ -2812,6 +2812,14 @@ declare namespace monaco.editor {
 		 */
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
+		 * Override the `wordWrap` setting.
+		 */
+		wordWrapOverride1?: 'off' | 'on' | 'inherit';
+		/**
+		 * Override the `wordWrapOverride1` setting.
+		 */
+		wordWrapOverride2?: 'off' | 'on' | 'inherit';
+		/**
 		 * Control the wrapping of the editor.
 		 * When `wordWrap` = "off", the lines will never wrap.
 		 * When `wordWrap` = "on", the lines will wrap at the viewport width.
