@@ -2311,8 +2311,8 @@ declare module 'vscode' {
 		 * `ThemeColors` with id `statusBarItem.errorBackground`. Other `ThemeColors`
 		 * will be ignored.
 		 *
-		 * When setting the background color to `statusBarItem.errorBackground`, it is
-		 * recommended to also set `color` to `statusBarItem.errorForeground`.
+		 * When setting the background color to `statusBarItem.errorBackground`, the
+		 * `color` property will automatically be set to `statusBarItem.errorForeground`.
 		 */
 		backgroundColor: ThemeColor | undefined;
 	}
