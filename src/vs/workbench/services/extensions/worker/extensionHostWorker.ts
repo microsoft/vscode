@@ -23,6 +23,8 @@ declare namespace self {
 	let close: any;
 	let postMessage: any;
 	let addEventListener: any;
+	let removeEventListener: any;
+	let dispatchEvent: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
 }
@@ -57,90 +59,100 @@ if ((<any>self).Worker) {
 
 } else {
 
-	let idWorkerPool = 0;
+	function _bootstrapFn(workerUrl: string) {
+
+		const listener: EventListener = (event: Event): void => {
+			// uninstall handler
+			self.removeEventListener('message', listener);
+
+			// get data
+			const port = (<MessageEvent>event).data;
+
+			// postMessage
+			Object.defineProperty(self, 'postMessage', {
+				value(data: any, transferOrOptions?: any) {
+					port.postMessage(data, transferOrOptions);
+				}
+			});
+
+			// onmessage
+			let onmessage: Function | null = null;
+			Object.defineProperty(self, 'onmessage', {
+				get() { return onmessage; },
+				set(value) { onmessage = value; },
+			});
+			port.onmessage = function (msg: MessageEvent) {
+				self.dispatchEvent(new MessageEvent('message', { data: msg.data }));
+				if (typeof onmessage === 'function') {
+					onmessage(msg.data);
+				}
+			};
+
+			// load module
+			importScripts(workerUrl);
+		};
+
+		self.addEventListener('message', listener);
+	}
 
 	// NO support for workers from worker
 	(<any>self).Worker = class extends EventTarget implements Worker {
 
-		readonly #port: MessagePort;
-		readonly #id = ++idWorkerPool;
-
-		#onmessage: ((this: Worker, ev: MessageEvent<any>) => any) | null = null;
-
+		onmessage: ((this: Worker, ev: MessageEvent<any>) => any) | null = null;
 		onmessageerror: ((this: Worker, ev: MessageEvent<any>) => any) | null = null;
 		onerror: ((this: AbstractWorker, ev: ErrorEvent) => any) | null = null;
 
-		constructor(stringUrl: string | URL, options?: WorkerOptions) {
+		readonly terminate: () => void;
+		readonly postMessage: (message: any, options?: any) => void;
+
+		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
 			super();
 
-			const channel = new MessageChannel();
-			this.#port = channel.port1;
-
-			const bootstrap = `
-self.onmessage = function (event) {
-
-	// uninstall handler
-	self.onmessage = null;
-
-	const msgPort = event.data;
-
-	// postMessage
-	Object.defineProperty(self, 'postMessage', {
-		value(data, transferOrOptions) {
-			msgPort.postMessage(data, transferOrOptions);
-		}
-	});
-
-	// onmessage
-	let onmessage = null;
-	Object.defineProperty(self, 'onmessage', {
-		get() { return onmessage },
-		set(value) { onmessage = value },
-	});
-	msgPort.onmessage = function (msg) {
-		self.dispatchEvent(new MessageEvent('message', { data: msg.data }))
-		if (typeof onmessage === 'function') {
-			onmessage(msg.data);
-		}
-	}
-
-	importScripts('${stringUrl}');
-};
-			`;
-
+			// create bootstrap script
+			const bootstrap = `((${_bootstrapFn.toString()})('${stringOrUrl}'))`;
 			const blob = new Blob([bootstrap], { type: 'application/javascript' });
+			const blobUrl = URL.createObjectURL(blob);
+
+			const channel = new MessageChannel();
+			const id = blobUrl; // works because blob url is unique, needs ID pool otherwise
 
 			nativePostMessage({
 				type: '_newWorker',
-				id: this.#id,
+				id,
 				port: channel.port2,
-				url: URL.createObjectURL(blob),
-				options: { name: path.basename(String(stringUrl)), ...options },
+				url: blobUrl,
+				options: { name: path.basename(String(stringOrUrl)), ...options },
 			}, [channel.port2]);
 
-			this.#port.onmessageerror = evt => this.dispatchEvent(evt);
-			this.#port.onmessage = evt => {
+			// worker-impl: functions
+			this.postMessage = channel.port1.postMessage.bind(channel.port1);
+			this.terminate = () => {
+				channel.port1.postMessage({ type: '_terminateWorker', id });
+				URL.revokeObjectURL(blobUrl);
+			};
+
+			// worker-impl: events
+			let _onmessage: ((ev: MessageEvent<any>) => any) | null = null;
+			Object.defineProperties(this, {
+				'onmessage': {
+					get() {
+						return _onmessage;
+					},
+					set(value: ((ev: MessageEvent<any>) => any) | null) {
+						_onmessage = value;
+					}
+				}
+				// TODO - define error, messageerror event
+			});
+
+			channel.port1.onmessageerror = evt => this.dispatchEvent(evt);
+			channel.port1.onmessage = (evt) => {
 				const msgEvent = new MessageEvent('message', { data: evt.data });
-				if (this.#onmessage) {
-					this.#onmessage(msgEvent.data);
+				if (_onmessage) {
+					_onmessage(msgEvent.data);
 				}
 				this.dispatchEvent(msgEvent);
 			};
-		}
-
-
-		get onmessage() {
-			return this.#onmessage;
-		}
-		set onmessage(value) {
-			this.#onmessage = value;
-		}
-
-		postMessage(message: any, options?: any) {
-			this.#port.postMessage(message, options);
-		}
-		terminate(): void {
-			nativePostMessage({ type: '_terminateWorker', id: this.#id });
 		}
 	};
 }
