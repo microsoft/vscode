@@ -1429,11 +1429,12 @@ export class ReloadAction extends ExtensionAction {
 		}
 
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
-		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))[0];
-		const isSameExtensionRunning = runningExtension && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
+		const runningExtension = this._runningExtensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier));
 
 		if (isUninstalled) {
-			if (isSameExtensionRunning && !this.extensionService.canRemoveExtension(runningExtension)) {
+			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
+			const isSameExtensionRunning = runningExtension && (!this.extension.server || this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
+			if (!canRemoveRunningExtension && isSameExtensionRunning) {
 				this.enabled = true;
 				this.label = localize('reloadRequired', "Reload Required");
 				this.tooltip = localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
@@ -1442,6 +1443,7 @@ export class ReloadAction extends ExtensionAction {
 			return;
 		}
 		if (this.extension.local) {
+			const isSameExtensionRunning = runningExtension && this.extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
 			const isEnabled = this.extensionEnablementService.isEnabled(this.extension.local);
 
 			// Extension is running
