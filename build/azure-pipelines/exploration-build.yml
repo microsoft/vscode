@@ -1,12 +1,7 @@
 pool:
   vmImage: "Ubuntu-16.04"
 
-trigger:
-  branches:
-    include: ["master"]
-pr:
-  branches:
-    include: ["master"]
+trigger: none
 
 steps:
   - task: NodeTool@0
@@ -38,5 +33,3 @@ steps:
       git push origin HEAD:electron-11.x.y
 
     displayName: Sync & Merge Exploration
-
-trigger: none
