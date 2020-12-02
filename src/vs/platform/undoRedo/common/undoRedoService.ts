@@ -1051,7 +1051,7 @@ export class UndoRedoService implements IUndoRedoService {
 	public undo(resourceOrSource: URI | UndoRedoSource): Promise<void> | void {
 		if (resourceOrSource instanceof UndoRedoSource) {
 			const [, matchedStrResource] = this._findClosestUndoElementWithSource(resourceOrSource.id);
-			return matchedStrResource ? this._undo(matchedStrResource) : undefined;
+			return matchedStrResource ? this._undo(matchedStrResource, resourceOrSource.id) : undefined;
 		}
 		if (typeof resourceOrSource === 'string') {
 			return this._undo(resourceOrSource);
@@ -1059,7 +1059,7 @@ export class UndoRedoService implements IUndoRedoService {
 		return this._undo(this.getUriComparisonKey(resourceOrSource));
 	}
 
-	private _undo(strResource: string): Promise<void> | void {
+	private _undo(strResource: string, sourceId: number = 0): Promise<void> | void {
 		if (!this._editStacks.has(strResource)) {
 			return;
 		}
@@ -1079,6 +1079,11 @@ export class UndoRedoService implements IUndoRedoService {
 			}
 		}
 
+		if (element.sourceId !== sourceId) {
+			// Hit a different source, prompt for confirmation
+			return this._confirmDifferentSourceAndContinueUndo(strResource, element);
+		}
+
 		try {
 			if (element.type === UndoRedoElementType.Workspace) {
 				return this._workspaceUndo(strResource, element);
@@ -1090,6 +1095,28 @@ export class UndoRedoService implements IUndoRedoService {
 				this._print('undo');
 			}
 		}
+	}
+
+	private async _confirmDifferentSourceAndContinueUndo(strResource: string, element: StackElement): Promise<void> {
+		const result = await this._dialogService.show(
+			Severity.Info,
+			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
+			[
+				nls.localize('confirmDifferentSource.ok', "Undo"),
+				nls.localize('cancel', "Cancel"),
+			],
+			{
+				cancelId: 1
+			}
+		);
+
+		if (result.choice === 1) {
+			// choice: cancel
+			return;
+		}
+
+		// choice: undo
+		return this._undo(strResource, element.sourceId);
 	}
 
 	private _findClosestRedoElementWithSource(sourceId: number): [StackElement | null, string | null] {
