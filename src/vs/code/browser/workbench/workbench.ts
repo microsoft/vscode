@@ -13,7 +13,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { commands, create, IHomeIndicator, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+import { commands, create, IHomeIndicator, IWorkspace, IWorkspaceProvider, ICredentialsProvider } from 'vs/workbench/workbench.web.api';
 import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
@@ -21,6 +21,95 @@ import { extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/co
 import type { IDEState } from '@gitpod/gitpod-protocol/lib/ide-service';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { parseLogLevel } from 'vs/platform/log/common/log';
+
+interface ICredential {
+	service: string;
+	account: string;
+	password: string;
+}
+
+class LocalStorageCredentialsProvider implements ICredentialsProvider {
+
+	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+
+	private _credentials: ICredential[] | undefined;
+	private get credentials(): ICredential[] {
+		if (!this._credentials) {
+			try {
+				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
+				if (serializedCredentials) {
+					this._credentials = JSON.parse(serializedCredentials);
+				}
+			} catch (error) {
+				// ignore
+			}
+
+			if (!Array.isArray(this._credentials)) {
+				this._credentials = [];
+			}
+		}
+
+		return this._credentials;
+	}
+
+	private save(): void {
+		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY, JSON.stringify(this.credentials));
+	}
+
+	async getPassword(service: string, account: string): Promise<string | null> {
+		const password = (await commands.executeCommand('gitpod.getPassword', service, account)) as any as string | undefined;
+		if (password) {
+			return password;
+		}
+
+		for (const credential of this.credentials) {
+			if (credential.service === service) {
+				if (typeof account !== 'string' || account === credential.account) {
+					return credential.password;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	async setPassword(service: string, account: string, password: string): Promise<void> {
+		this.deletePassword(service, account);
+
+		this.credentials.push({ service, account, password });
+
+		this.save();
+	}
+
+	async deletePassword(service: string, account: string): Promise<boolean> {
+		let found = false;
+
+		this._credentials = this.credentials.filter(credential => {
+			if (credential.service === service && credential.account === account) {
+				found = true;
+
+				return false;
+			}
+
+			return true;
+		});
+
+		if (found) {
+			this.save();
+		}
+
+		return found;
+	}
+
+	async findPassword(_service: string): Promise<string | null> {
+		return null;
+	}
+
+	async findCredentials(_service: string): Promise<Array<{ account: string, password: string }>> {
+		return [];
+	}
+
+}
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
@@ -275,7 +364,8 @@ async function doStart(): Promise<IDisposable> {
 		initialColorTheme: {
 			themeType: ColorScheme.DARK
 		},
-		logLevel: logLevel ? parseLogLevel(logLevel) : undefined
+		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
+		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
 }
 
