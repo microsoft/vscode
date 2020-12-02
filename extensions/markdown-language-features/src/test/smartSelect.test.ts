@@ -629,7 +629,7 @@ suite('markdown.SmartSelect', () => {
 
 function assertNestedLineNumbersEqual(range: vscode.SelectionRange, ...expectedRanges: [number, number][]) {
 	const lineage = getLineage(range);
-	assert.strictEqual(lineage.length, expectedRanges.length, `expected depth: ${expectedRanges.length}, but was ${lineage.length} ${getValues(getLineage(range))}`);
+	assert.strictEqual(lineage.length, expectedRanges.length, `expected depth: ${expectedRanges.length}, but was ${lineage.length} ${getValues(lineage)}`);
 	for (let i = 0; i < lineage.length; i++) {
 		assertLineNumbersEqual(lineage[i], expectedRanges[i][0], expectedRanges[i][1], `parent at a depth of ${i}`);
 	}
