@@ -94,7 +94,7 @@ class CopyOperation implements IFileOperation {
 		}
 
 		await this._workingCopyFileService.copy([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite, ...this.undoRedoInfo }, token);
-		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, { isUndoing: true }, true);
+		return this._instaService.createInstance(DeleteOperation, this.newUri, { recursive: true, ...this.options }, { isUndoing: true }, true);
 	}
 
 	toString(): string {
