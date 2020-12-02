@@ -1352,7 +1352,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// if we only add one file, just open it directly
 			if (resourceFileEdits.length === 1) {
 				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
-				if (item) {
+				if (item && !item.isDirectory) {
 					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
 				}
 			}
