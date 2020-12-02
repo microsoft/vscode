@@ -155,8 +155,8 @@ class VisualEditorState {
 let DIFF_EDITOR_ID = 0;
 
 
-const diffInsertIcon = registerIcon('diff-insert', Codicon.add, nls.localize('diffInsertIcon', 'Line decoration for inserts in the diff editor'));
-const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, nls.localize('diffRemoveIcon', 'Line decoration for removals in the diff editor'));
+const diffInsertIcon = registerIcon('diff-insert', Codicon.add, nls.localize('diffInsertIcon', 'Line decoration for inserts in the diff editor.'));
+const diffRemoveIcon = registerIcon('diff-remove', Codicon.remove, nls.localize('diffRemoveIcon', 'Line decoration for removals in the diff editor.'));
 const ttPolicy = window.trustedTypes?.createPolicy('diffEditorWidget', { createHTML: value => value });
 
 export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffEditor {
