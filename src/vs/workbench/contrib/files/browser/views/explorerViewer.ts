@@ -1074,7 +1074,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 
 				await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
-					undoLabel: localize('overwrite', "Overwriting {0}", entry.name),
+					undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
 					progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
 				});
 

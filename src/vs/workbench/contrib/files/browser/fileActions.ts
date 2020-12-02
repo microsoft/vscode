@@ -914,8 +914,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		try {
 			const resourceToCreate = resources.joinPath(folder.resource, value);
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
-				progressLabel: nls.localize('newBulkEdit', "New {0}", value),
-				undoLabel: nls.localize('newBulkEdit', "New {0}", value)
+				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
+				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value)
 			});
 			await refreshIfSeparator(value, explorerService);
 
