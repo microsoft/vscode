@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
+import { isEdge, isOpera, isFirefox, isWebKit, isChrome, isSafari, isWebkitWebView, isIPad, isEdgeWebView, isStandalone } from 'vs/base/browser/browser';
 
 const STATIC_VALUES = new Map<string, boolean>();
 STATIC_VALUES.set('false', false);
@@ -16,6 +17,16 @@ STATIC_VALUES.set('isLinux', isLinux);
 STATIC_VALUES.set('isWindows', isWindows);
 STATIC_VALUES.set('isWeb', isWeb);
 STATIC_VALUES.set('isMacNative', isMacintosh && !isWeb);
+STATIC_VALUES.set('isEdge', isEdge);
+STATIC_VALUES.set('isOpera', isOpera);
+STATIC_VALUES.set('isFirefox', isFirefox);
+STATIC_VALUES.set('isWebKit', isWebKit);
+STATIC_VALUES.set('isChrome', isChrome);
+STATIC_VALUES.set('isSafari', isSafari);
+STATIC_VALUES.set('isWebkitWebView', isWebkitWebView);
+STATIC_VALUES.set('isIPad', isIPad);
+STATIC_VALUES.set('isEdgeWebView', isEdgeWebView);
+STATIC_VALUES.set('isStandalone', isStandalone);
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
