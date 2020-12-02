@@ -552,6 +552,9 @@ export class TreeView extends Disposable implements ITreeView {
 			}
 		}));
 
+		this._register(treeMenus.onDidChange(element => {
+			this.tree!.rerender(element);
+		}));
 	}
 
 	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>, actionRunner: MultipleSelectionActionRunner): void {
@@ -566,7 +569,8 @@ export class TreeView extends Disposable implements ITreeView {
 		event.stopPropagation();
 
 		this.tree!.setFocus([node]);
-		const actions = treeMenus.getResourceContextActions(node);
+		const disposableStore = new DisposableStore();
+		const actions = treeMenus.getResourceContextActions(node, disposableStore);
 		if (!actions.length) {
 			return;
 		}
@@ -587,6 +591,7 @@ export class TreeView extends Disposable implements ITreeView {
 				if (wasCancelled) {
 					this.tree!.domFocus();
 				}
+				disposableStore.dispose();
 			},
 
 			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.id, $treeItemHandle: node.handle }),
@@ -957,14 +962,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.icon.style.backgroundImage = '';
 		}
 
+		const disposableStore = new DisposableStore();
+		templateData.elementDisposable = disposableStore;
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
-		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
+		templateData.actionBar.push(this.menus.getResourceActions(node, disposableStore), { icon: true, label: false });
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;
 		}
 		this.setAlignment(templateData.container, node);
-		const disposableStore = new DisposableStore();
-		templateData.elementDisposable = disposableStore;
 		disposableStore.add(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
 	}
 
@@ -1085,6 +1090,9 @@ class MultipleSelectionActionRunner extends ActionRunner {
 class TreeMenus extends Disposable implements IDisposable {
 	private contextKeyService: IContextKeyService | undefined;
 
+	private readonly _onDidChange: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
+	readonly onDidChange: Event<ITreeItem> = this._onDidChange.event;
+
 	constructor(
 		private id: string,
 		@IMenuService private readonly menuService: IMenuService
@@ -1092,34 +1100,34 @@ class TreeMenus extends Disposable implements IDisposable {
 		super();
 	}
 
-	getResourceActions(element: ITreeItem): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).primary;
+	getResourceActions(element: ITreeItem, disposableStore: DisposableStore): IAction[] {
+		return this.getActions(MenuId.ViewItemContext, element, disposableStore).primary;
 	}
 
-	getResourceContextActions(element: ITreeItem): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).secondary;
+	getResourceContextActions(element: ITreeItem, disposableStore: DisposableStore): IAction[] {
+		return this.getActions(MenuId.ViewItemContext, element, disposableStore).secondary;
 	}
 
 	public setContextKeyService(service: IContextKeyService) {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, element: ITreeItem, disposableStore: DisposableStore): { primary: IAction[]; secondary: IAction[]; } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
-		const contextKeyService = this.contextKeyService.createScoped();
+		const contextKeyService = disposableStore.add(this.contextKeyService.createScoped());
 		contextKeyService.createKey('view', this.id);
-		contextKeyService.createKey(context.key, context.value);
+		contextKeyService.createKey('viewItem', element.contextValue);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
+		const menu = disposableStore.add(this.menuService.createMenu(menuId, contextKeyService));
+		disposableStore.add(menu.onDidChange(() => {
+			this._onDidChange.fire(element);
+		}));
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		menu.dispose();
-		contextKeyService.dispose();
 
 		return result;
 	}
