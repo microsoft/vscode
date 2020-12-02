@@ -1,7 +1,9 @@
 /// <reference path='../../../src/vs/vscode.d.ts'/>
+/// <reference path='../../../src/vs/vscode.proposed.d.ts'/>
 
 // TODO get rid of loading inversify and reflect-metadata
 require('reflect-metadata');
+import * as uuid from 'uuid';
 import WebSocket = require('ws');
 import { GitpodHostUrl } from '@gitpod/gitpod-protocol/lib/util/gitpod-host-url';
 import { GitpodClient, GitpodServer, GitpodServiceImpl } from '@gitpod/gitpod-protocol/lib/gitpod-service';
@@ -44,6 +46,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		const getTokenRequest = new GetTokenRequest();
 		getTokenRequest.setKind('gitpod');
 		getTokenRequest.setHost(gitpodApi.getHost());
+		getTokenRequest.addScope('function:getToken');
 		getTokenRequest.addScope('function:openPort');
 		getTokenRequest.addScope('function:stopWorkspace');
 		getTokenRequest.addScope('resource:workspace::' + workspaceId + '::get/update');
@@ -595,6 +598,52 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(onDidChangeTasks.event(tasks => updateTerminals(tasks)));
 	context.subscriptions.push(observeTaskStatus());
+	//#endregion
+
+	//#region git auth
+	const currentAuthService = `${vscode.env.uriScheme}.login`;
+	const githubAuthService = `${vscode.env.uriScheme}-github.login`;
+	const sessionId = uuid.v4();
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.getPassword', async (service: string, account: string) => {
+		if (account !== 'account') {
+			return undefined;
+		}
+		if (service !== githubAuthService && service !== currentAuthService) {
+			return undefined;
+		}
+		try {
+			const token = await gitpodService.server.getToken({
+				host: 'github.com'
+			});
+			if (!token) {
+				return undefined;
+			}
+			if (service === currentAuthService) {
+				// see https://github.com/gitpod-io/vscode/blob/gp-code/src/vs/workbench/services/authentication/browser/authenticationService.ts#L34
+				type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
+				const currentSession: AuthenticationSessionInfo = {
+					id: sessionId,
+					accessToken: token.value,
+					providerId: 'github',
+					canSignOut: false
+				};
+				return JSON.stringify(currentSession);
+			}
+			// see https://github.com/gitpod-io/vscode/blob/gp-code/extensions/github-authentication/src/github.ts#L88
+			// TODO server should provide proper username and id, right now it is always ouath2
+			// luckily GH extension is smart enough to fetch it if missing
+			const session: Omit<vscode.AuthenticationSession, 'account'> = {
+				id: sessionId,
+				accessToken: token.value,
+				scopes: token.scopes
+			};
+			return JSON.stringify([session]);
+		} catch (e) {
+			console.error('Failed to fetch password', e);
+			return undefined;
+		}
+	}));
+	vscode.extensions.getExtension('vscode.github-authentication')?.activate();
 	//#endregion
 }
 

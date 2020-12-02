@@ -115,6 +115,7 @@
   "devDependencies": {
     "@types/node": "^10.12.21",
     "@types/ps-tree": "^1.1.0",
+    "@types/uuid": "^8.3.0",
     "@types/ws": "^7.2.6"
   },
   "dependencies": {
@@ -124,6 +125,7 @@
     "bufferutil": "^4.0.1",
     "reconnecting-websocket": "^4.4.0",
     "utf-8-validate": "^5.0.2",
+    "uuid": "^8.3.1",
     "vscode-nls": "^5.0.0",
     "ws": "^7.3.1"
   }
