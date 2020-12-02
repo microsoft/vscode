@@ -1303,24 +1303,24 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			return { source: fileToPaste, target: targetFile };
 		}));
 
-		// Move/Copy File
-		if (pasteShouldMove) {
-			const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
-			const options = {
-				progressLabel: sourceTargetPairs.length > 1 ? nls.localize('movingBulkEdit', "Moving {0} files", sourceTargetPairs.length) : nls.localize('movingFileBulkEdit', "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-				undoLabel: sourceTargetPairs.length > 1 ? nls.localize('moveBulkEdit', "Move {0} files", sourceTargetPairs.length) : nls.localize('moveFileBulkEdit', "Move {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
-			};
-			await explorerService.applyBulkEdit(resourceFileEdits, options);
-		} else {
-			const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
-			const options = {
-				progressLabel: sourceTargetPairs.length > 1 ? nls.localize('copyingBulkEdit', "Copying {0} files", sourceTargetPairs.length) : nls.localize('copyingFileBulkEdit', "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-				undoLabel: sourceTargetPairs.length > 1 ? nls.localize('copyBulkEdit', "Copy {0} files", sourceTargetPairs.length) : nls.localize('copyFileBulkEdit', "Copy {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
-			};
-			await explorerService.applyBulkEdit(resourceFileEdits, options);
-		}
-
 		if (sourceTargetPairs.length >= 1) {
+			// Move/Copy File
+			if (pasteShouldMove) {
+				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
+				const options = {
+					progressLabel: sourceTargetPairs.length > 1 ? nls.localize('movingBulkEdit', "Moving {0} files", sourceTargetPairs.length) : nls.localize('movingFileBulkEdit', "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
+					undoLabel: sourceTargetPairs.length > 1 ? nls.localize('moveBulkEdit', "Move {0} files", sourceTargetPairs.length) : nls.localize('moveFileBulkEdit', "Move {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+				};
+				await explorerService.applyBulkEdit(resourceFileEdits, options);
+			} else {
+				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
+				const options = {
+					progressLabel: sourceTargetPairs.length > 1 ? nls.localize('copyingBulkEdit', "Copying {0} files", sourceTargetPairs.length) : nls.localize('copyingFileBulkEdit', "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
+					undoLabel: sourceTargetPairs.length > 1 ? nls.localize('copyBulkEdit', "Copy {0} files", sourceTargetPairs.length) : nls.localize('copyFileBulkEdit', "Copy {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+				};
+				await explorerService.applyBulkEdit(resourceFileEdits, options);
+			}
+
 			const pair = sourceTargetPairs[0];
 			await explorerService.select(pair.target);
 			if (sourceTargetPairs.length === 1) {
