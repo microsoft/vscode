@@ -54,6 +54,95 @@ if ((<any>self).Worker) {
 		options.name = options.name || path.basename(stringUrl.toString());
 		return new _Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`, options);
 	};
+
+} else {
+
+	let idWorkerPool = 0;
+
+	// NO support for workers from worker
+	(<any>self).Worker = class extends EventTarget implements Worker {
+
+		readonly #port: MessagePort;
+		readonly #id = ++idWorkerPool;
+
+		#onmessage: ((this: Worker, ev: MessageEvent<any>) => any) | null = null;
+
+		onmessageerror: ((this: Worker, ev: MessageEvent<any>) => any) | null = null;
+		onerror: ((this: AbstractWorker, ev: ErrorEvent) => any) | null = null;
+
+		constructor(stringUrl: string | URL, options?: WorkerOptions) {
+			super();
+
+			const channel = new MessageChannel();
+			this.#port = channel.port1;
+
+			const bootstrap = `
+self.onmessage = function (event) {
+
+	// uninstall handler
+	self.onmessage = null;
+
+	const msgPort = event.data;
+
+	// postMessage
+	Object.defineProperty(self, 'postMessage', {
+		value(data, transferOrOptions) {
+			msgPort.postMessage(data, transferOrOptions);
+		}
+	});
+
+	// onmessage
+	let onmessage = null;
+	Object.defineProperty(self, 'onmessage', {
+		get() { return onmessage },
+		set(value) { onmessage = value },
+	});
+	msgPort.onmessage = function (msg) {
+		self.dispatchEvent(new MessageEvent('message', { data: msg.data }))
+		if (typeof onmessage === 'function') {
+			onmessage(msg.data);
+		}
+	}
+
+	importScripts('${stringUrl}');
+};
+			`;
+
+			const blob = new Blob([bootstrap], { type: 'application/javascript' });
+
+			nativePostMessage({
+				type: '_newWorker',
+				id: this.#id,
+				port: channel.port2,
+				url: URL.createObjectURL(blob),
+				options: { name: path.basename(String(stringUrl)), ...options },
+			}, [channel.port2]);
+
+			this.#port.onmessageerror = evt => this.dispatchEvent(evt);
+			this.#port.onmessage = evt => {
+				const msgEvent = new MessageEvent('message', { data: evt.data });
+				if (this.#onmessage) {
+					this.#onmessage(msgEvent.data);
+				}
+				this.dispatchEvent(msgEvent);
+			};
+		}
+
+
+		get onmessage() {
+			return this.#onmessage;
+		}
+		set onmessage(value) {
+			this.#onmessage = value;
+		}
+
+		postMessage(message: any, options?: any) {
+			this.#port.postMessage(message, options);
+		}
+		terminate(): void {
+			nativePostMessage({ type: '_terminateWorker', id: this.#id });
+		}
+	};
 }
 
 //#endregion ---
