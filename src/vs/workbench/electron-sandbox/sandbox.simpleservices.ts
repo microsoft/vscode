@@ -121,7 +121,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 
 	sharedIPCHandle: string = undefined!;
 
-	extensionsPath?: string | undefined;
+	extensionsPath: string = undefined!;
 	extensionsDownloadPath: string = undefined!;
 	builtinExtensionsPath: string = undefined!;
 
@@ -427,6 +427,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
 	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
+	async whenExtensionsReady(): Promise<void> { }
 }
 
 //#endregion
@@ -741,7 +742,7 @@ class SimpleWorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
 
 	async getTags(): Promise<Tags> { return Object.create(null); }
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined { return undefined; }
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> { return undefined; }
 	async getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> { return []; }
 }
 

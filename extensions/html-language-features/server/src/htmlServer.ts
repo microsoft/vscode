@@ -33,8 +33,8 @@ namespace CustomDataChangedNotification {
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
 }
-namespace OnTypeRenameRequest {
-	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
+namespace LinkedEditingRequest {
+	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/linkedEditing');
 }
 
 // experimental: semantic tokens
@@ -284,7 +284,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (!mode || !mode.doComplete) {
 				return { isIncomplete: true, items: [] };
 			}
-			const doComplete = mode.doComplete!;
+			const doComplete = mode.doComplete;
 
 			if (mode.getId() !== 'html') {
 				/* __GDPR__
@@ -321,8 +321,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const document = documents.get(textDocumentPosition.textDocument.uri);
 			if (document) {
 				const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
-				if (mode && mode.doHover) {
-					return mode.doHover(document, textDocumentPosition.position);
+				const doHover = mode?.doHover;
+				if (doHover) {
+					const settings = await getDocumentSettings(document, () => doHover.length > 2);
+					return doHover(document, textDocumentPosition.position, settings);
 				}
 			}
 			return null;
@@ -508,15 +510,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, null, `Error while computing rename for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onRequest(OnTypeRenameRequest.type, (params, token) => {
+	connection.onRequest(LinkedEditingRequest.type, (params, token) => {
 		return runSafe(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const pos = params.position;
 				if (pos.character > 0) {
 					const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
-					if (mode && mode.doOnTypeRename) {
-						return mode.doOnTypeRename(document, pos);
+					if (mode && mode.doLinkedEditing) {
+						return mode.doLinkedEditing(document, pos);
 					}
 				}
 			}

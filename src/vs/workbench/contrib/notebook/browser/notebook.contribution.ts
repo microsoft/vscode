@@ -241,7 +241,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				});
 			},
 			open: (editor, options, group) => {
-				return this.onEditorOpening2(editor, options, group);
+				return this.onEditorOpening(editor, options, group);
 			}
 		}));
 
@@ -285,7 +285,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 
-	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
 		let id = typeof options?.override === 'string' ? options.override : undefined;
 		if (id === undefined && originalInput.resource?.scheme === Schemas.untitled) {

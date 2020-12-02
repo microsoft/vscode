@@ -50,7 +50,7 @@ export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<b
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
-
+export const SHOW_TERMINAL_CONFIG_PROMPT = 'terminal.integrated.showTerminalConfigPrompt';
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
 // this delay is to allow the terminal instance to initialize correctly and have its ID set before
 // trying to create the corressponding object on the ext host.
@@ -108,6 +108,7 @@ export interface ITerminalConfiguration {
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
 	mouseWheelScrollSensitivity: number;
+	sendKeybindingsToShell: boolean;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
@@ -489,6 +490,7 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
+	CONFIGURE_TERMINAL_SETTINGS = 'workbench.action.terminal.openSettings',
 	COPY_SELECTION = 'workbench.action.terminal.copySelection',
 	SELECT_ALL = 'workbench.action.terminal.selectAll',
 	DELETE_WORD_LEFT = 'workbench.action.terminal.deleteWordLeft',

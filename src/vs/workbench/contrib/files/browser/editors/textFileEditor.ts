@@ -9,7 +9,7 @@ import { isFunction, assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -30,6 +30,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 /**
  * An implementation of editor for file system resources.
@@ -60,6 +61,10 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Move view state for moved files
 		this._register(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidFileSystemProviderChange(e.scheme)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidFileSystemProviderChange(e.scheme)));
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
@@ -72,6 +77,14 @@ export class TextFileEditor extends BaseTextEditor {
 	private onDidRunOperation(e: FileOperationEvent): void {
 		if (e.operation === FileOperation.MOVE && e.target) {
 			this.moveTextEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
+		}
+	}
+
+	private onDidFileSystemProviderChange(scheme: string): void {
+		const control = this.getControl();
+		const input = this.input;
+		if (control && input?.resource.scheme === scheme) {
+			control.updateOptions({ readOnly: input.isReadonly() });
 		}
 	}
 

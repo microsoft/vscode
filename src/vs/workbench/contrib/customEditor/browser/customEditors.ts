@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -173,7 +174,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				: undefined,
 			detail: editorDescriptor.providerDisplayName,
 			buttons: resourceExt ? [{
-				iconClass: 'codicon-settings-gear',
+				iconClass: Codicon.settingsGear.classNames,
 				tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
 			}] : undefined
 		}));

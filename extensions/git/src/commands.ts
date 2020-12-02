@@ -1841,8 +1841,8 @@ export class CommandCenter {
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string>('checkoutType') || 'all';
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+		const checkoutType = config.get<string | string[]>('checkoutType');
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.filter(ref => ref.name || ref.commit)
@@ -1866,8 +1866,8 @@ export class CommandCenter {
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string>('checkoutType') || 'all';
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+		const checkoutType = config.get<string | string[]>('checkoutType');
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
 		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.filter(ref => ref.name !== repository.HEAD?.name)

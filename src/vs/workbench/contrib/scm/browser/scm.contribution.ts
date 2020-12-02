@@ -23,6 +23,7 @@ import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPa
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
@@ -38,12 +39,14 @@ ModesRegistry.registerLanguage({
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
+const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the source control view.'));
+
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
-	icon: Codicon.sourceControl.classNames,
+	icon: sourceControlViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true
@@ -65,7 +68,7 @@ viewsRegistry.registerViews([{
 	canMoveView: true,
 	weight: 80,
 	order: -999,
-	containerIcon: Codicon.sourceControl.classNames
+	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
 viewsRegistry.registerViews([{
@@ -80,7 +83,7 @@ viewsRegistry.registerViews([{
 	order: -1000,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
-	containerIcon: Codicon.sourceControl.classNames
+	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)

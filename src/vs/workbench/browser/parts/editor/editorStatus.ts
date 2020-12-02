@@ -346,12 +346,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				[{
 					label: nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
+						this.configurationService.updateValue('editor.accessibilitySupport', 'on');
 					}
 				}, {
 					label: nls.localize('screenReaderDetectedExplanation.answerNo', "No"),
 					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+						this.configurationService.updateValue('editor.accessibilitySupport', 'off');
 					}
 				}],
 				{ sticky: true }
@@ -1150,7 +1150,7 @@ export class ChangeModeAction extends Action {
 
 		// User decided to configure settings for current language
 		if (pick === configureModeSettings) {
-			this.preferencesService.openGlobalSettings(true, { editSetting: `[${withUndefinedAsNull(currentModeId)}]` });
+			this.preferencesService.openGlobalSettings(true, { revealSetting: { key: `[${withUndefinedAsNull(currentModeId)}]`, edit: true } });
 			return;
 		}
 

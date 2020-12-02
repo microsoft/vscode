@@ -37,6 +37,8 @@ import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtil
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
+import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -225,7 +227,7 @@ export class ConfigurationManager implements IConfigurationManager {
 								description: launch.name,
 								config,
 								buttons: [{
-									iconClass: 'codicon-gear',
+									iconClass: ThemeIcon.asClassName(debugConfigure),
 									tooltip: nls.localize('editLaunchConfig', "Edit Debug Configuration in launch.json")
 								}],
 								launch
@@ -687,7 +689,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	async openConfigFile(preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
-		const editor = await this.preferencesService.openGlobalSettings(true, { preserveFocus });
+		const editor = await this.preferencesService.openGlobalSettings(true, { preserveFocus, revealSetting: { key: 'launch' } });
 		return ({
 			editor: withUndefinedAsNull(editor),
 			created: false

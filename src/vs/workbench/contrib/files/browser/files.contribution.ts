@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrder, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, SortOrder, FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -33,7 +33,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
+import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
@@ -42,6 +42,7 @@ import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFile
 import { isEqual } from 'vs/base/common/resources';
 import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -492,7 +493,7 @@ UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
 	if (explorerService.hasViewFocus()) {
-		undoRedoService.undo(explorerService.undoRedoSource);
+		undoRedoService.undo(UNDO_REDO_SOURCE);
 		return true;
 	}
 
@@ -503,7 +504,7 @@ RedoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
 	if (explorerService.hasViewFocus()) {
-		undoRedoService.redo(explorerService.undoRedoSource);
+		undoRedoService.redo(UNDO_REDO_SOURCE);
 		return true;
 	}
 
