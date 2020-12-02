@@ -83,6 +83,8 @@ stages:
         variables:
           VSCODE_ARCH: x64
           NPM_ARCH: x64
+          CC: gcc-5
+          CXX: g++-5
         steps:
           - template: linux/product-build-linux.yml
 
