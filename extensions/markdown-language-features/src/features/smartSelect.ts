@@ -34,7 +34,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 
 		const tokens = await this.engine.parse(document);
 
-		const blockTokens = getBlockTokensForPosition(tokens, position);
+		const blockTokens = getBlockTokensForPosition(tokens, position, headerRange);
 
 		if (blockTokens.length === 0) {
 			return undefined;
@@ -91,13 +91,13 @@ function createHeaderRange(header: TocEntry, isClosestHeaderToPosition: boolean,
 		// of this header then all content then header
 		return new vscode.SelectionRange(contentRange.with(undefined, startOfChildRange), new vscode.SelectionRange(contentRange, (new vscode.SelectionRange(range, parent))));
 	} else {
-		// no children and not on this header line so select content then header
+		// not on this header line so select content then header
 		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(range, parent));
 	}
 }
 
-function getBlockTokensForPosition(tokens: Token[], position: vscode.Position): Token[] {
-	const enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && isBlockElement(token));
+function getBlockTokensForPosition(tokens: Token[], position: vscode.Position, parent?: vscode.SelectionRange): Token[] {
+	const enclosingTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] > position.line) && (!parent || (token.map[0] >= parent.range.start.line && token.map[1] <= parent.range.end.line + 1)) && isBlockElement(token));
 	if (enclosingTokens.length === 0) {
 		return [];
 	}
