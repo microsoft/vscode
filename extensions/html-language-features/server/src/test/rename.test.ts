@@ -28,10 +28,6 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 			assert.fail('No workspace edits');
 		}
 
-		if (!workspaceEdit || !workspaceEdit.changes) {
-			assert.fail('No workspace edits');
-		}
-
 		const edits = workspaceEdit.changes[document.uri.toString()];
 		if (!edits) {
 			assert.fail(`No edits for file at ${document.uri.toString()}`);

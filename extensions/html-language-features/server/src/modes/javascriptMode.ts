@@ -191,11 +191,12 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		async doRename(document: TextDocument, position: Position, newName: string) {
 			const jsDocument = jsDocuments.get(document);
 			const jsLanguageService = await host.getLanguageService(jsDocument);
-			const { canRename } = jsLanguageService.getRenameInfo(jsDocument.uri, jsDocument.offsetAt(position));
+			const jsDocumentPosition = jsDocument.offsetAt(position);
+			const { canRename } = jsLanguageService.getRenameInfo(jsDocument.uri, jsDocumentPosition);
 			if (!canRename) {
 				return null;
 			}
-			const renameInfos = jsLanguageService.findRenameLocations(jsDocument.uri, jsDocument.offsetAt(position), false, false);
+			const renameInfos = jsLanguageService.findRenameLocations(jsDocument.uri, jsDocumentPosition, false, false);
 
 			const edits: TextEdit[] = [];
 			renameInfos?.map(renameInfo => {
