@@ -250,7 +250,11 @@ registerAction2(class extends Action2 {
 			return;
 		}
 		if (seeingBad === undefined) {
-			seeingBad = await this._checkForBad(dialogService, bisectService);
+			const goodBadStopCancel = await this._checkForBad(dialogService, bisectService);
+			if (goodBadStopCancel === null) {
+				return;
+			}
+			seeingBad = goodBadStopCancel;
 		}
 		if (seeingBad === undefined) {
 			await bisectService.reset();
@@ -291,21 +295,23 @@ registerAction2(class extends Action2 {
 		hostService.reload();
 	}
 
-	private async _checkForBad(dialogService: IDialogService, bisectService: IExtensionBisectService) {
+	private async _checkForBad(dialogService: IDialogService, bisectService: IExtensionBisectService): Promise<boolean | undefined | null> {
 		const options = {
-			cancelId: 2,
+			cancelId: 3,
 			detail: localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", bisectService.disabledCount),
 		};
 		const res = await dialogService.show(
 			Severity.Info,
 			localize('msg.next', "Extension Bisect"),
-			[localize('next.good', "Good now"), localize('next.bad', "This is bad"), localize('next.stop', "Stop Bisect")],
+			[localize('next.good', "Good now"), localize('next.bad', "This is bad"), localize('next.stop', "Stop Bisect"), localize('next.cancel', "Cancel")],
 			options
 		);
-		if (res.choice === options.cancelId) {
-			return undefined;
+		switch (res.choice) {
+			case 0: return false; //good now
+			case 1: return true; //bad
+			case 2: return undefined; //stop
 		}
-		return res.choice === 1;
+		return null; //cancel
 	}
 });
 
