@@ -108,12 +108,12 @@
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-title {
-	margin-bottom: 4px;
 	font-size: 14pt;
 }
 
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description {
+	margin-top: 4px;
 	font-size: 13px;
 }
 
