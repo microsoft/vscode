@@ -5061,6 +5061,10 @@ declare namespace monaco.languages {
 		 * Tokenize a line given the state at the beginning of the line.
 		 */
 		tokenizeEncoded(line: string, state: IState): IEncodedLineTokens;
+		/**
+		 * Tokenize a line given the state at the beginning of the line.
+		 */
+		tokenize?(line: string, state: IState): ILineTokens;
 	}
 
 	/**
