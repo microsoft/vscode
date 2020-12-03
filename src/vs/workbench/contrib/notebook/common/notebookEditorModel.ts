@@ -199,6 +199,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	}
 
 	private async _assertStat() {
+		this._logService.debug('start assert stat');
 		const stats = await this._resolveStats(this.resource);
 		if (this._lastResolvedFileStat && stats && stats.mtime > this._lastResolvedFileStat.mtime) {
 			this._logService.debug(`noteboook file on disk is newer:
@@ -237,6 +238,7 @@ Current stat: ${JSON.stringify(stats)}
 	}
 
 	async save(): Promise<boolean> {
+		this._logService.debug(`start saving notebook ${this.resource.toString()}`);
 		const result = await this._assertStat();
 		if (result === 'none') {
 			return false;
@@ -249,6 +251,7 @@ Current stat: ${JSON.stringify(stats)}
 
 		const tokenSource = new CancellationTokenSource();
 		await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
+		this._logService.debug(`notebook ${this.resource.toString()} saved. update file stats`);
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 		this.setDirty(false);
@@ -256,6 +259,7 @@ Current stat: ${JSON.stringify(stats)}
 	}
 
 	async saveAs(targetResource: URI): Promise<boolean> {
+		this._logService.debug(`start saving notebook ${this.resource.toString()}`);
 		const result = await this._assertStat();
 
 		if (result === 'none') {
@@ -269,6 +273,7 @@ Current stat: ${JSON.stringify(stats)}
 
 		const tokenSource = new CancellationTokenSource();
 		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
+		this._logService.debug(`notebook ${this.resource.toString()} saved. update file stats`);
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 		this.setDirty(false);
