@@ -1013,24 +1013,28 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (data instanceof NativeDragAndDropData) {
 			const cts = new CancellationTokenSource();
 
-			// Indicate progress globally
-			try {
-				if (isWeb) {
-					const dropPromise = this.progressService.withProgress({
-						location: ProgressLocation.Window,
-						delay: 800,
-						cancellable: true,
-						title: localize('uploadingFiles', "Uploading")
-					}, async progress => {
-						this.handleWebExternalDrop(resolvedTarget, originalEvent, progress, cts.token);
-					}, () => cts.dispose(true));
-					// Also indicate progress in the files view
-					this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => dropPromise);
-				} else {
+			if (isWeb) {
+				// Indicate progress globally
+				const dropPromise = this.progressService.withProgress({
+					location: ProgressLocation.Window,
+					delay: 800,
+					cancellable: true,
+					title: localize('uploadingFiles', "Uploading")
+				}, async progress => {
+					try {
+						await this.handleWebExternalDrop(resolvedTarget, originalEvent, progress, cts.token);
+					} catch (error) {
+						this.notificationService.warn(error);
+					}
+				}, () => cts.dispose(true));
+				// Also indicate progress in the files view
+				this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => dropPromise);
+			} else {
+				try {
 					this.handleExternalDrop(resolvedTarget, originalEvent, cts.token);
+				} catch (error) {
+					this.notificationService.warn(error);
 				}
-			} catch (error) {
-				this.notificationService.warn(error);
 			}
 		}
 		// In-Explorer DND (Move/Copy file)
@@ -1311,6 +1315,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async addResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
+		console.log('ADDING RESOURCE');
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
