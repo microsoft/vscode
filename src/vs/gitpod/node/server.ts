@@ -65,6 +65,7 @@ import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints'
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { IGetEnvironmentDataArguments, IRemoteAgentEnvironmentDTO, IScanExtensionsArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
+import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 
 const uriTransformerPath = path.join(__dirname, '../../../gitpodUriTransformer');
 const rawURITransformerFactory: (remoteAuthority: string) => IRawURITransformer = <any>require.__$__nodeRequire(uriTransformerPath);
@@ -465,11 +466,17 @@ async function main(): Promise<void> {
 
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+
 	const instantiationService = new InstantiationService(services);
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		channelServer.registerChannel('extensions', new ExtensionManagementChannel(extensionManagementService, requestContext => new URITransformer(rawURITransformerFactory(requestContext))));
 		(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+		const requestService = accessor.get(IRequestService);
+		channelServer.registerChannel('request', new RequestChannel(requestService));
 	});
 
 	const clients = new Map<string, Client>();
