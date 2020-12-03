@@ -729,7 +729,10 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly workspace = true;
+	// group is not actually used for views that are not extension contributed. Use order instead.
 	readonly group = 'details@0';
+	// -500 comes from the remote explorer viewOrderDelegate
+	readonly order = -500;
 	readonly remoteAuthority?: string | string[];
 	readonly canMoveView = true;
 	readonly containerIcon = Codicon.plug;
