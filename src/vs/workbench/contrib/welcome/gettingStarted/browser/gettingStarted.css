@@ -27,7 +27,6 @@
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .header {
-	margin-top: 32px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -40,10 +39,6 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .category-description-container {
 	width: 100%
-}
-
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .category-description {
-	font-size: 12px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories .category-progress {
@@ -67,6 +62,7 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide .getting-started-category {
 	width: 330px;
 	min-height: 80px;
+	margin: 12px;
 	text-align: left;
 	display: flex;
 }
@@ -97,7 +93,7 @@
 	display: flex;
 	height: 100%;
 	justify-content: center;
-	padding: 30px;
+	padding: 44px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task {
@@ -107,6 +103,7 @@
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) .task-description,
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) .actions,
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) button,
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) a {
 	display: none;
@@ -127,10 +124,14 @@
 	font-size: 13px;
 }
 
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .actions {
+	margin-top: 12px;
+	display: flex;
+	align-items: center;
+}
+
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-next {
-	float: right;
-	margin-top: 24px;
-	margin-right: 25px;
+	margin-left: auto;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.hidden {
@@ -143,8 +144,7 @@
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task-action {
-	margin: 20px 0 0;
-	padding: 4px 8px;
+	padding: 6px 12px;
 	font-size: 11pt;
 	min-width: 100px;
 }
@@ -158,16 +158,19 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-right {
 	width: 66%;
 	text-align: center;
-	padding: 35px;
+	padding-left: 44px;
 	margin-bottom: 50px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button {
 	border: none;
-	margin: 10px;
 	color: inherit;
 	text-align: left;
 	padding: 16px;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:not(:first-child) {
+	margin-top: 12px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:hover {
@@ -183,6 +186,10 @@
 	left: 0;
 	font-size: 12pt;
 	margin: 10px;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button:hover {
+	cursor: pointer;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button .codicon {

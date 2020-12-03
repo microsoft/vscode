@@ -292,19 +292,20 @@ export class GettingStartedPage extends Disposable {
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
-					...(
-						task.button
-							? [$('button.emphasis.getting-started-task-action', { 'x-dispatch': 'runTaskAction:' + task.id },
-								task.button.title + this.getKeybindingLabel(task.button.command)
-							)]
-							: []),
-					...(
-						arr[i + 1]
-							? [
-								$('a.task-next',
-									{ 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),
-							] : []
-					)
+					$('.actions', {},
+						...(
+							task.button
+								? [$('button.emphasis.getting-started-task-action', { 'x-dispatch': 'runTaskAction:' + task.id },
+									task.button.title + this.getKeybindingLabel(task.button.command)
+								)]
+								: []),
+						...(
+							arr[i + 1]
+								? [
+									$('a.task-next',
+										{ 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),
+								] : []
+						))
 				)));
 
 		const detailContainer = assertIsDefined(document.getElementById('getting-started-detail-container'));

@@ -1880,12 +1880,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
-	public hasSemanticTokens(): boolean {
+	public hasCompleteSemanticTokens(): boolean {
 		return this._tokens2.isComplete();
 	}
 
+	public hasSomeSemanticTokens(): boolean {
+		return !this._tokens2.isEmpty();
+	}
+
 	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
-		if (this.hasSemanticTokens()) {
+		if (this.hasCompleteSemanticTokens()) {
 			return;
 		}
 		const changedRange = this._tokens2.setPartial(range, tokens);

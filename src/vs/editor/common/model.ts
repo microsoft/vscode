@@ -855,7 +855,12 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	hasSemanticTokens(): boolean;
+	hasCompleteSemanticTokens(): boolean;
+
+	/**
+	 * @internal
+	 */
+	hasSomeSemanticTokens(): boolean;
 
 	/**
 	 * Flush all tokenization state.
