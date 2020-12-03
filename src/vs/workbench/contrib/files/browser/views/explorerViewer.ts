@@ -1315,7 +1315,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async addResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
-		console.log('ADDING RESOURCE');
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
