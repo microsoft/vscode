@@ -168,7 +168,17 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier, storedWorkspace: IStoredWorkspace } {
-		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
+		// Generate the workspace ID based off of the folders specified. This
+		// prevents identical workspace configurations from spawning since
+		// the untitled workspace is determined by the folders it contains.
+		let idSeed = '';
+		folders.forEach(folder => {
+			for (const character of folder.uri.path) {
+				// Add each ASCII value of each folder character
+				idSeed += character.charCodeAt(0);
+			}
+		});
+		const randomId = idSeed;
 		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
 		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
