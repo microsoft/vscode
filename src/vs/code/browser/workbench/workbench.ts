@@ -335,6 +335,9 @@ async function doStart(): Promise<IDisposable> {
 		title: localize('home', "Home")
 	};
 
+	const gitpodHostURL = new URL(info.gitpodHost);
+	const gitpodDomain = gitpodHostURL.protocol + '//*.' + gitpodHostURL.host;
+
 	return create(document.body, {
 		remoteAuthority,
 		webviewEndpoint: webviewEndpoint.toString(),
@@ -365,7 +368,13 @@ async function doStart(): Promise<IDisposable> {
 			themeType: ColorScheme.DARK
 		},
 		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		credentialsProvider: new LocalStorageCredentialsProvider(),
+		productConfiguration: {
+			linkProtectionTrustedDomains: [
+				...(product.linkProtectionTrustedDomains || []),
+				gitpodDomain
+			]
+		}
 	});
 }
 
