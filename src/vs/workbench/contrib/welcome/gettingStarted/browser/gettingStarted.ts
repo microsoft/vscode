@@ -176,11 +176,15 @@ export class GettingStartedPage extends Disposable {
 			}
 			this.editorInput.selectedTask = id;
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
-			mediaElement.setAttribute('src', taskToExpand.media.toString());
+			console.log(taskToExpand.media.path, taskToExpand.media.path.toString());
+
+			mediaElement.setAttribute('src', taskToExpand.media.path.toString());
+			mediaElement.setAttribute('alt', taskToExpand.media.altText);
 			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => node.classList.remove('expanded'));
 			taskElement.classList.add('expanded');
 		} else {
 			mediaElement.setAttribute('src', '');
+			mediaElement.setAttribute('alt', '');
 		}
 	}
 
