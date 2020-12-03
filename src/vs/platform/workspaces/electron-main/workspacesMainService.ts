@@ -327,6 +327,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 		return { workspace, backupPath };
 	}
+
 }
 
 function getWorkspaceId(configPath: URI): string {
