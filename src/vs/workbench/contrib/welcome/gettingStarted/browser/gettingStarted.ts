@@ -288,7 +288,7 @@ export class GettingStartedPage extends Disposable {
 		const categoryElements = category.content.items.map(
 			(task, i, arr) => $('button.getting-started-task',
 				{ 'x-dispatch': 'selectTask:' + task.id, id: 'getting-started-task-' + task.id },
-				$('.codicon' + (task.done ? '.codicon-star-full' : '.codicon-star-empty'), { id: 'done-task-' + task.id }),
+				$('.codicon' + (task.done ? '.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
