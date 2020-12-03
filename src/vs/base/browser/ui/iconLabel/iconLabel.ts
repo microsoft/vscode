@@ -206,16 +206,23 @@ export class IconLabel extends Disposable {
 		const hoverDelay = isMacintosh ? 1500 : 500;
 		let hoverOptions: IHoverDelegateOptions | undefined;
 		let mouseX: number | undefined;
+		let isHovering = false;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
-			let isHovering = true;
-			function mouseMove(this: HTMLElement, e: MouseEvent): any {
-				mouseX = e.x;
+			if (isHovering) {
+				return;
 			}
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
+				mouseLeaveDisposable.dispose();
+				mouseDownDisposable.dispose();
 			}
 			const mouseLeaveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_LEAVE, true)(mouseLeaveOrDown.bind(htmlElement));
 			const mouseDownDisposable = domEvent(htmlElement, dom.EventType.MOUSE_DOWN, true)(mouseLeaveOrDown.bind(htmlElement));
+			isHovering = true;
+
+			function mouseMove(this: HTMLElement, e: MouseEvent): any {
+				mouseX = e.x;
+			}
 			const mouseMoveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_MOVE, true)(mouseMove.bind(htmlElement));
 			setTimeout(async () => {
 				if (isHovering && tooltip) {
@@ -234,7 +241,8 @@ export class IconLabel extends Disposable {
 							};
 						}
 					}
-					if (hoverOptions) {
+					// awaiting the tooltip could take a while. Make sure we're still hovering.
+					if (hoverOptions && isHovering) {
 						if (mouseX !== undefined) {
 							(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
 						}
@@ -242,8 +250,6 @@ export class IconLabel extends Disposable {
 					}
 				}
 				mouseMoveDisposable.dispose();
-				mouseLeaveDisposable.dispose();
-				mouseDownDisposable.dispose();
 			}, hoverDelay);
 		}
 		const mouseOverDisposable = this._register(domEvent(htmlElement, dom.EventType.MOUSE_OVER, true)(mouseOver.bind(htmlElement)));
