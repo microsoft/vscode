@@ -17,6 +17,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 export interface INotebookLoadOptions {
@@ -51,6 +52,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		@IBackupFileService private readonly _backupFileService: IBackupFileService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService,
 		@ILabelService labelService: ILabelService,
 	) {
 		super();
@@ -199,6 +201,11 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	private async _assertStat() {
 		const stats = await this._resolveStats(this.resource);
 		if (this._lastResolvedFileStat && stats && stats.mtime > this._lastResolvedFileStat.mtime) {
+			this._logService.debug(`noteboook file on disk is newer:
+LastResolvedStat: ${this._lastResolvedFileStat ? JSON.stringify(this._lastResolvedFileStat) : undefined}.
+Current stat: ${JSON.stringify(stats)}
+`);
+			this._lastResolvedFileStat = stats;
 			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
 				const handle = this._notificationService.prompt(
 					Severity.Info,
@@ -221,6 +228,9 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 					resolve('none');
 				});
 			});
+		} else if (!this._lastResolvedFileStat && stats) {
+			// finally get a stats
+			this._lastResolvedFileStat = stats;
 		}
 
 		return 'overwrite';
@@ -271,7 +281,9 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		}
 
 		try {
+			this._logService.debug(`start checking stats for ${resource.toString()}`);
 			const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+			this._logService.debug(`${resource.toString()} latest file stats: ${JSON.stringify(newStats)}`);
 			return newStats;
 		} catch (e) {
 			return undefined;
