@@ -33,7 +33,7 @@ export const content: GettingStartedContent = [
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Get Started"),
 		codicon: 'lightbulb',
-		description: localize('gettingStarted.beginner.description', "Get to know your new Editor"),
+		description: localize('gettingStarted.beginner.description', "Get to know your new editor"),
 		content: {
 			type: 'items',
 			items: [
