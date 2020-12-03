@@ -178,7 +178,9 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 				idSeed += character.charCodeAt(0);
 			}
 		});
-		const randomId = idSeed;
+		// Set the randomId to be based on a hash to avoid a directory path
+		// that is too long
+		const randomId = createHash('md5').update(idSeed).digest('hex');
 		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
 		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
@@ -337,7 +339,6 @@ function getWorkspaceId(configPath: URI): string {
 	if (!isLinux) {
 		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
 	}
-
 	return createHash('md5').update(workspaceConfigPath).digest('hex');
 }
 
