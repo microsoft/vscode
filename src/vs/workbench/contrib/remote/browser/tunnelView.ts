@@ -292,6 +292,9 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 			templateData.icon.className = 'custom-view-tree-node-item-icon';
 			templateData.icon.hidden = true;
 		}
+
+		menu.dispose();
+		contextKeyService.dispose();
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
