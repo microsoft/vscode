@@ -47,9 +47,9 @@ else
 fi
 
 if [ -z "$INTEGRATION_TEST_APP_NAME" ]; then
-	after_suite() { true }
+	after_suite() { true; }
 else
-	after_suite() { killall $INTEGRATION_TEST_APP_NAME || true }
+	after_suite() { killall $INTEGRATION_TEST_APP_NAME || true; }
 fi
 
 # Integration tests in AMD
