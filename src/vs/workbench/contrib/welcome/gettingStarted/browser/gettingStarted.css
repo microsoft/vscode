@@ -271,6 +271,7 @@
 
 	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-right {
 		align-items: center;
+		padding-top: 0;
 	}
 
 	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category {
