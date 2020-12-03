@@ -172,12 +172,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		// prevents identical workspace configurations from spawning since
 		// the untitled workspace is determined by the folders it contains.
 		let idSeed = '';
-		folders.forEach(folder => {
-			for (const character of folder.uri.path) {
-				// Add each ASCII value of each folder character
-				idSeed += character.charCodeAt(0);
-			}
-		});
+		folders.forEach(folder => idSeed += folder.uri.path);
 		// Set the randomId to be based on a hash to avoid a directory path
 		// that is too long
 		const randomId = createHash('md5').update(idSeed).digest('hex');
