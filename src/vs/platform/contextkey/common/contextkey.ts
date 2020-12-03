@@ -12,6 +12,8 @@ let _userAgent = userAgent || '';
 const STATIC_VALUES = new Map<string, boolean>();
 STATIC_VALUES.set('false', false);
 STATIC_VALUES.set('true', true);
+STATIC_VALUES.set('undefined', undefined);
+STATIC_VALUES.set('null', null);
 STATIC_VALUES.set('isMac', isMacintosh);
 STATIC_VALUES.set('isLinux', isLinux);
 STATIC_VALUES.set('isWindows', isWindows);
