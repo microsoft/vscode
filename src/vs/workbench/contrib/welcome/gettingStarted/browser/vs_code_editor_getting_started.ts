@@ -10,11 +10,13 @@ export default () => `
 <div class="gettingStartedContainer">
 	<div class="gettingStarted" role="document">
 		<div id="gettingStartedSlideCategory" class="gettingStartedSlide categories">
+			<div class="gap"></div>
 			<div class="header">
 				<h1 id="product-name" class="caption">${escape(localize('gettingStarted.vscode', "Visual Studio Code"))}</h1>
 				<p class="subtitle description">${escape(localize({ key: 'gettingStarted.editingRedefined', comment: ['Shown as subtitle on the Welcome page.'] }, "Code editing. Redefined"))}</p>
 			</div>
 			<div id="getting-started-categories-container"></div>
+			<div class="gap"></div>
 		</div>
 		<div id="gettingStartedSlideDetails" class="gettingStartedSlide detail">
 			<a class="prev-button" x-dispatch="scrollPrev"><span
