@@ -43,7 +43,7 @@ export const content: GettingStartedContent = [
 					title: localize('pickColorTask.title', "Color Theme"),
 					button: { title: localize('pickColorTask.button', "Find a Theme"), command: 'workbench.action.selectTheme' },
 					doneOn: { eventFired: 'themeSelected' },
-					media: { type: 'image', altText: 'ColorTheme', path: 'ColorTheme.jpg', }
+					media: { type: 'image', altText: 'ColorTheme', path: 'ColorTheme.png', }
 				},
 
 				{
@@ -55,7 +55,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.extensions.action.showRecommendedKeymapExtensions'
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedKeymapExtensions' },
-					media: { type: 'image', altText: 'Extensions', path: 'Extensions.jpg', }
+					media: { type: 'image', altText: 'Extensions', path: 'Extensions.png', }
 				},
 
 				{
@@ -67,7 +67,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.extensions.action.showLanguageExtensions',
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showLanguageExtensions' },
-					media: { type: 'image', altText: 'Languages', path: 'Languages.jpg', }
+					media: { type: 'image', altText: 'Languages', path: 'Languages.png', }
 				},
 
 				{
@@ -80,7 +80,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.files.openFileFolder'
 					},
 					doneOn: { commandExecuted: 'workbench.action.files.openFileFolder' },
-					media: { type: 'image', altText: 'OpenFolder', path: 'OpenFolder.jpg' }
+					media: { type: 'image', altText: 'OpenFolder', path: 'OpenFolder.png' }
 				},
 
 				{
@@ -116,7 +116,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.showCommands'
 					},
 					doneOn: { commandExecuted: 'workbench.action.showCommands' },
-					media: { type: 'image', altText: 'gif of a custom tree hover', path: 'https://code.visualstudio.com/assets/updates/1_51/custom-tree-hover.gif' },
+					media: { type: 'image', altText: 'gif of a custom tree hover', path: 'CommandPalette.png' },
 				}
 			]
 		}
