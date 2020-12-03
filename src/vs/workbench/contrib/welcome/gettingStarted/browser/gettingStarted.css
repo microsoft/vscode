@@ -16,10 +16,6 @@
 	left: 0;
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer {
-	width: 100%;
-}
-
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.categories {
 	height: calc(100% - 50px);
 	display: flex;
@@ -104,6 +100,10 @@
 	display: flex;
 	width: 100%;
 	overflow: hidden;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-columns #getting-started-detail-left > div {
+	width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) .task-description,
