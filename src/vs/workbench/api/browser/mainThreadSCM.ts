@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -68,7 +68,8 @@ class MainThreadSCMResource implements ISCMResource {
 		readonly sourceUri: URI,
 		readonly resourceGroup: ISCMResourceGroup,
 		readonly decorations: ISCMResourceDecorations,
-		readonly contextValue: string | undefined
+		readonly contextValue: string | undefined,
+		readonly command: Command | undefined
 	) { }
 
 	open(preserveFocus: boolean): Promise<void> {
@@ -201,7 +202,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue] = rawResource;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command] = rawResource;
 					const icon = icons[0];
 					const iconDark = icons[1] || icon;
 					const decorations = {
@@ -220,7 +221,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 						URI.revive(sourceUri),
 						group,
 						decorations,
-						contextValue || undefined
+						contextValue || undefined,
+						command
 					);
 				});
 
@@ -273,7 +275,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ISCMService private readonly scmService: ISCMService
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
@@ -294,11 +297,11 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.set(handle, repository);
 
 		const disposable = combinedDisposable(
-			Event.filter(repository.onDidChangeSelection, selected => selected)(_ => this._proxy.$setSelectedSourceControl(handle)),
-			repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value))
+			Event.filter(this.scmViewService.onDidFocusRepository, r => r === repository)(_ => this._proxy.$setSelectedSourceControl(handle)),
+			repository.input.onDidChange(({ value }) => this._proxy.$onInputBoxValueChange(handle, value))
 		);
 
-		if (repository.selected) {
+		if (this.scmViewService.focusedRepository === repository) {
 			setTimeout(() => this._proxy.$setSelectedSourceControl(handle), 0);
 		}
 

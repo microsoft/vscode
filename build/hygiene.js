@@ -53,6 +53,7 @@ const indentationFilter = [
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
+	'!resources/linux/snap/electron-launch',
 
 	// except specific folders
 	'!test/automation/out/**',
@@ -82,7 +83,7 @@ const indentationFilter = [
 	'!src/vs/*/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist}',
+	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist}',
 	'!build/{lib,download,darwin}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
@@ -115,10 +116,10 @@ const copyrightFilter = [
 	'!**/*.js.map',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
-	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
 	'!resources/web/code-web.js',
 	'!resources/completions/**',
+	'!extensions/configuration-editing/build/inline-allOf.ts',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',

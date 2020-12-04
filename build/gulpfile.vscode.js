@@ -58,7 +58,7 @@ const vscodeResources = [
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
 	'out-build/paths.js',
-	'out-build/vs/**/*.{svg,png,html}',
+	'out-build/vs/**/*.{svg,png,html,jpg}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/common/performance.js',
@@ -201,13 +201,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
-		const jsFilter = util.filter(data => !data.isDirectory() &&/\.js$/.test(data.path));
+		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.nativeignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -326,7 +325,8 @@ const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
-	{ platform: 'darwin', arch: null, opts: { stats: true } },
+	{ platform: 'darwin', arch: 'x64', opts: { stats: true } },
+	{ platform: 'darwin', arch: 'arm64', opts: { stats: true } },
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
@@ -456,8 +456,10 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 
 		const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
 		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
+		const arch = process.env['VSCODE_ARCH'];
+		const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'Visual\\ Studio\\ Code\\ -\\ Insiders.app' : 'Visual\\ Studio\\ Code.app';
-		const appPath = path.join(buildDir, `VSCode-darwin/${appName}/Contents/Resources/app/bin/code`);
+		const appPath = path.join(appRoot, appName, 'Contents', 'Resources', 'app', 'bin', 'code');
 		const codeProc = cp.exec(
 			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
 			(err, stdout, stderr) => {

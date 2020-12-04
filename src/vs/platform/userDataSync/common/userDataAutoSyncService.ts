@@ -11,7 +11,7 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { localize } from 'vs/nls';
@@ -55,7 +55,7 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 	) {
 		super();
-		this._register(storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
 	}
 
 	isEnabled(defaultEnablement?: boolean): boolean {
@@ -73,15 +73,15 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 	}
 
 	setEnablement(enabled: boolean): void {
-		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL);
+		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
-	private onDidStorageChange(workspaceStorageChangeEvent: IWorkspaceStorageChangeEvent): void {
-		if (workspaceStorageChangeEvent.scope !== StorageScope.GLOBAL) {
+	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
+		if (storageChangeEvent.scope !== StorageScope.GLOBAL) {
 			return;
 		}
 
-		if (enablementKey === workspaceStorageChangeEvent.key) {
+		if (enablementKey === storageChangeEvent.key) {
 			this._onDidChangeEnablement.fire(this.isEnabled());
 			return;
 		}
@@ -110,7 +110,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	}
 	private set syncUrl(syncUrl: URI | undefined) {
 		if (syncUrl) {
-			this.storageService.store(storeUrlKey, syncUrl.toString(), StorageScope.GLOBAL);
+			this.storageService.store(storeUrlKey, syncUrl.toString(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(storeUrlKey, StorageScope.GLOBAL);
 		}
@@ -325,7 +325,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	}
 
 	private async disableMachineEventually(): Promise<void> {
-		this.storageService.store(disableMachineEventuallyKey, true, StorageScope.GLOBAL);
+		this.storageService.store(disableMachineEventuallyKey, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		await timeout(1000 * 60 * 10);
 
 		// Return if got stopped meanwhile.
@@ -526,7 +526,7 @@ class AutoSync extends Disposable {
 
 			// Update local session id
 			if (manifest && manifest.session !== sessionId) {
-				this.storageService.store(sessionIdKey, manifest.session, StorageScope.GLOBAL);
+				this.storageService.store(sessionIdKey, manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 
 			// Return if cancellation is requested

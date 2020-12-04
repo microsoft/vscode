@@ -19,8 +19,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -59,10 +59,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ReplFilter, ReplFilterState, ReplFilterActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
+import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
+const FILTER_HISTORY_STORAGE_KEY = 'debug.repl.filterHistory';
 const DECORATION_KEY = 'replinputdecoration';
 const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
 
@@ -462,7 +464,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const session = (this.tree ? this.tree.getInput() : undefined) ?? this.debugService.getViewModel().focusedSession;
 			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction, session);
 		} else if (action.id === FILTER_ACTION_ID) {
-			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action, localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"), this.filterState);
+			const filterHistory = JSON.parse(this.storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[];
+			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action,
+				localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"), this.filterState, filterHistory);
 			return this.filterActionViewItem;
 		}
 
@@ -592,7 +596,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
-		dom.append(this.replInputContainer, $('.repl-input-chevron.codicon.codicon-chevron-right'));
+		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
@@ -708,9 +712,17 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	saveState(): void {
 		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
-			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+		if (this.filterActionViewItem) {
+			const filterHistory = this.filterActionViewItem.getHistory();
+			if (filterHistory.length) {
+				this.storageService.store(FILTER_HISTORY_STORAGE_KEY, JSON.stringify(filterHistory), StorageScope.WORKSPACE, StorageTarget.USER);
+			} else {
+				this.storageService.remove(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+			}
 		}
 
 		super.saveState();
@@ -845,7 +857,7 @@ export class ClearReplAction extends Action {
 	constructor(id: string, label: string,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
-		super(id, label, 'debug-action codicon-clear-all');
+		super(id, label, 'debug-action ' + ThemeIcon.asClassName(debugConsoleClearAll));
 	}
 
 	async run(): Promise<any> {

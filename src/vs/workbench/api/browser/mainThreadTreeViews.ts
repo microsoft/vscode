@@ -52,14 +52,14 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		});
 	}
 
-	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
-		this.logService.trace('MainThreadTreeViews#$reveal', treeViewId, item, parentChain, options);
+	$reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void> {
+		this.logService.trace('MainThreadTreeViews#$reveal', treeViewId, itemInfo?.item, itemInfo?.parentChain, options);
 
 		return this.viewsService.openView(treeViewId, options.focus)
 			.then(() => {
 				const viewer = this.getTreeView(treeViewId);
-				if (viewer) {
-					return this.reveal(viewer, this._dataProviders.get(treeViewId)!, item, parentChain, options);
+				if (viewer && itemInfo) {
+					return this.reveal(viewer, this._dataProviders.get(treeViewId)!, itemInfo.item, itemInfo.parentChain, options);
 				}
 				return undefined;
 			});
@@ -235,9 +235,13 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	private updateTreeItem(current: ITreeItem, treeItem: ITreeItem): void {
 		treeItem.children = treeItem.children ? treeItem.children : undefined;
 		if (current) {
-			const properties = distinct([...Object.keys(current), ...Object.keys(treeItem)]);
+			const properties = distinct([...Object.keys(current instanceof ResolvableTreeItem ? current.asTreeItem() : current),
+			...Object.keys(treeItem)]);
 			for (const property of properties) {
 				(<any>current)[property] = (<any>treeItem)[property];
+			}
+			if (current instanceof ResolvableTreeItem) {
+				current.resetResolve();
 			}
 		}
 	}

@@ -28,7 +28,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
-	codeBlockRenderCallback?: () => void;
+	asyncRenderCallback?: () => void;
 	baseUrl?: URI;
 }
 
@@ -177,8 +177,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				// ignore
 			});
 
-			if (options.codeBlockRenderCallback) {
-				promise.then(options.codeBlockRenderCallback);
+			if (options.asyncRenderCallback) {
+				promise.then(options.asyncRenderCallback);
 			}
 
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
@@ -215,11 +215,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// Use our own sanitizer so that we can let through only spans.
 	// Otherwise, we'd be letting all html be rendered.
 	// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
+	// We always pass the output through insane after this so that we don't rely on
+	// marked for sanitization.
 	markedOptions.sanitizer = (html: string): string => {
 		const match = markdown.isTrusted ? html.match(/^(<span[^<]+>)|(<\/\s*span>)$/) : undefined;
 		return match ? html : '';
 	};
 	markedOptions.sanitize = true;
+	markedOptions.silent = true;
+
 	markedOptions.renderer = renderer;
 
 	// values that are too long will freeze the UI
@@ -239,6 +243,17 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
+
+	// signal size changes for image tags
+	if (options.asyncRenderCallback) {
+		for (const img of element.getElementsByTagName('img')) {
+			const listener = DOM.addDisposableListener(img, 'load', () => {
+				listener.dispose();
+				options.asyncRenderCallback!();
+			});
+		}
+	}
+
 
 	return element;
 }
@@ -301,3 +316,76 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 	};
 }
 
+/**
+ * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
+ */
+export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
+	const renderer = new marked.Renderer();
+
+	renderer.code = (code: string): string => {
+		return code;
+	};
+	renderer.blockquote = (quote: string): string => {
+		return quote;
+	};
+	renderer.html = (_html: string): string => {
+		return '';
+	};
+	renderer.heading = (text: string, _level: 1 | 2 | 3 | 4 | 5 | 6, _raw: string): string => {
+		return text + '\n';
+	};
+	renderer.hr = (): string => {
+		return '';
+	};
+	renderer.list = (body: string, _ordered: boolean): string => {
+		return body;
+	};
+	renderer.listitem = (text: string): string => {
+		return text + '\n';
+	};
+	renderer.paragraph = (text: string): string => {
+		return text + '\n';
+	};
+	renderer.table = (header: string, body: string): string => {
+		return header + body + '\n';
+	};
+	renderer.tablerow = (content: string): string => {
+		return content;
+	};
+	renderer.tablecell = (content: string, _flags: {
+		header: boolean;
+		align: 'center' | 'left' | 'right' | null;
+	}): string => {
+		return content + ' ';
+	};
+	renderer.strong = (text: string): string => {
+		return text;
+	};
+	renderer.em = (text: string): string => {
+		return text;
+	};
+	renderer.codespan = (code: string): string => {
+		return code;
+	};
+	renderer.br = (): string => {
+		return '\n';
+	};
+	renderer.del = (text: string): string => {
+		return text;
+	};
+	renderer.image = (_href: string, _title: string, _text: string): string => {
+		return '';
+	};
+	renderer.text = (text: string): string => {
+		return text;
+	};
+	renderer.link = (_href: string, _title: string, text: string): string => {
+		return text;
+	};
+	// values that are too long will freeze the UI
+	let value = markdown.value ?? '';
+	if (value.length > 100_000) {
+		value = `${value.substr(0, 100_000)}…`;
+	}
+	return sanitizeRenderedMarkdown({ isTrusted: false }, marked.parse(value, { renderer })).toString();
+}

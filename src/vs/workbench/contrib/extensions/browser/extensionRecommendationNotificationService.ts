@@ -11,28 +11,19 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotificationHandle, INotificationService, IPromptChoice, IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { EnablementState, IWorkbenchExtensioManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-
-interface IExtensionsConfiguration {
-	autoUpdate: boolean;
-	autoCheckUpdates: boolean;
-	ignoreRecommendations: boolean;
-	showRecommendationsOnlyOnDemand: boolean;
-	closeExtensionDetailsOnViewChange: boolean;
-}
 
 type ExtensionRecommendationsNotificationClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -142,18 +133,16 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		@IWorkbenchExtensioManagementService private readonly extensionManagementService: IWorkbenchExtensioManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
-		storageKeysSyncRegistryService.registerStorageKey({ key: ignoreImportantExtensionRecommendationStorageKey, version: 1 });
 		this.tasExperimentService = tasExperimentService;
 	}
 
 	hasToIgnoreRecommendationNotifications(): boolean {
-		const config = this.configurationService.getValue<IExtensionsConfiguration>('extensions');
-		return config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand;
+		const config = this.configurationService.getValue<{ ignoreRecommendations: boolean, showRecommendationsOnlyOnDemand?: boolean }>('extensions');
+		return config.ignoreRecommendations || !!config.showRecommendationsOnlyOnDemand;
 	}
 
 	async promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, source: RecommendationSource): Promise<RecommendationsNotificationResult> {
@@ -207,7 +196,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		});
 
 		if (result === RecommendationsNotificationResult.Accepted) {
-			this.storageService.store(donotShowWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
+			this.storageService.store(donotShowWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 
 	}
@@ -252,7 +241,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		{ onDidInstallRecommendedExtensions, onDidShowRecommendedExtensions, onDidCancelRecommendedExtensions, onDidNeverShowRecommendedExtensionsAgain }: RecommendationsNotificationActions): CancelablePromise<RecommendationsNotificationResult> {
 		return createCancelablePromise<RecommendationsNotificationResult>(async token => {
 			let accepted = false;
-			const choices: IPromptChoice[] = [];
+			const choices: (IPromptChoice | IPromptChoiceWithMenu)[] = [];
 			const installExtensions = async (isMachineScoped?: boolean) => {
 				this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				onDidInstallRecommendedExtensions(extensions);
@@ -263,14 +252,12 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			};
 			choices.push({
 				label: localize('install', "Install"),
-				run: () => installExtensions()
-			});
-			if (this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions)) {
-				choices.push({
+				run: () => installExtensions(),
+				menu: this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions) ? [{
 					label: localize('install and do no sync', "Install (Do not sync)"),
 					run: () => installExtensions(true)
-				});
-			}
+				}] : undefined,
+			});
 			choices.push(...[{
 				label: localize('show recommendations', "Show Recommendations"),
 				run: async () => {
@@ -423,11 +410,11 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		const importantRecommendationsIgnoreList = [...this.ignoredRecommendations];
 		if (!importantRecommendationsIgnoreList.includes(id.toLowerCase())) {
 			importantRecommendationsIgnoreList.push(id.toLowerCase());
-			this.storageService.store(ignoreImportantExtensionRecommendationStorageKey, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.GLOBAL);
+			this.storageService.store(ignoreImportantExtensionRecommendationStorageKey, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
-		this.configurationService.updateValue('extensions.ignoreRecommendations', configVal, ConfigurationTarget.USER);
+		this.configurationService.updateValue('extensions.ignoreRecommendations', configVal);
 	}
 }

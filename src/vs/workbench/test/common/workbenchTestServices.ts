@@ -13,7 +13,7 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { InMemoryStorageService, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
+import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { WorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -121,8 +121,10 @@ export class TestContextService implements IWorkspaceContextService {
 }
 
 export class TestStorageService extends InMemoryStorageService {
-	readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState = this._onWillSaveState.event;
+
+	emitWillSaveState(reason: WillSaveStateReason): void {
+		super.emitWillSaveState(reason);
+	}
 }
 
 export class TestWorkingCopyService extends WorkingCopyService { }

@@ -29,7 +29,7 @@ import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -48,6 +48,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class RequestState {
 
@@ -211,7 +212,7 @@ class OutlineViewState {
 			followCursor: this.followCursor,
 			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
-		}), StorageScope.WORKSPACE);
+		}), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	restore(storageService: IStorageService): void {
@@ -399,7 +400,7 @@ export class OutlinePane extends ViewPane {
 
 	getActions(): IAction[] {
 		return [
-			new CollapseAction(() => this._tree, true, 'explorer-action codicon-collapse-all')
+			new CollapseAction(() => this._tree, true, 'explorer-action ' + Codicon.collapseAll.classNames)
 		];
 	}
 
@@ -425,7 +426,7 @@ export class OutlinePane extends ViewPane {
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
 		this._outlineViewState.persist(this._storageService);
 		if (e.followCursor) {
-			// todo@joh update immediately
+			// todo@jrieken update immediately
 		}
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;

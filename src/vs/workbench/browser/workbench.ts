@@ -17,7 +17,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -297,7 +297,7 @@ export class Workbench extends Layout {
 			// local storage and not global storage because it would not make
 			// much sense to synchronize to other machines.
 			if (isNative) {
-				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL);
+				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			} else {
 				window.localStorage.setItem('vscode.editorFontInfo', serializedFontInfoRaw);
 			}
@@ -415,8 +415,7 @@ export class Workbench extends Layout {
 			mark('didStartWorkbench');
 
 			// Perf reporting (devtools)
-			performance.mark('workbench-end');
-			performance.measure('perf: workbench create & restore', 'workbench-start', 'workbench-end');
+			performance.measure('perf: workbench create & restore', 'didLoadWorkbenchMain', 'didStartWorkbench');
 		}
 	}
 }

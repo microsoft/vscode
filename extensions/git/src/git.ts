@@ -260,6 +260,7 @@ export interface IGitErrorData {
 	exitCode?: number;
 	gitErrorCode?: string;
 	gitCommand?: string;
+	gitArgs?: string[];
 }
 
 export class GitError {
@@ -271,6 +272,7 @@ export class GitError {
 	exitCode?: number;
 	gitErrorCode?: string;
 	gitCommand?: string;
+	gitArgs?: string[];
 
 	constructor(data: IGitErrorData) {
 		if (data.error) {
@@ -287,6 +289,7 @@ export class GitError {
 		this.exitCode = data.exitCode;
 		this.gitErrorCode = data.gitErrorCode;
 		this.gitCommand = data.gitCommand;
+		this.gitArgs = data.gitArgs;
 	}
 
 	toString(): string {
@@ -535,7 +538,8 @@ export class Git {
 				stderr: result.stderr,
 				exitCode: result.exitCode,
 				gitErrorCode: getGitErrorCode(result.stderr),
-				gitCommand: args[0]
+				gitCommand: args[0],
+				gitArgs: args
 			}));
 		}
 
@@ -1295,11 +1299,15 @@ export class Repository {
 		await this.run(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
-	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
+	async checkout(treeish: string, paths: string[], opts: { track?: boolean, detached?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['checkout', '-q'];
 
 		if (opts.track) {
 			args.push('--track');
+		}
+
+		if (opts.detached) {
+			args.push('--detach');
 		}
 
 		if (treeish) {
@@ -1317,21 +1325,28 @@ export class Repository {
 		} catch (err) {
 			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
+				err.gitTreeish = treeish;
 			}
 
 			throw err;
 		}
 	}
 
-	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
+	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const args = ['commit', '--quiet', '--allow-empty-message'];
 
 		if (opts.all) {
 			args.push('--all');
 		}
 
-		if (opts.amend) {
+		if (opts.amend && message) {
 			args.push('--amend');
+		}
+
+		if (opts.amend && !message) {
+			args.push('--amend', '--no-edit');
+		} else {
+			args.push('--file', '-');
 		}
 
 		if (opts.signoff) {
@@ -1350,8 +1365,11 @@ export class Repository {
 			args.push('--no-verify');
 		}
 
+		// Stops git from guessing at user/email
+		args.splice(0, 0, '-c', 'user.useConfigOnly=true');
+
 		try {
-			await this.run(args, { input: message || '' });
+			await this.run(args, !opts.amend || message ? { input: message || '' } : {});
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}
@@ -1411,6 +1429,11 @@ export class Repository {
 
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
+		await this.run(args);
+	}
+
+	async move(from: string, to: string): Promise<void> {
+		const args = ['mv', from, to];
 		await this.run(args);
 	}
 
@@ -1536,9 +1559,11 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean, readonly cancellationToken?: CancellationToken } = {}): Promise<void> {
 		const args = ['fetch'];
-		const spawnOptions: SpawnOptions = {};
+		const spawnOptions: SpawnOptions = {
+			cancellationToken: options.cancellationToken,
+		};
 
 		if (options.remote) {
 			args.push(options.remote);
@@ -1635,7 +1660,7 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		const args = ['push'];
 
 		if (forcePushMode === ForcePushMode.ForceWithLease) {
@@ -1648,8 +1673,12 @@ export class Repository {
 			args.push('-u');
 		}
 
-		if (tags) {
+		if (followTags) {
 			args.push('--follow-tags');
+		}
+
+		if (tags) {
+			args.push('--tags');
 		}
 
 		if (remote) {
@@ -1675,6 +1704,11 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async cherryPick(commitHash: string): Promise<void> {
+		const args = ['cherry-pick', commitHash];
+		await this.run(args);
 	}
 
 	async blame(path: string): Promise<string> {
@@ -1761,11 +1795,17 @@ export class Repository {
 		}
 	}
 
-	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const child = this.stream(['status', '-z', '-u'], { env });
+			const args = ['status', '-z', '-u'];
+
+			if (opts?.ignoreSubmodules) {
+				args.push('--ignore-submodules');
+			}
+
+			const child = this.stream(args, { env });
 
 			const onExit = (exitCode: number) => {
 				if (exitCode !== 0) {
@@ -1775,13 +1815,15 @@ export class Repository {
 						stderr,
 						exitCode,
 						gitErrorCode: getGitErrorCode(stderr),
-						gitCommand: 'status'
+						gitCommand: 'status',
+						gitArgs: args
 					}));
 				}
 
 				c({ status: parser.status, didHitLimit: false });
 			};
 
+			const limit = opts?.limit ?? 5000;
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
@@ -1845,7 +1887,7 @@ export class Repository {
 			args.push('--sort', `-${opts.sort}`);
 		}
 
-		args.push('--format', '%(refname) %(objectname)');
+		args.push('--format', '%(refname) %(objectname) %(*objectname)');
 
 		if (opts?.pattern) {
 			args.push(opts.pattern);
@@ -1860,12 +1902,12 @@ export class Repository {
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
-			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
 				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+			} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
 				return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
-			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Tag };
+			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
+				return { name: match[1], commit: match[3] ?? match[2], type: RefType.Tag };
 			}
 
 			return null;

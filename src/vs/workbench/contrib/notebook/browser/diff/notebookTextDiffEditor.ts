@@ -60,6 +60,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return this._model?.modified.notebook;
 	}
 
+	private _revealFirst: boolean;
+
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IThemeService readonly themeService: IThemeService,
@@ -74,6 +76,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this._fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel());
+		this._revealFirst = true;
 
 		this._register(this._modifiedResourceDisposableStore);
 	}
@@ -152,13 +155,15 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			return;
 		}
 
+		this._revealFirst = true;
+
 		this._modifiedResourceDisposableStore.add(this._fileService.watch(this._model.modified.resource));
 		this._modifiedResourceDisposableStore.add(this._fileService.onDidFilesChange(async e => {
 			if (this._model === null) {
 				return;
 			}
 
-			if (e.contains(this._model!.modified.resource)) {
+			if (e.contains(this._model.modified.resource)) {
 				if (this._model.modified.isDirty()) {
 					return;
 				}
@@ -174,7 +179,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				}
 			}
 
-			if (e.contains(this._model!.original.resource)) {
+			if (e.contains(this._model.original.resource)) {
 				if (this._model.original.isDirty()) {
 					return;
 				}
@@ -223,6 +228,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		let originalCellIndex = 0;
 		let modifiedCellIndex = 0;
 
+		let firstChangeIndex = -1;
+
 		for (let i = 0; i < cellChanges.length; i++) {
 			const change = cellChanges[i];
 			// common cells
@@ -238,6 +245,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						this._eventDispatcher!
 					));
 				} else {
+					if (firstChangeIndex === -1) {
+						firstChangeIndex = cellDiffViewModels.length;
+					}
+
 					cellDiffViewModels.push(new CellDiffViewModel(
 						originalCell,
 						modifiedCell,
@@ -247,7 +258,12 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				}
 			}
 
-			cellDiffViewModels.push(...this._computeModifiedLCS(change, originalModel, modifiedModel));
+			const modifiedLCS = this._computeModifiedLCS(change, originalModel, modifiedModel);
+			if (modifiedLCS.length && firstChangeIndex === -1) {
+				firstChangeIndex = cellDiffViewModels.length;
+			}
+
+			cellDiffViewModels.push(...modifiedLCS);
 			originalCellIndex = change.originalStart + change.originalLength;
 			modifiedCellIndex = change.modifiedStart + change.modifiedLength;
 		}
@@ -262,6 +278,12 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		this._list.splice(0, this._list.length, cellDiffViewModels);
+
+		if (this._revealFirst && firstChangeIndex !== -1) {
+			this._revealFirst = false;
+			this._list.setFocus([firstChangeIndex]);
+			this._list.reveal(firstChangeIndex, 0.3);
+		}
 	}
 
 	private _computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel) {
@@ -306,7 +328,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	layoutNotebookCell(cell: CellDiffViewModel, height: number) {
 		const relayout = (cell: CellDiffViewModel, height: number) => {
-			const viewIndex = this._list!.indexOf(cell);
+			const viewIndex = this._list.indexOf(cell);
 
 			this._list?.updateElementHeight(viewIndex, height);
 		};

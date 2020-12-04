@@ -16,7 +16,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -56,9 +56,9 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		this._profileSession = null;
 		this._setState(ProfileSessionState.None);
 
-		CommandsRegistry.registerCommand('workbench.action.extensionHostProfilder.stop', () => {
+		CommandsRegistry.registerCommand('workbench.action.extensionHostProfiler.stop', () => {
 			this.stopProfiling();
-			this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
+			this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
 		});
 	}
 
@@ -86,7 +86,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 				showProgress: true,
 				ariaLabel: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
 				tooltip: nls.localize('selectAndStartDebug', "Click to stop profiling."),
-				command: 'workbench.action.extensionHostProfilder.stop'
+				command: 'workbench.action.extensionHostProfiler.stop'
 			};
 
 			const timeStarted = Date.now();

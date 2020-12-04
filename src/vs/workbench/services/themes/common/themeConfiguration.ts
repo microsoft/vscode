@@ -28,6 +28,7 @@ export const DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE = 'Default';
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const colorThemeSettingEnum: string[] = [];
+const colorThemeSettingEnumItemLabels: string[] = [];
 const colorThemeSettingEnumDescriptions: string[] = [];
 
 const colorThemeSettingSchema: IConfigurationPropertySchema = {
@@ -36,6 +37,7 @@ const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	default: isWeb ? DEFAULT_THEME_LIGHT_SETTING_VALUE : DEFAULT_THEME_DARK_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
+	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
@@ -44,6 +46,7 @@ const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	default: DEFAULT_THEME_DARK_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
+	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
@@ -52,6 +55,7 @@ const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	default: DEFAULT_THEME_LIGHT_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
+	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
@@ -60,6 +64,7 @@ const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
 	default: DEFAULT_THEME_HC_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
+	enumItemLabels: colorThemeSettingEnumItemLabels,
 	included: isWindows || isMacintosh,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
@@ -84,6 +89,7 @@ const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 	default: DEFAULT_FILE_ICON_THEME_SETTING_VALUE,
 	description: nls.localize('iconTheme', "Specifies the file icon theme used in the workbench or 'null' to not show any file icons."),
 	enum: [null],
+	enumItemLabels: [nls.localize('noIconThemeLabel', 'None')],
 	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
 };
@@ -92,6 +98,7 @@ const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	default: DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE,
 	description: nls.localize('productIconTheme', "Specifies the product icon theme used."),
 	enum: [DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE],
+	enumItemLabels: [nls.localize('defaultProductIconThemeLabel', 'Default')],
 	enumDescriptions: [nls.localize('defaultProductIconThemeDesc', 'Default')],
 	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")
 };
@@ -211,6 +218,7 @@ export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorThem
 	// updates enum for the 'workbench.colorTheme` setting
 	colorThemeSettingEnum.splice(0, colorThemeSettingEnum.length, ...themes.map(t => t.settingsId));
 	colorThemeSettingEnumDescriptions.splice(0, colorThemeSettingEnumDescriptions.length, ...themes.map(t => t.description || ''));
+	colorThemeSettingEnumItemLabels.splice(0, colorThemeSettingEnumItemLabels.length, ...themes.map(t => t.label || ''));
 
 	const themeSpecificWorkbenchColors: IJSONSchema = { properties: {} };
 	const themeSpecificTokenColors: IJSONSchema = { properties: {} };
@@ -238,6 +246,7 @@ export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorThem
 
 export function updateFileIconThemeConfigurationSchemas(themes: IWorkbenchFileIconTheme[]) {
 	fileIconThemeSettingSchema.enum!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.settingsId));
+	fileIconThemeSettingSchema.enumItemLabels!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.label));
 	fileIconThemeSettingSchema.enumDescriptions!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.description || ''));
 
 	configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
@@ -245,6 +254,7 @@ export function updateFileIconThemeConfigurationSchemas(themes: IWorkbenchFileIc
 
 export function updateProductIconThemeConfigurationSchemas(themes: IWorkbenchProductIconTheme[]) {
 	productIconThemeSettingSchema.enum!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.settingsId));
+	productIconThemeSettingSchema.enumItemLabels!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.label));
 	productIconThemeSettingSchema.enumDescriptions!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.description || ''));
 
 	configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
@@ -317,7 +327,7 @@ export class ThemeConfiguration {
 
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === 'auto') {
-			settingsTarget = this.findAutoConfigurationTarget(key);
+			return this.configurationService.updateValue(key, value);
 		}
 
 		if (settingsTarget === ConfigurationTarget.USER) {

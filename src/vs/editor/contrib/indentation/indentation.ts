@@ -84,7 +84,7 @@ export function getReindentEditOperations(model: ITextModel, startLineNumber: nu
 
 		}
 		if (currentLineText !== adjustedLineContent) {
-			indentEdits.push(EditOperation.replace(new Selection(startLineNumber, 1, startLineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(globalIndent, indentSize, insertSpaces)));
+			indentEdits.push(EditOperation.replaceMove(new Selection(startLineNumber, 1, startLineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(globalIndent, indentSize, insertSpaces)));
 		}
 	} else {
 		globalIndent = strings.getLeadingWhitespace(currentLineText);
@@ -115,7 +115,7 @@ export function getReindentEditOperations(model: ITextModel, startLineNumber: nu
 		}
 
 		if (oldIndentation !== idealIndentForNextLine) {
-			indentEdits.push(EditOperation.replace(new Selection(lineNumber, 1, lineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(idealIndentForNextLine, indentSize, insertSpaces)));
+			indentEdits.push(EditOperation.replaceMove(new Selection(lineNumber, 1, lineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(idealIndentForNextLine, indentSize, insertSpaces)));
 		}
 
 		// calculate idealIndentForNextLine
@@ -472,7 +472,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
 		const { tabSize, indentSize, insertSpaces } = model.getOptions();
-		this.editor.pushUndoStop();
 		let textEdits: TextEdit[] = [];
 
 		let indentConverter = {
@@ -583,9 +582,12 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 		}
 
-		let cmd = new AutoIndentOnPasteCommand(textEdits, this.editor.getSelection()!);
-		this.editor.executeCommand('autoIndentOnPaste', cmd);
-		this.editor.pushUndoStop();
+		if (textEdits.length > 0) {
+			this.editor.pushUndoStop();
+			let cmd = new AutoIndentOnPasteCommand(textEdits, this.editor.getSelection()!);
+			this.editor.executeCommand('autoIndentOnPaste', cmd);
+			this.editor.pushUndoStop();
+		}
 	}
 
 	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {

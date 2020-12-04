@@ -50,7 +50,7 @@ export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<b
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
-
+export const SHOW_TERMINAL_CONFIG_PROMPT = 'terminal.integrated.showTerminalConfigPrompt';
 // The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
 // this delay is to allow the terminal instance to initialize correctly and have its ID set before
 // trying to create the corressponding object on the ext host.
@@ -108,6 +108,7 @@ export interface ITerminalConfiguration {
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
 	mouseWheelScrollSensitivity: number;
+	sendKeybindingsToShell: boolean;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
@@ -135,9 +136,14 @@ export interface ITerminalConfiguration {
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
-	typeaheadThreshold: number;
-	typeaheadStyle: number | string;
+	localEchoLatencyThreshold: number;
+	localEchoExcludePrograms: ReadonlyArray<string>;
+	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
+	serverSpawn: boolean;
+	enablePersistentSessions: boolean;
 }
+
+export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
@@ -170,6 +176,8 @@ export interface IRemoteTerminalAttachTarget {
 	pid: number;
 	title: string;
 	cwd: string;
+	workspaceId: string;
+	workspaceName: string;
 }
 
 export interface IShellLaunchConfig {
@@ -482,6 +490,7 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
+	CONFIGURE_TERMINAL_SETTINGS = 'workbench.action.terminal.openSettings',
 	COPY_SELECTION = 'workbench.action.terminal.copySelection',
 	SELECT_ALL = 'workbench.action.terminal.selectAll',
 	DELETE_WORD_LEFT = 'workbench.action.terminal.deleteWordLeft',
@@ -539,7 +548,8 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
 	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation',
-	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace'
+	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace',
+	ATTACH_TO_REMOTE_TERMINAL = 'workbench.action.terminal.attachToSession'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

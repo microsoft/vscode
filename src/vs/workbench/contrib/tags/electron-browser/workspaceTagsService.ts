@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
+import { sha1Hex } from 'vs/base/browser/hash';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -14,6 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { splitLines } from 'vs/base/common/strings';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -137,9 +138,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		return this._tags;
 	}
 
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined {
-		function createHash(uri: URI): string {
-			return crypto.createHash('sha1').update(uri.scheme === Schemas.file ? uri.fsPath : uri.toString()).digest('hex');
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
+		function createHash(uri: URI): Promise<string> {
+			return sha1Hex(uri.scheme === Schemas.file ? uri.fsPath : uri.toString());
 		}
 
 		let workspaceId: string | undefined;
@@ -148,11 +149,11 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				workspaceId = undefined;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = createHash(workspace.folders[0].uri);
+				workspaceId = await createHash(workspace.folders[0].uri);
 				break;
 			case WorkbenchState.WORKSPACE:
 				if (workspace.configuration) {
-					workspaceId = createHash(workspace.configuration);
+					workspaceId = await createHash(workspace.configuration);
 				}
 		}
 
@@ -291,13 +292,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(): Promise<Tags> {
+	private async resolveWorkspaceTags(): Promise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
-		tags['workspace.id'] = this.getTelemetryWorkspaceId(workspace, state);
+		tags['workspace.id'] = await this.getTelemetryWorkspaceId(workspace, state);
 
 		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
@@ -412,7 +413,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			}
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, this.textFileService, content => {
-				const dependencies: string[] = content.value.split(/\r\n|\r|\n/);
+				const dependencies: string[] = splitLines(content.value);
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
 					const format1 = dependency.split('==');
@@ -423,7 +424,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, this.textFileService, content => {
-				let dependencies: string[] = content.value.split(/\r\n|\r|\n/);
+				let dependencies: string[] = splitLines(content.value);
 
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);

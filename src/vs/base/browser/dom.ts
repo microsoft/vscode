@@ -34,31 +34,6 @@ export function isInDOM(node: Node | null): boolean {
 	return false;
 }
 
-interface IDomClassList {
-	addClass(node: HTMLElement | SVGElement, className: string): void;
-	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
-}
-
-const _classList: IDomClassList = new class implements IDomClassList {
-
-	addClass(node: HTMLElement, className: string): void {
-		if (className && node.classList) {
-			node.classList.add(className);
-		}
-	}
-
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		if (node.classList) {
-			node.classList.toggle(className, shouldHaveIt);
-		}
-	}
-};
-
-/** @deprecated ES6 - use classList*/
-export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
-
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
@@ -683,6 +658,48 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 			return true;
 		}
 		testChild = testChild.parentNode;
+	}
+
+	return false;
+}
+
+const parentFlowToDataKey = 'parentFlowToElementId';
+
+/**
+ * Set an explicit parent to use for nodes that are not part of the
+ * regular dom structure.
+ */
+export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: Element): void {
+	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
+}
+
+function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
+	const flowToParentId = node.dataset[parentFlowToDataKey];
+	if (typeof flowToParentId === 'string') {
+		return document.getElementById(flowToParentId);
+	}
+	return null;
+}
+
+/**
+ * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
+ * parents set by `setParentFlowTo`.
+ */
+export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
+	let node: Node | null = testChild;
+	while (node) {
+		if (node === testAncestor) {
+			return true;
+		}
+
+		if (node instanceof HTMLElement) {
+			const flowToParentElement = getParentFlowToElement(node);
+			if (flowToParentElement) {
+				node = flowToParentElement;
+				continue;
+			}
+		}
+		node = node.parentNode;
 	}
 
 	return false;
@@ -1358,8 +1375,8 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	const options = _extInsaneOptions({
 		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 		allowedAttributes: {
-			'a': ['href'],
-			'button': ['data-href'],
+			'a': ['href', 'x-dispatch'],
+			'button': ['data-href', 'x-dispatch'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
 			'label': ['for'],
 			'select': ['required'],

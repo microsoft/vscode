@@ -14,7 +14,7 @@ import { flatten, equals } from 'vs/base/common/arrays';
 import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -175,7 +175,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				(() => this.update()));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
-		this._register(this.storageService.onDidChangeStorage(e => this.onDidChangeStorage(e)));
+		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => isSuccessive)(() => this.onDidSuccessiveAuthFailures()));
 	}
 
@@ -266,7 +266,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		const syncTitle = SYNC_TITLE;
-		const title = `${syncTitle} [(${localize('details', "details")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
+		const title = `${syncTitle} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
 		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
 		const disposable = this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
 
@@ -584,7 +584,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.update();
 	}
 
-	private onDidChangeStorage(e: IWorkspaceStorageChangeEvent): void {
+	private onDidChangeStorage(e: IStorageValueChangeEvent): void {
 		if (e.key === UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY && e.scope === StorageScope.GLOBAL
 			&& this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
 			this._cachedCurrentSessionId = null;
@@ -606,7 +606,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			if (cachedSessionId === undefined) {
 				this.storageService.remove(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 			} else {
-				this.storageService.store(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL);
+				this.storageService.store(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
 	}
@@ -620,7 +620,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private set useWorkbenchSessionId(useWorkbenchSession: boolean) {
-		this.storageService.store(UserDataSyncWorkbenchService.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, !useWorkbenchSession, StorageScope.GLOBAL);
+		this.storageService.store(UserDataSyncWorkbenchService.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, !useWorkbenchSession, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 }

@@ -12,6 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { splitLines } from 'vs/base/common/strings';
 
 
 export function compareMarkersByUri(a: IMarker, b: IMarker) {
@@ -95,7 +96,7 @@ export class Marker {
 	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
-			this._lines = this.marker.message.split(/\r\n|\r|\n/g);
+			this._lines = splitLines(this.marker.message);
 		}
 		return this._lines;
 	}
@@ -148,6 +149,16 @@ export class MarkersModel {
 
 	constructor() {
 		this.resourcesByUri = new Map<string, ResourceMarkers>();
+	}
+
+	reset(): void {
+		const removed = new Set<ResourceMarkers>();
+		for (const resourceMarker of this.resourcesByUri.values()) {
+			removed.add(resourceMarker);
+		}
+		this.resourcesByUri.clear();
+		this._total = 0;
+		this._onDidChange.fire({ removed, added: new Set<ResourceMarkers>(), updated: new Set<ResourceMarkers>() });
 	}
 
 	private _total: number = 0;

@@ -1742,28 +1742,17 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 	private override: (() => Promise<IEditorPane | undefined>) | undefined = undefined;
 
 	constructor(
-		private _group: GroupIdentifier,
-		private _editor: EditorInput,
+		public readonly groupId: GroupIdentifier,
+		public readonly editor: EditorInput,
 		private _options: EditorOptions | undefined,
-		private _context: OpenEditorContext | undefined
+		public readonly context: OpenEditorContext | undefined
 	) {
-	}
-
-	get groupId(): GroupIdentifier {
-		return this._group;
-	}
-
-	get editor(): EditorInput {
-		return this._editor;
 	}
 
 	get options(): EditorOptions | undefined {
 		return this._options;
 	}
 
-	get context(): OpenEditorContext | undefined {
-		return this._context;
-	}
 
 	prevent(callback: () => Promise<IEditorPane | undefined>): void {
 		this.override = callback;
@@ -1775,9 +1764,9 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 }
 
 export interface EditorReplacement {
-	editor: EditorInput;
-	replacement: EditorInput;
-	options?: EditorOptions;
+	readonly editor: EditorInput;
+	readonly replacement: EditorInput;
+	readonly options?: EditorOptions;
 }
 
 registerThemingParticipant((theme, collector, environment) => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
+import { hash } from 'vs/base/common/hash';
 import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
@@ -44,7 +45,6 @@ import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/wi
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { WebResourceIdentityService, IResourceIdentityService } from 'vs/workbench/services/resourceIdentity/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
@@ -59,6 +59,8 @@ import { localize } from 'vs/nls';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 class BrowserMain extends Disposable {
 
@@ -91,7 +93,7 @@ class BrowserMain extends Disposable {
 		);
 
 		// Listeners
-		this.registerListeners(workbench, services.configurationService, services.storageService, services.logService);
+		this.registerListeners(workbench, services.storageService, services.logService);
 
 		// Driver
 		if (this.configuration.driver) {
@@ -115,7 +117,7 @@ class BrowserMain extends Disposable {
 		});
 	}
 
-	private registerListeners(workbench: Workbench, configurationService: IConfigurationService, storageService: BrowserStorageService, logService: ILogService): void {
+	private registerListeners(workbench: Workbench, storageService: BrowserStorageService, logService: ILogService): void {
 
 		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
@@ -136,7 +138,7 @@ class BrowserMain extends Disposable {
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
 			if (storageService.hasPendingUpdate) {
-				console.warn('Unload veto: pending storage update');
+				logService.warn('Unload veto: pending storage update');
 				event.veto(true); // prevent data loss from pending storage update
 			}
 		}));
@@ -164,11 +166,7 @@ class BrowserMain extends Disposable {
 		// CONTRIBUTE IT VIA WORKBENCH.WEB.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		// Resource Identity
-		const resourceIdentityService = this._register(new WebResourceIdentityService());
-		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
-
-		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
+		const payload = await this.resolveWorkspaceInitializationPayload();
 
 		// Product
 		const productService: IProductService = { _serviceBrand: undefined, ...product, ...this.configuration.productConfiguration };
@@ -183,12 +181,14 @@ class BrowserMain extends Disposable {
 		const logService = new BufferLogService(getLogLevel(environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		const connectionToken = environmentService.options.connectionToken || this.getCookieValue('vscode-tkn');
+
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(this.configuration.resourceUriProvider);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(environmentService.options.connectionToken || this.getCookieValue('vscode-tkn'));
+		const signService = new SignService(connectionToken);
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
@@ -200,9 +200,13 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IFileService, fileService);
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
+		// IURIIdentityService
+		const uriIdentityService = new UriIdentityService(fileService);
+		serviceCollection.set(IUriIdentityService, uriIdentityService);
+
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -332,8 +336,8 @@ class BrowserMain extends Disposable {
 		}
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, logService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);
@@ -347,7 +351,7 @@ class BrowserMain extends Disposable {
 		}
 	}
 
-	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
 			workspace = this.configuration.workspaceProvider.workspace;
@@ -360,7 +364,7 @@ class BrowserMain extends Disposable {
 
 		// Single-folder workspace
 		if (workspace && isFolderToOpen(workspace)) {
-			const id = await resourceIdentityService.resolveResourceIdentity(workspace.folderUri);
+			const id = hash(workspace.folderUri.toString()).toString(16);
 			return { id, folder: workspace.folderUri };
 		}
 

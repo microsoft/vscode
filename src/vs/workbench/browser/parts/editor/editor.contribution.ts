@@ -55,6 +55,8 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { FileAccess } from 'vs/base/common/network';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -238,27 +240,27 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 			const secondaryInput = secondaryInputFactory.deserialize(instantiationService, deserialized.secondarySerialized);
 
 			if (primaryInput && secondaryInput) {
-				return this.createEditorInput(deserialized.name, deserialized.description, secondaryInput, primaryInput);
+				return this.createEditorInput(instantiationService, deserialized.name, deserialized.description, secondaryInput, primaryInput);
 			}
 		}
 
 		return undefined;
 	}
 
-	protected abstract createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput;
+	protected abstract createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput;
 }
 
 class SideBySideEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
 		return new SideBySideEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 
 class DiffEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
-		return new DiffEditorInput(name, description, secondaryInput, primaryInput);
+	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+		return instantiationService.createInstance(DiffEditorInput, name, description, secondaryInput, primaryInput, undefined);
 	}
 }
 
@@ -462,6 +464,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_KEEP_EDITORS_COMMAND_ID, title: nls.localize('toggleKeepEditors', "Keep Editors Open"), toggled: ContextKeyExpr.not('config.workbench.editor.enablePreview') }, group: '7_settings', order: 10 });
 
 interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }
 
@@ -494,14 +497,14 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		icon: { id: 'codicon/split-horizontal' }
+		icon: Codicon.splitHorizontal
 	},
 	ContextKeyExpr.not('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		icon: { id: 'codicon/split-vertical' }
+		icon: Codicon.splitVertical
 	}
 );
 
@@ -509,14 +512,14 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		icon: { id: 'codicon/split-vertical' }
+		icon: Codicon.splitVertical
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		icon: { id: 'codicon/split-horizontal' }
+		icon: Codicon.splitHorizontal
 	}
 );
 
@@ -525,14 +528,14 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		icon: { id: 'codicon/close' }
+		icon: Codicon.close
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		icon: { id: 'codicon/close-all' }
+		icon: Codicon.closeAll
 	}
 );
 
@@ -541,14 +544,14 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		icon: { id: 'codicon/close-dirty' }
+		icon: Codicon.closeDirty
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		icon: { id: 'codicon/close-all' }
+		icon: Codicon.closeAll
 	}
 );
 
@@ -557,14 +560,14 @@ appendEditorToolItem(
 	{
 		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
 		title: nls.localize('unpin', "Unpin"),
-		icon: { id: 'codicon/pinned' }
+		icon: Codicon.pinned
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		icon: { id: 'codicon/close' }
+		icon: Codicon.close
 	}
 );
 
@@ -573,23 +576,28 @@ appendEditorToolItem(
 	{
 		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
 		title: nls.localize('unpin', "Unpin"),
-		icon: { id: 'codicon/pinned-dirty' }
+		icon: Codicon.pinnedDirty
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		icon: { id: 'codicon/close' }
+		icon: Codicon.close
 	}
 );
+
+const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.arrowUp, nls.localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
+const nextChangeIcon = registerIcon('diff-editor-next-change', Codicon.arrowDown, nls.localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
+const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, nls.localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
+
 
 // Diff Editor Title Menu: Previous Change
 appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_PREVIOUS_CHANGE,
 		title: nls.localize('navigate.prev.label', "Previous Change"),
-		icon: { id: 'codicon/arrow-up' }
+		icon: previousChangeIcon
 	},
 	TextCompareEditorActiveContext,
 	10
@@ -600,7 +608,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_NEXT_CHANGE,
 		title: nls.localize('navigate.next.label', "Next Change"),
-		icon: { id: 'codicon/arrow-down' }
+		icon: nextChangeIcon
 	},
 	TextCompareEditorActiveContext,
 	11
@@ -611,7 +619,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
-		icon: { id: 'codicon/whitespace' }
+		icon: toggleWhitespace
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
 	20
@@ -622,7 +630,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
-		icon: { id: 'codicon/whitespace~disabled' }
+		icon: ThemeIcon.modify(toggleWhitespace, 'disabled')
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
 	20

@@ -23,7 +23,7 @@ import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
 import { EventHelper, createStyleSheet, addDisposableListener, EventType, hide, show, isAncestor, appendChildren } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
@@ -32,7 +32,6 @@ import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/la
 import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -102,10 +101,10 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e)));
 	}
 
-	private onDidStorageChange(event: IWorkspaceStorageChangeEvent): void {
+	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
 		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
 
 			// Keep current hidden entries
@@ -275,7 +274,7 @@ class StatusbarViewModel extends Disposable {
 
 	private saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL);
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL, StorageTarget.USER);
 		} else {
 			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
 		}
@@ -405,11 +404,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-
-		storageKeysSyncRegistryService.registerStorageKey({ key: StatusbarViewModel.HIDDEN_ENTRIES_KEY, version: 1 });
 
 		this.registerListeners();
 	}

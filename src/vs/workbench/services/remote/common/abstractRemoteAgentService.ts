@@ -74,6 +74,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		return this._environment;
 	}
 
+	whenExtensionsReady(): Promise<void> {
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.whenExtensionsReady(channel),
+			undefined
+		);
+	}
+
 	scanExtensions(skipExtensions: ExtensionIdentifier[] = []): Promise<IExtensionDescription[]> {
 		return this._withChannel(
 			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanExtensions(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI, skipExtensions),
@@ -183,7 +190,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 						this._onReconnecting.fire(undefined);
 					}
 					const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,

@@ -495,6 +495,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
 	/**
+	 * An event emitted on a "mousedropcanceled".
+	 * @internal
+	 * @event
+	 */
+	onMouseDropCanceled(listener: () => void): IDisposable;
+	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
@@ -678,9 +684,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	executeCommand(source: string | null | undefined, command: editorCommon.ICommand): void;
 
 	/**
-	 * Push an "undo stop" in the undo-redo stack.
+	 * Create an "undo stop" in the undo-redo stack.
 	 */
 	pushUndoStop(): boolean;
+
+	/**
+	 * Remove the "undo stop" in the undo-redo stack.
+	 */
+	popUndoStop(): boolean;
 
 	/**
 	 * Execute edits on the editor.

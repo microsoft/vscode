@@ -14,6 +14,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWindowState {
 	width?: number;
@@ -32,6 +33,11 @@ export const enum WindowMode {
 }
 
 export interface ICodeWindow extends IDisposable {
+
+	readonly onLoad: Event<void>;
+	readonly onReady: Event<void>;
+	readonly onClose: Event<void>;
+	readonly onDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
 
@@ -59,7 +65,7 @@ export interface ICodeWindow extends IDisposable {
 	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: INativeWindowConfiguration, isReload?: boolean): void;
-	reload(configuration?: INativeWindowConfiguration, cli?: NativeParsedArgs): void;
+	reload(cli?: NativeParsedArgs): void;
 
 	focus(options?: { force: boolean }): void;
 	close(): void;
@@ -67,7 +73,7 @@ export interface ICodeWindow extends IDisposable {
 	getBounds(): Rectangle;
 
 	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, ...args: any[]): void;
+	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
@@ -109,6 +115,7 @@ export interface IWindowsMainService {
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
+	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;

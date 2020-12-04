@@ -24,6 +24,7 @@ import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/com
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -50,6 +51,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService hostService: IHostService,
+		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -59,9 +61,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
-				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
-					label: localize('Reload', "Reload"),
-					run: () => hostService.reload()
+				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
+					label: localize('Reload', "Reload and Enable Extensions"),
+					run: () => hostService.reload({ disableExtensions: false })
 				}]);
 			});
 		}
@@ -76,6 +78,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	getEnablementState(extension: IExtension): EnablementState {
+		if (this.extensionBisectService.isDisabledByBisect(extension)) {
+			return EnablementState.DisabledByEnvironemt;
+		}
 		if (this._isDisabledInEnv(extension)) {
 			return EnablementState.DisabledByEnvironemt;
 		}
@@ -210,14 +215,16 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					}
 				}
 				if (extensionKind === 'web') {
-					const enableLocalWebWorker = this.configurationService.getValue<boolean>(webWorkerExtHostConfig);
-					if (enableLocalWebWorker) {
-						// Web extensions are enabled on all configurations
-						return false;
-					}
-					if (this.extensionManagementServerService.localExtensionManagementServer === null) {
-						// Web extensions run only in the web
-						return false;
+					if (this.extensionManagementServerService.webExtensionManagementServer) {
+						if (server === this.extensionManagementServerService.webExtensionManagementServer) {
+							return false;
+						}
+					} else if (server === this.extensionManagementServerService.localExtensionManagementServer) {
+						const enableLocalWebWorker = this.configurationService.getValue<boolean>(webWorkerExtHostConfig);
+						if (enableLocalWebWorker) {
+							// Web extensions are enabled on all configurations
+							return false;
+						}
 					}
 				}
 			}

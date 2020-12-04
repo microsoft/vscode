@@ -36,10 +36,10 @@ import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/plat
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
+import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -104,9 +104,9 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IUserDataSyncBackupStoreService, this.instantiationService.createInstance(UserDataSyncBackupStoreService));
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
 		this.instantiationService.stub(IUserDataSyncResourceEnablementService, this.instantiationService.createInstance(UserDataSyncResourceEnablementService));
-		this.instantiationService.stub(IStorageKeysSyncRegistryService, this.instantiationService.createInstance(StorageKeysSyncRegistryService));
 
 		this.instantiationService.stub(IGlobalExtensionEnablementService, this.instantiationService.createInstance(GlobalExtensionEnablementService));
+		this.instantiationService.stub(IExtensionsStorageSyncService, this.instantiationService.createInstance(ExtensionsStorageSyncService));
 		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
 		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			async getInstalled() { return []; },

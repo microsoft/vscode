@@ -43,9 +43,10 @@ export interface IStorageDatabase {
 
 export interface IStorage extends IDisposable {
 
+	readonly onDidChangeStorage: Event<string>;
+
 	readonly items: Map<string, string>;
 	readonly size: number;
-	readonly onDidChangeStorage: Event<string>;
 
 	init(): Promise<void>;
 
@@ -60,6 +61,8 @@ export interface IStorage extends IDisposable {
 
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
 	delete(key: string): Promise<void>;
+
+	whenFlushed(): Promise<void>;
 
 	close(): Promise<void>;
 }
@@ -85,6 +88,8 @@ export class Storage extends Disposable implements IStorage {
 
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
+
+	private readonly whenFlushedCallbacks: Function[] = [];
 
 	constructor(
 		protected readonly database: IStorageDatabase,
@@ -273,8 +278,12 @@ export class Storage extends Disposable implements IStorage {
 		await this.database.close(() => this.cache);
 	}
 
+	private get hasPending() {
+		return this.pendingInserts.size > 0 || this.pendingDeletes.size > 0;
+	}
+
 	private flushPending(): Promise<void> {
-		if (this.pendingInserts.size === 0 && this.pendingDeletes.size === 0) {
+		if (!this.hasPending) {
 			return Promise.resolve(); // return early if nothing to do
 		}
 
@@ -285,8 +294,23 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingDeletes = new Set<string>();
 		this.pendingInserts = new Map<string, string>();
 
-		// Update in storage
-		return this.database.updateItems(updateRequest);
+		// Update in storage and release any
+		// waiters we have once done
+		return this.database.updateItems(updateRequest).finally(() => {
+			if (!this.hasPending) {
+				while (this.whenFlushedCallbacks.length) {
+					this.whenFlushedCallbacks.pop()?.();
+				}
+			}
+		});
+	}
+
+	whenFlushed(): Promise<void> {
+		if (!this.hasPending) {
+			return Promise.resolve(); // return early if nothing to do
+		}
+
+		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
 	}
 }
 

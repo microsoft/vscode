@@ -53,10 +53,10 @@ import 'vs/workbench/browser/parts/views/viewsService';
 //#region --- workbench services
 
 import 'vs/platform/undoRedo/common/undoRedoService';
-import 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
+import 'vs/workbench/services/dialogs/common/dialogService';
 import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
@@ -118,10 +118,12 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
+import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 registerSingleton(IUserDataSyncResourceEnablementService, UserDataSyncResourceEnablementService);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
+registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IListService, ListService, true);
@@ -153,6 +155,9 @@ import 'vs/workbench/contrib/performance/browser/performance.contribution';
 
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+
+// Testing
+import 'vs/workbench/contrib/testing/browser/testing.contribution';
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
@@ -271,6 +276,7 @@ import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 // Welcome
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 
 // Call Hierarchy

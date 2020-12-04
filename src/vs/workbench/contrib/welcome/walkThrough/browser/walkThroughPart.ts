@@ -15,7 +15,6 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -299,16 +298,10 @@ export class WalkThroughPart extends EditorPane {
 					return;
 				}
 
-				let i = 0;
-				const renderer = new marked.Renderer();
-				renderer.code = (code, lang) => {
-					const id = `snippet-${model.snippets[i++].textEditorModel.uri.fragment}`;
-					return `<div id="${id}" class="walkThroughEditorContainer" ></div>`;
-				};
 				const innerContent = document.createElement('div');
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				safeInnerHtml(innerContent, marked(markdown, { renderer }));
+				safeInnerHtml(innerContent, markdown);
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {

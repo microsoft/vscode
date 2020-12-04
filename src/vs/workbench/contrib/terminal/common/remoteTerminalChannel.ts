@@ -18,6 +18,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -68,6 +69,7 @@ export interface ICreateTerminalProcessArguments {
 	envVariableCollections: ITerminalEnvironmentVariableCollections;
 	shellLaunchConfig: IShellLaunchConfigDto;
 	workspaceId: string;
+	workspaceName: string;
 	workspaceFolders: IWorkspaceFolderData[];
 	activeWorkspaceFolder: IWorkspaceFolderData | null;
 	activeFileResource: UriComponents | undefined;
@@ -123,7 +125,7 @@ export interface IOrphanQuestionReplyArgs {
 }
 
 export interface IListTerminalsArgs {
-	workspaceId: string;
+	isInitialization: boolean;
 }
 
 export interface IRemoteTerminalDescriptionDto {
@@ -131,6 +133,8 @@ export interface IRemoteTerminalDescriptionDto {
 	pid: number;
 	title: string;
 	cwd: string;
+	workspaceId: string;
+	workspaceName: string;
 }
 
 export interface ITriggerTerminalDataReplayArguments {
@@ -194,8 +198,8 @@ export class RemoteTerminalChannelClient {
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService private readonly _logService: ILogService,
 		@IEditorService private readonly _editorService: IEditorService,
-	) {
-	}
+		@ILabelService private readonly _labelService: ILabelService,
+	) { }
 
 	private _readSingleTerminalConfiguration<T>(key: string): ISingleTerminalConfiguration<T> {
 		const result = this._configurationService.inspect<T>(key);
@@ -270,6 +274,7 @@ export class RemoteTerminalChannelClient {
 			envVariableCollections,
 			shellLaunchConfig,
 			workspaceId: workspace.id,
+			workspaceName: this._labelService.getWorkspaceLabel(workspace),
 			workspaceFolders,
 			activeWorkspaceFolder,
 			activeFileResource,
@@ -348,10 +353,9 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call<void>('$orphanQuestionReply', args);
 	}
 
-	public listTerminals(): Promise<IRemoteTerminalDescriptionDto[]> {
-		const workspace = this._workspaceContextService.getWorkspace();
+	public listTerminals(isInitialization: boolean): Promise<IRemoteTerminalDescriptionDto[]> {
 		const args: IListTerminalsArgs = {
-			workspaceId: workspace.id
+			isInitialization
 		};
 		return this._channel.call<IRemoteTerminalDescriptionDto[]>('$listTerminals', args);
 	}
