@@ -348,24 +348,24 @@ class LinuxAutomaticPortForwarding extends Disposable {
 	) {
 		super();
 		this.notifier = new ForwardedPortNotifier(notificationService, remoteExplorerService, openerService);
-		this._register(configurationService.onDidChangeConfiguration((e) => {
+		this._register(configurationService.onDidChangeConfiguration(async (e) => {
 			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
-				this.startStopCandidateListener();
+				await this.startStopCandidateListener();
 			}
 		}));
 
-		this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
+		this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(async (e) => {
 			if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-				this.startStopCandidateListener();
+				await this.startStopCandidateListener();
 			}
 		}));
 
 		this.startStopCandidateListener();
 	}
 
-	private startStopCandidateListener() {
+	private async startStopCandidateListener() {
 		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
-			this.startCandidateListener();
+			await this.startCandidateListener();
 		} else {
 			this.stopCandidateListener();
 		}
@@ -378,7 +378,7 @@ class LinuxAutomaticPortForwarding extends Disposable {
 		}
 	}
 
-	private startCandidateListener() {
+	private async startCandidateListener() {
 		if (this.candidateListener || !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
 			return;
 		}
@@ -386,9 +386,14 @@ class LinuxAutomaticPortForwarding extends Disposable {
 			this.contextServiceListener.dispose();
 		}
 
-		this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
+			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
+		}
+
 		// Capture list of starting candidates so we don't auto forward them later.
 		this.setInitialCandidates();
+
+		this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
 	}
 
 	private setInitialCandidates() {
