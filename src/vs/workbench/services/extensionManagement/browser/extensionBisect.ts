@@ -21,6 +21,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { timeout } from 'vs/base/common/async';
 
 // --- bisect service
 
@@ -288,7 +289,8 @@ registerAction2(class extends Action2 {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
 			}
 			if (res.choice === 0) {
-				await issueService.openReporter({ extensionId: done.id });
+				issueService.openReporter({ extensionId: done.id });
+				await timeout(750); // workaround for https://github.com/microsoft/vscode/issues/111871
 			}
 		}
 		await bisectService.reset();
