@@ -982,7 +982,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
 		this.compressedDropTargetDisposable.dispose();
 
 		// Find compressed target
@@ -1031,7 +1031,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => dropPromise);
 			} else {
 				try {
-					this.handleExternalDrop(resolvedTarget, originalEvent, cts.token);
+					await this.handleExternalDrop(resolvedTarget, originalEvent, cts.token);
 				} catch (error) {
 					this.notificationService.warn(error);
 				}
