@@ -1225,6 +1225,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._commandManager.pushStackElement();
 	}
 
+	public popStackElement(): void {
+		this._commandManager.popStackElement();
+	}
+
 	public pushEOL(eol: model.EndOfLineSequence): void {
 		const currentEOL = (this.getEOL() === '\n' ? model.EndOfLineSequence.LF : model.EndOfLineSequence.CRLF);
 		if (currentEOL === eol) {
