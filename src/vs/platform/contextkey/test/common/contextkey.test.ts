@@ -255,4 +255,15 @@ suite('ContextKeyExpr', () => {
 		checkNegate('a<=1.1', 'a > 1.1');
 		checkNegate('a<=b', 'a > b');
 	});
+
+	test('issue #111899: context keys can use `<` or `>` ', () => {
+		const actual = ContextKeyExpr.deserialize('editorTextFocus && vim.active && vim.use<C-r>')!;
+		assert.ok(actual.equals(
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('editorTextFocus'),
+				ContextKeyExpr.has('vim.active'),
+				ContextKeyExpr.has('vim.use<C-r>'),
+			)!
+		));
+	});
 });

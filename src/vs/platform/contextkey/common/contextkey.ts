@@ -167,22 +167,22 @@ export abstract class ContextKeyExpr {
 			return ContextKeyInExpr.create(pieces[0].trim(), pieces[1].trim());
 		}
 
-		if (serializedOne.indexOf('>=') >= 0) {
+		if (/^[^<=>]+>=[^<=>]+$/.test(serializedOne)) {
 			const pieces = serializedOne.split('>=');
 			return ContextKeyGreaterEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
 		}
 
-		if (serializedOne.indexOf('>') >= 0) {
+		if (/^[^<=>]+>[^<=>]+$/.test(serializedOne)) {
 			const pieces = serializedOne.split('>');
 			return ContextKeyGreaterExpr.create(pieces[0].trim(), pieces[1].trim());
 		}
 
-		if (serializedOne.indexOf('<=') >= 0) {
+		if (/^[^<=>]+<=[^<=>]+$/.test(serializedOne)) {
 			const pieces = serializedOne.split('<=');
 			return ContextKeySmallerEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
 		}
 
-		if (serializedOne.indexOf('<') >= 0) {
+		if (/^[^<=>]+<[^<=>]+$/.test(serializedOne)) {
 			const pieces = serializedOne.split('<');
 			return ContextKeySmallerExpr.create(pieces[0].trim(), pieces[1].trim());
 		}
