@@ -213,21 +213,48 @@ class ForwardedPortNotifier extends Disposable {
 		this.lastNotifyTime.setFullYear(this.lastNotifyTime.getFullYear() - 1);
 	}
 
-	public notify(tunnels: RemoteTunnel[]) {
-		if (Date.now() - this.lastNotifyTime.getTime() > ForwardedPortNotifier.COOL_DOWN) {
-			this.showNotification(tunnels);
+	public async notify(tunnels: RemoteTunnel[]) {
+		const tunnel = await this.portNumberHeuristicDelay(tunnels);
+		if (tunnel) {
+			if (Date.now() - this.lastNotifyTime.getTime() > ForwardedPortNotifier.COOL_DOWN) {
+				this.showNotification(tunnel);
+			}
 		}
 	}
 
-	private showNotification(tunnels: RemoteTunnel[]) {
+	private newerTunnel: RemoteTunnel | undefined;
+	private async portNumberHeuristicDelay(tunnels: RemoteTunnel[]): Promise<RemoteTunnel | undefined> {
 		if (tunnels.length === 0) {
 			return;
 		}
 		tunnels = tunnels.sort((a, b) => a.tunnelRemotePort - b.tunnelRemotePort);
 		const firstTunnel = tunnels.shift()!;
-		const address = makeAddress(firstTunnel.tunnelRemoteHost, firstTunnel.tunnelRemotePort);
+		// Heuristic.
+		if (firstTunnel.tunnelRemotePort % 1000 === 0) {
+			this.newerTunnel = firstTunnel;
+			return firstTunnel;
+			// 9229 is the node inspect port
+		} else if (firstTunnel.tunnelRemotePort < 10000 && firstTunnel.tunnelRemotePort !== 9229) {
+			this.newerTunnel = firstTunnel;
+			return firstTunnel;
+		}
+
+		this.newerTunnel = undefined;
+		return new Promise(resolve => {
+			setTimeout(() => {
+				if (this.newerTunnel) {
+					resolve(undefined);
+				} else {
+					resolve(firstTunnel);
+				}
+			}, 3000);
+		});
+	}
+
+	private showNotification(tunnel: RemoteTunnel) {
+		const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 		const message = nls.localize('remote.tunnelsView.automaticForward', "Your service running on port {0} is available. [See all forwarded ports](command:{1}.focus)",
-			firstTunnel.tunnelRemotePort, TunnelPanel.ID);
+			tunnel.tunnelRemotePort, TunnelPanel.ID);
 		const browserChoice: IPromptChoice = {
 			label: OpenPortInBrowserAction.LABEL,
 			run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address)
