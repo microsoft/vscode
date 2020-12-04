@@ -376,6 +376,9 @@ class LinuxAutomaticPortForwarding extends Disposable {
 			if (this.initialCandidates.has(address)) {
 				return undefined;
 			}
+			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, value.host, value.port)) {
+				return undefined;
+			}
 			const forwarded = await this.remoteExplorerService.forward(value);
 			if (forwarded) {
 				this.autoForwarded.add(address);

@@ -58,7 +58,7 @@ const vscodeResources = [
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
 	'out-build/paths.js',
-	'out-build/vs/**/*.{svg,png,html}',
+	'out-build/vs/**/*.{svg,png,html,jpg}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/common/performance.js',
@@ -201,7 +201,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
-		const jsFilter = util.filter(data => !data.isDirectory() &&/\.js$/.test(data.path));
+		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
