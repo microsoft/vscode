@@ -4169,6 +4169,18 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('issue #111128: Multicursor `Enter` issue with indentation', () => {
+		const model = createTextModel('    let a, b, c;', { detectIndentation: false, insertSpaces: false, tabSize: 4 }, mode.getLanguageIdentifier());
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			editor.setSelections([
+				new Selection(1, 11, 1, 11),
+				new Selection(1, 14, 1, 14),
+			]);
+			viewModel.type('\n', 'keyboard');
+			assert.equal(model.getValue(), '    let a,\n\t b,\n\t c;');
+		});
+	});
 });
 
 interface ICursorOpts {
