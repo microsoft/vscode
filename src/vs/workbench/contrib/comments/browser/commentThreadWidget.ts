@@ -951,7 +951,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		content.push(`.monaco-editor .review-widget .body code {
-			font-family: ${fontInfo.fontFamily};
+			font-family: '${fontInfo.fontFamily}';
 			font-size: ${fontInfo.fontSize}px;
 			font-weight: ${fontInfo.fontWeight};
 		}`);
