@@ -93,6 +93,10 @@ export class TabsTitleControl extends TitleControl {
 
 	private path: IPath = isWindows ? win32 : posix;
 
+	private lastMouseWheelEventTime: number = 0;
+	private speedTimeoutId: (NodeJS.Timeout | null) = null;
+	private speed: number = 0;
+
 	constructor(
 		parent: HTMLElement,
 		accessor: IEditorGroupsAccessor,
@@ -321,6 +325,28 @@ export class TabsTitleControl extends TitleControl {
 
 		// Mouse-wheel support to switch to tabs optionally
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: MouseWheelEvent) => {
+
+			const threshold: number = 300;
+
+			// Increase switching speed, up to a limit, if the user scrolls longer
+			if (this.speed < threshold * 2 / 3) {
+				this.speed += threshold / 6;
+			}
+
+			// Refresh timeout to reset speed gain.
+			if (this.speedTimeoutId !== null) {
+				clearTimeout(this.speedTimeoutId);
+			}
+			this.speedTimeoutId = setTimeout(() => {
+				this.speed = 0;
+			}, 50);
+
+			// Ignore event if the last one happened too recently
+			if (Date.now() - this.lastMouseWheelEventTime < threshold - this.speed) {
+				return;
+			}
+			this.lastMouseWheelEventTime = Date.now();
+
 			const activeEditor = this.group.activeEditor;
 			if (!activeEditor || this.group.count < 2) {
 				return;  // need at least 2 open editors
