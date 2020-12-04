@@ -8862,6 +8862,8 @@ declare module 'vscode' {
 		 *
 		 * Will only ever be called once per TreeItem.
 		 *
+		 * onDidChangeTreeData should not be triggered from within resolveTreeItem.
+		 *
 		 * *Note* that this function is called when tree items are already showing in the UI.
 		 * Because of that, no property that changes the presentation (label, description, command, etc.)
 		 * can be changed.
