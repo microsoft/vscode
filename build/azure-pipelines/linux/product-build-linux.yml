@@ -106,11 +106,11 @@ steps:
 
   - script: |
       set -e
+      export CC=$(which gcc-4.8)
       export CXX=$(which g++-4.8)
       cd remote
       node-gyp rebuild
     displayName: Rebuild remote modules with gcc-4.8
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   - script: |
       set -e
