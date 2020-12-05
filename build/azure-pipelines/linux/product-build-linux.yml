@@ -74,7 +74,6 @@ steps:
       npm install -g node-gyp@latest
       node-gyp --version
     displayName: Update node-gyp
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   - script: |
       set -e
@@ -108,8 +107,9 @@ steps:
       set -e
       export CC=$(which gcc-4.8)
       export CXX=$(which g++-4.8)
-      cd remote
-      node-gyp rebuild
+      export npm_config_node_gyp=$(which node-gyp)
+      cd remote && rm -rf node_modules/
+      yarn
     displayName: Rebuild remote modules with gcc-4.8
 
   - script: |
