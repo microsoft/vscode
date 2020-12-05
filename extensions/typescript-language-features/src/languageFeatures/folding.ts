@@ -16,7 +16,8 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 	public static readonly minVersion = API.v280;
 
 	public constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private readonly modeId: string,
 	) { }
 
 	async provideFoldingRanges(
@@ -35,12 +36,16 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 			return;
 		}
 
-		return coalesce(response.body.map(span => this.convertOutliningSpan(span, document)));
+		const config = vscode.workspace.getConfiguration(this.modeId);
+		const compact = config.get<boolean>('fold.compact', false);
+
+		return coalesce(response.body.map(span => this.convertOutliningSpan(span, document, compact)));
 	}
 
 	private convertOutliningSpan(
 		span: Proto.OutliningSpan,
-		document: vscode.TextDocument
+		document: vscode.TextDocument,
+		compact: boolean
 	): vscode.FoldingRange | undefined {
 		const range = typeConverters.Range.fromTextSpan(span.textSpan);
 		const kind = TypeScriptFoldingProvider.getFoldingRangeKind(span);
@@ -54,7 +59,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		}
 
 		const start = range.start.line;
-		const end = this.adjustFoldingEnd(range, document);
+		const end = compact ? range.end.line : this.adjustFoldingEnd(range, document);
 		return new vscode.FoldingRange(start, end, kind);
 	}
 
@@ -85,12 +90,13 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 
 export function register(
 	selector: DocumentSelector,
+	modeId: string,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
 	return conditionalRegistration([
 		requireMinVersion(client, TypeScriptFoldingProvider.minVersion),
 	], () => {
 		return vscode.languages.registerFoldingRangeProvider(selector.syntax,
-			new TypeScriptFoldingProvider(client));
+			new TypeScriptFoldingProvider(client, modeId));
 	});
 }

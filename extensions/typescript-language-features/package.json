@@ -818,6 +818,18 @@
           "default": true,
           "description": "%typescript.autoClosingTags%"
         },
+        "javascript.fold.compact": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.fold.compact%",
+          "scope": "resource"
+        },
+        "typescript.fold.compact": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.fold.compact%",
+          "scope": "resource"
+        },
         "javascript.suggest.enabled": {
           "type": "boolean",
           "default": true,
