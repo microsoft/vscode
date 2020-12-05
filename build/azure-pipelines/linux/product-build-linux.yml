@@ -74,9 +74,12 @@ steps:
       npm install -g node-gyp@latest
       node-gyp --version
     displayName: Update node-gyp
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
+      export CC=$(which gcc-5)
+      export CXX=$(which g++-5)
       export npm_config_arch=$(NPM_ARCH)
       export CHILD_CONCURRENCY="1"
       for i in {1..3}; do # try 3 times, for Terrapin
@@ -111,6 +114,7 @@ steps:
       cd remote && rm -rf node_modules/
       yarn
     displayName: Rebuild remote modules with gcc-4.8
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
