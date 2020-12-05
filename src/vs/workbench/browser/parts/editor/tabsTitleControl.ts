@@ -1245,7 +1245,7 @@ export class TabsTitleControl extends TitleControl {
 		// Multi-line: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		let height: number;
-		if (this.accessor.partOptions.multiLineTabs && this.tabsAndActionsContainer && this.tabsAndActionsContainer.classList.contains('multi-line')) {
+		if (this.accessor.partOptions.multiLineTabs && this.tabsAndActionsContainer?.classList.contains('multi-line')) {
 			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
 			height = TabsTitleControl.TAB_HEIGHT;
@@ -1276,6 +1276,7 @@ export class TabsTitleControl extends TitleControl {
 		// control
 		if (this.accessor.partOptions.multiLineTabs) {
 			this.layoutSync(dimensions);
+
 			const newHeight = this.getDimensions().height;
 			if (this.lastComputedHeight !== newHeight) {
 				this.lastComputedHeight = newHeight;
@@ -1321,10 +1322,7 @@ export class TabsTitleControl extends TitleControl {
 
 	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			const tabsScrollbar = assertIsDefined(this.tabsScrollbar);
-
 			this.breadcrumbsControl.layout(new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT));
-			tabsScrollbar.getDomNode().style.height = `${dimensions.container.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 	}
 
@@ -1503,7 +1501,7 @@ export class TabsTitleControl extends TitleControl {
 			const tabsContainer = assertIsDefined(this.tabsContainer);
 			const tab = tabsContainer.children[editorIndex];
 			if (tab) {
-				return [tabsContainer.children[editorIndex] as HTMLElement, editorIndex];
+				return [tab as HTMLElement, editorIndex];
 			}
 		}
 
