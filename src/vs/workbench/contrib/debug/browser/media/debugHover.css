@@ -16,7 +16,7 @@
 }
 
 .monaco-editor .debug-hover-widget .complex-value {
-	max-width: 700px;
+	max-width: fit-content;
 }
 
 .monaco-editor .debug-hover-widget .complex-value .title,
