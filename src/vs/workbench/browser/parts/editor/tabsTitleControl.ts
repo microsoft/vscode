@@ -324,14 +324,6 @@ export class TabsTitleControl extends TitleControl {
 		// Mouse-wheel support to switch to tabs optionally
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: MouseWheelEvent) => {
 
-			const threshold: number = 100;
-
-			// Ignore event if the last one happened too recently
-			if (Date.now() - this.lastMouseWheelEventTime < threshold) {
-				return;
-			}
-			this.lastMouseWheelEventTime = Date.now();
-
 			const activeEditor = this.group.activeEditor;
 			if (!activeEditor || this.group.count < 2) {
 				return;  // need at least 2 open editors
@@ -348,8 +340,24 @@ export class TabsTitleControl extends TitleControl {
 				}
 			}
 
-			// Figure out scrolling direction
-			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + (e.deltaX < 0 || e.deltaY < 0 /* scrolling up */ ? -1 : 1));
+			// Ignore event if the last one happened too recently
+			const time_threshold = 120;
+			if (Date.now() - this.lastMouseWheelEventTime < time_threshold) {
+				return;
+			}
+			this.lastMouseWheelEventTime = Date.now();
+
+			// Figure out scrolling direction (ignore direction if the scrolling is too subtile)
+			const distance_threshold = 1.5;
+			let tabSwitchDirection = 0;
+			if (e.deltaX + e.deltaY < - distance_threshold) {
+				tabSwitchDirection = -1;
+			}
+			if (e.deltaX + e.deltaY > distance_threshold) {
+				tabSwitchDirection = 1;
+			}
+			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + tabSwitchDirection);
+
 			if (!nextEditor) {
 				return;
 			}
