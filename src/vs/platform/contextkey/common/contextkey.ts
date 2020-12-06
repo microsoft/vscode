@@ -10,8 +10,8 @@ import { userAgent, isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/commo
 
 let _userAgent = userAgent || '';
 const STATIC_VALUES = new Map<string, boolean>();
-STATIC_VALUES.set('false', false);
-STATIC_VALUES.set('true', true);
+STATIC_VALUES.set(JSON.stringify(false), false);
+STATIC_VALUES.set(JSON.stringify(true), true);
 STATIC_VALUES.set('isMac', isMacintosh);
 STATIC_VALUES.set('isLinux', isLinux);
 STATIC_VALUES.set('isWindows', isWindows);
@@ -197,11 +197,11 @@ export abstract class ContextKeyExpr {
 	private static _deserializeValue(serializedValue: string, strict: boolean): any {
 		serializedValue = serializedValue.trim();
 
-		if (serializedValue === 'true') {
+		if (serializedValue === JSON.stringify(true)) {
 			return true;
 		}
 
-		if (serializedValue === 'false') {
+		if (serializedValue === JSON.stringify(false)) {
 			return false;
 		}
 
@@ -275,7 +275,7 @@ export class ContextKeyFalseExpr implements IContextKeyExpression {
 	}
 
 	public serialize(): string {
-		return 'false';
+		return JSON.stringify(false);
 	}
 
 	public keys(): string[] {
@@ -312,7 +312,7 @@ export class ContextKeyTrueExpr implements IContextKeyExpression {
 	}
 
 	public serialize(): string {
-		return 'true';
+		return JSON.stringify(true);
 	}
 
 	public keys(): string[] {
@@ -385,7 +385,7 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 		}
 		const staticValue = STATIC_VALUES.get(key);
 		if (typeof staticValue === 'boolean') {
-			const trueValue = staticValue ? 'true' : 'false';
+			const trueValue = staticValue ? JSON.stringify(true) : JSON.stringify(false);
 			return (value === trueValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
 		}
 		return new ContextKeyEqualsExpr(key, value);
@@ -541,14 +541,11 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 
 	public static create(key: string, value: any): ContextKeyExpression {
 		if (typeof value === 'boolean') {
-			if (value) {
-				return ContextKeyNotExpr.create(key);
-			}
-			return ContextKeyDefinedExpr.create(key);
+			return (value? ContextKeyNotExpr.create(key) : ContextKeyDefinedExpr.create(key));
 		}
 		const staticValue = STATIC_VALUES.get(key);
 		if (typeof staticValue === 'boolean') {
-			const falseValue = staticValue ? 'true' : 'false';
+			const falseValue = staticValue ? JSON.stringify(true) : JSON.stringify(false);
 			return (value === falseValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
 		}
 		return new ContextKeyNotEqualsExpr(key, value);
