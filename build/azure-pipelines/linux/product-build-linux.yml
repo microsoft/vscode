@@ -78,8 +78,11 @@ steps:
 
   - script: |
       set -e
-      export CC=$(which gcc-5)
-      export CXX=$(which g++-5)
+      if [ -z "$CC" || -z "$CXX" ]
+      then
+        export CC=$(which gcc-5)
+        export CXX=$(which g++-5)
+      fi
       export npm_config_arch=$(NPM_ARCH)
       export CHILD_CONCURRENCY="1"
       for i in {1..3}; do # try 3 times, for Terrapin
