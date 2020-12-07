@@ -289,7 +289,7 @@ export class DebugService implements IDebugService {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
 			if (!options?.parentSession) {
-				await this.editorService.saveAll();
+				await this.editorService.saveAll({ includeUntitled: true });
 			}
 			await this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined);
 			await this.extensionService.whenInstalledExtensionsRegistered();
