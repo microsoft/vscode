@@ -260,7 +260,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			request.cols,
 			request.rows,
 			request.isWorkspaceShellAllowed
-		).then(request.callback);
+		).then(request.callback, request.callback);
 
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
