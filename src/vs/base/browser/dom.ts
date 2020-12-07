@@ -1398,7 +1398,7 @@ function toBinary(str: string): string {
 	for (let i = 0; i < codeUnits.length; i++) {
 		codeUnits[i] = str.charCodeAt(i);
 	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+	return new TextDecoder("utf-8").decode(new Uint8Array(codeUnits.buffer))
 }
 
 /**
