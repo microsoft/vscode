@@ -528,10 +528,32 @@ export class ExtensionsInitializer extends AbstractInitializer {
 					} else {
 						toInstall.names.push(extension.identifier.id);
 					}
+					if (extension.disabled) {
+						toDisable.push(extension.identifier);
+					}
 				}
 			}
 		}
 
+		// 1. Initialise already installed extensions state
+		for (const extensionToSync of installedExtensionsToSync) {
+			if (extensionToSync.state) {
+				const extensionState = JSON.parse(this.storageService.get(extensionToSync.identifier.id, StorageScope.GLOBAL) || '{}');
+				forEach(extensionToSync.state, ({ key, value }) => extensionState[key] = value);
+				this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			}
+		}
+
+		// 2. Initialise extensions enablement
+		if (toDisable.length) {
+			for (const identifier of toDisable) {
+				this.logService.trace(`Disabling extension...`, identifier.id);
+				await this.extensionEnablementService.disableExtension(identifier);
+				this.logService.info(`Disabling extension`, identifier.id);
+			}
+		}
+
+		// 3. Install extensions
 		if (toInstall.names.length || toInstall.uuids.length) {
 			const galleryExtensions = (await this.galleryService.query({ ids: toInstall.uuids, names: toInstall.names, pageSize: toInstall.uuids.length + toInstall.names.length }, CancellationToken.None)).firstPage;
 			for (const galleryExtension of galleryExtensions) {
@@ -549,22 +571,6 @@ export class ExtensionsInitializer extends AbstractInitializer {
 				} catch (error) {
 					this.logService.error(error);
 				}
-			}
-		}
-
-		if (toDisable.length) {
-			for (const identifier of toDisable) {
-				this.logService.trace(`Enabling extension...`, identifier.id);
-				await this.extensionEnablementService.disableExtension(identifier);
-				this.logService.info(`Enabled extension`, identifier.id);
-			}
-		}
-
-		for (const extensionToSync of installedExtensionsToSync) {
-			if (extensionToSync.state) {
-				const extensionState = JSON.parse(this.storageService.get(extensionToSync.identifier.id, StorageScope.GLOBAL) || '{}');
-				forEach(extensionToSync.state, ({ key, value }) => extensionState[key] = value);
-				this.storageService.store(extensionToSync.identifier.id, JSON.stringify(extensionState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
 

@@ -380,7 +380,9 @@ async function handleRoot(req, res) {
 	const webConfigJSON = {
 		folderUri: folderUri,
 		staticExtensions,
-		enableSyncByDefault: args['enable-sync'],
+		settingsSyncOptions: {
+			enabled: args['enable-sync']
+		},
 		webWorkerExtensionHostIframeSrc: `${SCHEME}://${HOST}:${SECONDARY_PORT}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {
