@@ -75,8 +75,11 @@ async function retry<T>(fn: () => Promise<T>): Promise<T> {
 				throw err;
 			}
 
+			const millis = (Math.random() * 200) + (50 * Math.pow(1.5, run));
+			console.log(`Creating build asset failed with ECONNRESET, retrying in ${millis}ms...`);
+
 			// maximum delay is 10th retry: ~3 seconds
-			await new Promise(c => setTimeout(c, (Math.random() * 200) + (50 * Math.pow(1.5, run))));
+			await new Promise(c => setTimeout(c, millis));
 		}
 	}
 
