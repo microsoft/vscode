@@ -504,7 +504,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				if (parseInt(release) >= 20) { // Big Sur
 					const answer = await this.dialogService.show(
 						Severity.Warning,
-						nls.localize('good luck', "'Restart to Update' is broken on macOS Big Sur. Click 'Quit to Update' to quit {0} and update it. Then, relaunch it from Finder.", this.productService.nameShort),
+						nls.localize('good luck', "'Restart to Update' is not working properly on macOS Big Sur. Click 'Quit to Update' to quit {0} and update it. Then, relaunch it from Finder.", this.productService.nameShort),
 						[
 							nls.localize('quit', "Quit to Update"),
 							nls.localize('learn more', "Learn More"),
