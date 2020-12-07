@@ -66,6 +66,23 @@ function getEnv(name: string): string {
 	return result;
 }
 
+async function retry<T>(fn: () => Promise<T>): Promise<T> {
+	for (let run = 1; run <= 10; run++) {
+		try {
+			return await fn();
+		} catch (err) {
+			if (!/ECONNRESET/.test(err.message)) {
+				throw err;
+			}
+
+			// maximum delay is 10th retry: ~3 seconds
+			await new Promise(c => setTimeout(c, (Math.random() * 200) + (50 * Math.pow(1.5, run))));
+		}
+	}
+
+	throw new Error('Retried too many times');
+}
+
 async function main(): Promise<void> {
 	const [, , platform, type, fileName, filePath] = process.argv;
 	const quality = getEnv('VSCODE_QUALITY');
@@ -121,7 +138,7 @@ async function main(): Promise<void> {
 
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const scripts = client.database('builds').container(quality).scripts;
-	await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
+	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
 }
 
 main().then(() => {
