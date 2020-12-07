@@ -149,10 +149,9 @@ class SimpleToggleAction extends Action {
 	private readonly _listener: IDisposable;
 
 	constructor(state: OutlineViewState, label: string, isChecked: () => boolean, callback: (action: SimpleToggleAction) => any, className?: string) {
-		super(`simple` + defaultGenerator.nextId(), label, className, true, () => {
+		super(`simple` + defaultGenerator.nextId(), label, className, true, async () => {
 			this.checked = !this.checked;
 			callback(this);
-			return Promise.resolve();
 		});
 		this.checked = isChecked();
 		this._listener = state.onDidChange(() => this.checked = isChecked());

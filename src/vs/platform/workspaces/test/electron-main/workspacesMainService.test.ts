@@ -18,7 +18,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
@@ -389,7 +389,7 @@ suite('WorkspacesMainService', () => {
 
 	test.skip('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
 		if (!isWindows) {
-			return Promise.resolve();
+			return;
 		}
 
 		const workspaceLocation = path.join(os.tmpdir(), 'wsloc');

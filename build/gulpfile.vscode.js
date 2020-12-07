@@ -80,7 +80,6 @@ const vscodeResources = [
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
 	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
-	'out-build/vs/code/electron-sandbox/proxy/auth.js',
 	'!**/test/**'
 ];
 
