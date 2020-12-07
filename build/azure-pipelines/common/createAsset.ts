@@ -74,6 +74,9 @@ async function retry<T>(fn: () => Promise<T>): Promise<T> {
 			if (!/ECONNRESET/.test(err.message)) {
 				throw err;
 			}
+
+			// maximum delay is 10th retry: ~3 seconds
+			await new Promise(c => setTimeout(c, (Math.random() * 200) + (50 * Math.pow(1.5, run))));
 		}
 	}
 
