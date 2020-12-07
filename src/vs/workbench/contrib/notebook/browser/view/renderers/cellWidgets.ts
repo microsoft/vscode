@@ -353,8 +353,8 @@ export function getExecuteCellPlaceholder(viewCell: BaseCellViewModel) {
 		command: undefined,
 		// text: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
 		// tooltip: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
-		text: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
-		tooltip: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
+		text: isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run',
+		tooltip: isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run',
 		visible: true,
 		opacity: '0.7'
 	};
