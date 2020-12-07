@@ -225,7 +225,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			if (typeof activeParameter.documentation === 'string') {
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
+				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation, {
+					asyncRenderCallback: () => {
+						this.domNodes?.scrollbar.scanDomNode();
+					}
+				}));
 				renderedContents.element.classList.add('markdown-docs');
 				documentation.appendChild(renderedContents.element);
 			}
@@ -237,7 +241,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else if (typeof signature.documentation === 'string') {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
-			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
+			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation, {
+				asyncRenderCallback: () => {
+					this.domNodes?.scrollbar.scanDomNode();
+				}
+			}));
 			renderedContents.element.classList.add('markdown-docs');
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
