@@ -340,9 +340,10 @@ export class TabsTitleControl extends TitleControl {
 				}
 			}
 
-			// Ignore event if the last one happened too recently
-			const time_threshold = 120;
-			if (Date.now() - this.lastMouseWheelEventTime < time_threshold) {
+			// Ignore event if the last one happened too recently.
+			// The restriction is relaxed according to the abs value of deltaX and deltaY
+			const time_threshold = 150;
+			if (Date.now() - this.lastMouseWheelEventTime < time_threshold - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
 				return;
 			}
 			this.lastMouseWheelEventTime = Date.now();
