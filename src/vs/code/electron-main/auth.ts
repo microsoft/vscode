@@ -54,7 +54,7 @@ enum ProxyAuthState {
 	LoginDialogShown
 }
 
-export class ProxyAuthHandler2 extends Disposable {
+export class ProxyAuthHandler extends Disposable {
 
 	private static PROXY_CREDENTIALS_SERVICE_KEY = `${product.urlProtocol}.proxy-credentials`;
 
@@ -153,7 +153,7 @@ export class ProxyAuthHandler2 extends Disposable {
 		let storedUsername: string | undefined = undefined;
 		let storedPassword: string | undefined = undefined;
 		try {
-			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, ProxyAuthHandler.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 			if (encryptedSerializedProxyCredentials) {
 				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
 
@@ -211,9 +211,9 @@ export class ProxyAuthHandler2 extends Disposable {
 						try {
 							if (reply.remember) {
 								const encryptedSerializedCredentials = await this.encryptionMainService.encrypt(JSON.stringify(credentials));
-								await this.nativeHostMainService.setPassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
+								await this.nativeHostMainService.setPassword(undefined, ProxyAuthHandler.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
 							} else {
-								await this.nativeHostMainService.deletePassword(undefined, ProxyAuthHandler2.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+								await this.nativeHostMainService.deletePassword(undefined, ProxyAuthHandler.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 							}
 						} catch (error) {
 							this.logService.error(error); // handle gracefully
