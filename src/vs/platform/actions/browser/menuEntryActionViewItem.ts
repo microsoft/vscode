@@ -193,8 +193,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 					iconClass = ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 				} else {
 					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(icon.light || icon.dark)}`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(icon.dark)}`);
+					createCSSRule(`.icon.${iconClass}`, `background-color: currentColor; -webkit-mask-image: ${asCSSUrl(icon.light || icon.dark)}; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center center; mask-image: ${asCSSUrl(icon.light || icon.dark)}; mask-repeat: no-repeat; mask-position: center center;`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-color: currentColor; -webkit-mask-image: ${asCSSUrl(icon.light || icon.dark)}; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center center; mask-image: ${asCSSUrl(icon.light || icon.dark)}; mask-repeat: no-repeat; mask-position: center center;`);
 					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 				}
 
