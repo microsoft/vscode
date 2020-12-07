@@ -36,7 +36,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private updateMode: string | undefined;
 	private debugConsoleWordWrap: boolean | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
-	private enableExperimentalProxyLoginDialog = true; // default
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -97,12 +96,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				if (this.accessibilitySupport === 'on') {
 					changed = true;
 				}
-			}
-
-			// Experimental proxy login dialog
-			if (typeof config.window?.enableExperimentalProxyLoginDialog === 'boolean' && config.window.enableExperimentalProxyLoginDialog !== this.enableExperimentalProxyLoginDialog) {
-				this.enableExperimentalProxyLoginDialog = config.window.enableExperimentalProxyLoginDialog;
-				changed = true;
 			}
 		}
 

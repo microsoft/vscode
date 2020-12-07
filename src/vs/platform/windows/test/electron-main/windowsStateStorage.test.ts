@@ -286,7 +286,5 @@ suite('Windows State Storing', () => {
 			}
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');
-
 	});
-
 });

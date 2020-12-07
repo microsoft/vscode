@@ -25,8 +25,8 @@ import product from 'vs/platform/product/common/product';
 import { MessageBoxOptions, BrowserWindow } from 'electron';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { findWindowOnWorkspace } from 'vs/platform/windows/node/window';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { findWindowOnWorkspace } from 'vs/platform/windows/electron-main/window';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 
