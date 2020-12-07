@@ -389,7 +389,7 @@ suite('WorkspacesMainService', () => {
 
 	test.skip('rewriteWorkspaceFileForNewLocation (unc paths)', async () => {
 		if (!isWindows) {
-			return Promise.resolve();
+			return;
 		}
 
 		const workspaceLocation = path.join(os.tmpdir(), 'wsloc');
