@@ -190,12 +190,11 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				if (button.alwaysVisible) {
 					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
 				}
-				const action = new Action(`id-${index}`, '', cssClasses, true, () => {
+				const action = new Action(`id-${index}`, '', cssClasses, true, async () => {
 					element.fireButtonTriggered({
 						button,
 						item: element.item
 					});
-					return Promise.resolve();
 				});
 				action.tooltip = button.tooltip || '';
 				return action;
