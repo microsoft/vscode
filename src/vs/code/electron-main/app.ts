@@ -33,7 +33,6 @@ import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
-import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { ProxyAuthHandler2 } from 'vs/code/electron-main/auth2';
 import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -454,12 +453,8 @@ export class CodeApplication extends Disposable {
 			this._register(server);
 		}
 
-		// Setup Auth Handler (TODO@ben remove old auth handler eventually)
-		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') === false) {
-			this._register(new ProxyAuthHandler());
-		} else {
-			this._register(appInstantiationService.createInstance(ProxyAuthHandler2));
-		}
+		// Setup Auth Handler
+		this._register(appInstantiationService.createInstance(ProxyAuthHandler2));
 
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
