@@ -781,6 +781,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.windowId = this._win.id;
 		windowConfiguration.sessionId = `window:${this._win.id}`;
 		windowConfiguration.logLevel = this.logService.getLevel();
+		windowConfiguration.logsPath = this.environmentService.logsPath;
 
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
