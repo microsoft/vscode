@@ -9,7 +9,7 @@ import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
+import { OpenContext } from 'vs/platform/windows/electron-main/window';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -113,7 +113,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 	}
 
-	private startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
@@ -205,17 +205,15 @@ export class LaunchMainService implements ILaunchMainService {
 				whenDeleted(waitMarkerFileURI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}
-
-		return Promise.resolve(undefined);
 	}
 
-	getMainProcessId(): Promise<number> {
+	async getMainProcessId(): Promise<number> {
 		this.logService.trace('Received request for process ID from other instance.');
 
-		return Promise.resolve(process.pid);
+		return process.pid;
 	}
 
-	getMainProcessInfo(): Promise<IMainProcessInfo> {
+	async getMainProcessInfo(): Promise<IMainProcessInfo> {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		const windows: IWindowInfo[] = [];
@@ -228,18 +226,18 @@ export class LaunchMainService implements ILaunchMainService {
 			}
 		});
 
-		return Promise.resolve({
+		return {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
 			screenReader: !!app.accessibilitySupportEnabled,
 			gpuFeatureStatus: app.getGPUFeatureStatus()
-		});
+		};
 	}
 
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
+	async getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
 		const windows = this.windowsMainService.getWindows();
-		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
+		const diagnostics: Array<IDiagnosticInfo | IRemoteDiagnosticError | undefined> = await Promise.all(windows.map(window => {
 			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
 				const remoteAuthority = window.remoteAuthority;
 				if (remoteAuthority) {
@@ -267,9 +265,9 @@ export class LaunchMainService implements ILaunchMainService {
 					resolve(undefined);
 				}
 			});
-		});
+		}));
 
-		return Promise.all(promises).then(diagnostics => diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x));
+		return diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x);
 	}
 
 	private getFolderURIs(window: ICodeWindow): URI[] {
@@ -296,6 +294,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
 		const folderURIs = this.getFolderURIs(window);
+
 		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
 	}
 
