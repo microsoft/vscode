@@ -191,6 +191,7 @@ export class IconLabel extends Disposable {
 	}
 
 	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString): void {
+		htmlElement.setAttribute('title', '');
 		htmlElement.removeAttribute('title');
 		let tooltip: () => Promise<string | IMarkdownString | undefined>;
 		if (isString(markdownTooltip)) {
