@@ -187,6 +187,9 @@ export class RemoteUserConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
+	private readonly _onDidInitialize = this._register(new Emitter<ConfigurationModel>());
+	public readonly onDidInitialize = this._onDidInitialize.event;
+
 	constructor(
 		remoteAuthority: string,
 		configurationCache: IConfigurationCache,
@@ -205,6 +208,7 @@ export class RemoteUserConfiguration extends Disposable {
 				this._userConfiguration.dispose();
 				this._userConfiguration = userConfiguration;
 				this.onDidUserConfigurationChange(configurationModel);
+				this._onDidInitialize.fire(configurationModel);
 			}
 		});
 	}
