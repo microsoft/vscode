@@ -370,7 +370,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 						return {
 							type: 'task',
 							title,
-							description,
+							description: description.substr(0, 255), // https://github.com/microsoft/vscode/issues/111177
 							program: process.execPath,
 							args,
 							iconPath: 'explorer.exe', // simulate folder icon
