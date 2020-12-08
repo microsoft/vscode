@@ -559,7 +559,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.instantiationService.createInstance(ReplVariablesRenderer, linkDetector),
 				this.instantiationService.createInstance(ReplSimpleElementsRenderer, linkDetector),
 				new ReplEvaluationInputsRenderer(),
-				new ReplGroupRenderer(),
+				this.instantiationService.createInstance(ReplGroupRenderer, linkDetector),
 				new ReplEvaluationResultsRenderer(linkDetector),
 				new ReplRawObjectsRenderer(linkDetector),
 			],
