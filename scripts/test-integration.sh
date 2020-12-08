@@ -47,7 +47,7 @@ else
 	# for chromium compositor that uses the partition for shared memory
 	if [ "$LINUX_EXTRA_ARGS" ]
 	then
-		LINUX_EXTRA_ARGS="$LINUX_EXTRA_ARGS  --disable-dev-shm-usage --use-gl=egl"
+		LINUX_EXTRA_ARGS="$LINUX_EXTRA_ARGS  --disable-dev-shm-usage --use-gl=swiftshader"
 	fi
 
 	echo "Storing crash reports into '$VSCODECRASHDIR'."
