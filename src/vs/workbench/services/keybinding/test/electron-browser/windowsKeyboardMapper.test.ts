@@ -97,7 +97,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				electronAccelerator: 'Ctrl+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
@@ -121,7 +121,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				electronAccelerator: 'Ctrl+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
@@ -137,7 +137,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Shift+^',
 				ariaLabel: 'Shift+^',
-				electronAccelerator: 'Shift+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'shift+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
@@ -153,7 +153,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+§',
 				ariaLabel: 'Control+§',
-				electronAccelerator: 'Ctrl+/',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_2',
 				isWYSIWYG: false,
 				isChord: false,
@@ -169,7 +169,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+Shift+§',
 				ariaLabel: 'Control+Shift+§',
-				electronAccelerator: 'Ctrl+Shift+/',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+shift+oem_2',
 				isWYSIWYG: false,
 				isChord: false,
