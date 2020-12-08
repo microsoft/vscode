@@ -72,6 +72,7 @@ export class TabsTitleControl extends TitleControl {
 	};
 
 	private static readonly TAB_HEIGHT = 35;
+	private static readonly TIME_THRESHOLD = 150;
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
@@ -93,7 +94,7 @@ export class TabsTitleControl extends TitleControl {
 
 	private path: IPath = isWindows ? win32 : posix;
 
-	private lastMouseWheelEventTime: number = 0;
+	private lastMouseWheelEventTime = 0;
 
 	constructor(
 		parent: HTMLElement,
@@ -340,22 +341,26 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// Ignore event if the last one happened too recently.
-			// The restriction is relaxed according to the abs value of deltaX and deltaY
-			const time_threshold = 150;
-			if (Date.now() - this.lastMouseWheelEventTime < time_threshold - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
+			// The restriction is relaxed according to the absolute value of `deltaX` and `deltaY`
+			// to support discrete (mouse wheel) and contiguous scrolling (touchpad) equally well
+			if (Date.now() - this.lastMouseWheelEventTime < TabsTitleControl.TIME_THRESHOLD - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
 				return;
 			}
 			this.lastMouseWheelEventTime = Date.now();
 
 			// Figure out scrolling direction (ignore direction if the scrolling is too subtile)
-			const distance_threshold = 1.5;
+			const distanceThreshold = 1.5;
 			let tabSwitchDirection = 0;
-			if (e.deltaX + e.deltaY < - distance_threshold) {
+			if (e.deltaX + e.deltaY < - distanceThreshold) {
 				tabSwitchDirection = -1;
-			}
-			if (e.deltaX + e.deltaY > distance_threshold) {
+			} else if (e.deltaX + e.deltaY > distanceThreshold) {
 				tabSwitchDirection = 1;
 			}
+
+			if (tabSwitchDirection === 0) {
+				return;
+			}
+
 			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + tabSwitchDirection);
 
 			if (!nextEditor) {
