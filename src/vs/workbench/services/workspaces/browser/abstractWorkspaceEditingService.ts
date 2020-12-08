@@ -221,6 +221,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		// Allow to save the workspace of the current window
+		// if we have an identical match on the path
 		if (isEqual(workspaceIdentifier.configPath, path)) {
 			return this.saveWorkspace(workspaceIdentifier);
 		}

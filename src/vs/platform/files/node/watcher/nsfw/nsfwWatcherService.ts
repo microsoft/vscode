@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import * as extpath from 'vs/base/common/extpath';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import * as nsfw from 'vscode-nsfw';
+import * as glob from 'vs/base/common/glob';
+import { join } from 'vs/base/common/path';
+import { isMacintosh } from 'vs/base/common/platform';
+import { isEqualOrParent } from 'vs/base/common/extpath';
+import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { IWatcherService, IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -111,7 +111,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		// We have to detect this case and massage the events to correct this.
 		let realBasePathDiffers = false;
 		let realBasePathLength = request.path.length;
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			try {
 
 				// First check for symbolic link
@@ -141,7 +141,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 			for (const e of events) {
 				// Logging
 				if (this.verboseLogging) {
-					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
+					const logPath = e.action === nsfw.actions.RENAMED ? join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : join(e.directory, e.file || '');
 					this.log(`${e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
 				}
 
@@ -149,20 +149,20 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				let absolutePath: string;
 				if (e.action === nsfw.actions.RENAMED) {
 					// Rename fires when a file's name changes within a single directory
-					absolutePath = path.join(e.directory, e.oldFile || '');
+					absolutePath = join(e.directory, e.oldFile || '');
 					if (!this.isPathIgnored(absolutePath, this.pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
 					} else if (this.verboseLogging) {
 						this.log(` >> ignored ${absolutePath}`);
 					}
-					absolutePath = path.join(e.newDirectory || e.directory, e.newFile || '');
+					absolutePath = join(e.newDirectory || e.directory, e.newFile || '');
 					if (!this.isPathIgnored(absolutePath, this.pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 					} else if (this.verboseLogging) {
 						this.log(` >> ignored ${absolutePath}`);
 					}
 				} else {
-					absolutePath = path.join(e.directory, e.file || '');
+					absolutePath = join(e.directory, e.file || '');
 					if (!this.isPathIgnored(absolutePath, this.pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({
 							type: nsfwActionToRawChangeType[e.action],
@@ -179,7 +179,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				const events = undeliveredFileEvents;
 				undeliveredFileEvents = [];
 
-				if (platform.isMacintosh) {
+				if (isMacintosh) {
 					events.forEach(e => {
 
 						// Mac uses NFD unicode form on disk, but we want NFC
@@ -230,7 +230,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		// Normalizes a set of root paths by removing any root paths that are
 		// sub-paths of other roots.
 		return roots.filter(r => roots.every(other => {
-			return !(r.path.length > other.path.length && extpath.isEqualOrParent(r.path, other.path));
+			return !(r.path.length > other.path.length && isEqualOrParent(r.path, other.path));
 		}));
 	}
 
