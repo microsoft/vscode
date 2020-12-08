@@ -66,32 +66,11 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		return this._mapper.getAriaLabelForKeyCode(keybinding.keyCode);
 	}
 
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
-	}
-
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return null;
 		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+		return this._mapper.getElectronAcceleratorForKeyBinding(keybinding);
 	}
 
 	protected _getUserSettingsLabel(keybinding: SimpleKeybinding): string | null {
@@ -407,6 +386,31 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			return KeyCodeUtils.toUserSettingsUS(keyCode);
 		}
 		return KeyCodeUtils.toUserSettingsGeneral(keyCode);
+	}
+
+	public getElectronAcceleratorForKeyBinding(keybinding: SimpleKeybinding): string | null {
+		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+	}
+
+	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// Electron cannot handle numpad keys
+			return null;
+		}
+
+		switch (keyCode) {
+			case KeyCode.UpArrow:
+				return 'Up';
+			case KeyCode.DownArrow:
+				return 'Down';
+			case KeyCode.LeftArrow:
+				return 'Left';
+			case KeyCode.RightArrow:
+				return 'Right';
+		}
+
+		// electron menus always do the correct rendering on Windows
+		return KeyCodeUtils.toString(keyCode);
 	}
 
 	private _getLabelForKeyCode(keyCode: KeyCode): string {
