@@ -320,7 +320,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private registerTestViewContainer(): void {
 		const title = localize('test', "Test");
-		const icon = ThemeIcon.fromCodicon(testViewIcon);
+		const icon = testViewIcon;
 
 		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, undefined, ViewContainerLocation.Sidebar);
 	}
@@ -471,10 +471,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
-					let icon: string | URI | undefined;
+					let icon: ThemeIcon | URI | undefined;
 					if (typeof item.icon === 'string') {
-						const themeIcon = ThemeIcon.fromString(item.icon);
-						icon = themeIcon ? ThemeIcon.asClassName(themeIcon) : resources.joinPath(extension.description.extensionLocation, item.icon);
+						icon = ThemeIcon.fromString(item.icon) || resources.joinPath(extension.description.extensionLocation, item.icon);
 					}
 
 					const initialVisibility = this.convertInitialVisibility(item.visibility);

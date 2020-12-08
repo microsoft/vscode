@@ -42,6 +42,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -67,6 +68,9 @@ interface ICachedViewContainer {
 	visible: boolean;
 	views?: { when?: string }[];
 }
+
+const settingsViewBarIcon = registerIcon('settings-view-bar-icon', Codicon.settingsGear, nls.localize('settingsViewBarIcon', 'Settings icon in the view bar.'));
+const accountsViewBarIcon = registerIcon('accounts-view-bar-icon', Codicon.account, nls.localize('accountsViewBarIcon', 'Accounts icon in the view bar.'));
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
@@ -176,7 +180,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				}
 
 				// Menu
-				const menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
 					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
 				}
@@ -265,7 +269,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.menuBarVisibility')) {
-				if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
+				if (getMenuBarVisibility(this.configurationService) === 'compact') {
 					this.installMenubar();
 				} else {
 					this.uninstallMenubar();
@@ -434,7 +438,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.menuBarContainer.classList.add('menubar');
 
 		const content = assertIsDefined(this.content);
-		content.prepend(this.menuBarContainer);
+		if (this.homeBarContainer) {
+			content.insertBefore(this.menuBarContainer, this.homeBarContainer.nextSibling);
+		} else {
+			content.prepend(this.menuBarContainer);
+		}
 
 		// Menubar: install a custom menu bar depending on configuration
 		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
@@ -463,7 +471,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		// Install menubar if compact
-		if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
+		if (getMenuBarVisibility(this.configurationService) === 'compact') {
 			this.installMenubar();
 		}
 
@@ -572,7 +580,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		})));
 
 		const content = assertIsDefined(this.content);
-		content.prepend(this.homeBarContainer);
+		content.appendChild(this.homeBarContainer);
 	}
 
 	private createGlobalActivityActionBar(container: HTMLElement): void {
@@ -598,14 +606,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityAction = this._register(new ActivityAction({
 			id: 'workbench.actions.manage',
 			name: nls.localize('manage', "Manage"),
-			cssClass: Codicon.settingsGear.classNames
+			cssClass: ThemeIcon.asClassName(settingsViewBarIcon)
 		}));
 
 		if (this.accountsVisibilityPreference) {
 			this.accountsActivityAction = this._register(new ActivityAction({
 				id: 'workbench.actions.accounts',
 				name: nls.localize('accounts', "Accounts"),
-				cssClass: Codicon.account.classNames
+				cssClass: ThemeIcon.asClassName(accountsViewBarIcon)
 			}));
 
 			this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });

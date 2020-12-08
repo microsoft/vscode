@@ -144,8 +144,12 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
-	 * Rename matching regions on type.
+	 * Enable linked editing.
 	 * Defaults to false.
+	 */
+	linkedEditing?: boolean;
+	/**
+	 * deprecated, use linkedEditing instead
 	 */
 	renameOnType?: boolean;
 	/**
@@ -261,6 +265,14 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
+	 * Override the `wordWrap` setting.
+	 */
+	wordWrapOverride1?: 'off' | 'on' | 'inherit';
+	/**
+	 * Override the `wordWrapOverride1` setting.
+	 */
+	wordWrapOverride2?: 'off' | 'on' | 'inherit';
+	/**
 	 * Control the wrapping of the editor.
 	 * When `wordWrap` = "off", the lines will never wrap.
 	 * When `wordWrap` = "on", the lines will wrap at the viewport width.
@@ -269,11 +281,6 @@ export interface IEditorOptions {
 	 * Defaults to 80.
 	 */
 	wordWrapColumn?: number;
-	/**
-	 * Force word wrapping when the text appears to be of a minified/generated file.
-	 * Defaults to true.
-	 */
-	wordWrapMinified?: boolean;
 	/**
 	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
@@ -421,10 +428,10 @@ export interface IEditorOptions {
 	 */
 	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
-	 * Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation.
-	 * This means selection will snap to indentation boundaries.
+	 * Emulate selection behaviour of tab characters when using spaces for indentation.
+	 * This means selection will stick to tab stops.
 	 */
-	atomicSoftTabs?: boolean;
+	stickyTabStops?: boolean;
 	/**
 	 * Enable format on type.
 	 * Defaults to false.
@@ -1955,7 +1962,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding,
 				EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers,
 				EditorOption.lineNumbersMinChars, EditorOption.scrollBeyondLastLine,
-				EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified,
+				EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapOverride1, EditorOption.wordWrapOverride2,
 				EditorOption.accessibilitySupport
 			]
 		);
@@ -2166,9 +2173,11 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const pixelRatio = env.pixelRatio;
 		const viewLineCount = env.viewLineCount;
 
-		const wordWrap = options.get(EditorOption.wordWrap);
+		const wordWrapOverride2 = options.get(EditorOption.wordWrapOverride2);
+		const wordWrapOverride1 = (wordWrapOverride2 === 'inherit' ? options.get(EditorOption.wordWrapOverride1) : wordWrapOverride2);
+		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
+
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
-		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
@@ -2225,7 +2234,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			// Never enable wrapping when a screen reader is attached
 			// because arrow down etc. will not move the cursor in the way
 			// a screen reader expects.
-			if (wordWrapMinified && isDominatedByLongLines) {
+			if (wordWrapOverride1 === 'inherit' && isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				isWordWrapMinified = true;
 				isViewportWrapping = true;
@@ -3636,7 +3645,6 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
-	atomicSoftTabs,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -3682,6 +3690,7 @@ export const enum EditorOption {
 	lineHeight,
 	lineNumbers,
 	lineNumbersMinChars,
+	linkedEditing,
 	links,
 	matchBrackets,
 	minimap,
@@ -3724,6 +3733,7 @@ export const enum EditorOption {
 	snippetSuggestions,
 	smartSelect,
 	smoothScrolling,
+	stickyTabStops,
 	stopRenderingLineAfter,
 	suggest,
 	suggestFontSize,
@@ -3739,7 +3749,8 @@ export const enum EditorOption {
 	wordWrapBreakAfterCharacters,
 	wordWrapBreakBeforeCharacters,
 	wordWrapColumn,
-	wordWrapMinified,
+	wordWrapOverride1,
+	wordWrapOverride2,
 	wrappingIndent,
 	wrappingStrategy,
 	showDeprecated,
@@ -3865,9 +3876,9 @@ export const EditorOptions = {
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
-	atomicSoftTabs: register(new EditorBooleanOption(
-		EditorOption.atomicSoftTabs, 'atomicSoftTabs', false,
-		{ description: nls.localize('atomicSoftTabs', "Emulate selection behaviour of hard tabs when using soft tabs (spaces) for indentation. This means selection will snap to indentation boundaries.") }
+	stickyTabStops: register(new EditorBooleanOption(
+		EditorOption.stickyTabStops, 'stickyTabStops', false,
+		{ description: nls.localize('stickyTabStops', "Emulate selection behaviour of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,
@@ -4018,7 +4029,7 @@ export const EditorOptions = {
 	)),
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
-		EditorOption.inDiffEditor, 'inDiffEditor', false,
+		EditorOption.inDiffEditor, 'inDiffEditor', false
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',
@@ -4032,6 +4043,10 @@ export const EditorOptions = {
 	lineNumbersMinChars: register(new EditorIntOption(
 		EditorOption.lineNumbersMinChars, 'lineNumbersMinChars',
 		5, 1, 300
+	)),
+	linkedEditing: register(new EditorBooleanOption(
+		EditorOption.linkedEditing, 'linkedEditing', false,
+		{ description: nls.localize('linkedEditing', "Controls whether the editor has linked editing enabled. Depending on the language, related symbols, e.g. HTML tags, are updated while editing.") }
 	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,
@@ -4134,7 +4149,7 @@ export const EditorOptions = {
 	)),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
-		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type.") }
+		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
 	)),
 	renderControlCharacters: register(new EditorBooleanOption(
 		EditorOption.renderControlCharacters, 'renderControlCharacters', false,
@@ -4384,8 +4399,15 @@ export const EditorOptions = {
 			}, "Controls the wrapping column of the editor when `#editor.wordWrap#` is `wordWrapColumn` or `bounded`.")
 		}
 	)),
-	wordWrapMinified: register(new EditorBooleanOption(
-		EditorOption.wordWrapMinified, 'wordWrapMinified', true,
+	wordWrapOverride1: register(new EditorStringEnumOption(
+		EditorOption.wordWrapOverride1, 'wordWrapOverride1',
+		'inherit' as 'off' | 'on' | 'inherit',
+		['off', 'on', 'inherit'] as const
+	)),
+	wordWrapOverride2: register(new EditorStringEnumOption(
+		EditorOption.wordWrapOverride2, 'wordWrapOverride2',
+		'inherit' as 'off' | 'on' | 'inherit',
+		['off', 'on', 'inherit'] as const
 	)),
 	wrappingIndent: register(new EditorEnumOption(
 		EditorOption.wrappingIndent, 'wrappingIndent',

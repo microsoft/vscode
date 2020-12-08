@@ -28,6 +28,7 @@ import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtension
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { mark } from 'vs/base/common/performance';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -228,7 +229,15 @@ class InitializeOtherResourcesContribution implements IWorkbenchContribution {
 		@IUserDataInitializationService userDataInitializeService: IUserDataInitializationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		userDataInitializeService.initializeOtherResources(instantiationService);
+		this.initializeOtherResource(userDataInitializeService, instantiationService);
+	}
+
+	private async initializeOtherResource(userDataInitializeService: IUserDataInitializationService, instantiationService: IInstantiationService): Promise<void> {
+		if (await userDataInitializeService.requiresInitialization()) {
+			mark('willInitOtherUserData');
+			await userDataInitializeService.initializeOtherResources(instantiationService);
+			mark('didInitOtherUserData');
+		}
 	}
 }
 

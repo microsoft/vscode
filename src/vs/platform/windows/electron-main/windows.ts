@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowOpenable, IOpenEmptyWindowOptions, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
+import { OpenContext } from 'vs/platform/windows/electron-main/window';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -14,6 +14,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWindowState {
 	width?: number;
@@ -32,6 +33,11 @@ export const enum WindowMode {
 }
 
 export interface ICodeWindow extends IDisposable {
+
+	readonly onLoad: Event<void>;
+	readonly onReady: Event<void>;
+	readonly onClose: Event<void>;
+	readonly onDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
 
@@ -67,7 +73,7 @@ export interface ICodeWindow extends IDisposable {
 	getBounds(): Rectangle;
 
 	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, ...args: any[]): void;
+	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;

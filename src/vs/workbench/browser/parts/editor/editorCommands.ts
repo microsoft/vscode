@@ -40,7 +40,7 @@ export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOt
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
-export const KEEP_EDITORS_COMMAND_ID = 'workbench.action.keepEditors';
+export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
@@ -480,15 +480,27 @@ function registerOpenEditorAPICommands(): void {
 		}, viewColumnToEditorGroup(editorGroupService, column));
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, payload: [UriComponents, string, ITextEditorOptions | undefined, EditorGroupColumn | undefined]) => {
+	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?]) => {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const [resource, id, optionsArg, columnArg] = payload;
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
+		let group: IEditorGroup | undefined = undefined;
 
-		const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		if (columnArg === SIDE_GROUP) {
+			const direction = preferredSideBySideGroupDirection(configurationService);
+
+			let neighbourGroup = editorGroupsService.findGroup({ direction });
+			if (!neighbourGroup) {
+				neighbourGroup = editorGroupsService.addGroup(editorGroupsService.activeGroup, direction);
+			}
+			group = neighbourGroup;
+		} else {
+			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		}
+
 		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
 
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
@@ -887,19 +899,23 @@ function registerOtherEditorCommands(): void {
 	});
 
 	CommandsRegistry.registerCommand({
-		id: KEEP_EDITORS_COMMAND_ID,
+		id: TOGGLE_KEEP_EDITORS_COMMAND_ID,
 		handler: accessor => {
 			const configurationService = accessor.get(IConfigurationService);
 			const notificationService = accessor.get(INotificationService);
 			const openerService = accessor.get(IOpenerService);
 
 			// Update setting
-			configurationService.updateValue('workbench.editor.enablePreview', false);
+			const currentSetting = configurationService.getValue<boolean>('workbench.editor.enablePreview');
+			const newSetting = currentSetting === true ? false : true;
+			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
 
 			// Inform user
 			notificationService.prompt(
 				Severity.Info,
-				nls.localize('disablePreview', "Preview editors have been disabled in settings."),
+				newSetting ?
+					nls.localize('enablePreview', "Preview editors have been enabled in settings.") :
+					nls.localize('disablePreview', "Preview editors have been disabled in settings."),
 				[{
 					label: nls.localize('learnMode', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
 				}]

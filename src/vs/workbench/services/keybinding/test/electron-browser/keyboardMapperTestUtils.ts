@@ -65,13 +65,12 @@ export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMa
 	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}`));
 
 	return readFile(filePath).then((buff) => {
-		let expected = buff.toString();
-		const actual = mapper.dumpDebugInfo();
+		const expected = buff.toString().replace(/\r\n/g, '\n');
+		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
 		if (actual !== expected && writeFileIfDifferent) {
 			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
 			writeFile(destPath, actual);
 		}
-
-		assert.deepEqual(actual.split(/\r\n|\n/), expected.split(/\r\n|\n/));
+		assert.deepEqual(actual, expected);
 	});
 }

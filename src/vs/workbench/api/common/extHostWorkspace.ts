@@ -467,17 +467,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			} :
 			options.previewOptions;
 
-		let includePattern: string | undefined;
-		let folder: URI | undefined;
-		if (options.include) {
-			if (typeof options.include === 'string') {
-				includePattern = options.include;
-			} else {
-				includePattern = options.include.pattern;
-				folder = (options.include as RelativePattern).baseFolder || URI.file(options.include.base);
-			}
-		}
-
+		const { includePattern, folder } = parseSearchInclude(options.include);
 		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
 			options.exclude ? options.exclude.pattern : undefined;
 		const queryOptions: ITextQueryBuilderOptions = {
@@ -572,14 +562,12 @@ function parseSearchInclude(include: RelativePattern | string | undefined): { in
 			includePattern = include;
 		} else {
 			includePattern = include.pattern;
-
-			// include.base must be an absolute path
 			includeFolder = include.baseFolder || URI.file(include.base);
 		}
 	}
 
 	return {
-		includePattern: includePattern,
+		includePattern,
 		folder: includeFolder
 	};
 }

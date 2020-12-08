@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getZoomLevel } from 'vs/base/browser/browser';
 import { flatten } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -13,6 +14,9 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -23,7 +27,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { CellEditState, getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -276,7 +280,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -334,6 +340,41 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			updateOrder();
+		}));
+
+		let decorationTriggeredAdjustment = false;
+		let decorationCheckSet = new Set<string>();
+		this._register(this._codeEditorService.onDecorationTypeRegistered(e => {
+			if (decorationTriggeredAdjustment) {
+				return;
+			}
+
+			if (decorationCheckSet.has(e)) {
+				return;
+			}
+
+			const options = this._codeEditorService.resolveDecorationOptions(e, true);
+			if (options.afterContentClassName || options.beforeContentClassName) {
+				const cssRules = this._codeEditorService.resolveDecorationCSSRules(e);
+				if (cssRules !== null) {
+					for (let i = 0; i < cssRules.length; i++) {
+						// The following ways to index into the list are equivalent
+						if (
+							((cssRules[i] as CSSStyleRule).selectorText.endsWith('::after') || (cssRules[i] as CSSStyleRule).selectorText.endsWith('::after'))
+							&& (cssRules[i] as CSSStyleRule).cssText.indexOf('top:') > -1
+						) {
+							// there is a `::before` or `::after` text decoration whose position is above or below current line
+							// we at least make sure that the editor top padding is at least one line
+							const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+							updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight + 2);
+							decorationTriggeredAdjustment = true;
+							break;
+						}
+					}
+				}
+			}
+
+			decorationCheckSet.add(e);
 		}));
 
 		const getContext = () => {
@@ -952,11 +993,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		if (modelData) {
 			// delete editors and documents
 			const willRemovedEditors: INotebookEditor[] = [];
-			this._notebookEditors.forEach(editor => {
-				if (editor.textModel === modelData!.model) {
+			for (const editor of this._notebookEditors.values()) {
+				if (editor.textModel === modelData.model) {
 					willRemovedEditors.push(editor);
 				}
-			});
+			}
 
 			modelData.model.dispose();
 			modelData.dispose();

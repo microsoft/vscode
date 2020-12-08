@@ -18,6 +18,7 @@ import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdi
 import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class BulkEdit {
 
@@ -25,6 +26,7 @@ class BulkEdit {
 		private readonly _label: string | undefined,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<IProgressStep>,
+		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceEdit[],
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
@@ -61,11 +63,17 @@ class BulkEdit {
 			}
 		}
 
-		this._progress.report({ total: this._edits.length });
-		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
+		// Show infinte progress when there is only 1 item since we do not know how long it takes
+		const increment = this._edits.length > 1 ? 0 : undefined;
+		this._progress.report({ increment, total: 100 });
+		// Increment by percentage points since progress API expects that
+		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 100 / this._edits.length }) };
 
 		let index = 0;
 		for (let range of ranges) {
+			if (this._token.isCancellationRequested) {
+				break;
+			}
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
 				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
@@ -82,19 +90,19 @@ class BulkEdit {
 
 	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>) {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, undoRedoSource, progress, edits);
+		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		await model.apply();
 	}
 
 	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, undoRedoGroup, undoRedoSource, progress, edits);
+		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		await model.apply();
 	}
 
 	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performCellEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, edits);
+		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		await model.apply();
 	}
 }
@@ -131,7 +139,7 @@ export class BulkEditService implements IBulkEditService {
 			return { ariaSummary: localize('nothing', "Made no edits") };
 		}
 
-		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
+		if (this._previewHandler && !options?.suppressPreview && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
 			edits = await this._previewHandler(edits, options);
 		}
 
@@ -170,7 +178,9 @@ export class BulkEditService implements IBulkEditService {
 		const bulkEdit = this._instaService.createInstance(
 			BulkEdit,
 			options?.quotableLabel || options?.label,
-			codeEditor, options?.progress ?? Progress.None,
+			codeEditor,
+			options?.progress ?? Progress.None,
+			options?.token ?? CancellationToken.None,
 			edits,
 			undoRedoGroup,
 			options?.undoRedoSource

@@ -12,6 +12,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { extUri } from 'vs/base/common/resources';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -252,7 +253,10 @@ export class CellLanguageStatusBarItem extends Disposable {
 
 	private run() {
 		this.instantiationService.invokeFunction(accessor => {
-			new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor!, cell: this.cell! });
+			if (!this.editor || !this.editor.hasModel() || !this.cell) {
+				return;
+			}
+			new ChangeCellLanguageAction().run(accessor, { notebookEditor: this.editor, cell: this.cell });
 		});
 	}
 
@@ -349,8 +353,8 @@ export function getExecuteCellPlaceholder(viewCell: BaseCellViewModel) {
 		command: undefined,
 		// text: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
 		// tooltip: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
-		text: 'Ctrl + Enter to run',
-		tooltip: 'Ctrl + Enter to run',
+		text: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
+		tooltip: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
 		visible: true,
 		opacity: '0.7'
 	};

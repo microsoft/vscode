@@ -11,8 +11,8 @@ import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -28,7 +28,7 @@ export class CodeCell extends Disposable {
 	private _untrustedStatusItem: IDisposable | null = null;
 
 	constructor(
-		private notebookEditor: INotebookEditor,
+		private notebookEditor: IActiveNotebookEditor,
 		private viewCell: CodeCellViewModel,
 		private templateData: CodeCellRenderTemplate,
 		@INotebookService notebookService: INotebookService,
@@ -46,7 +46,7 @@ export class CodeCell extends Disposable {
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
-			? lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING
+			? lineNum * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING
 			: this.viewCell.layoutInfo.editorHeight;
 
 		this.layoutEditor(
@@ -94,10 +94,10 @@ export class CodeCell extends Disposable {
 		}));
 		updateForFocusMode();
 
-		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel!.metadata).editable) });
+		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel.metadata).editable) });
 		this._register(viewCell.onDidChangeState((e) => {
 			if (e.metadataChanged) {
-				templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel!.metadata).editable) });
+				templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel.metadata).editable) });
 
 				// TODO@rob this isn't nice
 				this.viewCell.layoutChange({});
@@ -115,14 +115,14 @@ export class CodeCell extends Disposable {
 
 		this._register(viewCell.onDidChangeLayout((e) => {
 			if (e.outerWidth !== undefined) {
-				const layoutInfo = templateData.editor!.getLayoutInfo();
+				const layoutInfo = templateData.editor.getLayoutInfo();
 				if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
 					this.onCellWidthChange();
 				}
 			}
 		}));
 
-		this._register(templateData.editor!.onDidContentSizeChange((e) => {
+		this._register(templateData.editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
 					this.onCellHeightChange(e.contentHeight);
@@ -130,16 +130,16 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this._register(templateData.editor!.onDidChangeCursorSelection((e) => {
+		this._register(templateData.editor.onDidChangeCursorSelection((e) => {
 			if (e.source === 'restoreState') {
 				// do not reveal the cell into view if this selection change was caused by restoring editors...
 				return;
 			}
 
-			const primarySelection = templateData.editor!.getSelection();
+			const primarySelection = templateData.editor.getSelection();
 
 			if (primarySelection) {
-				this.notebookEditor.revealLineInViewAsync(viewCell, primarySelection!.positionLineNumber);
+				this.notebookEditor.revealLineInViewAsync(viewCell, primarySelection.positionLineNumber);
 			}
 		}));
 
@@ -187,7 +187,7 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this._register(templateData.editor!.onMouseDown(e => {
+		this._register(templateData.editor.onMouseDown(e => {
 			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
 			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.
 			if (e.event.rightButton) {
@@ -196,11 +196,11 @@ export class CodeCell extends Disposable {
 		}));
 
 		// Focus Mode
-		const updateFocusMode = () => viewCell.focusMode = templateData.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
-		this._register(templateData.editor!.onDidFocusEditorWidget(() => {
+		const updateFocusMode = () => viewCell.focusMode = templateData.editor.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		this._register(templateData.editor.onDidFocusEditorWidget(() => {
 			updateFocusMode();
 		}));
-		this._register(templateData.editor!.onDidBlurEditorWidget(() => {
+		this._register(templateData.editor.onDidBlurEditorWidget(() => {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
@@ -268,7 +268,7 @@ export class CodeCell extends Disposable {
 		// 	}
 		// };
 
-		this._register(this.notebookEditor.viewModel!.notebookDocument.onDidChangeContent(e => {
+		this._register(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {
 			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
 				updatePlaceholder();
 				// updateUntrustedStatus();
@@ -344,7 +344,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private onCellWidthChange(): void {
-		const realContentHeight = this.templateData.editor!.getContentHeight();
+		const realContentHeight = this.templateData.editor.getContentHeight();
 		this.viewCell.editorHeight = realContentHeight;
 		this.relayoutCell();
 
@@ -360,7 +360,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private onCellHeightChange(newHeight: number): void {
-		const viewLayout = this.templateData.editor!.getLayoutInfo();
+		const viewLayout = this.templateData.editor.getLayoutInfo();
 		this.viewCell.editorHeight = newHeight;
 		this.relayoutCell();
 		this.layoutEditor(
@@ -397,7 +397,7 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer.dispose();
 		this._activeCellRunPlaceholder?.dispose();
 		this._untrustedStatusItem?.dispose();
-		this.templateData.focusIndicatorLeft!.style.height = 'initial';
+		this.templateData.focusIndicatorLeft.style.height = 'initial';
 
 		super.dispose();
 	}

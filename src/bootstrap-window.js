@@ -57,17 +57,15 @@
 			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
 		}
 
-		// Enable ASAR support (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-		}
+		// Enable ASAR support
+		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
 		if (options && typeof options.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
-		// Get the nls configuration into the process.env as early as possible  (TODO@sandbox non-sandboxed only)
-		const nlsConfig = sandbox ? { availableLanguages: {} } : globalThis.MonacoBootstrap.setupNLS();
+		// Get the nls configuration into the process.env as early as possible
+		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
 		if (locale === 'zh-tw') {
@@ -90,9 +88,14 @@
 
 		window['MonacoEnvironment'] = {};
 
+		const baseUrl = sandbox ?
+			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
+			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`;
+
 		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
-			'vs/nls': nlsConfig
+			baseUrl,
+			'vs/nls': nlsConfig,
+			preferScriptTags: sandbox
 		};
 
 		// Enable loading of node modules:
@@ -272,6 +275,7 @@
 			 */
 			mark(name) {
 				globalThis.MonacoPerformanceMarks.push(name, Date.now());
+				performance.mark(name);
 			}
 		};
 	}

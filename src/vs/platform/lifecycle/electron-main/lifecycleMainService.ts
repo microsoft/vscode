@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, app, BrowserWindow } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -437,11 +437,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
 			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
 
-			ipc.once(okChannel, () => {
+			ipcMain.once(okChannel, () => {
 				resolve(false); // no veto
 			});
 
-			ipc.once(cancelChannel, () => {
+			ipcMain.once(cancelChannel, () => {
 				resolve(true); // veto
 			});
 
@@ -468,7 +468,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const replyChannel = `vscode:reply${oneTimeEventToken}`;
 
-			ipc.once(replyChannel, () => resolve());
+			ipcMain.once(replyChannel, () => resolve());
 
 			window.send('vscode:onWillUnload', { replyChannel, reason });
 		});

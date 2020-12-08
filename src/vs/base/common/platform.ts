@@ -33,6 +33,7 @@ export interface INodeProcess {
 	versions?: {
 		electron?: string;
 	};
+	sandboxed?: boolean; // Electron
 	type?: string;
 	cwd(): string;
 }
@@ -54,11 +55,12 @@ if (typeof process !== 'undefined') {
 	// Native environment (non-sandboxed)
 	nodeProcess = process;
 } else if (typeof _globals.vscode !== 'undefined') {
-	// Native envionment (sandboxed)
+	// Native environment (sandboxed)
 	nodeProcess = _globals.vscode.process;
 }
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
+export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
 
 // Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {

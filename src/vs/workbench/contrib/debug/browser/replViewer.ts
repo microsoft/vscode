@@ -21,10 +21,11 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugConfiguration, IDebugSession, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 
@@ -33,7 +34,7 @@ interface IReplEvaluationInputTemplateData {
 }
 
 interface IReplGroupTemplateData {
-	label: HighlightedLabel;
+	label: HTMLElement;
 }
 
 interface IReplEvaluationResultTemplateData {
@@ -67,7 +68,7 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-arrow-small-right'));
+		dom.append(container, $('span.arrow' + ThemeIcon.asCSSSelector(debugConsoleEvaluationInput)));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
@@ -86,27 +87,33 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, IReplGroupTemplateData> {
 	static readonly ID = 'replGroup';
 
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		@IThemeService private readonly themeService: IThemeService
+	) { }
+
 	get templateId(): string {
 		return ReplGroupRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
+	renderTemplate(container: HTMLElement): IReplGroupTemplateData {
+		const label = dom.append(container, $('.expression'));
 		return { label };
 	}
 
 	renderElement(element: ITreeNode<ReplGroup, FuzzyScore>, _index: number, templateData: IReplGroupTemplateData): void {
 		const replGroup = element.element;
-		templateData.label.set(replGroup.name, createMatches(element.filterData));
+		dom.clearNode(templateData.label);
+		const result = handleANSIOutput(replGroup.name, this.linkDetector, this.themeService, undefined);
+		templateData.label.appendChild(result);
 	}
 
-	disposeTemplate(_templateData: IReplEvaluationInputTemplateData): void {
+	disposeTemplate(_templateData: IReplGroupTemplateData): void {
 		// noop
 	}
 }
 
-export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult, FuzzyScore, IReplEvaluationResultTemplateData> {
+export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult | Variable, FuzzyScore, IReplEvaluationResultTemplateData> {
 	static readonly ID = 'replEvaluationResult';
 
 	get templateId(): string {
@@ -122,7 +129,7 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 		return { value };
 	}
 
-	renderElement(element: ITreeNode<ReplEvaluationResult, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
+	renderElement(element: ITreeNode<ReplEvaluationResult | Variable, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
 			showHover: false,
@@ -186,7 +193,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root);
 		templateData.value.appendChild(result);
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
@@ -319,14 +326,14 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		if (element instanceof Variable && element.name) {
 			return ReplVariablesRenderer.ID;
 		}
-		if (element instanceof ReplEvaluationResult) {
+		if (element instanceof ReplEvaluationResult || (element instanceof Variable && !element.name)) {
+			// Variable with no name is a top level variable which should be rendered like a repl element #17404
 			return ReplEvaluationResultsRenderer.ID;
 		}
 		if (element instanceof ReplEvaluationInput) {
 			return ReplEvaluationInputsRenderer.ID;
 		}
-		if (element instanceof SimpleReplElement || (element instanceof Variable && !element.name)) {
-			// Variable with no name is a top level variable which should be rendered like a repl element #17404
+		if (element instanceof SimpleReplElement) {
 			return ReplSimpleElementsRenderer.ID;
 		}
 		if (element instanceof ReplGroup) {

@@ -48,6 +48,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class RequestState {
 
@@ -148,10 +149,9 @@ class SimpleToggleAction extends Action {
 	private readonly _listener: IDisposable;
 
 	constructor(state: OutlineViewState, label: string, isChecked: () => boolean, callback: (action: SimpleToggleAction) => any, className?: string) {
-		super(`simple` + defaultGenerator.nextId(), label, className, true, () => {
+		super(`simple` + defaultGenerator.nextId(), label, className, true, async () => {
 			this.checked = !this.checked;
 			callback(this);
-			return Promise.resolve();
 		});
 		this.checked = isChecked();
 		this._listener = state.onDidChange(() => this.checked = isChecked());
@@ -399,7 +399,7 @@ export class OutlinePane extends ViewPane {
 
 	getActions(): IAction[] {
 		return [
-			new CollapseAction(() => this._tree, true, 'explorer-action codicon-collapse-all')
+			new CollapseAction(() => this._tree, true, 'explorer-action ' + Codicon.collapseAll.classNames)
 		];
 	}
 

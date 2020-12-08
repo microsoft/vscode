@@ -20,7 +20,7 @@ import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -49,6 +49,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { configureRecommendedIcon, installLocalInRemoteIcon, installWorkspaceRecommendedIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -176,7 +177,7 @@ export class ExtensionsListView extends ViewPane {
 
 		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { openOnSingleClick: true }));
 		this._register(Event.debounce(Event.filter(resourceNavigator.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
-			this.openExtension(this.list!.model.get(options.element!), { sideByside: options.sideBySide, ...options.editorOptions });
+			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
 		}));
 
 		this.bodyTemplate = {
@@ -823,10 +824,10 @@ export class ExtensionsListView extends ViewPane {
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
 					if (error instanceof ExtensionListViewWarning) {
-						this.bodyTemplate.messageSeverityIcon.className = `codicon ${SeverityIcon.className(Severity.Warning)}`;
+						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
 						this.bodyTemplate.messageBox.textContent = getErrorMessage(error);
 					} else {
-						this.bodyTemplate.messageSeverityIcon.className = `codicon ${SeverityIcon.className(Severity.Error)}`;
+						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
 						this.bodyTemplate.messageBox.textContent = localize('error', "Error while loading extensions. {0}", getErrorMessage(error));
 					}
 				} else {
@@ -991,7 +992,7 @@ export class ServerInstalledExtensionsView extends ExtensionsListView {
 	getActions(): IAction[] {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === this.options.server) {
 			const installLocalExtensionsInRemoteAction = this._register(this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction));
-			installLocalExtensionsInRemoteAction.class = 'codicon codicon-cloud-download';
+			installLocalExtensionsInRemoteAction.class = ThemeIcon.asClassName(installLocalInRemoteIcon);
 			return [installLocalExtensionsInRemoteAction];
 		}
 		return [];
@@ -1086,11 +1087,11 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 	getActions(): IAction[] {
 		if (!this.installAllAction) {
-			this.installAllAction = this._register(new Action('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), 'codicon codicon-cloud-download', false, () => this.installWorkspaceRecommendations()));
+			this.installAllAction = this._register(new Action('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), ThemeIcon.asClassName(installWorkspaceRecommendedIcon), false, () => this.installWorkspaceRecommendations()));
 		}
 
 		const configureWorkspaceFolderAction = this._register(this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL));
-		configureWorkspaceFolderAction.class = 'codicon codicon-pencil';
+		configureWorkspaceFolderAction.class = ThemeIcon.asClassName(configureRecommendedIcon);
 		return [this.installAllAction, configureWorkspaceFolderAction];
 	}
 

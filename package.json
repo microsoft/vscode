@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.52.0",
-  "distro": "2c1e3052a2a83d9f37ebad5aaaf49401c19231d9",
+  "version": "1.53.0",
+  "distro": "1aaf2adfd4fd7c35c133724c4d97e103f2fa331f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -37,14 +37,15 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "tsec-compile-check": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit",
+    "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit",
     "valid-layers-check": "node build/lib/layersChecker.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node resources/web/code-web.js",
     "compile-web": "gulp compile-web --max_old_space_size=4095",
     "watch-web": "gulp watch-web --max_old_space_size=4095",
-    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
+    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.0.3"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -59,7 +60,7 @@
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.2.1",
     "native-watchdog": "1.3.0",
-    "node-pty": "0.10.0-beta17",
+    "node-pty": "0.10.0-beta18",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
     "tas-client-umd": "0.1.2",
@@ -111,7 +112,8 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "9.3.3",
+    "electron": "11.0.3",
+    "electron-rebuild": "2.0.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "eslint-plugin-mocha": "8.0.0",
@@ -158,7 +160,7 @@
     "opn": "^6.0.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
-    "playwright": "1.3.0",
+    "playwright": "1.6.2",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
@@ -174,7 +176,7 @@
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
     "vsce": "1.48.0",
-    "vscode-debugprotocol": "1.41.0",
+    "vscode-debugprotocol": "1.43.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.12",
@@ -189,7 +191,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.2.0",
+    "vscode-windows-ca-certs": "^0.3.0",
     "vscode-windows-registry": "1.0.3",
     "windows-foreground-love": "0.2.0",
     "windows-mutex": "0.3.0",
