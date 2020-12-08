@@ -1025,7 +1025,7 @@ export const cutFileHandler = async (accessor: ServicesAccessor) => {
 };
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
-const downloadFileHandler = (accessor: ServicesAccessor) => {
+const downloadFileHandler = async (accessor: ServicesAccessor) => {
 	const logService = accessor.get(ILogService);
 	const fileService = accessor.get(IFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
@@ -1037,7 +1037,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 
 	const cts = new CancellationTokenSource();
 
-	const downloadPromise = progressService.withProgress({
+	await progressService.withProgress({
 		location: ProgressLocation.Window,
 		delay: 800,
 		cancellable: isWeb,
@@ -1257,9 +1257,6 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 			}
 		}));
 	}, () => cts.dispose(true));
-
-	// Also indicate progress in the files view
-	progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => downloadPromise);
 };
 
 CommandsRegistry.registerCommand({

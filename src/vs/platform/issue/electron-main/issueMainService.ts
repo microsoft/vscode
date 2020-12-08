@@ -17,7 +17,7 @@ import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { FileAccess } from 'vs/base/common/network';

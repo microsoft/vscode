@@ -22,7 +22,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.14.1"
+      versionSpec: "12.18.3"
 
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
@@ -78,10 +78,9 @@ steps:
 
   - script: |
       set -e
-      npm install -g node-gyp@7.1.0
+      npm install -g node-gyp@latest
       node-gyp --version
     displayName: Update node-gyp
-    condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   - script: |
       set -e

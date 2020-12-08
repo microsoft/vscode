@@ -80,7 +80,6 @@ const vscodeResources = [
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'out-build/vs/code/electron-sandbox/issue/issueReporter.js',
 	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js',
-	'out-build/vs/code/electron-sandbox/proxy/auth.js',
 	'!**/test/**'
 ];
 
@@ -338,7 +337,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 	const arch = buildTarget.arch;
 	const opts = buildTarget.opts;
 
-	['', 'min'].forEach(minified => {
+	const [vscode, vscodeMin] = ['', 'min'].map(minified => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
@@ -355,7 +354,14 @@ BUILD_TARGETS.forEach(buildTarget => {
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
+
+		return vscodeTask;
 	});
+
+	if (process.platform === platform && process.arch === arch) {
+		gulp.task(task.define('vscode', task.series(vscode)));
+		gulp.task(task.define('vscode-min', task.series(vscodeMin)));
+	}
 });
 
 // Transifex Localizations

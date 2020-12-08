@@ -34,7 +34,7 @@ interface IReplEvaluationInputTemplateData {
 }
 
 interface IReplGroupTemplateData {
-	label: HighlightedLabel;
+	label: HTMLElement;
 }
 
 interface IReplEvaluationResultTemplateData {
@@ -87,22 +87,28 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, IReplGroupTemplateData> {
 	static readonly ID = 'replGroup';
 
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		@IThemeService private readonly themeService: IThemeService
+	) { }
+
 	get templateId(): string {
 		return ReplGroupRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
+	renderTemplate(container: HTMLElement): IReplGroupTemplateData {
+		const label = dom.append(container, $('.expression'));
 		return { label };
 	}
 
 	renderElement(element: ITreeNode<ReplGroup, FuzzyScore>, _index: number, templateData: IReplGroupTemplateData): void {
 		const replGroup = element.element;
-		templateData.label.set(replGroup.name, createMatches(element.filterData));
+		dom.clearNode(templateData.label);
+		const result = handleANSIOutput(replGroup.name, this.linkDetector, this.themeService, undefined);
+		templateData.label.appendChild(result);
 	}
 
-	disposeTemplate(_templateData: IReplEvaluationInputTemplateData): void {
+	disposeTemplate(_templateData: IReplGroupTemplateData): void {
 		// noop
 	}
 }

@@ -12,7 +12,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createHash } from 'crypto';
-import * as json from 'vs/base/common/json';
+import { parse } from 'vs/base/common/json';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -25,8 +25,8 @@ import product from 'vs/platform/product/common/product';
 import { MessageBoxOptions, BrowserWindow } from 'electron';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { findWindowOnWorkspace } from 'vs/platform/windows/node/window';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { findWindowOnWorkspace } from 'vs/platform/windows/electron-main/window';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 
@@ -66,7 +66,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly untitledWorkspacesHome: URI; // local URI that contains all untitled workspaces
+	private readonly untitledWorkspacesHome = this.environmentService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
 
 	private readonly _onUntitledWorkspaceDeleted = this._register(new Emitter<IWorkspaceIdentifier>());
 	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier> = this._onUntitledWorkspaceDeleted.event;
@@ -81,8 +81,6 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
-
-		this.untitledWorkspacesHome = environmentService.untitledWorkspacesHome;
 	}
 
 	resolveLocalWorkspaceSync(uri: URI): IResolvedWorkspace | null {
@@ -127,7 +125,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	private doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 		// Parse workspace file
-		let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
+		const storedWorkspace: IStoredWorkspace = parse(contents); // use fault tolerant parser
 
 		// Filter out folders which do not have a path or uri set
 		if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
@@ -226,7 +224,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	getUntitledWorkspacesSync(): IUntitledWorkspaceInfo[] {
-		let untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
+		const untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
 		try {
 			const untitledWorkspacePaths = readdirSync(this.untitledWorkspacesHome.fsPath).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 			for (const untitledWorkspacePath of untitledWorkspacePaths) {
@@ -243,6 +241,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 				this.logService.warn(`Unable to read folders in ${this.untitledWorkspacesHome} (${error}).`);
 			}
 		}
+
 		return untitledWorkspaces;
 	}
 
