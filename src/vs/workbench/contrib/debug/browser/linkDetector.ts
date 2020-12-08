@@ -97,8 +97,8 @@ export class LinkDetector {
 
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
-		const uri = URI.parse(url);
-		this.decorateLink(link, () => this.openerService.open(uri, { allowTunneling: !!this.environmentService.remoteAuthority }));
+
+		this.decorateLink(link, () => this.openerService.open(url, { allowTunneling: !!this.environmentService.remoteAuthority }));
 		return link;
 	}
 
