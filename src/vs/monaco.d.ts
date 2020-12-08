@@ -3203,6 +3203,11 @@ declare namespace monaco.editor {
 		 * Defaults to false
 		 */
 		isInEmbeddedEditor?: boolean;
+		/**
+		 * Is the diff editor should render overview ruler
+		 * Defaults to true
+		 */
+		renderOverviewRuler?: boolean;
 	}
 
 	/**

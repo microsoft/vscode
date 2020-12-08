@@ -108,7 +108,7 @@ class VisualEditorState {
 		this._decorations = editor.deltaDecorations(this._decorations, []);
 	}
 
-	public apply(editor: CodeEditorWidget, overviewRuler: editorBrowser.IOverviewRuler, newDecorations: IEditorDiffDecorationsWithZones, restoreScrollState: boolean): void {
+	public apply(editor: CodeEditorWidget, overviewRuler: editorBrowser.IOverviewRuler | null, newDecorations: IEditorDiffDecorationsWithZones, restoreScrollState: boolean): void {
 
 		const scrollState = restoreScrollState ? StableEditorScrollState.capture(editor) : null;
 
@@ -212,6 +212,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _enableSplitViewResizing: boolean;
 	private _wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded' | undefined;
 	private _wordWrapMinified: boolean | undefined;
+	private _renderOverviewRuler: boolean;
 	private _strategy!: DiffEditorWidgetStyle;
 
 	private readonly _updateDecorationsRunner: RunOnceScheduler;
@@ -299,6 +300,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._contextKeyService.createKey('isInEmbeddedDiffEditor', options.isInEmbeddedEditor);
 		} else {
 			this._contextKeyService.createKey('isInEmbeddedDiffEditor', false);
+		}
+
+		this._renderOverviewRuler = true;
+		if (typeof options.renderOverviewRuler !== 'undefined') {
+			this._renderOverviewRuler = Boolean(options.renderOverviewRuler);
 		}
 
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
@@ -429,6 +435,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._modifiedEditor.getContentHeight();
 	}
 
+	public getViewWidth(): number {
+		return this._elementSizeObserver.getWidth();
+	}
+
 	private _setState(newState: editorBrowser.DiffEditorState): void {
 		if (this._state === newState) {
 			return;
@@ -467,6 +477,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _recreateOverviewRulers(): void {
+		if (!this._renderOverviewRuler) {
+			return;
+		}
+
 		if (this._originalOverviewRuler) {
 			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
 			this._originalOverviewRuler.dispose();
@@ -984,6 +998,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _layoutOverviewRulers(): void {
+		if (!this._renderOverviewRuler) {
+			return;
+		}
+
 		if (!this._originalOverviewRuler || !this._modifiedOverviewRuler) {
 			return;
 		}
@@ -1094,9 +1112,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _updateDecorations(): void {
-		if (!this._originalEditor.getModel() || !this._modifiedEditor.getModel() || !this._originalOverviewRuler || !this._modifiedOverviewRuler) {
+		if (!this._originalEditor.getModel() || !this._modifiedEditor.getModel()) {
 			return;
 		}
+
 		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
 
 		const foreignOriginal = this._originalEditorState.getForeignViewZones(this._originalEditor.getWhitespaces());

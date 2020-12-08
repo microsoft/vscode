@@ -62,6 +62,7 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	renderIndicators: false,
 	readOnly: false,
 	isInEmbeddedEditor: true,
+	renderOverviewRuler: false
 };
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModel> {
@@ -167,6 +168,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<CellDiffViewMod
 
 	disposeTemplate(templateData: CellDiffSingleSideRenderTemplate): void {
 		templateData.container.innerText = '';
+		templateData.sourceEditor.dispose();
 	}
 
 	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
@@ -272,6 +274,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<CellDiffViewMod
 
 	disposeTemplate(templateData: CellDiffSideBySideRenderTemplate): void {
 		templateData.container.innerText = '';
+		templateData.sourceEditor.dispose();
 	}
 
 	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {

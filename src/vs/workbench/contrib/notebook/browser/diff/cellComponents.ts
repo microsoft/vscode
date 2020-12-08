@@ -1155,7 +1155,15 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {
-			if (state.editorHeight || state.outerWidth) {
+			if (state.editorHeight) {
+				this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
+				this._editor!.layout({
+					width: this._editor!.getViewWidth(),
+					height: this._layoutInfo.editorHeight
+				});
+			}
+
+			if (state.outerWidth) {
 				this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
 				this._editor!.layout();
 			}
