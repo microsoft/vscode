@@ -1279,7 +1279,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Account for breadcrumbs if visible
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			height += BreadcrumbsControl.HEIGHT;
+			height += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
 		}
 
 		return { height, offset };
@@ -1313,11 +1313,11 @@ export class TabsTitleControl extends TitleControl {
 		return new Dimension(dimensions.container.width, this.getDimensions().height);
 	}
 
-	private layoutSync(dimensions: ITitleControlDimensions) {
+	private layoutSync(dimensions: ITitleControlDimensions): void {
 		this.doLayout(dimensions);
 	}
 
-	private layoutAsync() {
+	private layoutAsync(): void {
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.

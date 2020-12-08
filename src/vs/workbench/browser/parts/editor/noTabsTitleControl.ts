@@ -338,6 +338,6 @@ export class NoTabsTitleControl extends TitleControl {
 			this.breadcrumbsControl.layout(undefined);
 		}
 
-		return new Dimension(dimensions.container.width, NoTabsTitleControl.HEIGHT);
+		return new Dimension(dimensions.container.width, this.getDimensions().height);
 	}
 }
