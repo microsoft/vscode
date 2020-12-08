@@ -169,7 +169,7 @@
     "source-map": "^0.4.4",
     "style-loader": "^1.0.0",
     "ts-loader": "^4.4.2",
-    "tsec": "googleinterns/tsec",
+    "tsec": "googleinterns/tsec#630b53fe2b23815c28dd219119cc98dbd59e29b2",
     "typescript": "^4.2.0-dev.20201119",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
