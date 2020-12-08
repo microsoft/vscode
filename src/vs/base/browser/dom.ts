@@ -451,6 +451,8 @@ export interface IDimension {
 
 export class Dimension implements IDimension {
 
+	static readonly None = new Dimension(0, 0);
+
 	constructor(
 		public readonly width: number,
 		public readonly height: number,
