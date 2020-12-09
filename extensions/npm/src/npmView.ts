@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import * as nls from 'vscode-nls';
 import {
-	createTask, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, NpmTaskDefinition,
+	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, NpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
 	TaskLocation,
@@ -132,7 +132,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-	constructor(context: ExtensionContext, public taskProvider: NpmTaskProvider) {
+	constructor(private context: ExtensionContext, public taskProvider: NpmTaskProvider) {
 		const subscriptions = context.subscriptions;
 		this.extensionContext = context;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
@@ -142,6 +142,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private async runScript(script: NpmScript) {
+		// Call getPackageManager to trigger the multiple lock files warning.
+		await getPackageManager(this.context, script.getFolder().uri);
 		tasks.executeTask(script.task);
 	}
 
@@ -190,7 +192,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let task = await createTask(this.extensionContext, 'install', 'install', selection.folder.workspaceFolder, uri, undefined, []);
+		let task = await createTask(this.extensionContext, 'install', 'install', selection.folder.workspaceFolder, uri, true, undefined, []);
 		tasks.executeTask(task);
 	}
 

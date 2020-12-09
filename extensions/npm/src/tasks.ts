@@ -48,11 +48,11 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 
 	get tasksWithLocation(): Promise<TaskWithLocation[]> {
-		return provideNpmScripts(this.context);
+		return provideNpmScripts(this.context, false);
 	}
 
 	public async provideTasks() {
-		const tasks = await provideNpmScripts(this.context);
+		const tasks = await provideNpmScripts(this.context, true);
 		return tasks.map(task => task.task);
 	}
 
@@ -123,14 +123,14 @@ export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 	return value && typeof value !== 'number';
 }
 
-export async function getPackageManager(extensionContext: ExtensionContext, folder: Uri): Promise<string> {
+export async function getPackageManager(extensionContext: ExtensionContext, folder: Uri, showWarning: boolean = true): Promise<string> {
 	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
 		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
 		packageManagerName = name;
 		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
-		if (multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
+		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
 			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.', packageManagerName, folder.fsPath);
 			const neverShowAgain = localize('npm.multiplePMWarning.doNotShow', "Do not show again");
 			const learnMore = localize('npm.multiplePMWarning.learnMore', "Learn more");
@@ -167,7 +167,7 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 }
 
-async function detectNpmScripts(context: ExtensionContext): Promise<TaskWithLocation[]> {
+async function detectNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<TaskWithLocation[]> {
 
 	let emptyTasks: TaskWithLocation[] = [];
 	let allTasks: TaskWithLocation[] = [];
@@ -184,7 +184,7 @@ async function detectNpmScripts(context: ExtensionContext): Promise<TaskWithLoca
 				let paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
 				for (const path of paths) {
 					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
-						let tasks = await provideNpmScriptsForFolder(context, path);
+						let tasks = await provideNpmScriptsForFolder(context, path, showWarning);
 						visitedPackageJsonFiles.add(path.fsPath);
 						allTasks.push(...tasks);
 					}
@@ -209,7 +209,7 @@ export async function detectNpmScriptsForFolder(context: ExtensionContext, folde
 		let visitedPackageJsonFiles: Set<string> = new Set();
 		for (const path of paths) {
 			if (!visitedPackageJsonFiles.has(path.fsPath)) {
-				let tasks = await provideNpmScriptsForFolder(context, path);
+				let tasks = await provideNpmScriptsForFolder(context, path, true);
 				visitedPackageJsonFiles.add(path.fsPath);
 				folderTasks.push(...tasks.map(t => ({ label: t.task.name, task: t.task })));
 			}
@@ -220,9 +220,9 @@ export async function detectNpmScriptsForFolder(context: ExtensionContext, folde
 	}
 }
 
-export async function provideNpmScripts(context: ExtensionContext): Promise<TaskWithLocation[]> {
+export async function provideNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<TaskWithLocation[]> {
 	if (!cachedTasks) {
-		cachedTasks = await detectNpmScripts(context);
+		cachedTasks = await detectNpmScripts(context, showWarning);
 	}
 	return cachedTasks;
 }
@@ -258,7 +258,7 @@ function isDebugScript(script: string): boolean {
 	return match !== null;
 }
 
-async function provideNpmScriptsForFolder(context: ExtensionContext, packageJsonUri: Uri): Promise<TaskWithLocation[]> {
+async function provideNpmScriptsForFolder(context: ExtensionContext, packageJsonUri: Uri, showWarning: boolean): Promise<TaskWithLocation[]> {
 	let emptyTasks: TaskWithLocation[] = [];
 
 	let folder = workspace.getWorkspaceFolder(packageJsonUri);
@@ -276,7 +276,7 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 
 	for (const each of scripts.keys()) {
 		const scriptValue = scripts.get(each)!;
-		const task = await createTask(context, each, `run ${each}`, folder!, packageJsonUri, scriptValue.script);
+		const task = await createTask(context, each, `run ${each}`, folder!, packageJsonUri, showWarning, scriptValue.script);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
@@ -295,7 +295,7 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 	}
 
 	// always add npm install (without a problem matcher)
-	result.push({ task: await createTask(context, INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, 'install dependencies from package', []) });
+	result.push({ task: await createTask(context, INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, showWarning, 'install dependencies from package', []) });
 	return result;
 }
 
@@ -306,7 +306,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(context: ExtensionContext, script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Promise<Task> {
+export async function createTask(context: ExtensionContext, script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, showWarning: boolean = true, detail?: string, matcher?: any): Promise<Task> {
 	let kind: NpmTaskDefinition;
 	if (typeof script === 'string') {
 		kind = { type: 'npm', script: script };
@@ -314,7 +314,7 @@ export async function createTask(context: ExtensionContext, script: NpmTaskDefin
 		kind = script;
 	}
 
-	const packageManager = await getPackageManager(context, folder.uri);
+	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 	async function getCommandLine(cmd: string): Promise<string> {
 		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
 			return `${packageManager} --silent ${cmd}`;
