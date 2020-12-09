@@ -2370,7 +2370,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 			const html = sb.build();
 			const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
-			domNode.innerHTML = trustedhtml as unknown as string;
+			domNode.innerHTML = trustedhtml as string;
 			viewZone.minWidthInPx = (maxCharsPerLine * typicalHalfwidthCharacterWidth);
 
 			if (viewLineCounts) {

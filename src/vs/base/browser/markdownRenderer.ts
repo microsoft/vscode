@@ -239,7 +239,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const renderedMarkdown = marked.parse(value, markedOptions);
 
 	// sanitize with insane
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown);
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
@@ -261,13 +261,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean },
 	renderedMarkdown: string,
-): string {
+): string | TrustedHTML {
 	const insaneOptions = getInsaneOptions(options);
-	if (_ttpInsane) {
-		return _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
-	} else {
-		return insane(renderedMarkdown, insaneOptions);
-	}
+	return _ttpInsane?.createHTML(renderedMarkdown, insaneOptions) ?? insane(renderedMarkdown, insaneOptions);
 }
 
 function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOptions {
