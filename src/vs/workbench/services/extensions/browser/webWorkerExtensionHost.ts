@@ -40,6 +40,8 @@ export interface IWebWorkerExtensionHostDataProvider {
 	getInitData(): Promise<IWebWorkerExtensionHostInitData>;
 }
 
+const ttPolicy = window.trustedTypes?.createPolicy('webWorkerExtensionHost', { createScriptURL: value => value });
+
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
@@ -217,7 +219,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const emitter = new Emitter<VSBuffer>();
 
 		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
-		const worker = new Worker(url, { name: 'WorkerExtensionHost' });
+		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(url) as unknown as string : url, { name: 'WorkerExtensionHost' });
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
