@@ -35,8 +35,6 @@ import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelServ
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { isLinux } from 'vs/base/common/platform';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -538,20 +536,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
-
-		let knowsExtension = false;
-		for (const extension of this._registry.getAllExtensionDescriptions()) {
-			if (extension.extensionLocation.scheme === Schemas.file) {
-				const extensionPath = originalFSPath(extension.extensionLocation);
-				if (isEqualOrParent(extensionTestsPath, extensionPath, !isLinux)) {
-					knowsExtension = true;
-				}
-			}
-		}
-
-		if (!knowsExtension) {
-			return Promise.resolve(undefined);
-		}
 
 		// Require the test runner via node require from the provided path
 		let testRunner: ITestRunner | INewTestRunner | undefined;
