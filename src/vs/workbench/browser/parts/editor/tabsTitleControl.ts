@@ -1267,8 +1267,8 @@ export class TabsTitleControl extends TitleControl {
 		// Multi-line: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		let height: number;
-		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrap')) {
-			height = this.tabsAndActionsContainer.offsetHeight;
+		if (this.accessor.partOptions.wrapTabs && this.tabsContainer?.classList.contains('wrap')) {
+			height = this.tabsContainer.offsetHeight;
 		} else {
 			height = TabsTitleControl.TAB_HEIGHT;
 		}
@@ -1349,7 +1349,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
-		const [tabsContainer, tabsScrollbar, tabsAndActionsContainer] = assertAllDefined(this.tabsContainer, this.tabsScrollbar, this.tabsAndActionsContainer);
+		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
 		// Synopsis
@@ -1413,17 +1413,17 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs) {
 
 			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			const tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrap');
+			const tabsWrapMultiLine = tabsContainer.classList.contains('wrap');
 			if (tabsWrapMultiLine) {
 				if (tabsContainer.offsetHeight > dimensions.available.height) {
-					tabsAndActionsContainer.classList.remove('wrap');
+					tabsContainer.classList.remove('wrap');
 				}
 			}
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
 			else {
 				if (allTabsWidth > visibleTabsContainerWidth) {
-					tabsAndActionsContainer.classList.add('wrap');
+					tabsContainer.classList.add('wrap');
 				}
 			}
 
@@ -1432,13 +1432,13 @@ export class TabsTitleControl extends TitleControl {
 			// and we would otherwise constantly add and remove the class. As such
 			// we need to check if the height of the tabs container is back to normal
 			// and then remove the wrap class.
-			if (allTabsWidth === visibleTabsContainerWidth && tabsAndActionsContainer.classList.contains('wrap')) {
+			if (allTabsWidth === visibleTabsContainerWidth && tabsContainer.classList.contains('wrap')) {
 				if (tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
-					tabsAndActionsContainer.classList.remove('wrap');
+					tabsContainer.classList.remove('wrap');
 				}
 			}
 		} else {
-			tabsAndActionsContainer.classList.remove('wrap');
+			tabsContainer.classList.remove('wrap');
 		}
 
 		let activeTabPosX: number | undefined;

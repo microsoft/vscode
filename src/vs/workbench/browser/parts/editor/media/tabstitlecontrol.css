@@ -77,13 +77,13 @@
 	overflow: scroll !important;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container::-webkit-scrollbar {
-	display: none; /* Chrome + Safari: hide scrollbar */
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrap > .monaco-scrollable-element > .tabs-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.wrap {
 	height: auto;
 	flex-wrap: wrap; /* wrapping enabled */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container::-webkit-scrollbar {
+	display: none; /* Chrome + Safari: hide scrollbar */
 }
 
 /* Tab */
@@ -98,7 +98,7 @@
 	padding-left: 10px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrap > .monaco-scrollable-element > .tabs-container > .tab {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.wrap > .tab {
 	flex-grow: 1; /* Grow the tabs to fill each row for a more homogeneous look when tabs wrap */
 }
 
