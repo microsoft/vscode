@@ -124,11 +124,13 @@ class PropertyHeader extends Disposable {
 				return undefined;
 			}
 		});
+		this._register(this._toolbar);
 		this._toolbar.context = {
 			cell: this.cell
 		};
 
 		this._menu = this.menuService.createMenu(this.accessor.menuId, this.contextKeyService);
+		this._register(this._menu);
 
 		if (metadataChanged) {
 			const actions: IAction[] = [];

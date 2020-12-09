@@ -275,6 +275,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<CellDiffViewMod
 	disposeTemplate(templateData: CellDiffSideBySideRenderTemplate): void {
 		templateData.container.innerText = '';
 		templateData.sourceEditor.dispose();
+		templateData.toolbar?.dispose();
 	}
 
 	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
