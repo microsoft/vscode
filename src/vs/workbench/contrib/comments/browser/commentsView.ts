@@ -29,7 +29,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 export class CommentsPanel extends ViewPane {
 	private treeLabels!: ResourceLabels;
