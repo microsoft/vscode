@@ -549,8 +549,12 @@ export class SmoothScrollableElement extends AbstractScrollableElement {
 		super(element, options, scrollable);
 	}
 
-	public setScrollPosition(update: INewScrollPosition): void {
-		this._scrollable.setScrollPositionNow(update);
+	public setScrollPosition(update: INewScrollPosition & { reuseAnimation?: boolean }): void {
+		if (update.reuseAnimation) {
+			this._scrollable.setScrollPositionSmooth(update, update.reuseAnimation);
+		} else {
+			this._scrollable.setScrollPositionNow(update);
+		}
 	}
 
 	public getScrollPosition(): IScrollPosition {

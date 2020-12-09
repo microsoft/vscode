@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, registerAction2, Action2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -18,7 +18,7 @@ import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, 
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
-	EnableAllAction, EnableAllWorkspaceAction, DisableAllAction, DisableAllWorkspaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction, ClearExtensionsSearchResultsAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction
+	EnableAllAction, EnableAllWorkspaceAction, DisableAllAction, DisableAllWorkspaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction, ClearExtensionsSearchResultsAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, RefreshExtensionsAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -54,7 +54,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -64,6 +64,8 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { Schemas } from 'vs/base/common/network';
+import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
+import { extensionsViewIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -102,12 +104,13 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		new SyncDescriptor(ExtensionsInput)
 	]);
 
+
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
 		name: localize('extensions', "Extensions"),
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
-		icon: 'codicon-extensions',
+		icon: extensionsViewIcon,
 		order: 4,
 		rejectAddedViews: true,
 		alwaysUseContainerInfo: true
@@ -142,7 +145,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.showRecommendationsOnlyOnDemand': {
 				type: 'boolean',
-				description: localize('extensionsShowRecommendationsOnlyOnDemand', "When enabled, recommendations will not be fetched or shown unless specifically requested by the user. Some recommendations are fetched from a Microsoft online service."),
+				deprecationMessage: localize('extensionsShowRecommendationsOnlyOnDemand_Deprecated', "This setting is deprecated. Use extensions.ignoreRecommendations setting to control recommendation notifications. Use Extensions view's visibility actions to hide Recommended view by default."),
 				default: false,
 				tags: ['usesOnlineServices']
 			},
@@ -281,7 +284,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		try {
-			await extensionManagementService.uninstall(extensionToUninstall, true);
+			await extensionManagementService.uninstall(extensionToUninstall);
 		} catch (e) {
 			onUnexpectedError(e);
 			throw e;
@@ -776,6 +779,22 @@ class ExtensionsContributions implements IWorkbenchContribution {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
+					id: RefreshExtensionsAction.ID,
+					title: { value: RefreshExtensionsAction.LABEL, original: 'Refresh' },
+					category: ExtensionsLocalizedLabel,
+					menu: {
+						id: MenuId.CommandPalette,
+					}
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				return runAction(accessor.get(IInstantiationService).createInstance(RefreshExtensionsAction, RefreshExtensionsAction.ID, RefreshExtensionsAction.LABEL));
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
 					id: EnableAutoUpdateAction.ID,
 					title: { value: EnableAutoUpdateAction.LABEL, original: 'Enable Auto Updating Extensions' },
 					category: ExtensionsLocalizedLabel,
@@ -1157,3 +1176,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContributi
 workbenchRegistry.registerWorkbenchContribution(ExtensionActivationProgress, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInstaller, LifecyclePhase.Eventually);
+
+// Running Extensions
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ShowRuntimeExtensionsAction), 'Show Running Extensions', CATEGORIES.Developer.value);

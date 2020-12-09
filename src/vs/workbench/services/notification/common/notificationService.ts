@@ -76,15 +76,13 @@ export class NotificationService extends Disposable implements INotificationServ
 			const neverShowAgainAction = toDispose.add(new Action(
 				'workbench.notification.neverShowAgain',
 				nls.localize('neverShowAgain', "Don't Show Again"),
-				undefined, true, () => {
+				undefined, true, async () => {
 
 					// Close notification
 					handle.close();
 
 					// Remember choice
-					this.storageService.store2(id, true, scope, StorageTarget.USER);
-
-					return Promise.resolve();
+					this.storageService.store(id, true, scope, StorageTarget.USER);
 				}));
 
 			// Insert as primary or secondary action
@@ -126,7 +124,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 			const neverShowAgainChoice = {
 				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => this.storageService.store2(id, true, scope, StorageTarget.USER),
+				run: () => this.storageService.store(id, true, scope, StorageTarget.USER),
 				isSecondary: options.neverShowAgain.isSecondary
 			};
 

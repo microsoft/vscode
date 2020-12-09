@@ -10,7 +10,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +18,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 const $ = dom.$;
 
 // theming
@@ -36,7 +37,7 @@ export class ExceptionWidget extends ZoneWidget {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(editor, { showFrame: true, showArrow: true, frameWidth: 1, className: 'exception-widget-container' });
+		super(editor, { showFrame: true, showArrow: true, isAccessible: true, frameWidth: 1, className: 'exception-widget-container' });
 
 		this.applyTheme(themeService.getColorTheme());
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme.bind(this)));
@@ -69,16 +70,17 @@ export class ExceptionWidget extends ZoneWidget {
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		container.style.fontSize = `${fontInfo.fontSize}px`;
 		container.style.lineHeight = `${fontInfo.lineHeight}px`;
-
+		container.tabIndex = 0;
 		const title = $('.title');
 		const label = $('.label');
 		dom.append(title, label);
 		const actions = $('.actions');
 		dom.append(title, actions);
 		label.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
+		let ariaLabel = label.textContent;
 
 		const actionBar = new ActionBar(actions);
-		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), 'codicon codicon-close', true, async () => {
+		actionBar.push(new Action('editor.closeExceptionWidget', nls.localize('close', "Close"), ThemeIcon.asClassName(widgetClose), true, async () => {
 			const contribution = this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
 			contribution.closeExceptionWidget();
 		}), { label: false, icon: true });
@@ -88,6 +90,7 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.exceptionInfo.description) {
 			let description = $('.description');
 			description.textContent = this.exceptionInfo.description;
+			ariaLabel += ', ' + this.exceptionInfo.description;
 			dom.append(container, description);
 		}
 
@@ -97,7 +100,9 @@ export class ExceptionWidget extends ZoneWidget {
 			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined);
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
+			ariaLabel += ', ' + this.exceptionInfo.details.stackTrace;
 		}
+		container.setAttribute('aria-label', ariaLabel);
 	}
 
 	protected _doLayout(_heightInPixel: number | undefined, _widthInPixel: number | undefined): void {
@@ -109,5 +114,14 @@ export class ExceptionWidget extends ZoneWidget {
 		const computedLinesNumber = Math.ceil((this.container!.offsetHeight + arrowHeight) / lineHeight);
 
 		this._relayout(computedLinesNumber);
+	}
+
+	focus(): void {
+		// Focus into the container for accessibility purposes so the exception and stack trace gets read
+		this.container?.focus();
+	}
+
+	hasfocus(): boolean {
+		return dom.isAncestor(document.activeElement, this.container);
 	}
 }

@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
+import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -90,9 +90,16 @@ class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 	}
 }
 
-suite('BackupTracker', () => {
+suite('BackupTracker', function () {
 	let accessor: TestServiceAccessor;
 	let disposables: IDisposable[] = [];
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/112146
+	// we see random test failures when accessing the native file system. To
+	// diagnose further, we retry node.js file access tests up to 3 times to rule
+	// out any random disk issue and increase the timeout.
+	this.retries(3);
+	this.timeout(1000 * 10);
 
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService();

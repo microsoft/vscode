@@ -339,7 +339,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			if (this.hoverRange) {
 				this.showHover(this.hoverRange, false);
 			}
-		}, hoverOption.delay);
+		}, hoverOption.delay * 2);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -445,15 +445,20 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
+		this.exceptionWidget.focus();
 		this.editor.revealLine(lineNumber);
 		this.exceptionWidgetVisible.set(true);
 	}
 
 	closeExceptionWidget(): void {
 		if (this.exceptionWidget) {
+			const shouldFocusEditor = this.exceptionWidget.hasfocus();
 			this.exceptionWidget.dispose();
 			this.exceptionWidget = undefined;
 			this.exceptionWidgetVisible.set(false);
+			if (shouldFocusEditor) {
+				this.editor.focus();
+			}
 		}
 	}
 

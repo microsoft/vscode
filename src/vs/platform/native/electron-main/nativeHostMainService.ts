@@ -6,16 +6,16 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
-import { OpenContext } from 'vs/platform/windows/node/window';
+import { OpenContext } from 'vs/platform/windows/electron-main/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isRootUser, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -364,7 +364,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (isWindows) {
 			isAdmin = (await import('native-is-elevated'))();
 		} else {
-			isAdmin = isRootUser();
+			isAdmin = process.getuid() === 0;
 		}
 
 		return isAdmin;
@@ -615,11 +615,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.windowById(windowId);
 		if (window) {
 			const contents = window.win.webContents;
-			if (isMacintosh && window.hasHiddenTitleBarStyle && !window.isFullScreen && !contents.isDevToolsOpened()) {
-				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
-			} else {
-				contents.toggleDevTools();
-			}
+			contents.toggleDevTools();
 		}
 	}
 

@@ -2208,6 +2208,42 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #110376: multiple selections with wordwrap behave differently', () => {
+		// a single model line => 4 view lines
+		withTestCodeEditor([
+			[
+				'just a sentence. just a ',
+				'sentence. just a sentence.',
+			].join('')
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 25 }, (editor, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 16),
+				new Selection(1, 18, 1, 33),
+				new Selection(1, 35, 1, 50),
+			]);
+
+			moveLeft(editor, viewModel);
+			assertCursor(viewModel, [
+				new Selection(1, 1, 1, 1),
+				new Selection(1, 18, 1, 18),
+				new Selection(1, 35, 1, 35),
+			]);
+
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 16),
+				new Selection(1, 18, 1, 33),
+				new Selection(1, 35, 1, 50),
+			]);
+
+			moveRight(editor, viewModel);
+			assertCursor(viewModel, [
+				new Selection(1, 16, 1, 16),
+				new Selection(1, 33, 1, 33),
+				new Selection(1, 50, 1, 50),
+			]);
+		});
+	});
+
 	test('issue #98320: Multi-Cursor, Wrap lines and cursorSelectRight ==> cursors out of sync', () => {
 		// a single model line => 4 view lines
 		withTestCodeEditor([
@@ -4133,6 +4169,18 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('issue #111128: Multicursor `Enter` issue with indentation', () => {
+		const model = createTextModel('    let a, b, c;', { detectIndentation: false, insertSpaces: false, tabSize: 4 }, mode.getLanguageIdentifier());
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			editor.setSelections([
+				new Selection(1, 11, 1, 11),
+				new Selection(1, 14, 1, 14),
+			]);
+			viewModel.type('\n', 'keyboard');
+			assert.equal(model.getValue(), '    let a,\n\t b,\n\t c;');
+		});
+	});
 });
 
 interface ICursorOpts {
@@ -4660,7 +4708,7 @@ suite('autoClosingPairs', () => {
 				'v|ar |c = \'|asd\';|',
 				'v|ar d = "|asd";|',
 				'v|ar e = /*3*/	3;|',
-				'v|ar f = /** 3 */3;|',
+				'v|ar f = /** 3| */3;|',
 				'v|ar g = (3+5|);|',
 				'v|ar h = { |a: \'v|alue\' |};|',
 			];
@@ -4841,13 +4889,13 @@ suite('autoClosingPairs', () => {
 
 			let autoClosePositions = [
 				'var a |=| [|]|;|',
-				'var b |=| |`asd`|;|',
-				'var c |=| |\'asd\'|;|',
-				'var d |=| |"asd"|;|',
+				'var b |=| `asd`|;|',
+				'var c |=| \'asd\'|;|',
+				'var d |=| "asd"|;|',
 				'var e |=| /*3*/|	3;|',
 				'var f |=| /**| 3 */3;|',
 				'var g |=| (3+5)|;|',
-				'var h |=| {| a:| |\'value\'| |}|;|',
+				'var h |=| {| a:| \'value\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4886,6 +4934,51 @@ suite('autoClosingPairs', () => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('*', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+		mode.dispose();
+	});
+
+	test('issue #72177: multi-character autoclose with conflicting patterns', () => {
+		const languageId = new LanguageIdentifier('autoClosingModeMultiChar', 5);
+		class AutoClosingModeMultiChar extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '(', close: ')' },
+						{ open: '(*', close: '*)' },
+						{ open: '<@', close: '@>' },
+						{ open: '<@@', close: '@@>' },
+					],
+				}));
+			}
+		}
+
+		const mode = new AutoClosingModeMultiChar();
+
+		usingCursor({
+			text: [
+				'',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (editor, model, viewModel) => {
+			viewModel.type('(', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '()');
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '(**)', `doesn't add entire close when already closed substring is there`);
+
+			model.setValue('(');
+			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '(**)', `does add entire close if not already there`);
+
+			model.setValue('');
+			viewModel.type('<@', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<@@>');
+			viewModel.type('@', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<@@@@>', `autocloses when before multi-character closing brace`);
+			viewModel.type('(', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '<@@()@@>', `autocloses when before multi-character closing brace`);
 		});
 		mode.dispose();
 	});
@@ -4943,7 +5036,7 @@ suite('autoClosingPairs', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
 		}, (editor, model, viewModel) => {
-			assertType(editor, model, viewModel, 1, 12, '"', '""', `does not over type and will auto close`);
+			assertType(editor, model, viewModel, 1, 12, '"', '"', `does not over type and will not auto close`);
 		});
 		mode.dispose();
 	});
@@ -5304,7 +5397,7 @@ suite('autoClosingPairs', () => {
 			assert.equal(model.getValue(), 'console.log(\'it\\\');');
 
 			viewModel.type('\'', 'keyboard');
-			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
+			assert.equal(model.getValue(), 'console.log(\'it\\\'\');');
 		});
 		mode.dispose();
 	});

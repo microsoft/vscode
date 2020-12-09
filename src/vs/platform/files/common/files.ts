@@ -521,19 +521,19 @@ export class FileChangesEvent {
 			switch (change.type) {
 				case FileChangeType.ADDED:
 					if (!this.added) {
-						this.added = TernarySearchTree.forUris2<IFileChange>(() => this.ignorePathCasing);
+						this.added = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
 					}
 					this.added.set(change.resource, change);
 					break;
 				case FileChangeType.UPDATED:
 					if (!this.updated) {
-						this.updated = TernarySearchTree.forUris2<IFileChange>(() => this.ignorePathCasing);
+						this.updated = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
 					}
 					this.updated.set(change.resource, change);
 					break;
 				case FileChangeType.DELETED:
 					if (!this.deleted) {
-						this.deleted = TernarySearchTree.forUris2<IFileChange>(() => this.ignorePathCasing);
+						this.deleted = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
 					}
 					this.deleted.set(change.resource, change);
 					break;
@@ -947,9 +947,9 @@ export function etag(stat: { mtime: number | undefined, size: number | undefined
 	return stat.mtime.toString(29) + stat.size.toString(31);
 }
 
-export function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
+export async function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
 	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
-		return Promise.resolve();
+		return;
 	}
 
 	return new Promise(resolve => {

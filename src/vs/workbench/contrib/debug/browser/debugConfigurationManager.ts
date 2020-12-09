@@ -37,6 +37,8 @@ import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtil
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
+import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -53,7 +55,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private launches!: ILaunch[];
 	private selectedName: string | undefined;
 	private selectedLaunch: ILaunch | undefined;
-	private selectedConfig: IConfig | undefined;
+	private getSelectedConfig: () => Promise<IConfig | undefined> = () => Promise.resolve(undefined);
 	private selectedType: string | undefined;
 	private toDispose: IDisposable[];
 	private readonly _onDidSelectConfigurationName = new Emitter<void>();
@@ -225,7 +227,7 @@ export class ConfigurationManager implements IConfigurationManager {
 								description: launch.name,
 								config,
 								buttons: [{
-									iconClass: 'codicon-gear',
+									iconClass: ThemeIcon.asClassName(debugConfigure),
 									tooltip: nls.localize('editLaunchConfig', "Edit Debug Configuration in launch.json")
 								}],
 								launch
@@ -327,11 +329,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches.find(l => l.workspace && this.uriIdentityService.extUri.isEqual(l.workspace.uri, workspaceUri));
 	}
 
-	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, config: IConfig | undefined, type: string | undefined } {
+	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, getConfig: () => Promise<IConfig | undefined>, type: string | undefined } {
 		return {
 			launch: this.selectedLaunch,
 			name: this.selectedName,
-			config: this.selectedConfig,
+			getConfig: this.getSelectedConfig,
 			type: this.selectedType
 		};
 	}
@@ -362,40 +364,45 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.selectedLaunch = launch;
 
 		if (this.selectedLaunch) {
-			this.storageService.store2(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		}
 
 		const names = launch ? launch.getConfigurationNames() : [];
+		this.getSelectedConfig = () => Promise.resolve(config);
+		let type = config?.type;
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
 		} else if (dynamicConfig && dynamicConfig.type) {
 			// We could not find the previously used name and config is not passed. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
-			let nameToSet = config ? config.name : names.length ? names[0] : undefined;
+			type = dynamicConfig.type;
 			if (!config) {
-				const providers = (await this.getDynamicProviders()).filter(p => p.type === dynamicConfig.type);
-				const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
-				const provider = activatedProviders.find(p => p && p.type === dynamicConfig.type);
-				if (provider && launch && launch.workspace) {
-					const token = new CancellationTokenSource();
-					const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
-					const dynamicConfig = dynamicConfigs.find(c => c.name === name);
-					if (dynamicConfig) {
-						config = dynamicConfig;
-						nameToSet = name;
+				const providers = (await this.getDynamicProviders()).filter(p => p.type === type);
+				this.getSelectedConfig = async () => {
+					const activatedProviders = await Promise.all(providers.map(p => p.getProvider()));
+					const provider = activatedProviders.find(p => p && p.type === type);
+					if (provider && launch && launch.workspace) {
+						const token = new CancellationTokenSource();
+						const dynamicConfigs = await provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
+						const dynamicConfig = dynamicConfigs.find(c => c.name === name);
+						if (dynamicConfig) {
+							return dynamicConfig;
+						}
 					}
-				}
+
+					return undefined;
+				};
 			}
-			this.setSelectedLaunchName(nameToSet);
+			this.setSelectedLaunchName(name);
 
 			let recentDynamicProviders = this.getRecentDynamicConfigurations();
 			if (name && dynamicConfig.type) {
 				// We need to store the recently used dynamic configurations to be able to show them in UI #110009
 				recentDynamicProviders.unshift({ name, type: dynamicConfig.type });
 				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
-				this.storageService.store2(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
+				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
 			}
 		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
 			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration
@@ -403,12 +410,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setSelectedLaunchName(nameToSet);
 		}
 
-		this.selectedConfig = config;
-		this.selectedType = dynamicConfig?.type || this.selectedConfig?.type;
-		this.storageService.store2(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
-		if (configForType) {
-			this.debugConfigurationTypeContext.set(configForType.type);
+		this.selectedType = dynamicConfig?.type || config?.type;
+		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (type) {
+			this.debugConfigurationTypeContext.set(type);
 		} else {
 			this.debugConfigurationTypeContext.reset();
 		}
@@ -433,7 +438,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.selectedName = selectedName;
 
 		if (this.selectedName) {
-			this.storageService.store2(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
 		}
@@ -684,7 +689,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	async openConfigFile(preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
-		const editor = await this.preferencesService.openGlobalSettings(true, { preserveFocus });
+		const editor = await this.preferencesService.openGlobalSettings(true, { preserveFocus, revealSetting: { key: 'launch' } });
 		return ({
 			editor: withUndefinedAsNull(editor),
 			created: false

@@ -605,6 +605,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	async revealElementInCenterIfOutsideViewportAsync(cell: ICellViewModel): Promise<void> {
+		const index = this._getViewIndexUpperBound(cell);
+
+		if (index >= 0) {
+			return this._revealInCenterIfOutsideViewportAsync(index);
+		}
+	}
+
 	async revealElementLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -863,6 +871,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
 			}
 		}
+	}
+
+	private async _revealInCenterIfOutsideViewportAsync(viewIndex: number): Promise<void> {
+		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
+		const element = this.view.element(viewIndex);
+
+		if (!element.editorAttached) {
+			return getEditorAttachedPromise(element);
+		}
+
+		return;
 	}
 
 	private async _revealLineInCenterIfOutsideViewportAsync(viewIndex: number, line: number): Promise<void> {

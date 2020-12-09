@@ -36,8 +36,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 // implementation
 
@@ -112,6 +113,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
+		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -167,7 +169,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.applyAndSetProductIconTheme(productIconData, true);
 		}
 
-		extensionService.whenInstalledExtensionsRegistered().then(_ => {
+		Promise.all([extensionService.whenInstalledExtensionsRegistered(), userDataInitializationService.whenInitializationFinished()]).then(_ => {
 			this.installConfigurationListener();
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();
@@ -177,12 +179,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
+		const iconRegistry = getIconRegistry();
 		function updateAll() {
-			codiconStyleSheet.textContent = CodiconStyles.getCSS();
+			codiconStyleSheet.textContent = iconRegistry.getCSS();
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		CodiconStyles.onDidChange(() => delayer.schedule());
+		iconRegistry.onDidChange(() => delayer.schedule());
 		delayer.schedule();
 	}
 
@@ -201,7 +204,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const preferredColorScheme = this.getPreferredColorScheme();
 			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
 			if (preferredColorScheme !== prevScheme) {
-				this.storageService.store2(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL, StorageTarget.USER);
 				if (preferredColorScheme && theme?.type !== preferredColorScheme) {
 					return this.applyPreferredColorTheme(preferredColorScheme);
 				}
@@ -354,7 +357,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const scheme = this.getPreferredColorScheme();
 		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
 		if (scheme !== prevScheme) {
-			this.storageService.store2(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			if (scheme) {
 				if (!prevScheme) {
 					// remember the theme before scheme switching

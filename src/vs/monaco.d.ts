@@ -1116,6 +1116,10 @@ declare namespace monaco.editor {
 		 */
 		wordBasedSuggestions?: boolean;
 		/**
+		 * Controls whether word based completions should be included from opened documents of the same language or any language.
+		 */
+		wordBasedSuggestionsOnlySameLanguage?: boolean;
+		/**
 		 * Controls whether the semanticHighlighting is shown for the languages that support it.
 		 * true: semanticHighlighting is enabled for all themes
 		 * false: semanticHighlighting is disabled for all themes
@@ -1686,6 +1690,10 @@ declare namespace monaco.editor {
 		 */
 		getEOL(): string;
 		/**
+		 * Get the end of line sequence predominantly used in the text buffer.
+		 */
+		getEndOfLineSequence(): EndOfLineSequence;
+		/**
 		 * Get the minimum legal column for line at `lineNumber`
 		 */
 		getLineMinColumn(lineNumber: number): number;
@@ -1882,11 +1890,15 @@ declare namespace monaco.editor {
 		 */
 		detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
 		/**
-		 * Push a stack element onto the undo stack. This acts as an undo/redo point.
-		 * The idea is to use `pushEditOperations` to edit the model and then to
-		 * `pushStackElement` to create an undo/redo stop point.
+		 * Close the current undo-redo element.
+		 * This offers a way to create an undo/redo stop point.
 		 */
 		pushStackElement(): void;
+		/**
+		 * Open the current undo-redo element.
+		 * This offers a way to remove the current undo/redo stop point.
+		 */
+		popStackElement(): void;
 		/**
 		 * Push edit operations, basically editing the model. This is the preferred way
 		 * of editing the model. The edit operations will land on the undo stack.
@@ -2683,8 +2695,12 @@ declare namespace monaco.editor {
 		 */
 		readOnly?: boolean;
 		/**
-		 * Rename matching regions on type.
+		 * Enable linked editing.
 		 * Defaults to false.
+		 */
+		linkedEditing?: boolean;
+		/**
+		 * deprecated, use linkedEditing instead
 		 */
 		renameOnType?: boolean;
 		/**
@@ -2800,6 +2816,14 @@ declare namespace monaco.editor {
 		 */
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
+		 * Override the `wordWrap` setting.
+		 */
+		wordWrapOverride1?: 'off' | 'on' | 'inherit';
+		/**
+		 * Override the `wordWrapOverride1` setting.
+		 */
+		wordWrapOverride2?: 'off' | 'on' | 'inherit';
+		/**
 		 * Control the wrapping of the editor.
 		 * When `wordWrap` = "off", the lines will never wrap.
 		 * When `wordWrap` = "on", the lines will wrap at the viewport width.
@@ -2808,11 +2832,6 @@ declare namespace monaco.editor {
 		 * Defaults to 80.
 		 */
 		wordWrapColumn?: number;
-		/**
-		 * Force word wrapping when the text appears to be of a minified/generated file.
-		 * Defaults to true.
-		 */
-		wordWrapMinified?: boolean;
 		/**
 		 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 		 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
@@ -2959,6 +2978,11 @@ declare namespace monaco.editor {
 		 * Defaults to advanced.
 		 */
 		autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
+		/**
+		 * Emulate selection behaviour of tab characters when using spaces for indentation.
+		 * This means selection will stick to tab stops.
+		 */
+		stickyTabStops?: boolean;
 		/**
 		 * Enable format on type.
 		 * Defaults to false.
@@ -3189,15 +3213,10 @@ declare namespace monaco.editor {
 		 */
 		originalEditable?: boolean;
 		/**
-		 * Original editor should be have code lens enabled?
+		 * Should the diff editor enable code lens?
 		 * Defaults to false.
 		 */
-		originalCodeLens?: boolean;
-		/**
-		 * Modified editor should be have code lens enabled?
-		 * Defaults to false.
-		 */
-		modifiedCodeLens?: boolean;
+		diffCodeLens?: boolean;
 		/**
 		 * Is the diff editor inside another editor
 		 * Defaults to false
@@ -3208,6 +3227,10 @@ declare namespace monaco.editor {
 		 * Defaults to true
 		 */
 		renderOverviewRuler?: boolean;
+		/**
+		 * Control the wrapping of the diff editor.
+		 */
+		diffWordWrap?: 'off' | 'on' | 'inherit';
 	}
 
 	/**
@@ -3941,72 +3964,75 @@ declare namespace monaco.editor {
 		lineHeight = 53,
 		lineNumbers = 54,
 		lineNumbersMinChars = 55,
-		links = 56,
-		matchBrackets = 57,
-		minimap = 58,
-		mouseStyle = 59,
-		mouseWheelScrollSensitivity = 60,
-		mouseWheelZoom = 61,
-		multiCursorMergeOverlapping = 62,
-		multiCursorModifier = 63,
-		multiCursorPaste = 64,
-		occurrencesHighlight = 65,
-		overviewRulerBorder = 66,
-		overviewRulerLanes = 67,
-		padding = 68,
-		parameterHints = 69,
-		peekWidgetDefaultFocus = 70,
-		definitionLinkOpensInPeek = 71,
-		quickSuggestions = 72,
-		quickSuggestionsDelay = 73,
-		readOnly = 74,
-		renameOnType = 75,
-		renderControlCharacters = 76,
-		renderIndentGuides = 77,
-		renderFinalNewline = 78,
-		renderLineHighlight = 79,
-		renderLineHighlightOnlyWhenFocus = 80,
-		renderValidationDecorations = 81,
-		renderWhitespace = 82,
-		revealHorizontalRightPadding = 83,
-		roundedSelection = 84,
-		rulers = 85,
-		scrollbar = 86,
-		scrollBeyondLastColumn = 87,
-		scrollBeyondLastLine = 88,
-		scrollPredominantAxis = 89,
-		selectionClipboard = 90,
-		selectionHighlight = 91,
-		selectOnLineNumbers = 92,
-		showFoldingControls = 93,
-		showUnused = 94,
-		snippetSuggestions = 95,
-		smartSelect = 96,
-		smoothScrolling = 97,
-		stopRenderingLineAfter = 98,
-		suggest = 99,
-		suggestFontSize = 100,
-		suggestLineHeight = 101,
-		suggestOnTriggerCharacters = 102,
-		suggestSelection = 103,
-		tabCompletion = 104,
-		tabIndex = 105,
-		unusualLineTerminators = 106,
-		useTabStops = 107,
-		wordSeparators = 108,
-		wordWrap = 109,
-		wordWrapBreakAfterCharacters = 110,
-		wordWrapBreakBeforeCharacters = 111,
-		wordWrapColumn = 112,
-		wordWrapMinified = 113,
-		wrappingIndent = 114,
-		wrappingStrategy = 115,
-		showDeprecated = 116,
-		editorClassName = 117,
-		pixelRatio = 118,
-		tabFocusMode = 119,
-		layoutInfo = 120,
-		wrappingInfo = 121
+		linkedEditing = 56,
+		links = 57,
+		matchBrackets = 58,
+		minimap = 59,
+		mouseStyle = 60,
+		mouseWheelScrollSensitivity = 61,
+		mouseWheelZoom = 62,
+		multiCursorMergeOverlapping = 63,
+		multiCursorModifier = 64,
+		multiCursorPaste = 65,
+		occurrencesHighlight = 66,
+		overviewRulerBorder = 67,
+		overviewRulerLanes = 68,
+		padding = 69,
+		parameterHints = 70,
+		peekWidgetDefaultFocus = 71,
+		definitionLinkOpensInPeek = 72,
+		quickSuggestions = 73,
+		quickSuggestionsDelay = 74,
+		readOnly = 75,
+		renameOnType = 76,
+		renderControlCharacters = 77,
+		renderIndentGuides = 78,
+		renderFinalNewline = 79,
+		renderLineHighlight = 80,
+		renderLineHighlightOnlyWhenFocus = 81,
+		renderValidationDecorations = 82,
+		renderWhitespace = 83,
+		revealHorizontalRightPadding = 84,
+		roundedSelection = 85,
+		rulers = 86,
+		scrollbar = 87,
+		scrollBeyondLastColumn = 88,
+		scrollBeyondLastLine = 89,
+		scrollPredominantAxis = 90,
+		selectionClipboard = 91,
+		selectionHighlight = 92,
+		selectOnLineNumbers = 93,
+		showFoldingControls = 94,
+		showUnused = 95,
+		snippetSuggestions = 96,
+		smartSelect = 97,
+		smoothScrolling = 98,
+		stickyTabStops = 99,
+		stopRenderingLineAfter = 100,
+		suggest = 101,
+		suggestFontSize = 102,
+		suggestLineHeight = 103,
+		suggestOnTriggerCharacters = 104,
+		suggestSelection = 105,
+		tabCompletion = 106,
+		tabIndex = 107,
+		unusualLineTerminators = 108,
+		useTabStops = 109,
+		wordSeparators = 110,
+		wordWrap = 111,
+		wordWrapBreakAfterCharacters = 112,
+		wordWrapBreakBeforeCharacters = 113,
+		wordWrapColumn = 114,
+		wordWrapOverride1 = 115,
+		wordWrapOverride2 = 116,
+		wrappingIndent = 117,
+		wrappingStrategy = 118,
+		showDeprecated = 119,
+		editorClassName = 120,
+		pixelRatio = 121,
+		tabFocusMode = 122,
+		layoutInfo = 123,
+		wrappingInfo = 124
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4020,6 +4046,7 @@ declare namespace monaco.editor {
 		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
 		autoSurround: IEditorOption<EditorOption.autoSurround, EditorAutoSurroundStrategy>;
+		stickyTabStops: IEditorOption<EditorOption.stickyTabStops, boolean>;
 		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
@@ -4065,6 +4092,7 @@ declare namespace monaco.editor {
 		lineHeight: IEditorOption<EditorOption.lineHeight, number>;
 		lineNumbers: IEditorOption<EditorOption.lineNumbers, InternalEditorRenderLineNumbersOptions>;
 		lineNumbersMinChars: IEditorOption<EditorOption.lineNumbersMinChars, number>;
+		linkedEditing: IEditorOption<EditorOption.linkedEditing, boolean>;
 		links: IEditorOption<EditorOption.links, boolean>;
 		matchBrackets: IEditorOption<EditorOption.matchBrackets, 'always' | 'never' | 'near'>;
 		minimap: IEditorOption<EditorOption.minimap, EditorMinimapOptions>;
@@ -4123,7 +4151,8 @@ declare namespace monaco.editor {
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
-		wordWrapMinified: IEditorOption<EditorOption.wordWrapMinified, boolean>;
+		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
+		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
@@ -4724,9 +4753,13 @@ declare namespace monaco.editor {
 		 */
 		executeCommand(source: string | null | undefined, command: ICommand): void;
 		/**
-		 * Push an "undo stop" in the undo-redo stack.
+		 * Create an "undo stop" in the undo-redo stack.
 		 */
 		pushUndoStop(): boolean;
+		/**
+		 * Remove the "undo stop" in the undo-redo stack.
+		 */
+		popUndoStop(): boolean;
 		/**
 		 * Execute edits on the editor.
 		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
@@ -5045,6 +5078,10 @@ declare namespace monaco.languages {
 		 * Tokenize a line given the state at the beginning of the line.
 		 */
 		tokenizeEncoded(line: string, state: IState): IEncodedLineTokens;
+		/**
+		 * Tokenize a line given the state at the beginning of the line.
+		 */
+		tokenize?(line: string, state: IState): ILineTokens;
 	}
 
 	/**
@@ -5088,9 +5125,9 @@ declare namespace monaco.languages {
 	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
 
 	/**
-	 * Register an on type rename provider.
+	 * Register an linked editing range provider.
 	 */
-	export function registerOnTypeRenameProvider(languageId: string, provider: OnTypeRenameProvider): IDisposable;
+	export function registerLinkedEditingRangeProvider(languageId: string, provider: LinkedEditingRangeProvider): IDisposable;
 
 	/**
 	 * Register a definition provider (used by e.g. go to definition).
@@ -5834,18 +5871,30 @@ declare namespace monaco.languages {
 	}
 
 	/**
-	 * The rename provider interface defines the contract between extensions and
-	 * the live-rename feature.
+	 * The linked editing range provider interface defines the contract between extensions and
+	 * the linked editing feature.
 	 */
-	export interface OnTypeRenameProvider {
-		wordPattern?: RegExp;
+	export interface LinkedEditingRangeProvider {
 		/**
-		 * Provide a list of ranges that can be live-renamed together.
+		 * Provide a list of ranges that can be edited together.
 		 */
-		provideOnTypeRenameRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<{
-			ranges: IRange[];
-			wordPattern?: RegExp;
-		}>;
+		provideLinkedEditingRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
+	}
+
+	/**
+	 * Represents a list of ranges that can be edited together along with a word pattern to describe valid contents.
+	 */
+	export interface LinkedEditingRanges {
+		/**
+		 * A list of ranges that can be edited together. The ranges must have
+		 * identical length and text content. The ranges cannot overlap
+		 */
+		ranges: IRange[];
+		/**
+		 * An optional word pattern that describes valid contents for the given ranges.
+		 * If no pattern is provided, the language configuration's word pattern will be used.
+		 */
+		wordPattern?: RegExp;
 	}
 
 	/**
@@ -6250,6 +6299,10 @@ declare namespace monaco.languages {
 		ignoreIfNotExists?: boolean;
 		ignoreIfExists?: boolean;
 		recursive?: boolean;
+		copy?: boolean;
+		folder?: boolean;
+		skipTrashBin?: boolean;
+		maxSize?: number;
 	}
 
 	export interface WorkspaceFileEdit {

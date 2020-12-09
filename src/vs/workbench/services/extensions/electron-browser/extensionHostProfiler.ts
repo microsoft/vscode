@@ -30,7 +30,7 @@ export class ExtensionHostProfiler {
 	}
 
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
-		let searchTree = TernarySearchTree.forUris2<IExtensionDescription>();
+		let searchTree = TernarySearchTree.forUris<IExtensionDescription>();
 		for (let extension of extensions) {
 			if (extension.extensionLocation.scheme === Schemas.file) {
 				searchTree.set(URI.file(realpathSync(extension.extensionLocation.fsPath)), extension);

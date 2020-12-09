@@ -9,6 +9,7 @@ import { Workspace, toWorkspaceFolders, WorkspaceFolder } from 'vs/platform/work
 import { URI } from 'vs/base/common/uri';
 import { IRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { isLinux, isWindows } from 'vs/base/common/platform';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 
 suite('Workspace', () => {
 
@@ -70,7 +71,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with single absolute folder', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 1);
 		assert.equal(actual[0].uri.fsPath, testFolderUri.fsPath);
@@ -80,7 +81,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with single relative folder', () => {
-		const actual = toWorkspaceFolders([{ path: './test' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: './test' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 1);
 		assert.equal(actual[0].uri.fsPath, testFolderUri.fsPath);
@@ -90,7 +91,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with single absolute folder with name', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test', name: 'hello' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test', name: 'hello' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 1);
 
@@ -101,7 +102,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple unique absolute folders', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3' }, { path: '/src/test1' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3' }, { path: '/src/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, test2FolderUri.fsPath);
@@ -121,7 +122,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple unique absolute folders with names', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: '/src/test1' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: '/src/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, test2FolderUri.fsPath);
@@ -141,7 +142,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple unique absolute and relative folders', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/abc/test3', name: 'noName' }, { path: './test1' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/abc/test3', name: 'noName' }, { path: './test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, test2FolderUri.fsPath);
@@ -161,7 +162,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple absolute folders with duplicates', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test2', name: 'noName' }, { path: '/src/test1' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test2', name: 'noName' }, { path: '/src/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 2);
 		assert.equal(actual[0].uri.fsPath, test2FolderUri.fsPath);
@@ -176,7 +177,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple absolute and relative folders with duplicates', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '/src/test3', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, test2FolderUri.fsPath);
@@ -196,7 +197,7 @@ suite('Workspace', () => {
 	});
 
 	test('toWorkspaceFolders with multiple absolute and relative folders with invalid paths', () => {
-		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], workspaceConfigUri);
+		const actual = toWorkspaceFolders([{ path: '/src/test2' }, { path: '', name: 'noName' }, { path: './test3' }, { path: '/abc/test1' }], workspaceConfigUri, extUriBiasedIgnorePathCase);
 
 		assert.equal(actual.length, 3);
 		assert.equal(actual[0].uri.fsPath, test2FolderUri.fsPath);

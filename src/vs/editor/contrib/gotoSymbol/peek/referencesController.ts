@@ -101,7 +101,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._disposables.add(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {
-				this._storageService.store2(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this._widget = undefined;
 			}
 			this.closeWidget();

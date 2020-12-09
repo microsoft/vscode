@@ -28,7 +28,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
-	codeBlockRenderCallback?: () => void;
+	asyncRenderCallback?: () => void;
 	baseUrl?: URI;
 }
 
@@ -177,8 +177,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				// ignore
 			});
 
-			if (options.codeBlockRenderCallback) {
-				promise.then(options.codeBlockRenderCallback);
+			if (options.asyncRenderCallback) {
+				promise.then(options.asyncRenderCallback);
 			}
 
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
@@ -239,10 +239,21 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const renderedMarkdown = marked.parse(value, markedOptions);
 
 	// sanitize with insane
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown);
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
+
+	// signal size changes for image tags
+	if (options.asyncRenderCallback) {
+		for (const img of element.getElementsByTagName('img')) {
+			const listener = DOM.addDisposableListener(img, 'load', () => {
+				listener.dispose();
+				options.asyncRenderCallback!();
+			});
+		}
+	}
+
 
 	return element;
 }
@@ -250,13 +261,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean },
 	renderedMarkdown: string,
-): string {
+): string | TrustedHTML {
 	const insaneOptions = getInsaneOptions(options);
-	if (_ttpInsane) {
-		return _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
-	} else {
-		return insane(renderedMarkdown, insaneOptions);
-	}
+	return _ttpInsane?.createHTML(renderedMarkdown, insaneOptions) ?? insane(renderedMarkdown, insaneOptions);
 }
 
 function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOptions {

@@ -9,10 +9,9 @@ import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/edit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffViewModel, PropertyFoldingState } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { renderCodicons } from 'vs/base/browser/codicons';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { format } from 'vs/base/common/jsonFormatter';
@@ -22,13 +21,17 @@ import { hash } from 'vs/base/common/hash';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Delayer } from 'vs/base/common/async';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
+import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -148,7 +151,7 @@ class PropertyHeader extends Disposable {
 
 			const target = e.event.target as HTMLElement;
 
-			if (target.classList.contains('codicon-chevron-down') || target.classList.contains('codicon-chevron-right')) {
+			if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {
 				const parent = target.parentElement as HTMLElement;
 
 				if (!parent) {
@@ -200,9 +203,9 @@ class PropertyHeader extends Disposable {
 
 	private _updateFoldingIcon() {
 		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
-			DOM.reset(this._foldingIndicator, ...renderCodicons('$(chevron-right)'));
+			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(collapsedIcon)));
 		} else {
-			DOM.reset(this._foldingIndicator, ...renderCodicons('$(chevron-down)'));
+			DOM.reset(this._foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(expandedIcon)));
 		}
 	}
 }
@@ -234,6 +237,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		outputHeight: number;
 		bodyMargin: number;
 	};
+	protected _isDisposed: boolean;
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
@@ -253,6 +257,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	) {
 		super();
 		// init
+		this._isDisposed = false;
 		this._layoutInfo = {
 			editorHeight: 0,
 			editorMargin: 0,
@@ -438,6 +443,7 @@ abstract class AbstractCellRenderer extends Disposable {
 					width: 0
 				}
 			}, {});
+			this._register(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
 
@@ -493,6 +499,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			readOnly: false
 		}, {});
+		this._register(this._metadataEditor);
 
 		const mode = this.modeService.create('jsonc');
 		const originalMetadataSource = this._getFormatedMetadataJSON(
@@ -547,6 +554,7 @@ abstract class AbstractCellRenderer extends Disposable {
 						width: 0
 					}
 				}, {});
+				this._register(this._outputEditor);
 
 				this._outputEditorContainer?.classList.add('diff');
 
@@ -586,6 +594,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
+		this._register(this._outputEditor);
 
 		const mode = this.modeService.create('json');
 		const originaloutputSource = this._getFormatedOutputJSON(
@@ -619,6 +628,11 @@ abstract class AbstractCellRenderer extends Disposable {
 			+ this._layoutInfo.outputStatusHeight
 			+ this._layoutInfo.bodyMargin
 		);
+	}
+
+	dispose() {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	abstract styleContainer(container: HTMLElement): void;
@@ -795,7 +809,7 @@ export class DeletedCell extends SingleSideCell {
 		const originalCell = this.cell.original!;
 		const lineCount = originalCell.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
 
 		this._editor = this.templateData.sourceEditor;
 		this._editor.layout({
@@ -813,6 +827,10 @@ export class DeletedCell extends SingleSideCell {
 		}));
 
 		originalCell.resolveTextModelRef().then(ref => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this._register(ref);
 
 			const textModel = ref.object.textEditorModel;
@@ -882,7 +900,7 @@ export class InsertCell extends SingleSideCell {
 		const modifiedCell = this.cell.modified!;
 		const lineCount = modifiedCell.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
 
 		this._editor = this.templateData.sourceEditor;
 		this._editor.layout(
@@ -892,7 +910,6 @@ export class InsertCell extends SingleSideCell {
 			}
 		);
 		this._editor.updateOptions({ readOnly: false });
-
 		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
@@ -903,6 +920,10 @@ export class InsertCell extends SingleSideCell {
 		}));
 
 		modifiedCell.resolveTextModelRef().then(ref => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this._register(ref);
 
 			const textModel = ref.object.textEditorModel;
@@ -1082,9 +1103,10 @@ export class ModifiedCell extends AbstractCellRenderer {
 		const modifiedCell = this.cell.modified!;
 		const lineCount = modifiedCell.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
 		this._editorContainer = this.templateData.editorContainer;
 		this._editor = this.templateData.sourceEditor;
+
 		this._editorContainer.classList.add('diff');
 
 		this._editor.layout({
@@ -1137,6 +1159,11 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 		const originalRef = await originalCell.resolveTextModelRef();
 		const modifiedRef = await modifiedCell.resolveTextModelRef();
+
+		if (this._isDisposed) {
+			return;
+		}
+
 		const textModel = originalRef.object.textEditorModel;
 		const modifiedTextModel = modifiedRef.object.textEditorModel;
 		this._register({

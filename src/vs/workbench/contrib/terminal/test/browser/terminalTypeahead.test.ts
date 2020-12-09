@@ -7,11 +7,10 @@ import * as assert from 'assert';
 import { Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
-import { IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
+import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { timeout } from 'vs/base/common/async';
 
 const CSI = `\x1b[`;
 
@@ -102,6 +101,7 @@ suite('Workbench - Terminal Typeahead', () => {
 				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
 				upcastPartial<ITelemetryService>({ publicLog })
 			);
+			addon.unlockMakingPredictions();
 		});
 
 		teardown(() => {
@@ -245,29 +245,22 @@ suite('Workbench - Terminal Typeahead', () => {
 			t.expectWritten(`${CSI}2;6H${CSI}X`);
 		});
 
-		test('avoids predicting password input', () => {
+		test('waits for first valid prediction on a line', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.lockMakingPredictions();
 			addon.activate(t.terminal);
 
-			const tcases = ['Your password:', 'Password here:', 'PAT:', 'Access token:'];
-			for (const tcase of tcases) {
-				expectProcessed(tcase, tcase);
+			t.onData('o');
+			t.expectWritten('');
+			expectProcessed('o', 'o');
 
-				t.onData('mellon\r\n');
-				t.expectWritten('');
-				expectProcessed('\r\n', '\r\n');
-
-				t.onData('o'); // back to normal mode
-				t.expectWritten(`${CSI}3mo${CSI}23m`);
-				onBeforeProcessData.fire({ data: 'o' });
-			}
+			t.onData('o');
+			t.expectWritten(`${CSI}3mo${CSI}23m`);
 		});
 
-		test('disables on title change', async () => {
+		test('disables on title change', () => {
 			const t = createMockTerminal({ lines: ['hello|'] });
 			addon.activate(t.terminal);
-
-			await timeout(1000);
 
 			addon.reevaluateNow();
 			assert.strictEqual(addon.isShowing, true, 'expected to show initially');
@@ -284,8 +277,16 @@ suite('Workbench - Terminal Typeahead', () => {
 });
 
 class TestTypeAheadAddon extends TypeAheadAddon {
+	public unlockMakingPredictions() {
+		this.lastRow = { y: 1, startingX: 100, charState: CharPredictState.Validated };
+	}
+
+	public lockMakingPredictions() {
+		this.lastRow = undefined;
+	}
+
 	public unlockLeftNavigating() {
-		this.lastRow = { y: 1, startingX: 1 };
+		this.lastRow = { y: 1, startingX: 1, charState: CharPredictState.Validated };
 	}
 
 	public reevaluateNow() {

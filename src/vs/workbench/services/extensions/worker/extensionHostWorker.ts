@@ -46,13 +46,16 @@ self.addEventListener = () => console.trace(`'addEventListener' has been blocked
 (<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
 
 if ((<any>self).Worker) {
+	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
+
 	// make sure new Worker(...) always uses data:
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		const js = `importScripts('${stringUrl}');`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
-		return new _Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`, options);
+		const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
+		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(url) : url, options);
 	};
 }
 

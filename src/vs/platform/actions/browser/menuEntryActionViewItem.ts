@@ -16,10 +16,12 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
 	const groups = menu.getActions(options);
-	const useAlternativeActions = ModifierKeyEmitter.getInstance().keyStatus.altKey;
+	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
+	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
 	fillInActions(groups, target, useAlternativeActions, isPrimaryGroup);
 	return asDisposable(groups);
 }
@@ -102,7 +104,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 		let mouseOver = false;
 
-		let alternativeKeyDown = this._altKey.keyStatus.altKey;
+		let alternativeKeyDown = this._altKey.keyStatus.altKey || ((isWindows || isLinux) && this._altKey.keyStatus.shiftKey);
 
 		const updateAltState = () => {
 			const wantsAltCommand = mouseOver && alternativeKeyDown;
@@ -116,7 +118,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 		if (this._action.alt) {
 			this._register(this._altKey.event(value => {
-				alternativeKeyDown = value.altKey;
+				alternativeKeyDown = value.altKey || ((isWindows || isLinux) && value.shiftKey);
 				updateAltState();
 			}));
 		}

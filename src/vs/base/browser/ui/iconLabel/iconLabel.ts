@@ -14,7 +14,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { isString } from 'vs/base/common/types';
+import { isFunction, isString } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 
 export interface IIconLabelCreationOptions {
@@ -25,7 +25,7 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | string | undefined | Promise<IMarkdownString | string | undefined>;
+	markdown: IMarkdownString | string | undefined | (() => Promise<IMarkdownString | string | undefined>);
 	markdownNotSupportedFallback: string | undefined;
 }
 
@@ -98,6 +98,8 @@ export class IconLabel extends Disposable {
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
 	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
+	private labelContainer: HTMLElement;
+
 	private hoverDelegate: IHoverDelegate | undefined = undefined;
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
 
@@ -106,10 +108,10 @@ export class IconLabel extends Disposable {
 
 		this.domNode = this._register(new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label'))));
 
-		const labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
+		this.labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
 
-		const nameContainer = dom.append(labelContainer, dom.$('span.monaco-icon-name-container'));
-		this.descriptionContainer = this._register(new FastLabelNode(dom.append(labelContainer, dom.$('span.monaco-icon-description-container'))));
+		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
+		this.descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
 
 		if (options?.supportHighlights) {
 			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportCodicons);
@@ -149,7 +151,7 @@ export class IconLabel extends Disposable {
 		}
 
 		this.domNode.className = classes.join(' ');
-		this.setupHover(this.domNode.element, options?.title);
+		this.setupHover(this.labelContainer, options?.title);
 
 		this.nameNode.setLabel(label, options);
 
@@ -189,23 +191,39 @@ export class IconLabel extends Disposable {
 	}
 
 	private setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString): void {
+		htmlElement.setAttribute('title', '');
 		htmlElement.removeAttribute('title');
-		let tooltip = isString(markdownTooltip) ? markdownTooltip : markdownTooltip.markdown;
+		let tooltip: () => Promise<string | IMarkdownString | undefined>;
+		if (isString(markdownTooltip)) {
+			tooltip = async () => markdownTooltip;
+		} else if (isFunction(markdownTooltip.markdown)) {
+			tooltip = markdownTooltip.markdown;
+		} else {
+			const markdown = markdownTooltip.markdown;
+			tooltip = async () => markdown;
+		}
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
 		const hoverDelay = isMacintosh ? 1500 : 500;
 		let hoverOptions: IHoverDelegateOptions | undefined;
 		let mouseX: number | undefined;
+		let isHovering = false;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
-			let isHovering = true;
-			function mouseMove(this: HTMLElement, e: MouseEvent): any {
-				mouseX = e.x;
+			if (isHovering) {
+				return;
 			}
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
+				mouseLeaveDisposable.dispose();
+				mouseDownDisposable.dispose();
 			}
 			const mouseLeaveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_LEAVE, true)(mouseLeaveOrDown.bind(htmlElement));
 			const mouseDownDisposable = domEvent(htmlElement, dom.EventType.MOUSE_DOWN, true)(mouseLeaveOrDown.bind(htmlElement));
+			isHovering = true;
+
+			function mouseMove(this: HTMLElement, e: MouseEvent): any {
+				mouseX = e.x;
+			}
 			const mouseMoveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_MOVE, true)(mouseMove.bind(htmlElement));
 			setTimeout(async () => {
 				if (isHovering && tooltip) {
@@ -215,7 +233,7 @@ export class IconLabel extends Disposable {
 							targetElements: [this],
 							dispose: () => { }
 						};
-						const resolvedTooltip = await tooltip;
+						const resolvedTooltip = await tooltip();
 						if (resolvedTooltip) {
 							hoverOptions = {
 								text: resolvedTooltip,
@@ -224,7 +242,8 @@ export class IconLabel extends Disposable {
 							};
 						}
 					}
-					if (hoverOptions) {
+					// awaiting the tooltip could take a while. Make sure we're still hovering.
+					if (hoverOptions && isHovering) {
 						if (mouseX !== undefined) {
 							(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
 						}
@@ -232,8 +251,6 @@ export class IconLabel extends Disposable {
 					}
 				}
 				mouseMoveDisposable.dispose();
-				mouseLeaveDisposable.dispose();
-				mouseDownDisposable.dispose();
 			}, hoverDelay);
 		}
 		const mouseOverDisposable = this._register(domEvent(htmlElement, dom.EventType.MOUSE_OVER, true)(mouseOver.bind(htmlElement)));

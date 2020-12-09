@@ -9,7 +9,7 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { extname, isAbsolute } from 'vs/base/common/path';
-import { dirname, resolvePath, isEqualAuthority, relativePath, extname as resourceExtname, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri } from 'vs/base/common/resources';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
@@ -212,12 +212,12 @@ const SLASH = '/';
  * @param targetConfigFolderURI the folder where the workspace is living in
  * @param useSlashForPath if set, use forward slashes for file paths on windows
  */
-export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
+export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows, extUri: IExtUri): IStoredWorkspaceFolder {
 	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
 
-	let folderPath = !forceAbsolute ? relativePath(targetConfigFolderURI, folderURI) : undefined;
+	let folderPath = !forceAbsolute ? extUri.relativePath(targetConfigFolderURI, folderURI) : undefined;
 	if (folderPath !== undefined) {
 		if (folderPath.length === 0) {
 			folderPath = '.';
@@ -241,7 +241,7 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
 				}
 			}
 		} else {
-			if (!isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
+			if (!extUri.isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
 				return { name: folderName, uri: folderURI.toString(true) };
 			}
 			folderPath = folderURI.path;
@@ -255,17 +255,17 @@ export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean,
  * Rewrites the content of a workspace file to be saved at a new location.
  * Throws an exception if file is not a valid workspace file
  */
-export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, isFromUntitledWorkspace: boolean, targetConfigPathURI: URI) {
+export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, isFromUntitledWorkspace: boolean, targetConfigPathURI: URI, extUri: IExtUri) {
 	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
 
-	const sourceConfigFolder = dirname(configPathURI);
-	const targetConfigFolder = dirname(targetConfigPathURI);
+	const sourceConfigFolder = extUri.dirname(configPathURI);
+	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
 
 	const rewrittenFolders: IStoredWorkspaceFolder[] = [];
 	const slashForPath = useSlashForPath(storedWorkspace.folders);
 
 	for (const folder of storedWorkspace.folders) {
-		const folderURI = isRawFileWorkspaceFolder(folder) ? resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
+		const folderURI = isRawFileWorkspaceFolder(folder) ? extUri.resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
 		let absolute;
 		if (isFromUntitledWorkspace) {
 			// if it was an untitled workspace, try to make paths relative
@@ -274,7 +274,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 			// for existing workspaces, preserve whether a path was absolute or relative
 			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path);
 		}
-		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForPath));
+		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForPath, extUri));
 	}
 
 	// Preserve as much of the existing workspace as possible by using jsonEdit

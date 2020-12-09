@@ -451,6 +451,8 @@ export interface IDimension {
 
 export class Dimension implements IDimension {
 
+	static readonly None = new Dimension(0, 0);
+
 	constructor(
 		public readonly width: number,
 		public readonly height: number,
@@ -671,6 +673,14 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
 }
 
+function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
+	const flowToParentId = node.dataset[parentFlowToDataKey];
+	if (typeof flowToParentId === 'string') {
+		return document.getElementById(flowToParentId);
+	}
+	return null;
+}
+
 /**
  * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
  * parents set by `setParentFlowTo`.
@@ -683,13 +693,10 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 		}
 
 		if (node instanceof HTMLElement) {
-			const flowToParentId = node.dataset[parentFlowToDataKey];
-			if (typeof flowToParentId === 'string') {
-				const flowToParentElement = document.getElementById(flowToParentId);
-				if (flowToParentElement) {
-					node = flowToParentElement;
-					continue;
-				}
+			const flowToParentElement = getParentFlowToElement(node);
+			if (flowToParentElement) {
+				node = flowToParentElement;
+				continue;
 			}
 		}
 		node = node.parentNode;
@@ -1368,8 +1375,8 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	const options = _extInsaneOptions({
 		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 		allowedAttributes: {
-			'a': ['href'],
-			'button': ['data-href'],
+			'a': ['href', 'x-dispatch'],
+			'button': ['data-href', 'x-dispatch'],
 			'input': ['type', 'placeholder', 'checked', 'required'],
 			'label': ['for'],
 			'select': ['required'],
@@ -1380,7 +1387,7 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
-	node.innerHTML = html as unknown as string;
+	node.innerHTML = html as string;
 }
 
 /**
@@ -1393,7 +1400,12 @@ function toBinary(str: string): string {
 	for (let i = 0; i < codeUnits.length; i++) {
 		codeUnits[i] = str.charCodeAt(i);
 	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
 }
 
 /**

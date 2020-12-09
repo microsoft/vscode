@@ -116,7 +116,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Iterable } from 'vs/base/common/iterator';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
 }
 
 export interface ITestInstantiationService extends IInstantiationService {
@@ -446,16 +446,16 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isActivityBarHidden(): boolean { return false; }
 	setActivityBarHidden(_hidden: boolean): void { }
 	isSideBarHidden(): boolean { return false; }
-	setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
-	setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
+	async setEditorHidden(_hidden: boolean): Promise<void> { }
+	async setSideBarHidden(_hidden: boolean): Promise<void> { }
 	isPanelHidden(): boolean { return false; }
-	setPanelHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
+	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	getSideBarPosition() { return 0; }
 	getPanelPosition() { return 0; }
-	setPanelPosition(_position: PartPosition): Promise<void> { return Promise.resolve(); }
+	async setPanelPosition(_position: PartPosition): Promise<void> { }
 	addClass(_clazz: string): void { }
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
@@ -631,10 +631,10 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isActive(_editor: IEditorInput): boolean { return false; }
 	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IMoveEditorOptions): void { }
 	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: ICopyEditorOptions): void { }
-	closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { return Promise.resolve(); }
-	closeEditors(_editors: IEditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { return Promise.resolve(); }
-	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { return Promise.resolve(); }
-	replaceEditors(_editors: IEditorReplacement[]): Promise<void> { return Promise.resolve(); }
+	async closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { }
+	async closeEditors(_editors: IEditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
+	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
+	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
 	pinEditor(_editor?: IEditorInput): void { }
 	stickEditor(editor?: IEditorInput | undefined): void { }
 	unstickEditor(editor?: IEditorInput | undefined): void { }
@@ -870,7 +870,7 @@ export class TestFileService implements IFileService {
 		return false;
 	}
 
-	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { return Promise.resolve(); }
+	async del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> { }
 
 	readonly watches: URI[] = [];
 	watch(_resource: URI): IDisposable {
@@ -894,13 +894,13 @@ export class TestBackupFileService implements IBackupFileService {
 	hasBackups(): Promise<boolean> { return Promise.resolve(false); }
 	hasBackup(_resource: URI): Promise<boolean> { return Promise.resolve(false); }
 	hasBackupSync(resource: URI, versionId?: number): boolean { return false; }
-	registerResourceForBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
-	deregisterResourceForBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
-	backup<T extends object>(_resource: URI, _content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> { return Promise.resolve(); }
+	async registerResourceForBackup(_resource: URI): Promise<void> { }
+	async deregisterResourceForBackup(_resource: URI): Promise<void> { }
+	async backup<T extends object>(_resource: URI, _content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> { }
 	getBackups(): Promise<URI[]> { return Promise.resolve([]); }
 	resolve<T extends object>(_backup: URI): Promise<IResolvedBackup<T> | undefined> { return Promise.resolve(undefined); }
-	discardBackup(_resource: URI): Promise<void> { return Promise.resolve(); }
-	discardBackups(): Promise<void> { return Promise.resolve(); }
+	async discardBackup(_resource: URI): Promise<void> { }
+	async discardBackups(): Promise<void> { }
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF);
 		const lineCount = textBuffer.getLineCount();
@@ -925,7 +925,7 @@ export class TestLifecycleService implements ILifecycleService {
 	private readonly _onShutdown = new Emitter<void>();
 	get onShutdown(): Event<void> { return this._onShutdown.event; }
 
-	when(): Promise<void> { return Promise.resolve(); }
+	async when(): Promise<void> { }
 
 	fireShutdown(reason = ShutdownReason.QUIT): void {
 		this._onWillShutdown.fire({
@@ -1177,6 +1177,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
+	setPreferredName(name: string): void { }
+	setPreferredDescription(description: string): void { }
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }

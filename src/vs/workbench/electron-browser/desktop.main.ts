@@ -28,7 +28,7 @@ import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
@@ -45,7 +45,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/electron
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
@@ -53,6 +53,8 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 class DesktopMain extends Disposable {
 
@@ -234,9 +236,9 @@ class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.configuration.backupPath ? URI.file(this.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
 
-		// IURIIdentityService
+		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
@@ -268,7 +270,7 @@ class DesktopMain extends Disposable {
 				serviceCollection.set(IWorkspaceContextService, service);
 
 				// Configuration
-				serviceCollection.set(IConfigurationService, service);
+				serviceCollection.set(IWorkbenchConfigurationService, service);
 
 				return service;
 			}),
@@ -277,6 +279,14 @@ class DesktopMain extends Disposable {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
+
+				return service;
+			}),
+
+			this.createKeyboardLayoutService(logService, mainProcessService).then(service => {
+
+				// KeyboardLayout
+				serviceCollection.set(IKeyboardLayoutService, service);
 
 				return service;
 			})
@@ -315,8 +325,8 @@ class DesktopMain extends Disposable {
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
 			let id: string;
-			if (this.environmentService.backupWorkspaceHome) {
-				id = basename(this.environmentService.backupWorkspaceHome); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			if (this.configuration.backupPath) {
+				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
 			} else if (this.environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
@@ -339,10 +349,12 @@ class DesktopMain extends Disposable {
 		} catch (error) {
 			onUnexpectedError(error);
 		}
+
 		return;
 	}
 
 	private async createHash(resource: URI): Promise<string> {
+
 		// Return early the folder is not local
 		if (resource.scheme !== Schemas.file) {
 			return createHash('md5').update(resource.toString()).digest('hex');
@@ -398,6 +410,20 @@ class DesktopMain extends Disposable {
 		}
 	}
 
+	private async createKeyboardLayoutService(logService: ILogService, mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
+		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+
+		try {
+			await keyboardLayoutService.initialize();
+
+			return keyboardLayoutService;
+		} catch (error) {
+			onUnexpectedError(error);
+			logService.error(error);
+
+			return keyboardLayoutService;
+		}
+	}
 }
 
 export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {

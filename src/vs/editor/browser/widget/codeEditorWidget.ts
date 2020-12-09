@@ -1027,6 +1027,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._triggerEditorCommand(source, handlerId, payload)) {
 			return;
 		}
+
+		this._commandService.executeCommand(handlerId, payload);
 	}
 
 	private _startComposition(): void {
@@ -1117,6 +1119,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return false;
 		}
 		this._modelData.model.pushStackElement();
+		return true;
+	}
+
+	public popUndoStop(): boolean {
+		if (!this._modelData) {
+			return false;
+		}
+		if (this._configuration.options.get(EditorOption.readOnly)) {
+			// read only editor => sorry!
+			return false;
+		}
+		this._modelData.model.popStackElement();
 		return true;
 	}
 
@@ -1720,6 +1734,7 @@ class EditorContextKeysManager extends Disposable {
 	private readonly _editorTextFocus: IContextKey<boolean>;
 	private readonly _editorTabMovesFocus: IContextKey<boolean>;
 	private readonly _editorReadonly: IContextKey<boolean>;
+	private readonly _inDiffEditor: IContextKey<boolean>;
 	private readonly _editorColumnSelection: IContextKey<boolean>;
 	private readonly _hasMultipleSelections: IContextKey<boolean>;
 	private readonly _hasNonEmptySelection: IContextKey<boolean>;
@@ -1742,6 +1757,7 @@ class EditorContextKeysManager extends Disposable {
 		this._editorTextFocus = EditorContextKeys.editorTextFocus.bindTo(contextKeyService);
 		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
+		this._inDiffEditor = EditorContextKeys.inDiffEditor.bindTo(contextKeyService);
 		this._editorColumnSelection = EditorContextKeys.columnSelection.bindTo(contextKeyService);
 		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
@@ -1770,6 +1786,7 @@ class EditorContextKeysManager extends Disposable {
 
 		this._editorTabMovesFocus.set(options.get(EditorOption.tabFocusMode));
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
+		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
 	}
 

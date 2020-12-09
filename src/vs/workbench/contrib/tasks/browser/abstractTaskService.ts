@@ -76,9 +76,10 @@ import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
+import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQuickPick, QUICKOPEN_SKIP_CONFIG, configureTaskIcon } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -576,7 +577,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (!values) {
 				return undefined;
 			}
-			return values.find(task => task.matches(key, compareId));
+			values = values.filter(task => task.matches(key, compareId)).sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+			return values.length > 0 ? values[0] : undefined;
 		});
 	}
 
@@ -848,7 +850,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
 		}
-		this.storageService.store2(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private openDocumentation(): void {
@@ -1702,7 +1704,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						return;
 					}
 
-					if (contributed.length === 0) {
+					if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 						result.add(key, ...folderTasks.set.tasks);
 					} else {
 						let configurations = folderTasks.configurations;
@@ -2200,7 +2202,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			for (let task of tasks) {
 				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
-				entry.buttons = [{ iconClass: 'codicon-gear', tooltip: nls.localize('configureTask', "Configure Task") }];
+				entry.buttons = [{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") }];
 				if (selectedEntry && (task === selectedEntry.task)) {
 					entries.unshift(selectedEntry);
 				} else {
@@ -2384,7 +2386,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				label: nls.localize('TaskService.notAgain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					this.storageService.store2(AbstractTaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE, StorageTarget.USER);
+					this.storageService.store(AbstractTaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE, StorageTarget.USER);
 					this._showIgnoreMessage = false;
 				}
 			}]

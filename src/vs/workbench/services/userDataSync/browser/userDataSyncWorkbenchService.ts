@@ -30,6 +30,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -266,9 +267,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		const syncTitle = SYNC_TITLE;
-		const title = `${syncTitle} [(${localize('details', "details")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
+		const title = `${syncTitle} [(${localize('show log', "show log")})](command:${SHOW_SYNC_LOG_COMMAND_ID})`;
 		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
-		const disposable = this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
+		const disposable = isWeb
+			? Disposable.None /* In web long running shutdown handlers will not work */
+			: this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
 
 		try {
 			await this.syncBeforeTurningOn(title, manualSyncTask);
@@ -606,7 +609,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			if (cachedSessionId === undefined) {
 				this.storageService.remove(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 			} else {
-				this.storageService.store2(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
 	}
@@ -620,7 +623,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private set useWorkbenchSessionId(useWorkbenchSession: boolean) {
-		this.storageService.store2(UserDataSyncWorkbenchService.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, !useWorkbenchSession, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(UserDataSyncWorkbenchService.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, !useWorkbenchSession, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 }

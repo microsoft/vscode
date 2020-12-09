@@ -107,9 +107,7 @@ class DecorationStyles {
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
 
-	constructor(
-		private _themeService: IThemeService,
-	) {
+	constructor(private readonly _themeService: IThemeService) {
 		this._themeService.onDidColorThemeChange(this._onThemeChange, this, this._dispoables);
 	}
 
@@ -150,7 +148,7 @@ class DecorationStyles {
 			badgeClassName,
 			tooltip,
 			dispose: () => {
-				if (rule && rule.release()) {
+				if (rule?.release()) {
 					this._decorationRules.delete(key);
 					rule.removeCSSRules(this._styleElement);
 					rule = undefined;
@@ -169,13 +167,13 @@ class DecorationStyles {
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
-	private readonly _data = TernarySearchTree.forUris2<true>(_uri => true); // events ignore all path casings
+	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
 	affectsResource(uri: URI): boolean {
 		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]) {
+	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]): FileDecorationChangeEvent {
 		if (!last) {
 			last = new FileDecorationChangeEvent();
 		}
@@ -212,7 +210,7 @@ class DecorationProviderWrapper {
 		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
 
-		this.data = TernarySearchTree.forUris2(uri => uriIdentityService.extUri.ignorePathCasing(uri));
+		this.data = TernarySearchTree.forUris(uri => uriIdentityService.extUri.ignorePathCasing(uri));
 
 		this._dispoable = this.provider.onDidChange(uris => {
 			if (!uris) {
@@ -238,7 +236,7 @@ class DecorationProviderWrapper {
 	}
 
 	knowsAbout(uri: URI): boolean {
-		return Boolean(this.data.get(uri)) || Boolean(this.data.findSuperstr(uri));
+		return this.data.has(uri) || Boolean(this.data.findSuperstr(uri));
 	}
 
 	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IDecorationData, isChild: boolean) => void): void {
@@ -259,9 +257,9 @@ class DecorationProviderWrapper {
 			// (resolved) children
 			const iter = this.data.findSuperstr(uri);
 			if (iter) {
-				for (let item = iter.next(); !item.done; item = iter.next()) {
-					if (item.value && !(item.value instanceof DecorationDataRequest)) {
-						callback(item.value, true);
+				for (const [, value] of iter) {
+					if (value && !(value instanceof DecorationDataRequest)) {
+						callback(value, true);
 					}
 				}
 			}

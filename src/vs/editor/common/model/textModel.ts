@@ -387,6 +387,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._isDisposed = true;
 		super.dispose();
 		this._isDisposing = false;
+		// Manually release reference to previous text buffer to avoid large leaks
+		// in case someone leaks a TextModel reference
+		this._buffer = createTextBuffer('', this._options.defaultEOL);
 	}
 
 	private _assertNotDisposed(): void {
@@ -830,6 +833,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.getEOL();
 	}
 
+	public getEndOfLineSequence(): model.EndOfLineSequence {
+		this._assertNotDisposed();
+		return (
+			this._buffer.getEOL() === '\n'
+				? model.EndOfLineSequence.LF
+				: model.EndOfLineSequence.CRLF
+		);
+	}
+
 	public getLineMinColumn(lineNumber: number): number {
 		this._assertNotDisposed();
 		return 1;
@@ -1211,6 +1223,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public pushStackElement(): void {
 		this._commandManager.pushStackElement();
+	}
+
+	public popStackElement(): void {
+		this._commandManager.popStackElement();
 	}
 
 	public pushEOL(eol: model.EndOfLineSequence): void {
@@ -1868,12 +1884,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
-	public hasSemanticTokens(): boolean {
+	public hasCompleteSemanticTokens(): boolean {
 		return this._tokens2.isComplete();
 	}
 
+	public hasSomeSemanticTokens(): boolean {
+		return !this._tokens2.isEmpty();
+	}
+
 	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
-		if (this.hasSemanticTokens()) {
+		if (this.hasCompleteSemanticTokens()) {
 			return;
 		}
 		const changedRange = this._tokens2.setPartial(range, tokens);

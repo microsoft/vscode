@@ -6,8 +6,6 @@
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareSubstringIgnoreCase, compare, compareSubstring, compareIgnoreCase } from 'vs/base/common/strings';
-import { isLinux } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -74,6 +72,57 @@ export class StringIterator implements IKeyIterator<string> {
 
 	value(): string {
 		return this._value[this._pos];
+	}
+}
+
+export class ConfigKeysIterator implements IKeyIterator<string> {
+
+	private _value!: string;
+	private _from!: number;
+	private _to!: number;
+
+	constructor(
+		private readonly _caseSensitive: boolean = true
+	) { }
+
+	reset(key: string): this {
+		this._value = key;
+		this._from = 0;
+		this._to = 0;
+		return this.next();
+	}
+
+	hasNext(): boolean {
+		return this._to < this._value.length;
+	}
+
+	next(): this {
+		// this._data = key.split(/[\\/]/).filter(s => !!s);
+		this._from = this._to;
+		let justSeps = true;
+		for (; this._to < this._value.length; this._to++) {
+			const ch = this._value.charCodeAt(this._to);
+			if (ch === CharCode.Period) {
+				if (justSeps) {
+					this._from++;
+				} else {
+					break;
+				}
+			} else {
+				justSeps = false;
+			}
+		}
+		return this;
+	}
+
+	cmp(a: string): number {
+		return this._caseSensitive
+			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
+			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
+	}
+
+	value(): string {
+		return this._value.substring(this._from, this._to);
 	}
 }
 
@@ -228,14 +277,7 @@ class TernarySearchTreeNode<K, V> {
 
 export class TernarySearchTree<K, V> {
 
-	/**
-	 * @deprecated
-	 */
-	static forUris<E>(ignorePathCasing?: boolean): TernarySearchTree<URI, E> {
-		return new TernarySearchTree<URI, E>(new UriIterator(key => ignorePathCasing ?? (key.scheme === Schemas.file && isLinux)));
-	}
-
-	static forUris2<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
+	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
@@ -245,6 +287,10 @@ export class TernarySearchTree<K, V> {
 
 	static forStrings<E>(): TernarySearchTree<string, E> {
 		return new TernarySearchTree<string, E>(new StringIterator());
+	}
+
+	static forConfigKeys<E>(): TernarySearchTree<string, E> {
+		return new TernarySearchTree<string, E>(new ConfigKeysIterator());
 	}
 
 	private _iter: IKeyIterator<K>;
@@ -305,6 +351,10 @@ export class TernarySearchTree<K, V> {
 	}
 
 	get(key: K): V | undefined {
+		return this._getNode(key)?.value;
+	}
+
+	private _getNode(key: K) {
 		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -323,7 +373,12 @@ export class TernarySearchTree<K, V> {
 				break;
 			}
 		}
-		return node ? node.value : undefined;
+		return node;
+	}
+
+	has(key: K): boolean {
+		const node = this._getNode(key);
+		return !(node?.value === undefined && node?.mid === undefined);
 	}
 
 	delete(key: K): void {
@@ -356,11 +411,18 @@ export class TernarySearchTree<K, V> {
 				stack.push([0, node]);
 				node = node.mid;
 			} else {
-				// remove element
-				node.value = undefined;
+				if (superStr) {
+					// remove children
+					node.left = undefined;
+					node.mid = undefined;
+					node.right = undefined;
+				} else {
+					// remove element
+					node.value = undefined;
+				}
 
 				// clean up empty nodes
-				while (stack.length > 0 && (node.isEmpty() || superStr)) {
+				while (stack.length > 0 && node.isEmpty()) {
 					let [dir, parent] = stack.pop()!;
 					switch (dir) {
 						case 1: parent.left = undefined; break;
@@ -398,7 +460,7 @@ export class TernarySearchTree<K, V> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: K): Iterator<V> | undefined {
+	findSuperstr(key: K): IterableIterator<[K, V]> | undefined {
 		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -418,7 +480,7 @@ export class TernarySearchTree<K, V> {
 				if (!node.mid) {
 					return undefined;
 				} else {
-					return this._values(node.mid);
+					return this._entries(node.mid);
 				}
 			}
 		}
@@ -433,12 +495,6 @@ export class TernarySearchTree<K, V> {
 
 	*[Symbol.iterator](): IterableIterator<[K, V]> {
 		yield* this._entries(this._root);
-	}
-
-	private *_values(node: TernarySearchTreeNode<K, V>): IterableIterator<V> {
-		for (const [, value] of this._entries(node)) {
-			yield value;
-		}
 	}
 
 	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {

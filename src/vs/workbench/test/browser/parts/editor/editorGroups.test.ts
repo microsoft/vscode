@@ -157,6 +157,8 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
 	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+	setPreferredName(name: string): void { }
+	setPreferredDescription(description: string): void { }
 	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }

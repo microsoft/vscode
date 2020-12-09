@@ -11,7 +11,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -251,8 +251,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				if (this.uriIdentityService.extUri.isEqual(source, resource)) {
 					targetResource = target; // file got moved
 				} else {
-					const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
-					const index = indexOfPath(resource.path, source.path, ignoreCase);
+					const index = indexOfPath(resource.path, source.path, this.uriIdentityService.extUri.ignorePathCasing(resource));
 					targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 				}
 
@@ -880,7 +879,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// File
 				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
 				}
 
 				// Resource
@@ -895,6 +894,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// Files
 				else if (!(cachedInput instanceof ResourceEditorInput)) {
 					cachedInput.setPreferredResource(preferredResource);
+
+					if (resourceEditorInput.label) {
+						cachedInput.setPreferredName(resourceEditorInput.label);
+					}
+
+					if (resourceEditorInput.description) {
+						cachedInput.setPreferredDescription(resourceEditorInput.description);
+					}
 
 					if (resourceEditorInput.encoding) {
 						cachedInput.setPreferredEncoding(resourceEditorInput.encoding);

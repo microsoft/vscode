@@ -16,10 +16,12 @@ import 'vs/workbench/workbench.common.main';
 
 //#endregion
 
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 
-registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
+//#region --- workbench parts
+
+import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
+
+//#endregion
 
 
 //#region --- workbench services
@@ -44,6 +46,7 @@ import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityServic
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
+import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 
@@ -51,9 +54,12 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 
 registerSingleton(ITimerService, TimerService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
+registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
 
 //#endregion
 

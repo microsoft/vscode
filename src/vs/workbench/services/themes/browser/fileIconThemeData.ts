@@ -156,7 +156,7 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
-		storageService.store2(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 

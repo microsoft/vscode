@@ -260,14 +260,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
-	// --- on type rename
+	// --- linked editing
 
-	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], wordPattern?: IRegExpDto): void {
-		const revivedWordPattern = wordPattern ? MainThreadLanguageFeatures._reviveRegExp(wordPattern) : undefined;
-		this._registrations.set(handle, modes.OnTypeRenameProviderRegistry.register(selector, <modes.OnTypeRenameProvider>{
-			wordPattern: revivedWordPattern,
-			provideOnTypeRenameRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> => {
-				const res = await this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, modes.LinkedEditingRangeProviderRegistry.register(selector, <modes.LinkedEditingRangeProvider>{
+			provideLinkedEditingRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> => {
+				const res = await this._proxy.$provideLinkedEditingRanges(handle, model.uri, position, token);
 				if (res) {
 					return {
 						ranges: res.ranges,

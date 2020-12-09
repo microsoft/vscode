@@ -61,6 +61,8 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	isAfterLines(verticalOffset: number): boolean;
+	isInTopPadding(verticalOffset: number): boolean;
+	isInBottomPadding(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
@@ -162,6 +164,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
+	onCompositionStart(): void;
+	onCompositionEnd(): void;
 	onDidColorThemeChange(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];

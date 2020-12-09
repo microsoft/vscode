@@ -105,7 +105,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	constructor(
 		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
-		@IExtHostWorkspace private _workspaceService: IExtHostWorkspace,
+		@IExtHostWorkspace protected _workspaceService: IExtHostWorkspace,
 		@IExtHostExtensionService private _extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors private _editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration protected _configurationService: IExtHostConfiguration,
@@ -930,7 +930,7 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, env?: IProcessEnvironment) {
+	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, env?: IProcessEnvironment, workspaceService?: IExtHostWorkspace) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
 				const found = folders.filter(f => f.name === folderName);
@@ -942,7 +942,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			getWorkspaceFolderCount: (): number => {
 				return folders.length;
 			},
-			getConfigurationValue: (folderUri: URI, section: string): string | undefined => {
+			getConfigurationValue: (folderUri: URI | undefined, section: string): string | undefined => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
 			getExecPath: (): string | undefined => {
@@ -953,6 +953,18 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 					const activeEditor = editorService.activeEditor();
 					if (activeEditor) {
 						return path.normalize(activeEditor.document.uri.fsPath);
+					}
+				}
+				return undefined;
+			},
+			getWorkspaceFolderPathForFile: (): string | undefined => {
+				if (editorService && workspaceService) {
+					const activeEditor = editorService.activeEditor();
+					if (activeEditor) {
+						const ws = workspaceService.getWorkspaceFolder(activeEditor.document.uri);
+						if (ws) {
+							return path.normalize(ws.uri.fsPath);
+						}
 					}
 				}
 				return undefined;
@@ -975,7 +987,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, undefined, env, !editorService);
+		}, undefined, env);
 	}
 }
 

@@ -14,7 +14,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -25,6 +25,8 @@ import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+
+export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -47,7 +49,7 @@ export interface ITemplateData {
 }
 
 export class Delegate implements IListVirtualDelegate<IExtension> {
-	getHeight() { return 62; }
+	getHeight() { return EXTENSION_LIST_ELEMENT_HEIGHT; }
 	getTemplateId() { return 'extension'; }
 }
 
@@ -110,6 +112,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
+			this.instantiationService.createInstance(WebInstallAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
 			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ManageExtensionAction)
@@ -221,10 +224,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				});
 			}
 		}, this, data.extensionDisposables);
+	}
 
+	disposeElement(extension: IExtension, index: number, data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.disposables = dispose(data.disposables);
 	}
 }

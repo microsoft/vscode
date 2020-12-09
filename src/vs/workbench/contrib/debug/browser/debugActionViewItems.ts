@@ -12,7 +12,7 @@ import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selec
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -20,6 +20,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 
@@ -68,7 +69,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
-		this.start = dom.append(container, $('.codicon.codicon-debug-start'));
+		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		this.start.title = this.action.label;
 		this.start.setAttribute('role', 'button');
 		this.start.tabIndex = 0;
