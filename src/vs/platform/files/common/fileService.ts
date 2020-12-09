@@ -725,16 +725,16 @@ export class FileService extends Disposable implements IFileService {
 
 		// Check if source is equal or parent to target (requires providers to be the same)
 		if (sourceProvider === targetProvider) {
-			const { extUri, isPathCaseSensitive } = this.getExtUri(sourceProvider);
+			const { providerExtUri, isPathCaseSensitive } = this.getExtUri(sourceProvider);
 			if (!isPathCaseSensitive) {
-				isSameResourceWithDifferentPathCase = extUri.isEqual(source, target);
+				isSameResourceWithDifferentPathCase = providerExtUri.isEqual(source, target);
 			}
 
 			if (isSameResourceWithDifferentPathCase && mode === 'copy') {
 				throw new Error(localize('unableToMoveCopyError1', "Unable to copy when source '{0}' is same as target '{1}' with different path case on a case insensitive file system", this.resourceForError(source), this.resourceForError(target)));
 			}
 
-			if (!isSameResourceWithDifferentPathCase && extUri.isEqualOrParent(target, source)) {
+			if (!isSameResourceWithDifferentPathCase && providerExtUri.isEqualOrParent(target, source)) {
 				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source '{0}' is parent of target '{1}'.", this.resourceForError(source), this.resourceForError(target)));
 			}
 		}
@@ -751,8 +751,8 @@ export class FileService extends Disposable implements IFileService {
 			// Special case: if the target is a parent of the source, we cannot delete
 			// it as it would delete the source as well. In this case we have to throw
 			if (sourceProvider === targetProvider) {
-				const { extUri } = this.getExtUri(sourceProvider);
-				if (extUri.isEqualOrParent(source, target)) {
+				const { providerExtUri } = this.getExtUri(sourceProvider);
+				if (providerExtUri.isEqualOrParent(source, target)) {
 					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy '{0}' into '{1}' since a file would replace the folder it is contained in.", this.resourceForError(source), this.resourceForError(target)));
 				}
 			}
@@ -761,11 +761,11 @@ export class FileService extends Disposable implements IFileService {
 		return { exists, isSameResourceWithDifferentPathCase };
 	}
 
-	private getExtUri(provider: IFileSystemProvider): { extUri: IExtUri, isPathCaseSensitive: boolean } {
+	private getExtUri(provider: IFileSystemProvider): { providerExtUri: IExtUri, isPathCaseSensitive: boolean } {
 		const isPathCaseSensitive = this.isPathCaseSensitive(provider);
 
 		return {
-			extUri: isPathCaseSensitive ? extUri : extUriIgnorePathCase,
+			providerExtUri: isPathCaseSensitive ? extUri : extUriIgnorePathCase,
 			isPathCaseSensitive
 		};
 	}
@@ -791,8 +791,8 @@ export class FileService extends Disposable implements IFileService {
 		const directoriesToCreate: string[] = [];
 
 		// mkdir until we reach root
-		const { extUri } = this.getExtUri(provider);
-		while (!extUri.isEqual(directory, dirname(directory))) {
+		const { providerExtUri } = this.getExtUri(provider);
+		while (!providerExtUri.isEqual(directory, dirname(directory))) {
 			try {
 				const stat = await provider.stat(directory);
 				if ((stat.type & FileType.Directory) === 0) {
@@ -940,12 +940,12 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private toWatchKey(provider: IFileSystemProvider, resource: URI, options: IWatchOptions): string {
-		const { extUri } = this.getExtUri(provider);
+		const { providerExtUri } = this.getExtUri(provider);
 
 		return [
-			extUri.getComparisonKey(resource), 	// lowercase path if the provider is case insensitive
-			String(options.recursive),			// use recursive: true | false as part of the key
-			options.excludes.join()				// use excludes as part of the key
+			providerExtUri.getComparisonKey(resource), 	// lowercase path if the provider is case insensitive
+			String(options.recursive),					// use recursive: true | false as part of the key
+			options.excludes.join()						// use excludes as part of the key
 		].join();
 	}
 
@@ -963,8 +963,8 @@ export class FileService extends Disposable implements IFileService {
 	private readonly writeQueues: Map<string, Queue<void>> = new Map();
 
 	private ensureWriteQueue(provider: IFileSystemProvider, resource: URI): Queue<void> {
-		const { extUri } = this.getExtUri(provider);
-		const queueKey = extUri.getComparisonKey(resource);
+		const { providerExtUri } = this.getExtUri(provider);
+		const queueKey = providerExtUri.getComparisonKey(resource);
 
 		// ensure to never write to the same resource without finishing
 		// the one write. this ensures a write finishes consistently

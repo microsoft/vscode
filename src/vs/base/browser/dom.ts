@@ -451,6 +451,8 @@ export interface IDimension {
 
 export class Dimension implements IDimension {
 
+	static readonly None = new Dimension(0, 0);
+
 	constructor(
 		public readonly width: number,
 		public readonly height: number,
@@ -1398,7 +1400,12 @@ function toBinary(str: string): string {
 	for (let i = 0; i < codeUnits.length; i++) {
 		codeUnits[i] = str.charCodeAt(i);
 	}
-	return String.fromCharCode(...new Uint8Array(codeUnits.buffer));
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
 }
 
 /**

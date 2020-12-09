@@ -7,7 +7,7 @@ import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindo
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
+import { OpenContext } from 'vs/platform/windows/electron-main/window';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { resolveShellEnv } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -34,7 +34,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
-import { ProxyAuthHandler2 } from 'vs/code/electron-main/auth2';
 import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -71,7 +70,7 @@ import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/ext
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
-import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
@@ -454,12 +453,8 @@ export class CodeApplication extends Disposable {
 			this._register(server);
 		}
 
-		// Setup Auth Handler (TODO@ben remove old auth handler eventually)
-		if (this.configurationService.getValue('window.enableExperimentalProxyLoginDialog') === false) {
-			this._register(new ProxyAuthHandler());
-		} else {
-			this._register(appInstantiationService.createInstance(ProxyAuthHandler2));
-		}
+		// Setup Auth Handler
+		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
 
 		// Open Windows
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
@@ -902,7 +897,12 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Remote Authorities
-		this.handleRemoteAuthorities();
+		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
+			callback({
+				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
+				method: request.method
+			});
+		});
 
 		// Initialize update service
 		const updateService = accessor.get(IUpdateService);
@@ -934,19 +934,11 @@ export class CodeApplication extends Disposable {
 					'}'
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+
 				await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {
 			this.logService.error(error);
 		}
-	}
-
-	private handleRemoteAuthorities(): void {
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
-		});
 	}
 }
