@@ -411,6 +411,9 @@ class LinuxAutomaticPortForwarding extends Disposable {
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, value.host, value.port)) {
 				return undefined;
 			}
+			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, value.host, value.port)) {
+				return undefined;
+			}
 			const forwarded = await this.remoteExplorerService.forward(value);
 			if (forwarded) {
 				this.autoForwarded.add(address);
