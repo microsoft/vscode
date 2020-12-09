@@ -1431,34 +1431,31 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Handle wrapping tabs according to setting:
-		// - enabled: only add class if tabs wrap
+		// - enabled: only add class if tabs wrap and don't exceed available height
 		// - disabled: remove class
 		if (this.accessor.partOptions.experimentalWrapTabs) {
-
-			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			const tabsWrapMultiLine = tabsContainer.classList.contains('wrap');
-			if (tabsWrapMultiLine) {
-				if (tabsContainer.offsetHeight > dimensions.available.height) {
-					tabsContainer.classList.remove('wrap');
-				}
-			}
+			let tabsWrapMultiLine = tabsContainer.classList.contains('wrap');
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
-			else {
-				if (allTabsWidth > visibleTabsContainerWidth) {
-					tabsContainer.classList.add('wrap');
-				}
+			if (!tabsWrapMultiLine && allTabsWidth > visibleTabsContainerWidth) {
+				tabsContainer.classList.add('wrap');
+				tabsWrapMultiLine = true;
 			}
 
-			// if we do not exceed the tabs container width, we cannot simply remove
+			// Tabs wrap multiline: remove wrapping if height exceeds available height
+			if (tabsWrapMultiLine && tabsContainer.offsetHeight > dimensions.available.height) {
+				tabsContainer.classList.remove('wrap');
+				tabsWrapMultiLine = false;
+			}
+
+			// If we do not exceed the tabs container width, we cannot simply remove
 			// the wrap class because by wrapping tabs, they reduce their size
 			// and we would otherwise constantly add and remove the class. As such
 			// we need to check if the height of the tabs container is back to normal
 			// and then remove the wrap class.
-			if (allTabsWidth === visibleTabsContainerWidth && tabsContainer.classList.contains('wrap')) {
-				if (tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
-					tabsContainer.classList.remove('wrap');
-				}
+			if (allTabsWidth === visibleTabsContainerWidth && tabsWrapMultiLine && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
+				tabsContainer.classList.remove('wrap');
+				tabsWrapMultiLine = false;
 			}
 		} else {
 			tabsContainer.classList.remove('wrap');
