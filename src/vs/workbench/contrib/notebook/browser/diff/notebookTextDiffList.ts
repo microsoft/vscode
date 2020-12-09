@@ -23,7 +23,6 @@ import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/edit
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -34,6 +33,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {

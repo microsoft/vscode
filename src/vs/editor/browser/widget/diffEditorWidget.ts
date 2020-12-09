@@ -20,7 +20,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -217,8 +217,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _maxComputationTime: number;
 	private _renderIndicators: boolean;
 	private _enableSplitViewResizing: boolean;
-	private _wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded' | undefined;
-	private _wordWrapMinified: boolean | undefined;
 	private _renderOverviewRuler: boolean;
 	private _strategy!: DiffEditorWidgetStyle;
 
