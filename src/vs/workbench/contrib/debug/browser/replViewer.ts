@@ -306,15 +306,15 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
 	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
+		const rowHeight = Math.ceil(1.3 * config.console.fontSize);
 		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
 		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
 
 		// Calculate a rough overestimation for the height
-		// For every 30 characters increase the number of lines needed
+		// For every 70 characters increase the number of lines needed beyond the first
 		if (hasValue(element)) {
 			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 30));
+			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 70));
 
 			return valueRows * rowHeight;
 		}
