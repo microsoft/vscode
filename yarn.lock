@@ -9525,7 +9525,6 @@ tsec@googleinterns/tsec#630b53fe2b23815c28dd219119cc98dbd59e29b2:
   resolved "https://codeload.github.com/googleinterns/tsec/tar.gz/630b53fe2b23815c28dd219119cc98dbd59e29b2"
   dependencies:
     "@types/node" "^13.13.5"
-    typescript "^3.9.2"
 
 tslib@^1.8.1, tslib@^1.9.0:
   version "1.9.3"
@@ -9599,6 +9598,11 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
+typescript@4.2.0-dev.20201207:
+  version "4.2.0-dev.20201207"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201207.tgz#19a34bc7d2d42a7467c512c63f135587ac848807"
+  integrity sha512-fPHBDi/fgdX4WiRC7cFVv/aL069PgUaDWuLYUSHatWZujz/Lkc9bkf/zL3rKdNSCxlNKAMs3fhJv/yompOphZA==
+
 typescript@^2.6.2:
   version "2.6.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
@@ -9608,11 +9612,6 @@ typescript@^3.9.2:
   version "3.9.7"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.7.tgz#98d600a5ebdc38f40cb277522f12dc800e9e25fa"
   integrity sha512-BLbiRkiBzAwsjut4x/dsibSTB6yWpwT5qWmC2OfuCg3GgVQCSgMs4vEctYPhsaGtd0AeuuHMkjZ2h2WG8MSzRw==
-
-typescript@^4.2.0-dev.20201119:
-  version "4.2.0-dev.20201119"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201119.tgz#d4a43511cd9931adac05e1a47b6425f6b0e76cc3"
-  integrity sha512-HIgv+D/0VpVYRTbcVVf9oac/0GtLKMqaufTcPgohNaFWlCOh4lq8syefANgENXTG5Q4VEC6xwDGzHW6EJAVr3A==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
