@@ -20,7 +20,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode is:issue closed:>$since",
+    "value": "//repo:microsoft/vscode is:issue closed:>$since",
     "editable": true
   },
   {
@@ -176,20 +176,17 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# vscode-pull-request-github",
-    "editable": true
+    "value": "# vscode-pull-request-github"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-pull-request-github is:issue closed:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-pull-request-github is:issue closed:>$since"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-test is:issue created:>$since",
-    "editable": true
+    "value": "repo:microsoft/vscode-test is:issue created:>$since"
   },
   {
     "kind": 1,
