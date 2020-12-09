@@ -134,9 +134,7 @@ export class TabsTitleControl extends TitleControl {
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
-		// Tabs and Actions Container: depending on the multi-line setting:
-		// off: single row with flex side-by-side
-		//  on: multiple rows with flex side-by-side
+		// Tabs and Actions Container (are on a single row with flex side-by-side)
 		this.tabsAndActionsContainer = document.createElement('div');
 		this.tabsAndActionsContainer.classList.add('tabs-and-actions-container');
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
@@ -563,7 +561,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
-			oldOptions.multiLineTabs !== newOptions.multiLineTabs
+			oldOptions.wrapTabs !== newOptions.wrapTabs
 		) {
 			this.redraw();
 		}
@@ -1269,7 +1267,7 @@ export class TabsTitleControl extends TitleControl {
 		// Multi-line: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		let height: number;
-		if (this.accessor.partOptions.multiLineTabs && this.tabsAndActionsContainer?.classList.contains('multi-line')) {
+		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrap')) {
 			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
 			height = TabsTitleControl.TAB_HEIGHT;
@@ -1295,10 +1293,10 @@ export class TabsTitleControl extends TitleControl {
 			return Dimension.None;
 		}
 
-		// Layout tabs synchronously if multi-line tabs are enabled so that
+		// Layout tabs synchronously if wrapping tabs are enabled so that
 		// the correct height of the title area can be returned to the title
 		// control
-		if (this.accessor.partOptions.multiLineTabs) {
+		if (this.accessor.partOptions.wrapTabs) {
 			this.layoutSync(dimensions);
 
 			const newHeight = this.getDimensions().height;
@@ -1409,38 +1407,38 @@ export class TabsTitleControl extends TitleControl {
 			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
 
-		// Handle multi-line tabs according to setting:
+		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap
 		// - disabled: remove class
-		if (this.accessor.partOptions.multiLineTabs) {
+		if (this.accessor.partOptions.wrapTabs) {
 
 			// Tabs wrap multiline: remove wrapping if height exceeds available height
-			const tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('multi-line');
+			const tabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrap');
 			if (tabsWrapMultiLine) {
 				if (tabsContainer.offsetHeight > dimensions.available.height) {
-					tabsAndActionsContainer.classList.remove('multi-line');
+					tabsAndActionsContainer.classList.remove('wrap');
 				}
 			}
 
 			// Tabs do not wrap multiline: add wrapping if tabs exceed the tabs container width
 			else {
 				if (allTabsWidth > visibleTabsContainerWidth) {
-					tabsAndActionsContainer.classList.add('multi-line');
+					tabsAndActionsContainer.classList.add('wrap');
 				}
 			}
 
 			// if we do not exceed the tabs container width, we cannot simply remove
-			// the multi-line class because by wrapping tabs, they reduce their size
+			// the wrap class because by wrapping tabs, they reduce their size
 			// and we would otherwise constantly add and remove the class. As such
 			// we need to check if the height of the tabs container is back to normal
-			// and then remove the multi-line class.
-			if (allTabsWidth === visibleTabsContainerWidth && tabsAndActionsContainer.classList.contains('multi-line')) {
+			// and then remove the wrap class.
+			if (allTabsWidth === visibleTabsContainerWidth && tabsAndActionsContainer.classList.contains('wrap')) {
 				if (tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) {
-					tabsAndActionsContainer.classList.remove('multi-line');
+					tabsAndActionsContainer.classList.remove('wrap');
 				}
 			}
 		} else {
-			tabsAndActionsContainer.classList.remove('multi-line');
+			tabsAndActionsContainer.classList.remove('wrap');
 		}
 
 		let activeTabPosX: number | undefined;

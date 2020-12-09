@@ -33,9 +33,9 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
 			},
-			'workbench.editor.multiLineTabs': {
+			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
-				'description': nls.localize('multiLineTabs', "Controls whether tabs should be wrapped to multi-line or not."),
+				'description': nls.localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when needed or a scrollbar appears."),
 				'default': false
 			},
 			'workbench.editor.scrollToSwitchTabs': {

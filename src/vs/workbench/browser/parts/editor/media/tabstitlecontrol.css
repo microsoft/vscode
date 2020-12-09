@@ -65,17 +65,6 @@
 	cursor: default;
 }
 
-/* Title Container (multi-line wrapping) */
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container {
-	height: auto;
-	flex-wrap: wrap; /* Enable wrapping via flex layout */
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container > .tab {
-	flex-grow: 1; /* Grow the tabs to fill each row for a more homogeneous look when tabs wrap */
-}
-
 /* Tabs Container */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
@@ -92,6 +81,11 @@
 	display: none; /* Chrome + Safari: hide scrollbar */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrap > .monaco-scrollable-element > .tabs-container {
+	height: auto;
+	flex-wrap: wrap; /* wrapping enabled */
+}
+
 /* Tab */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
@@ -102,6 +96,10 @@
 	height: 35px;
 	box-sizing: border-box;
 	padding-left: 10px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrap > .monaco-scrollable-element > .tabs-container > .tab {
+	flex-grow: 1; /* Grow the tabs to fill each row for a more homogeneous look when tabs wrap */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-right,
