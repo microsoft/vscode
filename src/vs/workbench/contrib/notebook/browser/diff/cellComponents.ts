@@ -28,6 +28,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Delayer } from 'vs/base/common/async';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -1138,8 +1139,24 @@ export class ModifiedCell extends AbstractCellRenderer {
 		const modifiedRef = await modifiedCell.resolveTextModelRef();
 		const textModel = originalRef.object.textEditorModel;
 		const modifiedTextModel = modifiedRef.object.textEditorModel;
-		this._register(originalRef);
-		this._register(modifiedRef);
+		this._register({
+			dispose: () => {
+				const delayer = new Delayer<void>(5000);
+				delayer.trigger(() => {
+					originalRef.dispose();
+					delayer.dispose();
+				});
+			}
+		});
+		this._register({
+			dispose: () => {
+				const delayer = new Delayer<void>(5000);
+				delayer.trigger(() => {
+					modifiedRef.dispose();
+					delayer.dispose();
+				});
+			}
+		});
 
 		this._editor!.setModel({
 			original: textModel,
