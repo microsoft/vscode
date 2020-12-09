@@ -2022,7 +2022,7 @@ export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
 	dark: notebookCellBorder,
 	light: notebookCellBorder,
 	hc: contrastBorder
-}, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focusd."));
+}, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focused."));
 
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	dark: focusBorder,
