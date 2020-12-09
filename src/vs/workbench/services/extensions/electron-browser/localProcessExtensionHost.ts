@@ -45,6 +45,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
+import { Readable, Writable } from 'stream';
+import { StringDecoder } from 'string_decoder';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -53,6 +55,11 @@ export interface ILocalProcessExtensionHostInitData {
 
 export interface ILocalProcessExtensionHostDataProvider {
 	getInitData(): Promise<ILocalProcessExtensionHostInitData>;
+}
+
+const enum NativeLogMarkers {
+	Start = 'START_NATIVE_LOG',
+	End = 'END_NATIVE_LOG',
 }
 
 export class LocalProcessExtensionHost implements IExtensionHost {
@@ -224,13 +231,11 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
-				this._extensionHostProcess.stdout!.setEncoding('utf8');
-				this._extensionHostProcess.stderr!.setEncoding('utf8');
-				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout!, 'data');
-				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
+				const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.stdout!);
+				const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.stderr!);
 				const onOutput = Event.any(
-					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+					Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
+					Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
 				);
 
 				// Debounce all output, so we can render it in the Chrome console as a group
@@ -517,6 +522,44 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		this._onExit.fire([code, signal]);
+	}
+
+	private _handleProcessOutputStream(stream: Readable) {
+		let last = '';
+		let isOmitting = false;
+		const event = new Emitter<string>();
+		const decoder = new StringDecoder('utf-8');
+		stream.pipe(new Writable({
+			write(chunk, _encoding, callback) {
+				// not a fancy approach, but this is the same approach used by the split2
+				// module which is well-optimized (https://github.com/mcollina/split2)
+				last += typeof chunk === 'string' ? chunk : decoder.write(chunk);
+				let lines = last.split(/\r?\n/g);
+				last = lines.pop()!;
+
+				// protected against an extension spamming and leaking memory if no new line is written.
+				if (last.length > 10_000) {
+					lines.push(last);
+					last = '';
+				}
+
+				for (const line of lines) {
+					if (isOmitting) {
+						if (line === NativeLogMarkers.End) {
+							isOmitting = false;
+						}
+					} else if (line === NativeLogMarkers.Start) {
+						isOmitting = true;
+					} else if (line.length) {
+						event.fire(line + '\n');
+					}
+				}
+
+				callback();
+			}
+		}));
+
+		return event;
 	}
 
 	public async enableInspectPort(): Promise<boolean> {

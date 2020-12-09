@@ -153,7 +153,11 @@ function pipeLoggingToParent() {
 			const original = console[method];
 			console[method] = function () {
 				safeSendConsoleMessage(severity, safeToArray(arguments));
+
+				const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
+				stream.write('\nSTART_NATIVE_LOG\n');
 				original.apply(console, arguments);
+				stream.write('\nEND_NATIVE_LOG\n');
 			};
 		} else {
 			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
@@ -162,16 +166,16 @@ function pipeLoggingToParent() {
 
 	// Pass console logging to the outside so that we have it in the main side if told so
 	if (process.env.VERBOSE_LOGGING === 'true') {
+		wrapConsoleMethod('info', 'log');
 		wrapConsoleMethod('log', 'log');
-		wrapConsoleMethod('warn', 'log');
-		wrapConsoleMethod('error', 'warn');
+		wrapConsoleMethod('warn', 'warn');
+		wrapConsoleMethod('error', 'error');
 	} else if (process.env.VSCODE_LOG_NATIVE !== 'true') {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
+		wrapConsoleMethod('error', 'error');
 	}
-
-	wrapConsoleMethod('error', 'error');
 }
 
 function handleExceptions() {
