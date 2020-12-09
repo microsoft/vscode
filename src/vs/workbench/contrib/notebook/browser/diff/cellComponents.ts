@@ -38,13 +38,15 @@ const fixedEditorOptions: IEditorOptions = {
 	scrollbar: {
 		verticalScrollbarSize: 14,
 		horizontal: 'auto',
+		vertical: 'hidden',
 		useShadows: true,
 		verticalHasArrows: false,
 		horizontalHasArrows: false,
-		alwaysConsumeMouseWheel: false
+		alwaysConsumeMouseWheel: false,
 	},
 	renderLineHighlightOnlyWhenFocus: true,
 	overviewRulerLanes: 0,
+	overviewRulerBorder: false,
 	selectOnLineNumbers: false,
 	wordWrap: 'off',
 	lineNumbers: 'off',
@@ -434,7 +436,7 @@ abstract class AbstractCellRenderer extends Disposable {
 					height: 0,
 					width: 0
 				}
-			});
+			}, {});
 
 			this._metadataEditorContainer?.classList.add('diff');
 
@@ -543,7 +545,7 @@ abstract class AbstractCellRenderer extends Disposable {
 						height: 0,
 						width: 0
 					}
-				});
+				}, {});
 
 				this._outputEditorContainer?.classList.add('diff');
 
@@ -1108,6 +1110,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		};
 
 		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, this.contextKeyService);
+		this._register(this._menu);
 		const actions: IAction[] = [];
 		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
 		this._toolbar.setActions(actions);

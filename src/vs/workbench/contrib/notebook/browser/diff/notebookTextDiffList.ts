@@ -18,7 +18,7 @@ import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/ce
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { isMacintosh } from 'vs/base/common/platform';
 import { DeletedCell, InsertCell, ModifiedCell } from 'vs/workbench/contrib/notebook/browser/diff/cellComponents';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -26,6 +26,14 @@ import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -64,6 +72,21 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	isInEmbeddedEditor: true,
 	renderOverviewRuler: false
 };
+
+export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+	return {
+		isSimpleWidget: false,
+		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+			MenuPreventer.ID,
+			SelectionClipboardContributionID,
+			ContextMenuController.ID,
+			SuggestController.ID,
+			SnippetController2.ID,
+			TabCompletionController.ID,
+			AccessibilityHelpController.ID
+		])
+	};
+}
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModel> {
 	// private readonly lineHeight: number;
@@ -147,6 +170,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<CellDiffViewMod
 				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: 0
 			},
+			automaticLayout: false,
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
 
@@ -251,6 +275,9 @@ export class CellDiffSideBySideRenderer implements IListRenderer<CellDiffViewMod
 				height: 0,
 				width: 0
 			}
+		}, {
+			originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+			modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 		});
 
 		return {

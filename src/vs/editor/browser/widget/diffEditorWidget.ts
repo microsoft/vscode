@@ -18,7 +18,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import { IDiffEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -52,6 +52,11 @@ import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+
+export interface IDiffCodeEditorWidgetOptions {
+	originalEditor?: ICodeEditorWidgetOptions;
+	modifiedEditor?: ICodeEditorWidgetOptions;
+}
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -228,6 +233,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	constructor(
 		domElement: HTMLElement,
 		options: editorBrowser.IDiffEditorConstructionOptions,
+		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		@IClipboardService clipboardService: IClipboardService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -373,8 +379,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		rightServices.set(IContextKeyService, rightContextKeyService);
 		const rightScopedInstantiationService = instantiationService.createChild(rightServices);
 
-		this._originalEditor = this._createLeftHandSideEditor(options, leftScopedInstantiationService, leftContextKeyService);
-		this._modifiedEditor = this._createRightHandSideEditor(options, rightScopedInstantiationService, rightContextKeyService);
+		this._originalEditor = this._createLeftHandSideEditor(options, codeEditorWidgetOptions.originalEditor || {}, leftScopedInstantiationService, leftContextKeyService);
+		this._modifiedEditor = this._createRightHandSideEditor(options, codeEditorWidgetOptions.modifiedEditor || {}, rightScopedInstantiationService, rightContextKeyService);
 
 		this._originalOverviewRuler = null;
 		this._modifiedOverviewRuler = null;
@@ -502,8 +508,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewRulers();
 	}
 
-	private _createLeftHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable, this._originalCodeLens));
+	private _createLeftHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, codeEditorWidgetOptions: ICodeEditorWidgetOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
+		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable, this._originalCodeLens), codeEditorWidgetOptions);
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -560,8 +566,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editor;
 	}
 
-	private _createRightHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options, this._modifiedCodeLens));
+	private _createRightHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, codeEditorWidgetOptions: ICodeEditorWidgetOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
+		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options, this._modifiedCodeLens), codeEditorWidgetOptions);
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -624,8 +630,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editor;
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorBrowser.IEditorConstructionOptions): CodeEditorWidget {
-		return instantiationService.createInstance(CodeEditorWidget, container, options, {});
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorBrowser.IEditorConstructionOptions, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
+		return instantiationService.createInstance(CodeEditorWidget, container, options, editorWidgetOptions);
 	}
 
 	public dispose(): void {
