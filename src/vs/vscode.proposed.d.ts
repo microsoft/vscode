@@ -2318,4 +2318,101 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Pull model diagnostics
+
+	export interface DiagnosticProviderOptions {
+
+		/**
+		 * The name with which all diagnostics of a provider will be associated, for instance `typescript`.
+		 * This is comparable to [DiagnosticCollection.name](#DiagnosticCollection.name)
+		 */
+		readonly name?: string;
+	}
+
+	export interface DocumentDiagnosticProvider {
+
+		/**
+		 * An optional event to signal that all diagnostics from this provider have changed
+		 * and should be re-pulled.
+		 */
+		onDidChangeDiagnostics?: Event<void>;
+
+		/**
+		 * Provides diagnostics for the given document.
+		 *
+		 * @param document The text document to get diagnostics for.
+		 * @param token A cancellation token.
+		 */
+		provideDocumentDiagnostics(document: TextDocument, token: CancellationToken): ProviderResult<Diagnostic[]>;
+	}
+
+	export interface DiagnosticResultItem {
+		/**
+		 * The resource identifer.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The diagnostics of the resource. An empty array or `null` indicates
+		 * that the diagnostics should be cleared.
+		 */
+		readonly diagnostics: [] | null;
+	}
+
+	export interface WorkspaceDiagnosticResult {
+
+		/**
+		 * The result id if available.
+		 */
+		readonly resultId?: string;
+
+		/**
+		 * Adds additional values to the workspace diagnostic result.
+		 *
+		 * @param values The values to add.
+		 */
+		add(values: DiagnosticResultItem[]): void;
+
+		/**
+		 * Signals that no additional result items will be added.
+		 */
+		done(): void;
+	}
+
+	export interface WorkspaceDiagnosticProvider {
+
+		/**
+		 * An optional event to signal that all diagnostics from this provider have changed
+		 * and should be re-pulled.
+		 */
+		onDidChangeDiagnostics?: Event<void>;
+
+		/**
+		 * Provide diagnostics for the whole workspace.
+		 *
+		 * @param priorities If possible diagnostics for the provided Uris should be computed with higher priority.
+		 * @param token The cancellation token.
+		 */
+		provideWorkspaceDiagnostics(priorities: Uri[], token: CancellationToken): ProviderResult<WorkspaceDiagnosticResult>;
+
+		/**
+		 * Provides a diagnostic delta for the whole workspace relative to a previous result.
+		 *
+		 * @param priorities If possible diagnostics for the provided Uris should be computed with higher priority.
+		 * @param previousResultId The id of a previous result.
+		 * @param token The cancellation token.
+		 */
+		provideWorkspaceDiagnosticsEdits?(priorities: Uri[], previousResultId: string, token: CancellationToken): ProviderResult<WorkspaceDiagnosticResult>;
+	}
+
+	export namespace languages {
+
+		export function registerDocumentDiagnosticProvider(selector: DocumentSelector, provider: DocumentDiagnosticProvider, options?: DiagnosticProviderOptions): Disposable;
+
+		export function registerWorkspaceDiagnosticProvider(provider: WorkspaceDiagnosticProvider, options?: DiagnosticProviderOptions): Disposable;
+	}
+
+	//#endregion
+
 }
