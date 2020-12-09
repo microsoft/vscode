@@ -15,14 +15,14 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { append, $, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, AutoUpdateConfigurationKey, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID } from '../common/extensions';
 import {
 	ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, SearchCategoryAction,
 	RecentlyPublishedExtensionsAction, ShowInstalledExtensionsAction, ShowOutdatedExtensionsAction, ShowDisabledExtensionsAction,
-	ShowEnabledExtensionsAction, PredefinedExtensionFilterAction, RefreshExtensionsAction
+	ShowEnabledExtensionsAction, PredefinedExtensionFilterAction, RefreshExtensionsAction, InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -37,7 +37,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -63,7 +63,8 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
-import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { filterIcon, installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -172,6 +173,44 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, onDidChangeTitle }]),
 				/* Installed extensions views shall not be allowed to hidden when there are more than one server */
 				canToggleVisibility: servers.length === 1
+			});
+
+			if (server === this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer) {
+				registerAction2(class InstallLocalExtensionsInRemoteAction2 extends Action2 {
+					constructor() {
+						super({
+							id: 'workbench.extensions.installLocalExtensions',
+							get title() { return localize('select and install local extensions', "Install Local Extensions in '{0}'...", server.label); },
+							category: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"),
+							icon: installLocalInRemoteIcon,
+							f1: true,
+							menu: {
+								id: MenuId.ViewTitle,
+								when: ContextKeyEqualsExpr.create('view', id),
+								group: 'navigation',
+							}
+						});
+					}
+					run(accessor: ServicesAccessor): Promise<void> {
+						return accessor.get(IInstantiationService).createInstance(InstallLocalExtensionsInRemoteAction).run();
+					}
+				});
+			}
+		}
+
+		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			registerAction2(class InstallRemoteExtensionsInLocalAction2 extends Action2 {
+				constructor() {
+					super({
+						id: 'workbench.extensions.actions.installLocalExtensionsInRemote',
+						title: { value: localize('install remote in local', "Install Remote Extensions Locally..."), original: 'Install Remote Extensions Locally...' },
+						category: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"),
+						f1: true
+					});
+				}
+				run(accessor: ServicesAccessor): Promise<void> {
+					return accessor.get(IInstantiationService).createInstance(InstallRemoteExtensionsInLocalAction, 'workbench.extensions.actions.installLocalExtensionsInRemote').run();
+				}
 			});
 		}
 
