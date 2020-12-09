@@ -103,7 +103,7 @@ export class CodeLensContribution implements IEditorContribution {
 		.monaco-editor .codelens-decoration.${this._styleClassName} span.codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
 		`;
 		if (fontFamily) {
-			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: '${fontFamily}'}`;
+			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: '${fontFamily.replace(/'|"/g, '\\$&')}'}`;
 		}
 		this._styleElement.textContent = newStyle;
 
