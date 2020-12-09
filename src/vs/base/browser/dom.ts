@@ -1387,7 +1387,7 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 	}, ['class', 'id', 'role', 'tabindex']);
 
 	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
-	node.innerHTML = html as unknown as string;
+	node.innerHTML = html as string;
 }
 
 /**

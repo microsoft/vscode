@@ -111,8 +111,8 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		allVisibleColumns[i] = tmp[1];
 	}
 	const html = sb.build();
-	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
-	containerDomNode.innerHTML = trustedhtml as unknown as string;
+	const trustedhtml = ttPolicy?.createHTML(html) ?? html;
+	containerDomNode.innerHTML = trustedhtml as string;
 
 	containerDomNode.style.position = 'absolute';
 	containerDomNode.style.top = '10000';

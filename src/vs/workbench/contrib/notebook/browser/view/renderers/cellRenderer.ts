@@ -594,7 +594,7 @@ class EditorTextRenderer {
 		const element = DOM.$('div', { style });
 
 		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
-		element.innerHTML = linesHtml as unknown as string;
+		element.innerHTML = linesHtml as string;
 		return element;
 	}
 
