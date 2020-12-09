@@ -90,11 +90,10 @@ export class TabsTitleControl extends TitleControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimensions: ITitleControlDimensions = {
+	private dimensions: ITitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
 		available: Dimension.None
 	};
-	private lastComputedHeight = this.getDimensions().height;
 
 	private readonly layoutScheduled = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean | undefined;
@@ -1264,7 +1263,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getDimensions(): IEditorGroupTitleDimensions {
-		// Multi-line: we need to ask `offsetHeight` to get
+
+		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		let height: number;
 		if (this.accessor.partOptions.wrapTabs && this.tabsContainer?.classList.contains('wrap')) {
@@ -1284,7 +1284,18 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	layout(dimensions: ITitleControlDimensions): Dimension {
-		this.dimensions = dimensions;
+
+		// We only consider to trigger relayout to outer
+		// container if the dimensions we receive are
+		// not ours already (which indicates the layout
+		// method was called internally)
+		let triggerContainerRelayoutIfNeeded: boolean;
+		if (this.dimensions === dimensions) {
+			triggerContainerRelayoutIfNeeded = true;
+		} else {
+			triggerContainerRelayoutIfNeeded = false;
+			Object.assign(this.dimensions, dimensions);
+		}
 
 		// We need an opened editor and dimensions to layout the title
 		// Otherwise quickly return from the layout algorithm
@@ -1297,25 +1308,37 @@ export class TabsTitleControl extends TitleControl {
 		// the correct height of the title area can be returned to the title
 		// control
 		if (this.accessor.partOptions.wrapTabs) {
-			this.layoutSync(dimensions);
-
-			const newHeight = this.getDimensions().height;
-			if (this.lastComputedHeight !== newHeight) {
-				this.lastComputedHeight = newHeight;
-				this.group.relayout();
-			}
+			this.doLayoutSync(dimensions);
 		} else {
-			this.layoutAsync();
+			this.doLayoutAsync();
 		}
 
-		return new Dimension(dimensions.container.width, this.getDimensions().height);
+		// Compute new dimension of tabs title control
+		// and remember it for future usages
+		const oldDimension = this.dimensions.used;
+		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+
+		// If `layout` is called internally (not from the outer container)
+		// and tabs are wrapping, it is possible that the height of the
+		// control changes without the outer container being aware of
+		// In this case we need to `relayout` the outer container so that
+		// the editor is receiving the correct new dimensions
+		if (
+			triggerContainerRelayoutIfNeeded &&
+			this.accessor.partOptions.wrapTabs &&
+			oldDimension && oldDimension.height !== newDimension.height
+		) {
+			this.group.relayout();
+		}
+
+		return newDimension;
 	}
 
-	private layoutSync(dimensions: ITitleControlDimensions): void {
+	private doLayoutSync(dimensions: ITitleControlDimensions): void {
 		this.doLayout(dimensions);
 	}
 
-	private layoutAsync(): void {
+	private doLayoutAsync(): void {
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
