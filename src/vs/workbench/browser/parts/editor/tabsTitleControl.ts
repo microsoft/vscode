@@ -560,7 +560,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
-			oldOptions.wrapTabs !== newOptions.wrapTabs
+			oldOptions.experimentalWrapTabs !== newOptions.experimentalWrapTabs
 		) {
 			this.redraw();
 		}
@@ -1267,7 +1267,7 @@ export class TabsTitleControl extends TitleControl {
 		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		let height: number;
-		if (this.accessor.partOptions.wrapTabs && this.tabsContainer?.classList.contains('wrap')) {
+		if (this.accessor.partOptions.experimentalWrapTabs && this.tabsContainer?.classList.contains('wrap')) {
 			height = this.tabsContainer.offsetHeight;
 		} else {
 			height = TabsTitleControl.TAB_HEIGHT;
@@ -1307,7 +1307,7 @@ export class TabsTitleControl extends TitleControl {
 		// Layout tabs synchronously if wrapping tabs are enabled so that
 		// the correct height of the title area can be returned to the title
 		// control
-		if (this.accessor.partOptions.wrapTabs) {
+		if (this.accessor.partOptions.experimentalWrapTabs) {
 			this.doLayoutSync(dimensions);
 		} else {
 			this.doLayoutAsync();
@@ -1325,7 +1325,7 @@ export class TabsTitleControl extends TitleControl {
 		// the editor is receiving the correct new dimensions
 		if (
 			triggerContainerRelayoutIfNeeded &&
-			this.accessor.partOptions.wrapTabs &&
+			this.accessor.partOptions.experimentalWrapTabs &&
 			oldDimension && oldDimension.height !== newDimension.height
 		) {
 			this.group.relayout();
@@ -1433,7 +1433,7 @@ export class TabsTitleControl extends TitleControl {
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap
 		// - disabled: remove class
-		if (this.accessor.partOptions.wrapTabs) {
+		if (this.accessor.partOptions.experimentalWrapTabs) {
 
 			// Tabs wrap multiline: remove wrapping if height exceeds available height
 			const tabsWrapMultiLine = tabsContainer.classList.contains('wrap');
