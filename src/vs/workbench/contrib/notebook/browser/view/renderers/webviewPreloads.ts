@@ -387,6 +387,8 @@ function webviewPreloads() {
 		queuedOuputActions.set(event.outputId, promise);
 	};
 
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', { createHTML: value => value });
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', rawEvent => {
@@ -430,7 +432,8 @@ function webviewPreloads() {
 					addMouseoverListeners(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
-						outputNode.innerHTML = content.htmlContent;
+						const trustedHtml = ttPolicy ? ttPolicy.createHTML(content.htmlContent) : content.htmlContent;
+						outputNode.innerHTML = trustedHtml as unknown as string;
 						cellOutputContainer.appendChild(outputNode);
 						domEval(outputNode);
 					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
