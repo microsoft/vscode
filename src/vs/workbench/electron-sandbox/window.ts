@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import * as DOM from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener } from 'vs/base/browser/dom';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
@@ -126,9 +126,9 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the shell
-		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
-				DOM.EventHelper.stop(e);
+				EventHelper.stop(e);
 			});
 		});
 
@@ -173,7 +173,7 @@ export class NativeWindow extends Disposable {
 		// Error reporting from main
 		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
 			if (error) {
-				errors.onUnexpectedError(JSON.parse(error));
+				onUnexpectedError(JSON.parse(error));
 			}
 		});
 
@@ -188,13 +188,13 @@ export class NativeWindow extends Disposable {
 
 		// Shell Environment Issue Notifications
 		const choices: IPromptChoice[] = [{
-			label: nls.localize('learnMode', "Learn More"),
+			label: localize('learnMode', "Learn More"),
 			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 		}];
 
 		ipcRenderer.on('vscode:showShellEnvSlowWarning', () => this.notificationService.prompt(
 			Severity.Warning,
-			nls.localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
+			localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
 			choices,
 			{
 				sticky: true,
@@ -204,7 +204,7 @@ export class NativeWindow extends Disposable {
 
 		ipcRenderer.on('vscode:showShellEnvTimeoutError', () => this.notificationService.prompt(
 			Severity.Error,
-			nls.localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
+			localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
 			choices
 		));
 
@@ -222,20 +222,20 @@ export class NativeWindow extends Disposable {
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
 			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
-			const result = await this.dialogService.input(Severity.Warning, nls.localize('proxyAuthRequired', "Proxy Authentication Required"),
+			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
-					nls.localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					nls.localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
 				],
 				[
-					{ placeholder: nls.localize('username', "Username"), value: payload.username },
-					{ placeholder: nls.localize('password', "Password"), type: 'password', value: payload.password }
+					{ placeholder: localize('username', "Username"), value: payload.username },
+					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
 				],
 				{
 					cancelId: 1,
-					detail: nls.localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
 					checkbox: {
-						label: nls.localize('rememberCredentials', "Remember my credentials"),
+						label: localize('rememberCredentials', "Remember my credentials"),
 						checked: rememberCredentials
 					}
 				});
@@ -303,8 +303,8 @@ export class NativeWindow extends Disposable {
 		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
 			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
 
-			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
-				DOM.EventHelper.stop(e);
+			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
+				EventHelper.stop(e);
 
 				this.nativeHostService.handleTitleDoubleClick();
 			}));
@@ -331,9 +331,7 @@ export class NativeWindow extends Disposable {
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
 
 		// Detect panel position to determine minimum width
-		this._register(this.layoutService.onPanelPositionChange(pos => {
-			this.onDidPanelPositionChange(positionFromString(pos));
-		}));
+		this._register(this.layoutService.onPanelPositionChange(pos => this.onDidPanelPositionChange(positionFromString(pos))));
 		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
 	}
 
@@ -350,18 +348,19 @@ export class NativeWindow extends Disposable {
 	}
 
 	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
+
 		// if panel is on the side, then return the larger minwidth
 		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
 		if (panelOnSide) {
 			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
 		}
-		else {
-			return WindowMinimumSize.WIDTH;
-		}
+
+		return WindowMinimumSize.WIDTH;
 	}
 
 	private onDidPanelPositionChange(pos: Position): void {
 		const minWidth = this.getWindowMinimumWidth(pos);
+
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
@@ -470,7 +469,7 @@ export class NativeWindow extends Disposable {
 
 			// Show warning message (unix only)
 			if (isAdmin && !isWindows) {
-				this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
 			}
 		});
 
@@ -704,7 +703,7 @@ class NativeMenubarControl extends MenubarControl {
 
 		if (isMacintosh) {
 			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
-			this.topLevelTitles['Preferences'] = nls.localize('mPreferences', "Preferences");
+			this.topLevelTitles['Preferences'] = localize('mPreferences', "Preferences");
 		}
 
 		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {

@@ -5,7 +5,7 @@
 
 import { mark } from 'vs/base/common/performance';
 import { hash } from 'vs/base/common/hash';
-import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener, getCookieValue } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
@@ -142,9 +142,7 @@ class BrowserMain extends Disposable {
 				event.veto(true); // prevent data loss from pending storage update
 			}
 		}));
-		this._register(workbench.onWillShutdown(() => {
-			storageService.close();
-		}));
+		this._register(workbench.onWillShutdown(() => storageService.close()));
 		this._register(workbench.onShutdown(() => this.dispose()));
 
 		// Fullscreen (Browser)
@@ -181,9 +179,8 @@ class BrowserMain extends Disposable {
 		const logService = new BufferLogService(getLogLevel(environmentService));
 		serviceCollection.set(ILogService, logService);
 
-		const connectionToken = environmentService.options.connectionToken || this.getCookieValue('vscode-tkn');
-
 		// Remote
+		const connectionToken = environmentService.options.connectionToken || getCookieValue('vscode-tkn');
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
@@ -240,12 +237,14 @@ class BrowserMain extends Disposable {
 
 		if (await userDataInitializationService.requiresInitialization()) {
 			mark('willInitRequiredUserData');
+
 			// Initialize required resources - settings & global state
 			await userDataInitializationService.initializeRequiredResources();
 
 			// Important: Reload only local user configuration after initializing
 			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
 			await configurationService.reloadLocalUserConfiguration();
+
 			mark('didInitRequiredUserData');
 		}
 
@@ -369,12 +368,6 @@ class BrowserMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
-	}
-
-	private getCookieValue(name: string): string | undefined {
-		const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
-
-		return match ? match.pop() : undefined;
 	}
 }
 
