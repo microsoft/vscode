@@ -105,6 +105,31 @@
 		}
 	}
 
+	/** @type {undefined | ((iframe: HTMLIFrameElement) => void)} */
+	let onIframeLoaded;
+
+	if (!onElectron) {
+		let isModifierDown = false;
+
+		onIframeLoaded = (frame) => {
+			frame.contentWindow.addEventListener('keydown', e => {
+				isModifierDown = e.metaKey || e.ctrlKey || e.altKey;
+			});
+
+			frame.contentWindow.addEventListener('keyup', () => {
+				isModifierDown = false;
+			});
+		};
+
+		window.addEventListener('beforeunload', (event) => {
+			if (isModifierDown) {
+				event.preventDefault();
+				event.returnValue = '';
+				return '';
+			}
+		});
+	}
+
 	/** @type {import('./main').WebviewHost} */
 	const host = {
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
@@ -112,6 +137,7 @@
 		ready: workerReady,
 		fakeLoad: !onElectron,
 		onElectron: onElectron,
+		onIframeLoaded,
 		rewriteCSP: onElectron
 			? (csp) => {
 				return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
