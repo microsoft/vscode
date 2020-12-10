@@ -10,10 +10,10 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellRenderTemplate, ICellOutputViewModel, IDisplayOutputViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { IRenderOutput, BUILTIN_RENDERER_ID, RenderOutputType, outputHasDynamicHeight, CellUri, CellOutputKind, NotebookCellOutputsSplice, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, CellOutputKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
@@ -23,7 +23,6 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellOutputViewModel, IDisplayOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 
 const OUTPUT_COUNT_LIMIT = 500;
 
@@ -42,7 +41,7 @@ export class OutputElement extends Disposable {
 		private quickInputService: IQuickInputService,
 		private viewCell: CodeCellViewModel,
 		private outputContainer: HTMLElement,
-		readonly output: CellOutputViewModel
+		readonly output: ICellOutputViewModel
 	) {
 		super();
 	}
@@ -68,7 +67,7 @@ export class OutputElement extends Disposable {
 					if (e.leftButton) {
 						e.preventDefault();
 						e.stopPropagation();
-						await this.pickActiveMimeTypeRenderer(this.output as CellOutputViewModel & IDisplayOutputViewModel);
+						await this.pickActiveMimeTypeRenderer(this.output as IDisplayOutputViewModel);
 					}
 				}));
 
@@ -77,7 +76,7 @@ export class OutputElement extends Disposable {
 					if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
 						e.preventDefault();
 						e.stopPropagation();
-						await this.pickActiveMimeTypeRenderer(this.output as CellOutputViewModel & IDisplayOutputViewModel);
+						await this.pickActiveMimeTypeRenderer(this.output as IDisplayOutputViewModel);
 					}
 				})));
 			}
@@ -90,10 +89,10 @@ export class OutputElement extends Disposable {
 			if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
 				const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
 				result = renderer
-					? { type: RenderOutputType.Extension, renderer, source: this.output.model, mimeType: pickedMimeTypeRenderer.mimeType }
-					: this.notebookEditor.getOutputRenderer().render(this.output.model, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
+					? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
+					: this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
 			} else {
-				result = this.notebookEditor.getOutputRenderer().render(this.output.model, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
+				result = this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
 			}
 
 			this.output.pickedMimeType = pick;
@@ -102,7 +101,7 @@ export class OutputElement extends Disposable {
 			const innerContainer = DOM.$('.output-inner-container');
 			DOM.append(outputItemDiv, innerContainer);
 
-			result = this.notebookEditor.getOutputRenderer().render(this.output.model, innerContainer, undefined, this.getNotebookUri(),);
+			result = this.notebookEditor.getOutputRenderer().render(this.output, innerContainer, undefined, this.getNotebookUri(),);
 		}
 
 		this.domNode = outputItemDiv;
@@ -164,8 +163,7 @@ export class OutputElement extends Disposable {
 		}
 	}
 
-	async pickActiveMimeTypeRenderer(viewModel: CellOutputViewModel & IDisplayOutputViewModel) {
-		const output = viewModel.model;
+	async pickActiveMimeTypeRenderer(viewModel: IDisplayOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(this.notebookEditor.textModel!);
 
 		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
@@ -204,7 +202,7 @@ export class OutputElement extends Disposable {
 			const element = this.domNode;
 			if (element) {
 				element.parentElement?.removeChild(element);
-				this.notebookEditor.removeInset(output);
+				this.notebookEditor.removeInset(viewModel);
 			}
 
 			viewModel.pickedMimeType = pick;
@@ -238,7 +236,7 @@ export class OutputElement extends Disposable {
 }
 
 export class OutputContainer extends Disposable {
-	private outputEntries = new Map<CellOutputViewModel, OutputElement>();
+	private outputEntries = new Map<ICellOutputViewModel, OutputElement>();
 
 	constructor(
 		private notebookEditor: INotebookEditor,
@@ -336,7 +334,7 @@ export class OutputContainer extends Disposable {
 
 	viewUpdateHideOuputs(): void {
 		for (const e of this.outputEntries.keys()) {
-			this.notebookEditor.hideInset(e.model);
+			this.notebookEditor.hideInset(e as IDisplayOutputViewModel);
 		}
 	}
 
@@ -349,7 +347,7 @@ export class OutputContainer extends Disposable {
 		});
 	}
 
-	private _calcuateOutputsToRender(): CellOutputViewModel[] {
+	private _calcuateOutputsToRender(): ICellOutputViewModel[] {
 		const outputs = this.viewCell.outputsViewModels.slice(0, Math.min(OUTPUT_COUNT_LIMIT, this.viewCell.outputsViewModels.length));
 		if (!this.notebookEditor.viewModel!.metadata.trusted) {
 			// not trusted
@@ -405,7 +403,7 @@ export class OutputContainer extends Disposable {
 			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
 		});
 
-		const removedKeys: CellOutputViewModel[] = [];
+		const removedKeys: ICellOutputViewModel[] = [];
 
 		this.outputEntries.forEach((value, key) => {
 			if (this.viewCell.outputsViewModels.indexOf(key) < 0) {
@@ -413,7 +411,9 @@ export class OutputContainer extends Disposable {
 				removedKeys.push(key);
 				// remove element from DOM
 				this.templateData?.outputContainer?.removeChild(value.domNode);
-				this.notebookEditor.removeInset(key.model);
+				if (key.isDisplayOutput()) {
+					this.notebookEditor.removeInset(key);
+				}
 			}
 		});
 
@@ -456,7 +456,7 @@ export class OutputContainer extends Disposable {
 		}
 	}
 
-	private _renderOutput(currOutput: CellOutputViewModel, index: number, beforeElement?: HTMLElement) {
+	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputEntries.has(currOutput)) {
 			this.outputEntries.set(currOutput, new OutputElement(this.notebookEditor, this.notebookService, this.quickInputService, this.viewCell, this.templateData.outputContainer, currOutput));
 		}

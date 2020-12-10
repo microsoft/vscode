@@ -5,8 +5,8 @@
 
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
+import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into

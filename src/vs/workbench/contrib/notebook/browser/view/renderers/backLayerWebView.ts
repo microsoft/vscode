@@ -11,13 +11,12 @@ import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IDisplayOutputViewModel, IInsetRenderOutput, INotebookEditor, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellOutputKind, IDisplayOutput, IInsetRenderOutput, INotebookRendererInfo, IProcessedOutput, ITransformedDisplayOutputDto, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
@@ -26,6 +25,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -220,9 +220,9 @@ let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
-	insetMapping: Map<IProcessedOutput, ICachedInset> = new Map();
-	hiddenInsetMapping: Set<IProcessedOutput> = new Set();
-	reversedInsetMapping: Map<string, IProcessedOutput> = new Map();
+	insetMapping: Map<IDisplayOutputViewModel, ICachedInset> = new Map();
+	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
+	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
 	kernelRootsCache: URI[] = [];
@@ -336,7 +336,7 @@ export class BackLayerWebView extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IProcessedOutput } | undefined {
+	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IDisplayOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -461,7 +461,7 @@ var requirejs = (function() {
 					const info = this.resolveOutputId(data.id);
 					if (info) {
 						const { cell, output } = info;
-						const outputIndex = cell.outputs.indexOf(output);
+						const outputIndex = cell.outputsViewModels.indexOf(output);
 						cell.updateOutputHeight(outputIndex, outputHeight);
 						this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 					}
@@ -585,7 +585,7 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number) {
+	shouldUpdateInset(cell: CodeCellViewModel, output: IDisplayOutputViewModel, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -595,7 +595,7 @@ var requirejs = (function() {
 		}
 
 		const outputCache = this.insetMapping.get(output)!;
-		const outputIndex = cell.outputs.indexOf(output);
+		const outputIndex = cell.outputsViewModels.indexOf(output);
 		const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
 		if (this.hiddenInsetMapping.has(output)) {
@@ -609,7 +609,7 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: CodeCellViewModel, output: IDisplayOutputViewModel, cellTop: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -617,7 +617,7 @@ var requirejs = (function() {
 		const widgets: IContentWidgetTopRequest[] = items.map(item => {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
-			const outputIndex = item.cell.outputs.indexOf(item.output);
+			const outputIndex = item.cell.outputsViewModels.indexOf(item.output);
 
 			const outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
 			outputCache.cachedCreation.top = outputOffset;
@@ -672,7 +672,7 @@ var requirejs = (function() {
 		let message: ICreationRequestMessage;
 		let renderer: INotebookRendererInfo | undefined;
 		if (content.type === RenderOutputType.Extension) {
-			const output = content.source as ITransformedDisplayOutputDto;
+			const output = content.source.model;
 			renderer = content.renderer;
 			message = {
 				...messageBase,
@@ -706,7 +706,7 @@ var requirejs = (function() {
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
-	removeInset(output: IProcessedOutput) {
+	removeInset(output: IDisplayOutputViewModel) {
 		if (this._disposed) {
 			return;
 		}
@@ -729,7 +729,7 @@ var requirejs = (function() {
 		this.reversedInsetMapping.delete(id);
 	}
 
-	hideInset(output: IProcessedOutput) {
+	hideInset(output: IDisplayOutputViewModel) {
 		if (this._disposed) {
 			return;
 		}

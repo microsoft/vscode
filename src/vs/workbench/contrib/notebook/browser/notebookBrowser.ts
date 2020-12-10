@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, IInsetRenderOutput, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, ITransformedDisplayOutputDto, INotebookRendererInfo, IErrorOutput, IStreamOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -120,6 +120,59 @@ export interface MarkdownCellLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: number;
 	totalHeight?: number;
+}
+
+export const enum RenderOutputType {
+	None,
+	Html,
+	Extension
+}
+
+export interface IRenderNoOutput {
+	type: RenderOutputType.None;
+	hasDynamicHeight: boolean;
+}
+
+export interface IRenderPlainHtmlOutput {
+	type: RenderOutputType.Html;
+	source: IDisplayOutputViewModel;
+	htmlContent: string;
+	hasDynamicHeight: boolean;
+}
+
+export interface IRenderOutputViaExtension {
+	type: RenderOutputType.Extension;
+	source: IDisplayOutputViewModel;
+	mimeType: string;
+	renderer: INotebookRendererInfo;
+}
+
+export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
+export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
+
+export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
+
+
+export interface ICellOutputViewModel {
+	model: IProcessedOutput;
+	isDisplayOutput(): this is IDisplayOutputViewModel;
+	isErrorOutput(): this is IErrorOutputViewModel;
+	isStreamOutput(): this is IStreamOutputViewModel;
+}
+
+export interface IDisplayOutputViewModel extends ICellOutputViewModel {
+	model: ITransformedDisplayOutputDto;
+	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	pickedMimeType: number;
+	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+}
+
+export interface IErrorOutputViewModel extends ICellOutputViewModel {
+	model: IErrorOutput;
+}
+
+export interface IStreamOutputViewModel extends ICellOutputViewModel {
+	model: IStreamOutput;
 }
 
 export interface ICellViewModel {
@@ -361,12 +414,12 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Remove the output from the webview layer
 	 */
-	removeInset(output: IProcessedOutput): void;
+	removeInset(output: IDisplayOutputViewModel): void;
 
 	/**
 	 * Hide the inset in the webview layer without removing it
 	 */
-	hideInset(output: IProcessedOutput): void;
+	hideInset(output: IDisplayOutputViewModel): void;
 
 	/**
 	 * Send message to the webview for outputs.
@@ -494,8 +547,8 @@ export interface INotebookCellList {
 	scrollLeft: number;
 	length: number;
 	rowsContainer: HTMLElement;
-	readonly onDidRemoveOutput: Event<IProcessedOutput>;
-	readonly onDidHideOutput: Event<IProcessedOutput>;
+	readonly onDidRemoveOutput: Event<ICellOutputViewModel>;
+	readonly onDidHideOutput: Event<ICellOutputViewModel>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
@@ -594,7 +647,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput;
+	render(output: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput;
 }
 
 export interface CellFindMatch {
