@@ -85,7 +85,7 @@
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .gap {
-	flex: 150px 0 1
+	flex: 150px 1 1
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-media {
@@ -109,6 +109,12 @@
 	display: flex;
 	width: 100%;
 	overflow: hidden;
+	transition: max-height .1s linear;
+	max-height: 150px; /* taller than we need, to allow for animating */
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) {
+	max-height: 54px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-columns #getting-started-detail-left > div {
@@ -119,12 +125,7 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) .actions,
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) button,
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) a {
-	display: none;
-}
-
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task.expanded {
-	width: 100%;
-	height: unset;
+	visibility: hidden;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-title {
