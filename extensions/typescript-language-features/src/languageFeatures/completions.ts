@@ -533,7 +533,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 		let includesPackageJsonImport = false;
 		const items: MyCompletionItem[] = [];
-		for (let entry of entries) {
+		for (const entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
 				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
 				includesPackageJsonImport = !!entry.isPackageJsonImport;

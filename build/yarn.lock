@@ -3246,15 +3246,15 @@ typed-rest-client@^0.9.0:
     tunnel "0.0.4"
     underscore "1.8.3"
 
+typescript@4.2.0-dev.20201207:
+  version "4.2.0-dev.20201207"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201207.tgz#19a34bc7d2d42a7467c512c63f135587ac848807"
+  integrity sha512-fPHBDi/fgdX4WiRC7cFVv/aL069PgUaDWuLYUSHatWZujz/Lkc9bkf/zL3rKdNSCxlNKAMs3fhJv/yompOphZA==
+
 typescript@^3.0.1:
   version "3.5.3"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.5.3.tgz#c830f657f93f1ea846819e929092f5fe5983e977"
   integrity sha512-ACzBtm/PhXBDId6a6sDJfroT2pOWt/oOnk4/dElG5G33ZL776N3Y6/6bKZJBFpd+b05F3Ct9qDjMeJmRWtE2/g==
-
-typescript@^4.2.0-dev.20201119:
-  version "4.2.0-dev.20201119"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201119.tgz#d4a43511cd9931adac05e1a47b6425f6b0e76cc3"
-  integrity sha512-HIgv+D/0VpVYRTbcVVf9oac/0GtLKMqaufTcPgohNaFWlCOh4lq8syefANgENXTG5Q4VEC6xwDGzHW6EJAVr3A==
 
 typical@^4.0.0:
   version "4.0.0"

@@ -1602,3 +1602,9 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		this._subscriptions.dispose();
 	}
 }
+
+export function getCookieValue(name: string): string | undefined {
+	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+	return match ? match.pop() : undefined;
+}

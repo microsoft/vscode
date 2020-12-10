@@ -103,7 +103,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

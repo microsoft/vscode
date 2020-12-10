@@ -344,8 +344,11 @@ class DesktopMain extends Disposable {
 			const folder = folderUri.scheme === Schemas.file
 				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
 				: folderUri;
-			const id = await this.createHash(folderUri);
-			return { id, folder };
+
+			return {
+				id: await this.createHash(folderUri),
+				folder
+			};
 		} catch (error) {
 			onUnexpectedError(error);
 		}

@@ -33,7 +33,7 @@ export function createLazyClientHost(
 	return lazy(() => {
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
-			context.workspaceState,
+			context,
 			onCaseInsenitiveFileSystem,
 			services,
 			onCompletionAccepted);

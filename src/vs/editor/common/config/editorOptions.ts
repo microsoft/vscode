@@ -678,6 +678,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	isInEmbeddedEditor?: boolean;
 	/**
+	 * Is the diff editor should render overview ruler
+	 * Defaults to true
+	 */
+	renderOverviewRuler?: boolean;
+	/**
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
