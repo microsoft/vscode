@@ -81,7 +81,7 @@
 		"type": "label",
 		"name": "*duplicate",
 		"action": "close",
-		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for existing issues [here](https://aka.ms/vscodeissuesearch). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for existing issues [here](${duplicateQuery}). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
