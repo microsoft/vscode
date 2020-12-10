@@ -6,6 +6,8 @@
 
 declare function postMessage(data: any, transferables?: Transferable[]): void;
 
+declare type MessageEventHandler = ((ev: MessageEvent<any>) => any) | null;
+
 const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 
 	const listener: EventListener = (event: Event): void => {
@@ -27,7 +29,7 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 				get() {
 					return port.onmessage;
 				},
-				set(value: ((ev: MessageEvent<any>) => any) | null) {
+				set(value: MessageEventHandler) {
 					port.onmessage = value;
 				}
 			}
@@ -110,7 +112,7 @@ export class NestedWorker extends EventTarget implements Worker {
 				get() {
 					return channel.port1.onmessage;
 				},
-				set(value: ((ev: MessageEvent<any>) => any) | null) {
+				set(value: MessageEventHandler) {
 					channel.port1.onmessage = value;
 				}
 			},
@@ -118,7 +120,7 @@ export class NestedWorker extends EventTarget implements Worker {
 				get() {
 					return channel.port1.onmessageerror;
 				},
-				set(value: ((ev: MessageEvent<any>) => any) | null) {
+				set(value: MessageEventHandler) {
 					channel.port1.onmessageerror = value;
 				}
 			},
