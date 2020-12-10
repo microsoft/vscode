@@ -116,7 +116,7 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.showCommands'
 					},
 					doneOn: { commandExecuted: 'workbench.action.showCommands' },
-					media: { type: 'image', altText: 'gif of a custom tree hover', path: 'https://code.visualstudio.com/assets/updates/1_51/custom-tree-hover.gif' },
+					media: { type: 'image', altText: 'gif of a custom tree hover', path: 'CommandPalette.jpg' },
 				}
 			]
 		}
