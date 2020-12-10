@@ -6,7 +6,12 @@
 import { windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -14,11 +19,41 @@ export class BrowserWindow extends Disposable {
 
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService
+		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
+		this.registerListeners();
 		this.create();
+	}
+
+	private registerListeners(): void {
+		this._register(this.lifecycleService.onWillShutdown(() => this.onWillShutdown()));
+	}
+
+	private onWillShutdown(): void {
+		// Use a timeout so that the dialog does not appear on each reload
+		// that is triggered by the user itself.
+		setTimeout(async () => {
+			// This should normally not happen, but if for some reason
+			// the workbench was shutdown while the page is still there,
+			// inform the user that only a reload can bring back a working
+			// state.
+			const res = await this.dialogService.show(
+				Severity.Error,
+				localize('shutdownError', "{0} got disposed. Please close or reload this page.", this.productService.nameShort),
+				[
+					localize('reload', "Reload"),
+				]
+			);
+
+			if (res.choice === 0) {
+				this.hostService.reload();
+			}
+		}, 1500);
 	}
 
 	private create(): void {
