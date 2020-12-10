@@ -9,12 +9,14 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
 	) {
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
@@ -41,6 +43,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 					});
 				}
 			}));
+			remoteExplorerService.setTunnelInformation(undefined);
 		}
 	}
 }

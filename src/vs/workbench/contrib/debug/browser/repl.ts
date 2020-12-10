@@ -321,7 +321,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.styleElement.textContent = `
 				.repl .repl-tree .expression {
 					font-size: ${fontSize}px;
-					font-family: ${fontFamily};
 				}
 
 				.repl .repl-tree .expression {
@@ -340,6 +339,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					background-color: ${backgroundColor};
 				}
 			`;
+			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
 
 			this.tree.rerender();
 
