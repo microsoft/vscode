@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<!-- <meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data:; script-src 'unsafe-eval' 'sha256-DhNBVT9y4y9LG937ZrEbN5CwALd+WSpQnG3z5u1MOFk=' http: https:; connect-src http: https: ws: wss:" /> -->
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; child-src 'self' data: blob:; script-src 'unsafe-eval' 'sha256-vtNeTkpXYXUA2WdsFRxc+zAOlOxdGqcH7sObCI44wf4=' http: https:; connect-src http: https: ws: wss:" />
 	</head>
 	<body>
 	<script>
@@ -32,21 +32,19 @@
 				const newWorker = new Worker(url, options);
 				newWorker.postMessage(port, [port]);
 				nestedWorkers.set(id, newWorker);
-				return;
-			}
-			if (data?.type === '_terminateWorker') {
+
+			} else if (data?.type === '_terminateWorker') {
 				const { id } = data;
 				if(nestedWorkers.has(id)) {
 					nestedWorkers.get(id).terminate();
 					nestedWorkers.delete(id);
 				}
-				return;
+			} else {
+				window.parent.postMessage({
+					vscodeWebWorkerExtHostId,
+					data
+				}, '*', [data]);
 			}
-
-			window.parent.postMessage({
-				vscodeWebWorkerExtHostId,
-				data
-			}, '*', [data]);
 		};
 
 		worker.onerror = (event) => {
