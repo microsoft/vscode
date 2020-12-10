@@ -9,6 +9,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { BrowserClipboardService as BaseBrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { once } from 'vs/base/common/functional';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 
@@ -27,22 +29,31 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		try {
 			return await navigator.clipboard.readText();
 		} catch (error) {
+			return new Promise<string>(resolve => {
 
-			// Inform user about permissions problem
-			// (https://github.com/microsoft/vscode/issues/112089)
-			this.notificationService.prompt(
-				Severity.Error,
-				localize('clipboardError', "Unable to read from the browser's clipboard. Please make sure you have granted access for this website to read from the clipboard."),
-				[{
-					label: localize('learnMode', "Learn More"),
-					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2151362')
-				}],
-				{
-					sticky: true
-				}
-			);
+				// Inform user about permissions problem (https://github.com/microsoft/vscode/issues/112089)
+				const listener = new DisposableStore();
+				const handle = this.notificationService.prompt(
+					Severity.Error,
+					localize('clipboardError', "Unable to read from the browser's clipboard. Please make sure you have granted access for this website to read from the clipboard."),
+					[{
+						label: localize('retry', "Retry"),
+						run: async () => {
+							listener.dispose();
+							resolve(await this.readText(type));
+						}
+					}, {
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2151362')
+					}],
+					{
+						sticky: true
+					}
+				);
 
-			return '';
+				// Always resolve the promise once the notification closes
+				listener.add(once(handle.onDidClose)(() => resolve('')));
+			});
 		}
 	}
 }
