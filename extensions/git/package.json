@@ -1644,10 +1644,20 @@
           "default": true
         },
         "git.autofetch": {
-          "type": "string",
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "all"
+              ]
+            }
+          ],
           "scope": "resource",
           "description": "%config.autofetch%",
-          "default": "off",
+          "default": false,
           "tags": [
             "usesOnlineServices"
           ]
