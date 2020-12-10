@@ -1026,7 +1026,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							return;
 						}
 
-						if (cell.outputs.indexOf(key) < 0) {
+						if (cell.outputsViewModels.findIndex(viewModel => viewModel.model === key) < 0) {
 							// output is already gone
 							removedItems.push(key);
 						}
