@@ -339,7 +339,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					background-color: ${backgroundColor};
 				}
 			`;
-			this.styleElement.style.setProperty(`--vscode-repl-font-family`, fontFamily);
+			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
 
 			this.tree.rerender();
 
