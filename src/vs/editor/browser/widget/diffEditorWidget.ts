@@ -18,9 +18,9 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, IEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -53,6 +53,11 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+export interface IDiffCodeEditorWidgetOptions {
+	originalEditor?: ICodeEditorWidgetOptions;
+	modifiedEditor?: ICodeEditorWidgetOptions;
+}
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -109,7 +114,7 @@ class VisualEditorState {
 		this._decorations = editor.deltaDecorations(this._decorations, []);
 	}
 
-	public apply(editor: CodeEditorWidget, overviewRuler: editorBrowser.IOverviewRuler, newDecorations: IEditorDiffDecorationsWithZones, restoreScrollState: boolean): void {
+	public apply(editor: CodeEditorWidget, overviewRuler: editorBrowser.IOverviewRuler | null, newDecorations: IEditorDiffDecorationsWithZones, restoreScrollState: boolean): void {
 
 		const scrollState = restoreScrollState ? StableEditorScrollState.capture(editor) : null;
 
@@ -212,6 +217,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _maxComputationTime: number;
 	private _renderIndicators: boolean;
 	private _enableSplitViewResizing: boolean;
+	private _renderOverviewRuler: boolean;
 	private _strategy!: DiffEditorWidgetStyle;
 
 	private readonly _updateDecorationsRunner: RunOnceScheduler;
@@ -227,6 +233,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	constructor(
 		domElement: HTMLElement,
 		options: editorBrowser.IDiffEditorConstructionOptions,
+		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		@IClipboardService clipboardService: IClipboardService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -287,6 +294,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._contextKeyService.createKey('isInEmbeddedDiffEditor', false);
 		}
 
+		this._renderOverviewRuler = true;
+		if (typeof options.renderOverviewRuler !== 'undefined') {
+			this._renderOverviewRuler = Boolean(options.renderOverviewRuler);
+		}
+
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
@@ -334,7 +346,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._isVisible = true;
 		this._isHandlingScrollEvent = false;
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(this._containerDomElement, undefined, () => this._onDidContainerSizeChanged()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(this._containerDomElement, options.dimension, () => this._onDidContainerSizeChanged()));
 		if (options.automaticLayout) {
 			this._elementSizeObserver.startObserving();
 		}
@@ -353,8 +365,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		rightServices.set(IContextKeyService, rightContextKeyService);
 		const rightScopedInstantiationService = instantiationService.createChild(rightServices);
 
-		this._originalEditor = this._createLeftHandSideEditor(options, leftScopedInstantiationService, leftContextKeyService);
-		this._modifiedEditor = this._createRightHandSideEditor(options, rightScopedInstantiationService, rightContextKeyService);
+		this._originalEditor = this._createLeftHandSideEditor(options, codeEditorWidgetOptions.originalEditor || {}, leftScopedInstantiationService, leftContextKeyService);
+		this._modifiedEditor = this._createRightHandSideEditor(options, codeEditorWidgetOptions.modifiedEditor || {}, rightScopedInstantiationService, rightContextKeyService);
 
 		this._originalOverviewRuler = null;
 		this._modifiedOverviewRuler = null;
@@ -415,6 +427,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._modifiedEditor.getContentHeight();
 	}
 
+	public getViewWidth(): number {
+		return this._elementSizeObserver.getWidth();
+	}
+
 	private _setState(newState: editorBrowser.DiffEditorState): void {
 		if (this._state === newState) {
 			return;
@@ -453,6 +469,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _recreateOverviewRulers(): void {
+		if (!this._renderOverviewRuler) {
+			return;
+		}
+
 		if (this._originalOverviewRuler) {
 			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
 			this._originalOverviewRuler.dispose();
@@ -474,8 +494,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewRulers();
 	}
 
-	private _createLeftHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options));
+	private _createLeftHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, codeEditorWidgetOptions: ICodeEditorWidgetOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
+		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options), codeEditorWidgetOptions);
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -536,8 +556,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editor;
 	}
 
-	private _createRightHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
+	private _createRightHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, codeEditorWidgetOptions: ICodeEditorWidgetOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
+		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options), codeEditorWidgetOptions);
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -604,8 +624,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editor;
 	}
 
-	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditorWidget {
-		return instantiationService.createInstance(CodeEditorWidget, container, options, {});
+	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorBrowser.IEditorConstructionOptions, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
+		return instantiationService.createInstance(CodeEditorWidget, container, options, editorWidgetOptions);
 	}
 
 	public dispose(): void {
@@ -969,6 +989,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _layoutOverviewRulers(): void {
+		if (!this._renderOverviewRuler) {
+			return;
+		}
+
 		if (!this._originalOverviewRuler || !this._modifiedOverviewRuler) {
 			return;
 		}
@@ -1079,9 +1103,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _updateDecorations(): void {
-		if (!this._originalEditor.getModel() || !this._modifiedEditor.getModel() || !this._originalOverviewRuler || !this._modifiedOverviewRuler) {
+		if (!this._originalEditor.getModel() || !this._modifiedEditor.getModel()) {
 			return;
 		}
+
 		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
 
 		const foreignOriginal = this._originalEditorState.getForeignViewZones(this._originalEditor.getWhitespaces());
@@ -1126,7 +1151,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 		result.readOnly = !this._originalIsEditable;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
-		return result;
+		return {
+			...result,
+			dimension: {
+				height: 0,
+				width: 0
+			}
+		};
 	}
 
 	private _adjustOptionsForRightHandSide(options: editorBrowser.IDiffEditorConstructionOptions): editorBrowser.IEditorConstructionOptions {
@@ -1135,7 +1166,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
-		return result;
+		return {
+			...result,
+			dimension: {
+				height: 0,
+				width: 0
+			}
+		};
 	}
 
 	public doLayout(): void {
