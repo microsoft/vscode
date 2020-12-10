@@ -373,6 +373,10 @@ export class Configuration extends CommonEditorConfiguration {
 			// Use user-select: none in all browsers except Safari and native macOS WebView
 			extra += 'no-user-select ';
 		}
+		if (browser.isSafari) {
+			// See https://github.com/microsoft/vscode/issues/108822
+			extra += 'no-minimap-shadow ';
+		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';
 		}
