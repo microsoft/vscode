@@ -62,7 +62,7 @@ export class AutoFetcher {
 
 		if (result === yes) {
 			const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			gitConfig.update('autofetch', 'all', ConfigurationTarget.Global);
+			gitConfig.update('autofetch', true, ConfigurationTarget.Global);
 		}
 
 		this.globalState.update(AutoFetcher.DidInformUser, true);
@@ -74,9 +74,11 @@ export class AutoFetcher {
 		switch (gitConfig.get<string | boolean>('autofetch')) {
 			case true:
 				this.enable();
+				break;
 			case 'all':
 				this.enable();
 				this._fetchAll = true;
+				break;
 			case false:
 			default:
 				this.disable();
