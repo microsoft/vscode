@@ -303,6 +303,19 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 			breakOffsetVisibleColumn = forcedBreakOffsetVisibleColumn;
 		}
 
+		if (breakOffset <= lastBreakingOffset) {
+			// Make sure that we are advancing (at least one character)
+			const charCode = lineText.charCodeAt(lastBreakingOffset);
+			if (strings.isHighSurrogate(charCode)) {
+				// A surrogate pair must always be considered as a single unit, so it is never to be broken
+				breakOffset = lastBreakingOffset + 2;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + 2;
+			} else {
+				breakOffset = lastBreakingOffset + 1;
+				breakOffsetVisibleColumn = lastBreakingOffsetVisibleColumn + computeCharWidth(charCode, lastBreakingOffsetVisibleColumn, tabSize, columnsForFullWidthChar);
+			}
+		}
+
 		lastBreakingOffset = breakOffset;
 		breakingOffsets[breakingOffsetsCount] = breakOffset;
 		lastBreakingOffsetVisibleColumn = breakOffsetVisibleColumn;
