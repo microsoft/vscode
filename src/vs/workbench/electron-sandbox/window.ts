@@ -125,7 +125,7 @@ export class NativeWindow extends Disposable {
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
-		// prevent opening a real URL inside the shell
+		// prevent opening a real URL inside the window
 		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				EventHelper.stop(e);

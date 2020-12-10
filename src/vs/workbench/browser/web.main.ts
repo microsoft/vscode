@@ -61,6 +61,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { BrowserWindow } from 'vs/workbench/browser/window';
 
 class BrowserMain extends Disposable {
 
@@ -102,6 +103,12 @@ class BrowserMain extends Disposable {
 
 		// Startup
 		const instantiationService = workbench.startup();
+
+		// Window
+		this._register(instantiationService.createInstance(BrowserWindow));
+
+		// Logging
+		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
