@@ -251,6 +251,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/clipboard",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/commands",
 			"project": "vscode-workbench"
 		},
