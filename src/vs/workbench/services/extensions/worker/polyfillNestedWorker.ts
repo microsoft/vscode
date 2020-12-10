@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
 
 declare function postMessage(data: any, transferables?: Transferable[]): void;
 
@@ -52,19 +53,6 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 	self.addEventListener('message', listener);
 }).toString();
 
-
-interface NewWorkerMessage {
-	type: '_newWorker';
-	id: string;
-	port: MessagePort;
-	url: string;
-	options: WorkerOptions | undefined
-}
-
-interface TerminateWorkerMessage {
-	type: '_terminateWorker';
-	id: string;
-}
 
 export class NestedWorker extends EventTarget implements Worker {
 
