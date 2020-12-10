@@ -1,8 +1,14 @@
 # Visual Studio Code - Open Source ("Code - OSS")
-[![Build Status](https://dev.azure.com/vscode/VSCode/_apis/build/status/VS%20Code?branchName=master)](https://aka.ms/vscode-builds)
+<p align="center">
+	<a href="https://aka.ms/vscode-builds"><img src="https://dev.azure.com/vscode/VSCode/_apis/build/status/VS%20Code?branchName=master" alt="Build Status"></a>
+	<a href="https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc"><img src="https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg" alt="Feature Requests"></a>
+	<a href="https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug"><img src="https://img.shields.io/github/issues/microsoft/vscode/bug.svg" alt="Bugs"></a>
+	<a href="https://gitter.im/Microsoft/vscode"><img src="https://img.shields.io/badge/chat-on%20gitter-yellow.svg" alt="Bugs"></a>
+<!-- [![Build Status](https://dev.azure.com/vscode/VSCode/_apis/build/status/VS%20Code?branchName=master)](https://aka.ms/vscode-builds)
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode) -->
+</p>
 
 ## The Repository
 
