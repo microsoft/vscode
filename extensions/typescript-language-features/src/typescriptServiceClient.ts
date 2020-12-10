@@ -374,7 +374,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.info(`Using tsserver from: ${version.path}`);
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
-		let mytoken = ++this.token;
+		const mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
