@@ -375,9 +375,9 @@ export abstract class AbstractTimerService implements ITimerService {
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
 
 		// report raw timers as telemetry
-		type Durations = { entries: string; };
+		type Durations = { entries: perf.PerformanceEntry[]; };
 		type DurationsClassification = { entries: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
-		this._telemetryService.publicLog2<Durations, DurationsClassification>('startup.timers.raw', { entries: JSON.stringify(perf.getEntries()) });
+		this._telemetryService.publicLog2<Durations, DurationsClassification>('startup.timers.entries', { entries: perf.getEntries() });
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
