@@ -168,6 +168,9 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	}
 
 	let confirmation: IConfirmationResult;
+	// We do not support undo of folders, so in that case the delete action is irreversible
+	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
+		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command") : nls.localize('restore', "You can restore this file using the Undo command");
 
 	// Check if we need to ask for confirmation at all
 	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
@@ -199,7 +202,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	else {
 		let { message, detail } = getDeleteMessage(distinctElements);
 		detail += detail ? '\n' : '';
-		detail += nls.localize('irreversible', "This action is irreversible!");
+		detail += deleteDetail;
 		confirmation = await dialogService.confirm({
 			message,
 			detail,
@@ -234,7 +237,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		let primaryButton: string;
 		if (useTrash) {
 			errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
-			detailMessage = nls.localize('irreversible', "This action is irreversible!");
+			detailMessage = deleteDetail;
 			primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
 		} else {
 			errorMessage = toErrorMessage(error, false);
