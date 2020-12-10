@@ -20,7 +20,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { buttonBackground as welcomeButtonBackground, buttonHoverBackground as welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -287,7 +287,7 @@ export class GettingStartedPage extends Disposable {
 		const categoryElements = category.content.items.map(
 			(task, i, arr) => $('button.getting-started-task',
 				{ 'x-dispatch': 'selectTask:' + task.id, id: 'getting-started-task-' + task.id },
-				$('.codicon' + (task.done ? '.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
+				$('.codicon' + (task.done ? '.complete.codicon-pass-filled' : '.codicon-circle-large-outline'), { id: 'done-task-' + task.id }),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
@@ -398,7 +398,12 @@ registerThemingParticipant((theme, collector) => {
 	if (emphasisButtonBackground) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button.emphasis { background: ${emphasisButtonBackground}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .getting-started-category .codicon { color: ${emphasisButtonBackground} }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon { color: ${emphasisButtonBackground} } `);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.complete { color: ${emphasisButtonBackground} } `);
+	}
+
+	const pendingItemColor = theme.getColor(buttonSecondaryBackground);
+	if (pendingItemColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon { color: ${pendingItemColor} } `);
 	}
 
 	const emphasisButtonHoverBackground = theme.getColor(buttonHoverBackground);
