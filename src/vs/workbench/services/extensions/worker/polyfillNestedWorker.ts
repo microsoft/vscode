@@ -42,6 +42,9 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 
 		port.start();
 
+		// fake recursively nested worker
+		self.Worker = <any>class { constructor() { throw new TypeError('Nested workers from within nested worker are NOT supported.'); } };
+
 		// load module
 		importScripts(workerUrl);
 	};
