@@ -917,7 +917,7 @@ function registerOtherEditorCommands(): void {
 					nls.localize('enablePreview', "Preview editors have been enabled in settings.") :
 					nls.localize('disablePreview', "Preview editors have been disabled in settings."),
 				[{
-					label: nls.localize('learnMode', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
+					label: nls.localize('learnMore', "Learn More"), run: () => openerService.open('https://go.microsoft.com/fwlink/?linkid=2147473')
 				}]
 			);
 		}

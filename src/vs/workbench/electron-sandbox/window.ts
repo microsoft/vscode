@@ -188,7 +188,7 @@ export class NativeWindow extends Disposable {
 
 		// Shell Environment Issue Notifications
 		const choices: IPromptChoice[] = [{
-			label: localize('learnMode', "Learn More"),
+			label: localize('learnMore', "Learn More"),
 			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 		}];
 
