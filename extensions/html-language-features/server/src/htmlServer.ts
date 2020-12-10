@@ -501,9 +501,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const position: Position = params.position;
 
 			if (document) {
-				const htmlMode = languageModes.getMode('html');
-				if (htmlMode && htmlMode.doRename) {
-					return htmlMode.doRename(document, position, params.newName);
+				const mode = languageModes.getModeAtPosition(document, params.position);
+
+				if (mode && mode.doRename) {
+					return mode.doRename(document, position, params.newName);
 				}
 			}
 			return null;

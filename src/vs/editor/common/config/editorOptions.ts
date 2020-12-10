@@ -266,12 +266,10 @@ export interface IEditorOptions {
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
 	 * Override the `wordWrap` setting.
-	 * @internal
 	 */
 	wordWrapOverride1?: 'off' | 'on' | 'inherit';
 	/**
 	 * Override the `wordWrapOverride1` setting.
-	 * @internal
 	 */
 	wordWrapOverride2?: 'off' | 'on' | 'inherit';
 	/**
@@ -679,6 +677,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to false
 	 */
 	isInEmbeddedEditor?: boolean;
+	/**
+	 * Is the diff editor should render overview ruler
+	 * Defaults to true
+	 */
+	renderOverviewRuler?: boolean;
 	/**
 	 * Control the wrapping of the diff editor.
 	 */

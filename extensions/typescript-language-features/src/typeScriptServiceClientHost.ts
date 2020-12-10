@@ -57,7 +57,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	constructor(
 		descriptions: LanguageDescription[],
-		workspaceState: vscode.Memento,
+		context: vscode.ExtensionContext,
 		onCaseInsenitiveFileSystem: boolean,
 		services: {
 			pluginManager: PluginManager,
@@ -75,7 +75,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		const allModeIds = this.getAllModeIds(descriptions, services.pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
-			workspaceState,
+			context,
 			onCaseInsenitiveFileSystem,
 			services,
 			allModeIds));

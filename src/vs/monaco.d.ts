@@ -1890,11 +1890,15 @@ declare namespace monaco.editor {
 		 */
 		detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
 		/**
-		 * Push a stack element onto the undo stack. This acts as an undo/redo point.
-		 * The idea is to use `pushEditOperations` to edit the model and then to
-		 * `pushStackElement` to create an undo/redo stop point.
+		 * Close the current undo-redo element.
+		 * This offers a way to create an undo/redo stop point.
 		 */
 		pushStackElement(): void;
+		/**
+		 * Open the current undo-redo element.
+		 * This offers a way to remove the current undo/redo stop point.
+		 */
+		popStackElement(): void;
 		/**
 		 * Push edit operations, basically editing the model. This is the preferred way
 		 * of editing the model. The edit operations will land on the undo stack.
@@ -2812,6 +2816,14 @@ declare namespace monaco.editor {
 		 */
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
+		 * Override the `wordWrap` setting.
+		 */
+		wordWrapOverride1?: 'off' | 'on' | 'inherit';
+		/**
+		 * Override the `wordWrapOverride1` setting.
+		 */
+		wordWrapOverride2?: 'off' | 'on' | 'inherit';
+		/**
 		 * Control the wrapping of the editor.
 		 * When `wordWrap` = "off", the lines will never wrap.
 		 * When `wordWrap` = "on", the lines will wrap at the viewport width.
@@ -3210,6 +3222,11 @@ declare namespace monaco.editor {
 		 * Defaults to false
 		 */
 		isInEmbeddedEditor?: boolean;
+		/**
+		 * Is the diff editor should render overview ruler
+		 * Defaults to true
+		 */
+		renderOverviewRuler?: boolean;
 		/**
 		 * Control the wrapping of the diff editor.
 		 */
@@ -4481,6 +4498,10 @@ declare namespace monaco.editor {
 
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+		/**
 		 * Place overflow widgets inside an external DOM node.
 		 * Defaults to an internal DOM node.
 		 */
@@ -4732,9 +4753,13 @@ declare namespace monaco.editor {
 		 */
 		executeCommand(source: string | null | undefined, command: ICommand): void;
 		/**
-		 * Push an "undo stop" in the undo-redo stack.
+		 * Create an "undo stop" in the undo-redo stack.
 		 */
 		pushUndoStop(): boolean;
+		/**
+		 * Remove the "undo stop" in the undo-redo stack.
+		 */
+		popUndoStop(): boolean;
 		/**
 		 * Execute edits on the editor.
 		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
@@ -5053,6 +5078,10 @@ declare namespace monaco.languages {
 		 * Tokenize a line given the state at the beginning of the line.
 		 */
 		tokenizeEncoded(line: string, state: IState): IEncodedLineTokens;
+		/**
+		 * Tokenize a line given the state at the beginning of the line.
+		 */
+		tokenize?(line: string, state: IState): ILineTokens;
 	}
 
 	/**

@@ -594,7 +594,7 @@ class EditorTextRenderer {
 		const element = DOM.$('div', { style });
 
 		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
-		element.innerHTML = linesHtml as unknown as string;
+		element.innerHTML = linesHtml as string;
 		return element;
 	}
 
@@ -1034,6 +1034,7 @@ export class RunStateRenderer {
 	clear() {
 		if (this.spinnerTimer) {
 			clearTimeout(this.spinnerTimer);
+			this.spinnerTimer = undefined;
 		}
 	}
 

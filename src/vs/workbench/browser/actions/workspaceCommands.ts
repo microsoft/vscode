@@ -131,7 +131,7 @@ interface IOpenFolderAPICommandOptions {
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.openFolder',
-	handler: (accessor: ServicesAccessor, uri?: URI, arg: boolean | IOpenFolderAPICommandOptions = {}) => {
+	handler: (accessor: ServicesAccessor, uri?: URI, arg?: boolean | IOpenFolderAPICommandOptions) => {
 		const commandService = accessor.get(ICommandService);
 
 		// Be compatible to previous args by converting to options
@@ -141,15 +141,15 @@ CommandsRegistry.registerCommand({
 
 		// Without URI, ask to pick a folder or workpsace to open
 		if (!uri) {
-			return commandService.executeCommand('_files.pickFolderAndOpen', { forceNewWindow: arg.forceNewWindow });
+			return commandService.executeCommand('_files.pickFolderAndOpen', { forceNewWindow: arg?.forceNewWindow });
 		}
 
 		uri = URI.revive(uri);
 
 		const options: IOpenWindowOptions = {
-			forceNewWindow: arg.forceNewWindow,
-			forceReuseWindow: arg.forceReuseWindow,
-			noRecentEntry: arg.noRecentEntry
+			forceNewWindow: arg?.forceNewWindow,
+			forceReuseWindow: arg?.forceReuseWindow,
+			noRecentEntry: arg?.noRecentEntry
 		};
 
 		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };

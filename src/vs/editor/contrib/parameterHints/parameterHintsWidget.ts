@@ -14,7 +14,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as modes from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -27,6 +27,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
 
@@ -225,8 +226,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			if (typeof activeParameter.documentation === 'string') {
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
-				renderedContents.element.classList.add('markdown-docs');
+				const renderedContents = this.renderMarkdownDocs(activeParameter.documentation);
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
@@ -237,8 +237,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else if (typeof signature.documentation === 'string') {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
-			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
-			renderedContents.element.classList.add('markdown-docs');
+			const renderedContents = this.renderMarkdownDocs(signature.documentation);
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
@@ -263,6 +262,16 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		this.editor.layoutContentWidget(this);
 		this.domNodes.scrollbar.scanDomNode();
+	}
+
+	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
+			asyncRenderCallback: () => {
+				this.domNodes?.scrollbar.scanDomNode();
+			}
+		}));
+		renderedContents.element.classList.add('markdown-docs');
+		return renderedContents;
 	}
 
 	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {

@@ -16,6 +16,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	declare readonly _serviceBrand: undefined;
 
 	private beforeUnloadDisposable: IDisposable | undefined = undefined;
+	private expectedUnload = false;
 
 	constructor(
 		@ILogService readonly logService: ILogService
@@ -32,6 +33,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
+		if (this.expectedUnload) {
+			this.logService.info('[lifecycle] onBeforeUnload expected, ignoring once');
+
+			this.expectedUnload = false;
+			return; // ignore expected unload only once
+		}
+
 		this.logService.info('[lifecycle] onBeforeUnload triggered');
 
 		this.doShutdown(() => {
@@ -39,6 +47,15 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			event.preventDefault();
 			event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
 		});
+	}
+
+	withExpectedUnload(callback: Function): void {
+		this.expectedUnload = true;
+		try {
+			callback();
+		} finally {
+			this.expectedUnload = false;
+		}
 	}
 
 	shutdown(): void {

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { IBestWindowOrFolderOptions, IWindowContext, findBestWindowOrFolderForFile, OpenContext } from 'vs/platform/windows/node/window';
+import { IBestWindowOrFolderOptions, IWindowContext, findBestWindowOrFolderForFile, OpenContext } from 'vs/platform/windows/electron-main/window';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 
 const fixturesFolder = getPathFromAmdModule(require, './fixtures');
 
@@ -17,7 +18,7 @@ const testWorkspace: IWorkspaceIdentifier = {
 	configPath: URI.file(path.join(fixturesFolder, 'workspaces.json'))
 };
 
-const testWorkspaceFolders = toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath);
+const testWorkspaceFolders = toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
 
 function options(custom?: Partial<IBestWindowOrFolderOptions<IWindowContext>>): IBestWindowOrFolderOptions<IWindowContext> {
 	return {

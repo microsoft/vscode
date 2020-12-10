@@ -42,8 +42,8 @@ export class Colorizer {
 		let text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
 		domNode.className += ' ' + theme;
 		let render = (str: string) => {
-			const trustedhtml = ttPolicy ? ttPolicy.createHTML(str) : str;
-			domNode.innerHTML = trustedhtml as unknown as string;
+			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
+			domNode.innerHTML = trustedhtml as string;
 		};
 		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
 	}

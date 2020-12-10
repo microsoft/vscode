@@ -97,6 +97,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly pathSeparator: string;
 	private readonly inMemoryResourcePrefix = '^';
 
+	private readonly workspaceState: vscode.Memento;
+
 	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private _configuration: TypeScriptServiceConfiguration;
 	private pluginPathsProvider: TypeScriptPluginPathsProvider;
@@ -125,7 +127,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly processFactory: TsServerProcessFactory;
 
 	constructor(
-		private readonly workspaceState: vscode.Memento,
+		private readonly context: vscode.ExtensionContext,
 		onCaseInsenitiveFileSystem: boolean,
 		services: {
 			pluginManager: PluginManager,
@@ -137,6 +139,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		allModeIds: readonly string[]
 	) {
 		super();
+
+		this.workspaceState = context.workspaceState;
 
 		this.pluginManager = services.pluginManager;
 		this.logDirectoryProvider = services.logDirectoryProvider;
@@ -374,7 +378,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.info(`Using tsserver from: ${version.path}`);
 
 		const apiVersion = version.apiVersion || API.defaultVersion;
-		let mytoken = ++this.token;
+		const mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
 			onFatalError: (command, err) => this.fatalError(command, err),
 		});
@@ -686,6 +690,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public toResource(filepath: string): vscode.Uri {
+		if (isWeb()) {
+			// On web, treat absolute paths as pointing to standard lib files
+			if (filepath.startsWith('/')) {
+				return vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', 'typescript-web', 'lib', filepath.slice(1));
+			}
+		}
+
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
 			const resource = vscode.Uri.parse(filepath.slice(1));
 			return this.bufferSyncSupport.toVsCodeResource(resource);

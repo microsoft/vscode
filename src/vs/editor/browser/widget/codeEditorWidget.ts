@@ -1122,6 +1122,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
+	public popUndoStop(): boolean {
+		if (!this._modelData) {
+			return false;
+		}
+		if (this._configuration.options.get(EditorOption.readOnly)) {
+			// read only editor => sorry!
+			return false;
+		}
+		this._modelData.model.popStackElement();
+		return true;
+	}
+
 	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
 		if (!this._modelData) {
 			return false;

@@ -1207,71 +1207,71 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
 			get RemoteAuthorityResolverError() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.RemoteAuthorityResolverError;
 			},
 			get ResolvedAuthority() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.ResolvedAuthority;
 			},
 			get SourceControlInputBoxValidationType() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.SourceControlInputBoxValidationType;
 			},
 			get ExtensionRuntime() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.ExtensionRuntime;
 			},
 			get TimelineItem() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.TimelineItem;
 			},
 			get CellKind() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.CellKind;
 			},
 			get CellOutputKind() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.CellOutputKind;
 			},
 			get NotebookCellRunState() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellRunState;
 			},
 			get NotebookRunState() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookRunState;
 			},
 			get NotebookCellStatusBarAlignment() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellStatusBarAlignment;
 			},
 			get NotebookEditorRevealType() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookEditorRevealType;
 			},
 			get NotebookCellOutput() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellOutput;
 			},
 			get NotebookCellOutputItem() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellOutputItem;
 			},
 			get LinkedEditingRanges() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.LinkedEditingRanges;
 			},
 			get TestRunState() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.TestRunState;
 			},
 			get TestMessageSeverity() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.TestMessageSeverity;
 			},
 			get TestState() {
-				checkProposedApiEnabled(extension);
+				// checkProposedApiEnabled(extension);
 				return extHostTypes.TestState;
 			},
 		};

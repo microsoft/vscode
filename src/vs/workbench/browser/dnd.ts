@@ -737,7 +737,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		if (callbacks.onDragEnd) {
 			this._onDragEnd.event(e => {
 				callbacks.onDragEnd!(e);
-			});
+			}, this, disposableStore);
 		}
 		return this._register(disposableStore);
 	}

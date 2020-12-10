@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWindowOpenable, IOpenEmptyWindowOptions, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
+import { OpenContext } from 'vs/platform/windows/electron-main/window';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

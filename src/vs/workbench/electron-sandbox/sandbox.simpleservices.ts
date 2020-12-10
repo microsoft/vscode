@@ -56,6 +56,7 @@ import { Schemas } from 'vs/base/common/network';
 import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 
 //#region Environment
@@ -191,7 +192,9 @@ export class SimpleStorageService extends InMemoryStorageService { }
 
 //#region Configuration
 
-export class SimpleConfigurationService extends BaseSimpleConfigurationService { }
+export class SimpleConfigurationService extends BaseSimpleConfigurationService implements IWorkbenchConfigurationService {
+	async whenRemoteConfigurationLoaded() { }
+}
 
 //#endregion
 

@@ -111,7 +111,7 @@ class IconRegistry implements IIconRegistry {
 		if (existing) {
 			if (description && !existing.description) {
 				existing.description = description;
-				this.iconSchema.properties[id].markdownDescription = `${description}: $(${id})`;
+				this.iconSchema.properties[id].markdownDescription = `${description} $(${id})`;
 				const enumIndex = this.iconReferenceSchema.enum.indexOf(id);
 				if (enumIndex !== -1) {
 					this.iconReferenceSchema.enumDescriptions[enumIndex] = description;
@@ -190,11 +190,6 @@ class IconRegistry implements IIconRegistry {
 
 	public toString() {
 		const sorter = (i1: IconContribution, i2: IconContribution) => {
-			const isThemeIcon1 = ThemeIcon.isThemeIcon(i1.defaults);
-			const isThemeIcon2 = ThemeIcon.isThemeIcon(i2.defaults);
-			if (isThemeIcon1 !== isThemeIcon2) {
-				return isThemeIcon1 ? -1 : 1;
-			}
 			return i1.id.localeCompare(i2.id);
 		};
 		const classNames = (i: IconContribution) => {
@@ -205,18 +200,24 @@ class IconRegistry implements IIconRegistry {
 		};
 
 		let reference = [];
-		let docCss = [];
 
+		reference.push(`| preview     | identifier                        | default codicon id                | description`);
+		reference.push(`| ----------- | --------------------------------- | --------------------------------- | --------------------------------- |`);
 		const contributions = Object.keys(this.iconsById).map(key => this.iconsById[key]);
 
-		for (const i of contributions.sort(sorter)) {
-			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defaults) ? i.defaults.id : ''}|${i.description || ''}|`);
-
-			if (!ThemeIcon.isThemeIcon((i.defaults))) {
-				docCss.push(`.codicon-${i.id}:before { content: "${i.defaults.character}" }`);
-			}
+		for (const i of contributions.filter(i => !!i.description).sort(sorter)) {
+			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defaults) ? i.defaults.id : i.id}|${i.description || ''}|`);
 		}
-		return reference.join('\n') + '\n\n' + docCss.join('\n');
+
+		reference.push(`| preview     | identifier                        `);
+		reference.push(`| ----------- | --------------------------------- |`);
+
+		for (const i of contributions.filter(i => !ThemeIcon.isThemeIcon(i.defaults)).sort(sorter)) {
+			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|`);
+
+		}
+
+		return reference.join('\n');
 	}
 
 }

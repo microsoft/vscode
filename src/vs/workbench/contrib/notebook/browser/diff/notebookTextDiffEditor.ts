@@ -16,7 +16,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
+import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
@@ -87,16 +87,17 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
 
-		const renderer = this.instantiationService.createInstance(CellDiffRenderer, this);
+		const renderers = [
+			this.instantiationService.createInstance(CellDiffSingleSideRenderer, this),
+			this.instantiationService.createInstance(CellDiffSideBySideRenderer, this),
+		];
 
 		this._list = this.instantiationService.createInstance(
 			NotebookTextDiffList,
 			'NotebookTextDiff',
 			this._rootElement,
 			this.instantiationService.createInstance(NotebookCellTextDiffListDelegate),
-			[
-				renderer
-			],
+			renderers,
 			this.contextKeyService,
 			{
 				setRowLineHeight: false,
