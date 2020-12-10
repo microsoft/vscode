@@ -13,27 +13,32 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 		self.removeEventListener('message', listener);
 
 		// get data
-		const port = (<MessageEvent>event).data;
+		const port = <MessagePort>(<MessageEvent>event).data;
 
 		// postMessage
-		Object.defineProperty(self, 'postMessage', {
-			value(data: any, transferOrOptions?: any) {
-				port.postMessage(data, transferOrOptions);
+		// onmessage
+		Object.defineProperties(self, {
+			'postMessage': {
+				value(data: any, transferOrOptions?: any) {
+					port.postMessage(data, transferOrOptions);
+				}
+			},
+			'onmessage': {
+				get() {
+					return port.onmessage;
+				},
+				set(value: ((ev: MessageEvent<any>) => any) | null) {
+					port.onmessage = value;
+				}
 			}
+			// todo onerror
 		});
 
-		// onmessage
-		let onmessage: Function | null = null;
-		Object.defineProperty(self, 'onmessage', {
-			get() { return onmessage; },
-			set(value) { onmessage = value; },
-		});
-		port.onmessage = function (msg: MessageEvent) {
+		port.addEventListener('message', msg => {
 			self.dispatchEvent(new MessageEvent('message', { data: msg.data }));
-			if (typeof onmessage === 'function') {
-				onmessage(msg.data);
-			}
-		};
+		});
+
+		port.start();
 
 		// load module
 		importScripts(workerUrl);
@@ -41,6 +46,20 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 
 	self.addEventListener('message', listener);
 }).toString();
+
+
+interface NewWorkerMessage {
+	type: '_newWorker';
+	id: string;
+	port: MessagePort;
+	url: string;
+	options: WorkerOptions | undefined
+}
+
+interface TerminateWorkerMessage {
+	type: '_terminateWorker';
+	id: string;
+}
 
 export class NestedWorker extends EventTarget implements Worker {
 
@@ -62,42 +81,60 @@ export class NestedWorker extends EventTarget implements Worker {
 		const channel = new MessageChannel();
 		const id = blobUrl; // works because blob url is unique, needs ID pool otherwise
 
-		nativePostMessage({
+		const msg: NewWorkerMessage = {
 			type: '_newWorker',
 			id,
 			port: channel.port2,
 			url: blobUrl,
 			options,
-		}, [channel.port2]);
+		};
+		nativePostMessage(msg, [channel.port2]);
 
 		// worker-impl: functions
 		this.postMessage = channel.port1.postMessage.bind(channel.port1);
 		this.terminate = () => {
-			channel.port1.postMessage({ type: '_terminateWorker', id });
+			const msg: TerminateWorkerMessage = {
+				type: '_terminateWorker',
+				id
+			};
+			channel.port1.postMessage(msg);
 			URL.revokeObjectURL(blobUrl);
+
+			channel.port1.close();
+			channel.port2.close();
 		};
 
 		// worker-impl: events
-		let _onmessage: ((ev: MessageEvent<any>) => any) | null = null;
 		Object.defineProperties(this, {
 			'onmessage': {
 				get() {
-					return _onmessage;
+					return channel.port1.onmessage;
 				},
 				set(value: ((ev: MessageEvent<any>) => any) | null) {
-					_onmessage = value;
+					channel.port1.onmessage = value;
 				}
-			}
-			// TODO - define error, messageerror event
+			},
+			'onmessageerror': {
+				get() {
+					return channel.port1.onmessageerror;
+				},
+				set(value: ((ev: MessageEvent<any>) => any) | null) {
+					channel.port1.onmessageerror = value;
+				}
+			},
+			// todo onerror
 		});
 
-		channel.port1.onmessageerror = evt => this.dispatchEvent(evt);
-		channel.port1.onmessage = (evt) => {
-			const msgEvent = new MessageEvent('message', { data: evt.data });
-			if (_onmessage) {
-				_onmessage(msgEvent.data);
-			}
+		channel.port1.addEventListener('messageerror', evt => {
+			const msgEvent = new MessageEvent('messageerror', { data: evt.data });
 			this.dispatchEvent(msgEvent);
-		};
+		});
+
+		channel.port1.addEventListener('message', evt => {
+			const msgEvent = new MessageEvent('message', { data: evt.data });
+			this.dispatchEvent(msgEvent);
+		});
+
+		channel.port1.start();
 	}
 }
