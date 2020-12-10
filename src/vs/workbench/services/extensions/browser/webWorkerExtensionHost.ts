@@ -247,6 +247,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				// receiving a message to create a new nested/child worker
 				const worker = new Worker(data.url, data.options);
 				worker.postMessage(data.port, [data.port]);
+				worker.onerror = console.error.bind(console);
 				nestedWorker.set(data.id, worker);
 
 			} else if (data?.type === '_terminateWorker') {
