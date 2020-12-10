@@ -84,6 +84,15 @@
 	min-height: auto;
 }
 
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .gap {
+	flex: 150px 0 1
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-media {
+	min-height: 300px;
+	flex: 40% 1 10
+}
+
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category .codicon {
 	margin-left:0;
 	font-size: 22pt;
@@ -92,7 +101,7 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-columns {
 	display: flex;
 	height: calc(100% - 98px);
-	justify-content: center;
+	justify-content: flex-start;
 	padding: 44px;
 }
 
@@ -252,42 +261,4 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.prev {
 	left: -100%;
 	opacity: 0;
-}
-
-
-@media only screen and (max-width: 900px) {
-	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-columns {
-		justify-content: start;
-	}
-}
-
-@media only screen and (min-height: 850px) {
-	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-left {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-direction: column;
-	}
-
-	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-right {
-		align-items: center;
-		padding-top: 0;
-	}
-
-	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category {
-		padding-top: 0;
-	}
-}
-
-@media only screen and (max-height: 650px) {
-	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail #getting-started-detail-left {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-direction: column;
-	}
-
-	.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category {
-		padding-top: 0;
-	}
 }
