@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -248,12 +248,18 @@ export class ActionWithMenuAction extends Action {
 
 export class SubmenuAction extends Action {
 
-	get actions(): IAction[] {
-		return this._actions;
+	private _actions: IAction[] = [];
+	get actions(): IAction[] { return this._actions; }
+
+	constructor(id: string, label: string, actions: IAction[], cssClass?: string) {
+		super(id, label, cssClass);
+		this.setActions(actions);
 	}
 
-	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
-		super(id, label, cssClass, !!_actions?.length);
+	protected setActions(actions: IAction[]) {
+		this._actions = actions;
+		this._register(combinedDisposable(...actions));
+		this.enabled = !!actions.length;
 	}
 }
 

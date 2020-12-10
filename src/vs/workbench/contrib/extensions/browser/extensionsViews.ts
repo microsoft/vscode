@@ -17,15 +17,15 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { append, $ } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -49,7 +49,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { configureRecommendedIcon, installLocalInRemoteIcon, installWorkspaceRecommendedIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -134,7 +133,11 @@ export class ExtensionsListView extends ViewPane {
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
 		}
+
+		this.registerActions();
 	}
+
+	protected registerActions(): void { }
 
 	protected renderHeader(container: HTMLElement): void {
 		container.classList.add('extension-view-header');
@@ -989,14 +992,6 @@ export class ServerInstalledExtensionsView extends ExtensionsListView {
 		return super.show(query.trim());
 	}
 
-	getActions(): IAction[] {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === this.options.server) {
-			const installLocalExtensionsInRemoteAction = this._register(this.instantiationService.createInstance(InstallLocalExtensionsInRemoteAction));
-			installLocalExtensionsInRemoteAction.class = ThemeIcon.asClassName(installLocalInRemoteIcon);
-			return [installLocalExtensionsInRemoteAction];
-		}
-		return [];
-	}
 }
 
 export class EnabledExtensionsView extends ExtensionsListView {
@@ -1074,9 +1069,8 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 	}
 }
 
-export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
+export class WorkspaceRecommendedExtensionsView extends ExtensionsListView implements IWorkspaceRecommendedExtensionsView {
 	private readonly recommendedExtensionsQuery = '@recommended:workspace';
-	private installAllAction: Action | undefined;
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
@@ -1085,29 +1079,11 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
 	}
 
-	getActions(): IAction[] {
-		if (!this.installAllAction) {
-			this.installAllAction = this._register(new Action('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), ThemeIcon.asClassName(installWorkspaceRecommendedIcon), false, () => this.installWorkspaceRecommendations()));
-		}
-
-		const configureWorkspaceFolderAction = this._register(this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL));
-		configureWorkspaceFolderAction.class = ThemeIcon.asClassName(configureRecommendedIcon);
-		return [this.installAllAction, configureWorkspaceFolderAction];
-	}
-
 	async show(query: string): Promise<IPagedModel<IExtension>> {
 		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
 		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);
-		await this.setRecommendationsToInstall();
 		return model;
-	}
-
-	private async setRecommendationsToInstall(): Promise<void> {
-		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
-		if (this.installAllAction) {
-			this.installAllAction.enabled = installableRecommendations.length > 0;
-		}
 	}
 
 	private async getInstallableWorkspaceRecommendations() {
@@ -1118,9 +1094,16 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		return this.getInstallableRecommendations(recommendations, { source: 'install-all-workspace-recommendations' }, CancellationToken.None);
 	}
 
-	private async installWorkspaceRecommendations(): Promise<void> {
+	async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
-		await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
+		if (installableRecommendations.length) {
+			await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
+		} else {
+			this.notificationService.notify({
+				severity: Severity.Info,
+				message: localize('no local extensions', "There are no extensions to install.")
+			});
+		}
 	}
 
 }

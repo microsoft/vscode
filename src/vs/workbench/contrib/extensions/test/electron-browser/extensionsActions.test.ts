@@ -53,6 +53,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -77,6 +79,7 @@ async function setupTest() {
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IProgressService, ProgressService);
 	instantiationService.stub(IProductService, {});
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 	instantiationService.stub(ISharedProcessService, TestSharedProcessService);
@@ -883,83 +886,6 @@ suite('ExtensionsActions', () => {
 				uninstallEvent.fire(local.identifier);
 				assert.ok(!testObject.enabled);
 			});
-	});
-
-	test('Test UpdateAllAction when no installed extensions', () => {
-		const testObject: ExtensionsActions.UpdateAllAction = instantiationService.createInstance(ExtensionsActions.UpdateAllAction, 'id', 'label', true);
-
-		assert.ok(!testObject.enabled);
-	});
-
-	test('Test UpdateAllAction when installed extensions are not outdated', () => {
-		const testObject: ExtensionsActions.UpdateAllAction = instantiationService.createInstance(ExtensionsActions.UpdateAllAction, 'id', 'label', true);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a'), aLocalExtension('b')]);
-		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
-			.then(extensions => assert.ok(!testObject.enabled));
-	});
-
-	test('Test UpdateAllAction when some installed extensions are outdated', () => {
-		const testObject: ExtensionsActions.UpdateAllAction = instantiationService.createInstance(ExtensionsActions.UpdateAllAction, 'id', 'label', true);
-		const local = [aLocalExtension('a', { version: '1.0.1' }), aLocalExtension('b', { version: '1.0.1' }), aLocalExtension('c', { version: '1.0.1' })];
-		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
-		return workbenchService.queryLocal()
-			.then(async () => {
-				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)));
-				assert.ok(!testObject.enabled);
-				return new Promise<void>(c => {
-					testObject.onDidChange(() => {
-						if (testObject.enabled) {
-							c();
-						}
-					});
-					workbenchService.queryGallery(CancellationToken.None);
-				});
-			});
-	});
-
-	test('Test UpdateAllAction when some installed extensions are outdated and some outdated are being installed', () => {
-		const testObject: ExtensionsActions.UpdateAllAction = instantiationService.createInstance(ExtensionsActions.UpdateAllAction, 'id', 'label', true);
-		const local = [aLocalExtension('a', { version: '1.0.1' }), aLocalExtension('b', { version: '1.0.1' }), aLocalExtension('c', { version: '1.0.1' })];
-		const gallery = [aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)];
-		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
-		return workbenchService.queryLocal()
-			.then(async () => {
-				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
-				assert.ok(!testObject.enabled);
-				return new Promise<void>(c => {
-					installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
-					testObject.onDidChange(() => {
-						if (testObject.enabled) {
-							c();
-						}
-					});
-					workbenchService.queryGallery(CancellationToken.None);
-				});
-			});
-	});
-
-	test('Test UpdateAllAction when some installed extensions are outdated and all outdated are being installed', () => {
-		const testObject: ExtensionsActions.UpdateAllAction = instantiationService.createInstance(ExtensionsActions.UpdateAllAction, 'id', 'label', true);
-		const local = [aLocalExtension('a', { version: '1.0.1' }), aLocalExtension('b', { version: '1.0.1' }), aLocalExtension('c', { version: '1.0.1' })];
-		const gallery = [aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)];
-		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
-		return workbenchService.queryLocal()
-			.then(() => {
-				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
-				return workbenchService.queryGallery(CancellationToken.None)
-					.then(() => {
-						installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
-						installEvent.fire({ identifier: local[1].identifier, gallery: gallery[1] });
-						assert.ok(!testObject.enabled);
-					});
-			});
-	});
-
-	test(`RecommendToFolderAction`, () => {
-		// TODO: Implement test
 	});
 
 });

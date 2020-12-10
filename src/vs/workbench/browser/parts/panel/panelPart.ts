@@ -195,7 +195,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				viewMenuActions.dispose();
 			}
 
-			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container.id, MenuId.ViewContainerTitleContext);
+			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container.id, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext);
 			result.push(...viewContainerMenuActions.getContextMenuActions());
 			viewContainerMenuActions.dispose();
 		}

@@ -17,7 +17,8 @@ import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
 import { ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class PaneComposite extends Composite implements IPaneComposite {
 
@@ -36,7 +37,8 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	) {
 		super(id, telemetryService, themeService, storageService);
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.getId(), MenuId.ViewContainerTitleContext));
+		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.getId(), MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext));
+		this._register(this.menuActions.onDidChangeTitle(() => this.updateTitleArea()));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
 
@@ -82,15 +84,40 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	}
 
 	getActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getActions();
+		const result = [];
+		result.push(...this.menuActions.getPrimaryActions());
+		result.push(...this.viewPaneContainer.getActions());
+		return result;
 	}
 
 	getSecondaryActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getSecondaryActions();
+		const menuActions = this.menuActions.getSecondaryActions();
+		const viewPaneContainerActions = this.viewPaneContainer.getSecondaryActions();
+		if (menuActions.length && viewPaneContainerActions.length) {
+			return [
+				...menuActions,
+				new Separator(),
+				...viewPaneContainerActions
+			];
+		}
+		return menuActions.length ? menuActions : viewPaneContainerActions;
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return this.viewPaneContainer.getActionViewItem(action);
+		const actionViewItem = this.viewPaneContainer.getActionViewItem(action);
+		if (actionViewItem) {
+			return actionViewItem;
+		}
+
+		if (action instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+		}
+
+		if (action instanceof SubmenuItemAction) {
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+		}
+
+		return undefined;
 	}
 
 	getTitle(): string {
