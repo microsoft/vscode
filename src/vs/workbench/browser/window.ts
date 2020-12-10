@@ -29,11 +29,6 @@ export class BrowserWindow extends Disposable {
 
 	private setupOpenHandlers(): void {
 
-		// Block window.open() calls
-		window.open = function (): Window | null {
-			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
-		};
-
 		// We need to ignore the `beforeunload` event while
 		// we handle external links to open specifically for
 		// the case of application protocols that e.g. invoke
