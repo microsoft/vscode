@@ -71,13 +71,13 @@ export class AutoFetcher {
 	private onConfiguration(): void {
 		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
-		switch (gitConfig.get<string>('autofetch')) {
-			case 'current':
+		switch (gitConfig.get<string | boolean>('autofetch')) {
+			case true:
 				this.enable();
 			case 'all':
 				this.enable();
 				this._fetchAll = true;
-			case 'off':
+			case false:
 			default:
 				this.disable();
 				break;
@@ -106,8 +106,11 @@ export class AutoFetcher {
 			}
 
 			try {
-				const fetchAction = this._fetchAll ? this.repository.fetchDefault({ silent: true }) : this.repository.fetchAll();
-				await fetchAction;
+				if (this._fetchAll) {
+					await this.repository.fetchAll();
+				} else {
+					await this.repository.fetchDefault({ silent: true });
+				}
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();
