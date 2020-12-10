@@ -15,9 +15,9 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $ } from 'vs/base/browser/dom';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -25,7 +25,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -42,15 +42,13 @@ import { ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } f
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { configureRecommendedIcon, installWorkspaceRecommendedIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -1071,7 +1069,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 	}
 }
 
-export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
+export class WorkspaceRecommendedExtensionsView extends ExtensionsListView implements IWorkspaceRecommendedExtensionsView {
 	private readonly recommendedExtensionsQuery = '@recommended:workspace';
 
 	renderBody(container: HTMLElement): void {
@@ -1079,48 +1077,6 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.show(this.recommendedExtensionsQuery)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
-	}
-
-	protected registerActions() {
-		super.registerActions();
-
-		const that = this;
-		this._register(registerAction2(class InstallWorkspaceRecommendations extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.extensions.action.installWorkspaceRecommendedExtensions',
-					title: localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"),
-					icon: installWorkspaceRecommendedIcon,
-					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyEqualsExpr.create('view', that.id),
-						group: 'navigation',
-						order: 1
-					}
-				});
-			}
-			run(accessor: ServicesAccessor): Promise<void> {
-				return that.installWorkspaceRecommendations();
-			}
-		}));
-		this._register(registerAction2(class InstallWorkspaceRecommendations extends Action2 {
-			constructor() {
-				super({
-					id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
-					title: ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL,
-					icon: configureRecommendedIcon,
-					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyEqualsExpr.create('view', that.id),
-						group: 'navigation',
-						order: 2
-					}
-				});
-			}
-			run(accessor: ServicesAccessor): Promise<void> {
-				return accessor.get(IInstantiationService).createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL).run();
-			}
-		}));
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
@@ -1138,7 +1094,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		return this.getInstallableRecommendations(recommendations, { source: 'install-all-workspace-recommendations' }, CancellationToken.None);
 	}
 
-	private async installWorkspaceRecommendations(): Promise<void> {
+	async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
 		if (installableRecommendations.length) {
 			await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));

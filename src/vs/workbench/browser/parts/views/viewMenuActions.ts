@@ -10,7 +10,7 @@ import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
-export class ViewMenuActions extends Disposable {
+export abstract class AbstractViewMenuActions extends Disposable {
 
 	private primaryActions: IAction[] = [];
 	private readonly titleActionsDisposable = this._register(new MutableDisposable());
@@ -21,18 +21,14 @@ export class ViewMenuActions extends Disposable {
 	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
 
 	constructor(
-		viewId: string,
 		menuId: MenuId,
 		contextMenuId: MenuId,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super();
 
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
-		scopedContextKeyService.createKey('view', viewId);
-
-		const menu = this._register(this.menuService.createMenu(menuId, scopedContextKeyService));
+		const menu = this._register(menuService.createMenu(menuId, contextKeyService));
 		const updateActions = () => {
 			this.primaryActions = [];
 			this.secondaryActions = [];
@@ -42,7 +38,7 @@ export class ViewMenuActions extends Disposable {
 		this._register(menu.onDidChange(updateActions));
 		updateActions();
 
-		const contextMenu = this._register(this.menuService.createMenu(contextMenuId, scopedContextKeyService));
+		const contextMenu = this._register(menuService.createMenu(contextMenuId, contextKeyService));
 		const updateContextMenuActions = () => {
 			this.contextMenuActions = [];
 			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, { shouldForwardArgs: true }, { primary: [], secondary: this.contextMenuActions });
@@ -68,38 +64,43 @@ export class ViewMenuActions extends Disposable {
 	getContextMenuActions(): IAction[] {
 		return this.contextMenuActions;
 	}
+
 }
 
-export class ViewContainerMenuActions extends Disposable {
+export class ViewMenuActions extends AbstractViewMenuActions {
 
-	private readonly titleActionsDisposable = this._register(new MutableDisposable());
-	private contextMenuActions: IAction[] = [];
+	constructor(
+		viewId: string,
+		menuId: MenuId,
+		contextMenuId: MenuId,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+	) {
+		const scopedContextKeyService = contextKeyService.createScoped();
+		scopedContextKeyService.createKey('view', viewId);
+		super(menuId, contextMenuId, scopedContextKeyService, menuService);
+		this._register(scopedContextKeyService);
+	}
+
+}
+
+export class ViewContainerMenuActions extends AbstractViewMenuActions {
 
 	constructor(
 		containerId: string,
+		menuId: MenuId,
 		contextMenuId: MenuId,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
 	) {
-		super();
-
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
-		scopedContextKeyService.createKey('container', containerId);
-
-		const contextMenu = this._register(this.menuService.createMenu(contextMenuId, scopedContextKeyService));
-		const updateContextMenuActions = () => {
-			this.contextMenuActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, { shouldForwardArgs: true }, { primary: [], secondary: this.contextMenuActions });
-		};
-		this._register(contextMenu.onDidChange(updateContextMenuActions));
-		updateContextMenuActions();
-
-		this._register(toDisposable(() => {
-			this.contextMenuActions = [];
-		}));
+		const scopedContextKeyService = contextKeyService.createScoped();
+		scopedContextKeyService.createKey('viewContainer', containerId);
+		super(menuId, contextMenuId, scopedContextKeyService, menuService);
+		this._register(scopedContextKeyService);
 	}
 
-	getContextMenuActions(): IAction[] {
-		return this.contextMenuActions;
+	getSecondaryActions(): IAction[] {
+		return super.getSecondaryActions();
 	}
+
 }
