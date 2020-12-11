@@ -27,7 +27,6 @@ jobs:
           sudo chmod +x /etc/init.d/xvfb
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
-        name: Setup Build Environment
 
       - uses: actions/setup-node@v2-beta
         with:
