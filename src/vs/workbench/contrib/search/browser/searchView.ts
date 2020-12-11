@@ -397,7 +397,7 @@ export class SearchView extends ViewPane {
 		return this.inputPatternIncludes;
 	}
 
-	get searchExcludePattern(): PatternInputWidget {
+	get searchExcludePattern(): ExcludePatternInputWidget {
 		return this.inputPatternExcludes;
 	}
 
