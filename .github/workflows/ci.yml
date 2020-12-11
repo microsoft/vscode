@@ -118,6 +118,7 @@ jobs:
         env:
           cache-name: node-modules-cache
         with:
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
             ${{ runner.os }}-build-
@@ -240,6 +241,7 @@ jobs:
         env:
           cache-name: node-modules-cache
         with:
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
             ${{ runner.os }}-build-
