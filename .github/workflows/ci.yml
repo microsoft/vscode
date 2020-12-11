@@ -11,46 +11,124 @@ on:
       - release/*
 
 jobs:
-  # linux:
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     CHILD_CONCURRENCY: "1"
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #   - uses: actions/checkout@v1
-  #   # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
-  #   - run: |
-  #       sudo apt-get update
-  #       sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
-  #       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-  #       sudo chmod +x /etc/init.d/xvfb
-  #       sudo update-rc.d xvfb defaults
-  #       sudo service xvfb start
-  #     name: Setup Build Environment
-  #   - uses: actions/setup-node@v1
-  #     with:
-  #       node-version: 10
-  #   # TODO: cache node modules
-  #   - run: yarn --frozen-lockfile
-  #     name: Install Dependencies
-  #   - run: yarn electron x64
-  #     name: Download Electron
-  #   - run: yarn gulp hygiene
-  #     name: Run Hygiene Checks
-  #   - run: yarn monaco-compile-check
-  #     name: Run Monaco Editor Checks
-  #   - run: yarn valid-layers-check
-  #     name: Run Valid Layers Checks
-  #   - run: yarn compile
-  #     name: Compile Sources
-  #   - run: yarn download-builtin-extensions
-  #     name: Download Built-in Extensions
-  #   - run: DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
-  #     name: Run Unit Tests (Electron)
-  #   - run: DISPLAY=:10 yarn test-browser --browser chromium
-  #     name: Run Unit Tests (Browser)
-  #   - run: DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
-  #     name: Run Integration Tests (Electron)
+  linux:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+      - name: Setup Build Environment
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+        name: Setup Build Environment
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Compute yarn cache key
+        id: yarn-cache-key
+        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock', '.yarnrc', 'remote/.yarnrc') }}"
+
+      - name: Cache node modules
+        id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
+        uses: actions/cache@v2
+        env:
+          cache-name: node-modules-cache
+        with:
+          path: |
+            ./node_modules
+            ./build/node_modules
+            ./build/lib/watch/node_modules
+            ./extensions/node_modules
+            ./extensions/configuration-editing/node_modules
+            ./extensions/css-language-features/node_modules
+            ./extensions/css-language-features/server/node_modules
+            ./extensions/debug-auto-launch/node_modules
+            ./extensions/debug-server-ready/node_modules
+            ./extensions/emmet/node_modules
+            ./extensions/extension-editing/node_modules
+            ./extensions/git/node_modules
+            ./extensions/git-ui/node_modules
+            ./extensions/github/node_modules
+            ./extensions/github-authentication/node_modules
+            ./extensions/grunt/node_modules
+            ./extensions/gulp/node_modules
+            ./extensions/html-language-features/node_modules
+            ./extensions/html-language-features/server/node_modules
+            ./extensions/image-preview/node_modules
+            ./extensions/jake/node_modules
+            ./extensions/json-language-features/node_modules
+            ./extensions/json-language-features/server/node_modules
+            ./extensions/markdown-language-features/node_modules
+            ./extensions/merge-conflict/node_modules
+            ./extensions/microsoft-authentication/node_modules
+            ./extensions/npm/node_modules
+            ./extensions/php-language-features/node_modules
+            ./extensions/search-result/node_modules
+            ./extensions/typescript-language-features/node_modules
+            ./extensions/vscode-api-tests/node_modules
+            ./extensions/vscode-colorize-tests/node_modules
+            ./extensions/vscode-custom-editor-tests/node_modules
+            ./extensions/vscode-notebook-tests/node_modules
+            ./extensions/vscode-test-resolver/node_modules
+            ./remote/node_modules
+            ./remote/web/node_modules
+            ./test/automation/node_modules
+            ./test/integration/browser/node_modules
+            ./test/smoke/node_modules
+            ./test/ui/splitview/node_modules
+            ./test/ui/tree/node_modules
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - name: Install Dependencies
+        if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
+        run: yarn --frozen-lockfile
+
+      - name: Compile /build/ folder
+          # this normally executes as a postinstall script, but if the cache is hit above,
+          # yarn will not execute at all. Therefore, we manually launch it if necessary
+          if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
+          run: yarn run compile
+          working-directory: ./build
+
+      - name: Download Electron
+        run: yarn electron x64
+
+      - name: Run Hygiene Checks
+        run: yarn gulp hygiene
+
+      - name: Run Monaco Editor Checks
+        run: yarn monaco-compile-check
+
+      - name: Run Valid Layers Checks
+        run: yarn valid-layers-check
+
+      - name: Compile Sources
+        run: yarn compile
+
+      - name: Download Built-in Extensions
+        run: yarn download-builtin-extensions
+
+      - name: Run Unit Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test.sh
+
+      - name: Run Unit Tests (Browser)
+        run: DISPLAY=:10 yarn test-browser --browser chromium
+
+      - name: Run Integration Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test-integration.sh
 
   # windows:
   #   runs-on: windows-2016
@@ -130,7 +208,7 @@ jobs:
 
       - name: Compute yarn cache key
         id: yarn-cache-key
-        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock') }}"
+        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock', '.yarnrc', 'remote/.yarnrc') }}"
 
       - name: Cache node modules
         id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
@@ -191,7 +269,7 @@ jobs:
         if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
         run: yarn --frozen-lockfile
 
-      - name: Compile ./build/ folder
+      - name: Compile /build/ folder
         # this normally executes as a postinstall script, but if the cache is hit above,
         # yarn will not execute at all. Therefore, we manually launch it if necessary
         if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
