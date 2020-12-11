@@ -110,7 +110,12 @@ export class MouseHandler extends ViewEventHandler {
 				return;
 			}
 			const e = new StandardWheelEvent(browserEvent);
-			if (e.browserEvent!.ctrlKey || e.browserEvent!.metaKey) {
+			const doMouseWheelZoom = (
+				platform.isMacintosh
+					? (browserEvent.metaKey && !browserEvent.ctrlKey && !browserEvent.shiftKey && !browserEvent.altKey)
+					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
+			);
+			if (doMouseWheelZoom) {
 				const zoomLevel: number = EditorZoom.getZoomLevel();
 				const delta = e.deltaY > 0 ? 1 : -1;
 				EditorZoom.setZoomLevel(zoomLevel + delta);
@@ -355,13 +360,18 @@ class MouseDownOperation extends Disposable {
 				e.buttons,
 				createMouseMoveEventMerger(null),
 				(e) => this._onMouseDownThenMove(e),
-				() => {
+				(browserEvent?: MouseEvent | KeyboardEvent) => {
 					const position = this._findMousePosition(this._lastMouseEvent!, true);
 
-					this._viewController.emitMouseDrop({
-						event: this._lastMouseEvent!,
-						target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
-					});
+					if (browserEvent && browserEvent instanceof KeyboardEvent) {
+						// cancel
+						this._viewController.emitMouseDropCanceled();
+					} else {
+						this._viewController.emitMouseDrop({
+							event: this._lastMouseEvent!,
+							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
+						});
+					}
 
 					this._stop();
 				}

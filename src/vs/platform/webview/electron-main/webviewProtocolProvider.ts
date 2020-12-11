@@ -7,7 +7,7 @@ import { protocol, session } from 'electron';
 import { Readable } from 'stream';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -125,18 +125,20 @@ export class WebviewProtocolProvider extends Disposable {
 		}
 	}
 
-	private async handleWebviewRequest(request: Electron.Request, callback: any) {
+	private async handleWebviewRequest(
+		request: Electron.ProtocolRequest,
+		callback: (response: string | Electron.ProtocolResponse) => void
+	) {
 		try {
 			const uri = URI.parse(request.url);
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
 			if (typeof entry === 'string') {
-				let url: string;
-				if (uri.path.startsWith('/electron-browser')) {
-					url = require.toUrl(`vs/workbench/contrib/webview/electron-browser/pre/${entry}`);
-				} else {
-					url = require.toUrl(`vs/workbench/contrib/webview/browser/pre/${entry}`);
-				}
-				return callback(decodeURIComponent(url.replace(`${Schemas.file}://`, '')));
+				const relativeResourcePath = uri.path.startsWith('/electron-browser')
+					? `vs/workbench/contrib/webview/electron-browser/pre/${entry}`
+					: `vs/workbench/contrib/webview/browser/pre/${entry}`;
+
+				const url = FileAccess.asFileUri(relativeResourcePath, require);
+				return callback(decodeURIComponent(url.fsPath));
 			}
 		} catch {
 			// noop
@@ -145,8 +147,8 @@ export class WebviewProtocolProvider extends Disposable {
 	}
 
 	private async handleWebviewResourceRequest(
-		request: Electron.Request,
-		callback: (stream?: NodeJS.ReadableStream | Electron.StreamProtocolResponse | undefined) => void
+		request: Electron.ProtocolRequest,
+		callback: (stream: NodeJS.ReadableStream | Electron.ProtocolResponse) => void
 	) {
 		try {
 			const uri = URI.parse(request.url);
@@ -221,14 +223,14 @@ export class WebviewProtocolProvider extends Disposable {
 
 				if (result.type === WebviewResourceResponse.Type.AccessDenied) {
 					console.error('Webview: Cannot load resource outside of protocol root');
-					return callback({ data: null, statusCode: 401 });
+					return callback({ data: undefined, statusCode: 401 });
 				}
 			}
 		} catch {
 			// noop
 		}
 
-		return callback({ data: null, statusCode: 404 });
+		return callback({ data: undefined, statusCode: 404 });
 	}
 
 	public didLoadResource(requestId: number, content: VSBuffer | undefined) {

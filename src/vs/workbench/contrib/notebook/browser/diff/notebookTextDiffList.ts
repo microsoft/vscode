@@ -15,9 +15,78 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
-import { CellDiffRenderTemplate, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { isMacintosh } from 'vs/base/common/platform';
 import { DeletedCell, InsertCell, ModifiedCell } from 'vs/workbench/contrib/notebook/browser/diff/cellComponents';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
+
+const fixedEditorOptions: IEditorOptions = {
+	padding: {
+		top: 12,
+		bottom: 12
+	},
+	scrollBeyondLastLine: false,
+	scrollbar: {
+		verticalScrollbarSize: 14,
+		horizontal: 'auto',
+		useShadows: true,
+		verticalHasArrows: false,
+		horizontalHasArrows: false,
+		alwaysConsumeMouseWheel: false
+	},
+	renderLineHighlightOnlyWhenFocus: true,
+	overviewRulerLanes: 0,
+	selectOnLineNumbers: false,
+	wordWrap: 'off',
+	lineNumbers: 'off',
+	lineDecorationsWidth: 0,
+	glyphMargin: false,
+	fixedOverflowWidgets: true,
+	minimap: { enabled: false },
+	renderValidationDecorations: 'on',
+	renderLineHighlight: 'none',
+	readOnly: true
+};
+
+const fixedDiffEditorOptions: IDiffEditorOptions = {
+	...fixedEditorOptions,
+	glyphMargin: true,
+	enableSplitViewResizing: false,
+	renderIndicators: false,
+	readOnly: false,
+	isInEmbeddedEditor: true,
+	renderOverviewRuler: false
+};
+
+export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+	return {
+		isSimpleWidget: false,
+		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+			MenuPreventer.ID,
+			SelectionClipboardContributionID,
+			ContextMenuController.ID,
+			SuggestController.ID,
+			SnippetController2.ID,
+			TabCompletionController.ID,
+			AccessibilityHelpController.ID
+		])
+	};
+}
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModel> {
 	// private readonly lineHeight: number;
@@ -38,11 +107,19 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Ce
 	}
 
 	getTemplateId(element: CellDiffViewModel): string {
-		return CellDiffRenderer.TEMPLATE_ID;
+		switch (element.type) {
+			case 'delete':
+			case 'insert':
+				return CellDiffSingleSideRenderer.TEMPLATE_ID;
+			case 'modified':
+			case 'unchanged':
+				return CellDiffSideBySideRenderer.TEMPLATE_ID;
+		}
+
 	}
 }
-export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDiffRenderTemplate> {
-	static readonly TEMPLATE_ID = 'cell_diff';
+export class CellDiffSingleSideRenderer implements IListRenderer<CellDiffViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate> {
+	static readonly TEMPLATE_ID = 'cell_diff_single';
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
@@ -50,27 +127,169 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 	) { }
 
 	get templateId() {
-		return CellDiffRenderer.TEMPLATE_ID;
+		return CellDiffSingleSideRenderer.TEMPLATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): CellDiffRenderTemplate {
+	renderTemplate(container: HTMLElement): CellDiffSingleSideRenderTemplate {
+		const body = DOM.$('.cell-body');
+		DOM.append(container, body);
+		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
+		DOM.append(body, diffEditorContainer);
+
+		const diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
+
+		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
+		const editor = this._buildSourceEditor(sourceContainer);
+
+		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
+		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+
+		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
+		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
+
 		return {
+			body,
 			container,
+			diffEditorContainer,
+			diagonalFill,
+			sourceEditor: editor,
+			metadataHeaderContainer,
+			metadataInfoContainer,
+			outputHeaderContainer,
+			outputInfoContainer,
 			elementDisposables: new DisposableStore()
 		};
 	}
 
-	renderElement(element: CellDiffViewModel, index: number, templateData: CellDiffRenderTemplate, height: number | undefined): void {
-		templateData.container.innerText = '';
+	private _buildSourceEditor(sourceContainer: HTMLElement) {
+		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
+			...fixedEditorOptions,
+			dimension: {
+				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+				height: 0
+			},
+			automaticLayout: false,
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+		}, {});
+
+		return editor;
+	}
+
+	renderElement(element: CellDiffViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
 		switch (element.type) {
-			case 'unchanged':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
-				return;
 			case 'delete':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedCell, this.notebookEditor, element, templateData));
 				return;
 			case 'insert':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(InsertCell, this.notebookEditor, element, templateData));
+				return;
+			default:
+				break;
+		}
+	}
+
+	disposeTemplate(templateData: CellDiffSingleSideRenderTemplate): void {
+		templateData.container.innerText = '';
+		templateData.sourceEditor.dispose();
+	}
+
+	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+}
+
+
+export class CellDiffSideBySideRenderer implements IListRenderer<CellDiffViewModel, CellDiffSideBySideRenderTemplate> {
+	static readonly TEMPLATE_ID = 'cell_diff_side_by_side';
+
+	constructor(
+		readonly notebookEditor: INotebookTextDiffEditor,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@INotificationService protected readonly notificationService: INotificationService,
+	) { }
+
+	get templateId() {
+		return CellDiffSideBySideRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): CellDiffSideBySideRenderTemplate {
+		const body = DOM.$('.cell-body');
+		DOM.append(container, body);
+		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
+		DOM.append(body, diffEditorContainer);
+
+		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
+		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
+
+		const inputToolbarContainer = DOM.append(sourceContainer, DOM.$('.editor-input-toolbar-container'));
+		const cellToolbarContainer = DOM.append(inputToolbarContainer, DOM.$('div.property-toolbar'));
+		const toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					return item;
+				}
+
+				return undefined;
+			}
+		});
+
+		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
+		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+
+		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
+		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
+
+		return {
+			body,
+			container,
+			diffEditorContainer,
+			sourceEditor: editor,
+			editorContainer,
+			inputToolbarContainer,
+			toolbar,
+			metadataHeaderContainer,
+			metadataInfoContainer,
+			outputHeaderContainer,
+			outputInfoContainer,
+			elementDisposables: new DisposableStore()
+		};
+	}
+
+	private _buildSourceEditor(sourceContainer: HTMLElement) {
+		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+
+		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
+			...fixedDiffEditorOptions,
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+			originalEditable: false,
+			ignoreTrimWhitespace: false,
+			automaticLayout: false,
+			dimension: {
+				height: 0,
+				width: 0
+			}
+		}, {
+			originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+			modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+		});
+
+		return {
+			editor,
+			editorContainer
+		};
+	}
+
+	renderElement(element: CellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate, height: number | undefined): void {
+		switch (element.type) {
+			case 'unchanged':
+				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
 				return;
 			case 'modified':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
@@ -80,15 +299,16 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 		}
 	}
 
-	disposeTemplate(templateData: CellDiffRenderTemplate): void {
+	disposeTemplate(templateData: CellDiffSideBySideRenderTemplate): void {
 		templateData.container.innerText = '';
+		templateData.sourceEditor.dispose();
+		templateData.toolbar?.dispose();
 	}
 
-	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffRenderTemplate): void {
+	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 }
-
 
 export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModel> implements IDisposable, IStyleController {
 	private styleElement?: HTMLStyleElement;
@@ -97,7 +317,7 @@ export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModel> imple
 		listUser: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<CellDiffViewModel>,
-		renderers: IListRenderer<CellDiffViewModel, CellDiffRenderTemplate>[],
+		renderers: IListRenderer<CellDiffViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellDiffViewModel>,
 		@IListService listService: IListService,

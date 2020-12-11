@@ -11,7 +11,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
-import { TestWorkingCopy } from 'vs/workbench/services/workingCopy/test/common/workingCopyService.test';
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('WorkingCopyFileService', () => {
@@ -187,6 +187,49 @@ suite('WorkingCopyFileService', () => {
 		assert.strictEqual(dirty[0], model1);
 
 		model1.dispose();
+	});
+
+	test('createFolder', async function () {
+		let eventCounter = 0;
+		let correlationId: number | undefined = undefined;
+
+		const resource = toResource.call(this, '/path/folder');
+
+		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async (files, operation) => {
+				assert.equal(files.length, 1);
+				const file = files[0];
+				assert.equal(file.target.toString(), resource.toString());
+				assert.equal(operation, FileOperation.CREATE);
+				eventCounter++;
+			}
+		});
+
+		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+			assert.equal(e.files.length, 1);
+			const file = e.files[0];
+			assert.equal(file.target.toString(), resource.toString());
+			assert.equal(e.operation, FileOperation.CREATE);
+			correlationId = e.correlationId;
+			eventCounter++;
+		});
+
+		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			assert.equal(e.files.length, 1);
+			const file = e.files[0];
+			assert.equal(file.target.toString(), resource.toString());
+			assert.equal(e.operation, FileOperation.CREATE);
+			assert.equal(e.correlationId, correlationId);
+			eventCounter++;
+		});
+
+		await accessor.workingCopyFileService.createFolder(resource);
+
+		assert.equal(eventCounter, 3);
+
+		participant.dispose();
+		listener1.dispose();
+		listener2.dispose();
 	});
 
 	async function testEventsMoveOrCopy(files: { source: URI, target: URI }[], move?: boolean): Promise<number> {

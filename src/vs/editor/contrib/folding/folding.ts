@@ -32,7 +32,7 @@ import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/f
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorSelectionBackground, transparent, iconForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
@@ -63,6 +63,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private _isEnabled: boolean;
 	private _useFoldingProviders: boolean;
 	private _unfoldOnClickAfterEndOfLine: boolean;
+	private _restoringViewState: boolean;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
 
@@ -93,6 +94,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this._isEnabled = options.get(EditorOption.folding);
 		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 		this._unfoldOnClickAfterEndOfLine = options.get(EditorOption.unfoldOnClickAfterEndOfLine);
+		this._restoringViewState = false;
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -175,7 +177,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 			if (foldingModel) {
 				foldingModel.then(foldingModel => {
 					if (foldingModel) {
-						foldingModel.applyMemento(collapsedRegions);
+						this._restoringViewState = true;
+						try {
+							foldingModel.applyMemento(collapsedRegions);
+						} finally {
+							this._restoringViewState = false;
+						}
 					}
 				}).then(undefined, onUnexpectedError);
 			}
@@ -257,7 +264,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}, 30000);
 				return rangeProvider; // keep memento in case there are still no foldingProviders on the next request.
 			} else if (foldingProviders.length > 0) {
-				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders);
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders, () => this.onModelContentChanged());
 			}
 		}
 		this.foldingStateMemento = null;
@@ -297,7 +304,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private onHiddenRangesChanges(hiddenRanges: IRange[]) {
-		if (this.hiddenRangeModel && hiddenRanges.length) {
+		if (this.hiddenRangeModel && hiddenRanges.length && !this._restoringViewState) {
 			let selections = this.editor.getSelections();
 			if (selections) {
 				if (this.hiddenRangeModel.adjustSelections(selections)) {
@@ -909,8 +916,8 @@ registerThemingParticipant((theme, collector) => {
 	const editorFoldColor = theme.getColor(editorFoldForeground);
 	if (editorFoldColor) {
 		collector.addRule(`
-		.monaco-editor .cldr${foldingExpandedIcon.cssSelector},
-		.monaco-editor .cldr${foldingCollapsedIcon.cssSelector} {
+		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingExpandedIcon)},
+		.monaco-editor .cldr${ThemeIcon.asCSSSelector(foldingCollapsedIcon)} {
 			color: ${editorFoldColor} !important;
 		}
 		`);

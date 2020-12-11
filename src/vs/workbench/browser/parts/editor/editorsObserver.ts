@@ -5,7 +5,7 @@
 
 import { IEditorInput, IEditorInputFactoryRegistry, IEditorIdentifier, GroupIdentifier, Extensions, IEditorPartOptionsChangeEvent, EditorsOrder, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -339,7 +339,7 @@ export class EditorsObserver extends Disposable {
 		if (this.mostRecentEditorsMap.isEmpty()) {
 			this.storageService.remove(EditorsObserver.STORAGE_KEY, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.store(EditorsObserver.STORAGE_KEY, JSON.stringify(this.serialize()), StorageScope.WORKSPACE);
+			this.storageService.store(EditorsObserver.STORAGE_KEY, JSON.stringify(this.serialize()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 

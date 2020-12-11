@@ -5,11 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-
-export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 
 export interface IExtensionManagementServer {
 	id: string;
@@ -17,12 +15,21 @@ export interface IExtensionManagementServer {
 	extensionManagementService: IExtensionManagementService;
 }
 
+export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 export interface IExtensionManagementServerService {
 	readonly _serviceBrand: undefined;
 	readonly localExtensionManagementServer: IExtensionManagementServer | null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	readonly webExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
+}
+
+export const IWorkbenchExtensioManagementService = createDecorator<IWorkbenchExtensioManagementService>('extensionManagementService');
+export interface IWorkbenchExtensioManagementService extends IExtensionManagementService {
+	readonly _serviceBrand: undefined;
+	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
+	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension): Promise<ILocalExtension>;
+	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null
 }
 
 export const enum EnablementState {
@@ -38,8 +45,6 @@ export const IWorkbenchExtensionEnablementService = createDecorator<IWorkbenchEx
 
 export interface IWorkbenchExtensionEnablementService {
 	readonly _serviceBrand: undefined;
-
-	readonly allUserExtensionsDisabled: boolean;
 
 	/**
 	 * Event to listen on for extension enablement changes
@@ -92,7 +97,7 @@ export interface IWebExtensionsScannerService {
 	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
 	scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]>;
 	scanAndTranslateSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<ITranslatedScannedExtension | null>;
-	canAddExtension(galleryExtension: IGalleryExtension): Promise<boolean>;
+	canAddExtension(galleryExtension: IGalleryExtension): boolean;
 	addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 }

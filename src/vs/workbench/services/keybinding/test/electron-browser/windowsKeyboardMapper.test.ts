@@ -6,8 +6,9 @@
 import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
-import { IWindowsKeyboardMapping, WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils';
+import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -96,7 +97,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				electronAccelerator: 'Ctrl+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
@@ -120,7 +121,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				electronAccelerator: 'Ctrl+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
@@ -136,7 +137,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Shift+^',
 				ariaLabel: 'Shift+^',
-				electronAccelerator: 'Shift+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'shift+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
@@ -152,7 +153,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+§',
 				ariaLabel: 'Control+§',
-				electronAccelerator: 'Ctrl+/',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_2',
 				isWYSIWYG: false,
 				isChord: false,
@@ -168,7 +169,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+Shift+§',
 				ariaLabel: 'Control+Shift+§',
-				electronAccelerator: 'Ctrl+Shift+/',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+shift+oem_2',
 				isWYSIWYG: false,
 				isChord: false,

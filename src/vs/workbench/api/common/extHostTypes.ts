@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { escapeCodicons } from 'vs/base/common/codicons';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -433,16 +432,23 @@ export class Selection extends Range {
 export class ResolvedAuthority {
 	readonly host: string;
 	readonly port: number;
+	readonly connectionToken: string | undefined;
 
-	constructor(host: string, port: number) {
+	constructor(host: string, port: number, connectionToken?: string) {
 		if (typeof host !== 'string' || host.length === 0) {
 			throw illegalArgument('host');
 		}
 		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
 			throw illegalArgument('port');
 		}
+		if (typeof connectionToken !== 'undefined') {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+				throw illegalArgument('connectionToken');
+			}
+		}
 		this.host = host;
 		this.port = Math.round(port);
+		this.connectionToken = connectionToken;
 	}
 }
 
@@ -1269,54 +1275,10 @@ export class CodeLens {
 	}
 }
 
-
-export class CodeInset {
-
-	range: Range;
-	height?: number;
-
-	constructor(range: Range, height?: number) {
-		this.range = range;
-		this.height = height;
-	}
-}
-
-
 @es5ClassCompat
-export class MarkdownString {
+export class MarkdownString implements vscode.MarkdownString {
 
-	value: string;
-	isTrusted?: boolean;
-	readonly supportThemeIcons?: boolean;
-
-	constructor(value?: string, supportThemeIcons: boolean = false) {
-		this.value = value ?? '';
-		this.supportThemeIcons = supportThemeIcons;
-	}
-
-	appendText(value: string): MarkdownString {
-		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
-			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
-			.replace(/\n/, '\n\n');
-
-		return this;
-	}
-
-	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
-
-		return this;
-	}
-
-	appendCodeblock(code: string, language: string = ''): MarkdownString {
-		this.value += '\n```';
-		this.value += language;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
-		return this;
-	}
+	readonly #delegate: BaseMarkdownString;
 
 	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
 		if (thing instanceof MarkdownString) {
@@ -1324,15 +1286,55 @@ export class MarkdownString {
 		}
 		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
 	}
+
+	constructor(value?: string, supportThemeIcons: boolean = false) {
+		this.#delegate = new BaseMarkdownString(value, { supportThemeIcons });
+	}
+
+	get value(): string {
+		return this.#delegate.value;
+	}
+	set value(value: string) {
+		this.#delegate.value = value;
+	}
+
+	get isTrusted(): boolean | undefined {
+		return this.#delegate.isTrusted;
+	}
+
+	set isTrusted(value: boolean | undefined) {
+		this.#delegate.isTrusted = value;
+	}
+
+	get supportThemeIcons(): boolean | undefined {
+		return this.#delegate.supportThemeIcons;
+	}
+
+	appendText(value: string): vscode.MarkdownString {
+		this.#delegate.appendText(value);
+		return this;
+	}
+
+	appendMarkdown(value: string): vscode.MarkdownString {
+		this.#delegate.appendMarkdown(value);
+		return this;
+	}
+
+	appendCodeblock(value: string, language?: string): vscode.MarkdownString {
+		this.#delegate.appendCodeblock(language ?? '', value);
+		return this;
+	}
+
+
 }
 
 @es5ClassCompat
 export class ParameterInformation {
 
 	label: string | [number, number];
-	documentation?: string | MarkdownString;
+	documentation?: string | vscode.MarkdownString;
 
-	constructor(label: string | [number, number], documentation?: string | MarkdownString) {
+	constructor(label: string | [number, number], documentation?: string | vscode.MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 	}
@@ -1342,11 +1344,11 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation?: string | MarkdownString;
+	documentation?: string | vscode.MarkdownString;
 	parameters: ParameterInformation[];
 	activeParameter?: number;
 
-	constructor(label: string, documentation?: string | MarkdownString) {
+	constructor(label: string, documentation?: string | vscode.MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 		this.parameters = [];
@@ -1432,7 +1434,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	kind?: CompletionItemKind;
 	tags?: CompletionItemTag[];
 	detail?: string;
-	documentation?: string | MarkdownString;
+	documentation?: string | vscode.MarkdownString;
 	sortText?: string;
 	filterText?: string;
 	preselect?: boolean;
@@ -2181,11 +2183,11 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
-	readonly themeColor?: ThemeColor;
+	readonly color?: ThemeColor;
 
 	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
-		this.themeColor = color;
+		this.color = color;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2211,13 +2213,18 @@ export enum ConfigurationTarget {
 @es5ClassCompat
 export class RelativePattern implements IRelativePattern {
 	base: string;
-	baseFolder?: URI;
-
 	pattern: string;
 
-	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
+	// expose a `baseFolder: URI` property as a workaround for the short-coming
+	// of `IRelativePattern` only supporting `base: string` which always translates
+	// to a `file://` URI. With `baseFolder` we can support non-file based folders
+	// in searches
+	// (https://github.com/microsoft/vscode/commit/6326543b11cf4998c8fd1564cab5c429a2416db3)
+	readonly baseFolder?: URI;
+
+	constructor(base: vscode.WorkspaceFolder | URI | string, pattern: string) {
 		if (typeof base !== 'string') {
-			if (!base || !URI.isUri(base.uri)) {
+			if (!base || !URI.isUri(base) && !URI.isUri(base.uri)) {
 				throw illegalArgument('base');
 			}
 		}
@@ -2227,7 +2234,11 @@ export class RelativePattern implements IRelativePattern {
 		}
 
 		if (typeof base === 'string') {
+			this.baseFolder = URI.file(base);
 			this.base = base;
+		} else if (URI.isUri(base)) {
+			this.baseFolder = base;
+			this.base = base.fsPath;
 		} else {
 			this.baseFolder = base.uri;
 			this.base = base.uri.fsPath;
@@ -2360,16 +2371,6 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 		this.range = range;
 		this.expression = expression;
 	}
-}
-
-export enum LogLevel {
-	Trace = 1,
-	Debug = 2,
-	Info = 3,
-	Warning = 4,
-	Error = 5,
-	Critical = 6,
-	Off = 7
 }
 
 //#region file api
@@ -2729,7 +2730,7 @@ export enum DebugConfigurationProviderTriggerKind {
 @es5ClassCompat
 export class QuickInputButtons {
 
-	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
 }
@@ -2742,8 +2743,8 @@ export enum ExtensionKind {
 export class FileDecoration {
 
 	static validate(d: FileDecoration): void {
-		if (d.badge && d.badge.length !== 1) {
-			throw new Error(`The 'letter'-property must be undefined or a single character`);
+		if (d.badge && d.badge.length !== 1 && d.badge.length !== 2) {
+			throw new Error(`The 'badge'-property must be undefined or a short character`);
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
@@ -2913,3 +2914,64 @@ export enum StandardTokenType {
 	String = 2,
 	RegEx = 4
 }
+
+
+export class LinkedEditingRanges {
+	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
+	}
+}
+
+//#region Testing
+export enum TestRunState {
+	Unset = 0,
+	Running = 1,
+	Passed = 2,
+	Failed = 3,
+	Skipped = 4,
+	Errored = 5
+}
+
+export enum TestMessageSeverity {
+	Error = 0,
+	Warning = 1,
+	Information = 2,
+	Hint = 3
+}
+
+@es5ClassCompat
+export class TestState {
+	#runState: TestRunState;
+	#duration?: number;
+	#messages: ReadonlyArray<Readonly<vscode.TestMessage>>;
+
+	public get runState() {
+		return this.#runState;
+	}
+
+	public get duration() {
+		return this.#duration;
+	}
+
+	public get messages() {
+		return this.#messages;
+	}
+
+	constructor(runState: TestRunState, messages: vscode.TestMessage[] = [], duration?: number) {
+		this.#runState = runState;
+		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
+		this.#duration = duration;
+	}
+}
+
+type AllowedUndefined = 'description' | 'location';
+
+/**
+ * Test item without any optional properties. Only some properties are
+ * permitted to be undefined, but they must still exist.
+ */
+export type RequiredTestItem = {
+	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
+};
+
+
+//#endregion

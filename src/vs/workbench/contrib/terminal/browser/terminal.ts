@@ -7,7 +7,7 @@ import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro, IRemoteTerminalAttachTarget } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
 /**
  * A service used by TerminalInstance (and components owned by it) that allows it to break its
@@ -69,6 +70,11 @@ export interface ITerminalTab {
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
+export const enum TerminalConnectionState {
+	Connecting,
+	Connected
+}
+
 export interface ITerminalService {
 	readonly _serviceBrand: undefined;
 
@@ -77,7 +83,9 @@ export interface ITerminalService {
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 	isProcessSupportRegistered: boolean;
+	readonly connectionState: TerminalConnectionState;
 
+	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceCreated: Event<ITerminalInstance>;
@@ -88,10 +96,11 @@ export interface ITerminalService {
 	onInstanceRequestSpawnExtHostProcess: Event<ISpawnExtHostProcessRequest>;
 	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onInstancesChanged: Event<void>;
-	onInstanceTitleChanged: Event<ITerminalInstance>;
+	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 	onDidRegisterProcessSupport: Event<void>;
+	onDidChangeConnectionState: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -172,6 +181,16 @@ export interface ITerminalService {
 	extHostReady(remoteAuthority: string): void;
 	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
+	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
+}
+
+export interface IRemoteTerminalService {
+	readonly _serviceBrand: undefined;
+
+	dispose(): void;
+
+	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
+	createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
 }
 
 /**
@@ -402,6 +421,11 @@ export interface ITerminalInstance {
 	 * Notifies the terminal that the find widget's focus state has been changed.
 	 */
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
+
+	/**
+	 * Notifies the terminal to refresh its focus state based on the active document elemnet in DOM
+	 */
+	refreshFocusState(): void;
 
 	/**
 	 * Focuses the terminal instance if it's able to (xterm.js instance exists).

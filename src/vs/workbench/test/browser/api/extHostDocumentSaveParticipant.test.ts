@@ -31,6 +31,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		engines: undefined!,
 		extensionLocation: undefined!,
 		isBuiltin: false,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		version: undefined!
 	};
@@ -225,11 +226,12 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 	});
 
-	test('event delivery, waitUntil will timeout', () => {
+	test('event delivery, waitUntil will timeout', function () {
+
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 5, errors: 3 });
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			event.waitUntil(timeout(15));
+			event.waitUntil(timeout(100));
 		});
 
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {

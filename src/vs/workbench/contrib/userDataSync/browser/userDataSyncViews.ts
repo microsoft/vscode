@@ -4,82 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
+import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FolderThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
+import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Codicon } from 'vs/base/common/codicons';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IAction, Action } from 'vs/base/common/actions';
-import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SHOW_SYNC_LOG_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { Action } from 'vs/base/common/actions';
+import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { TreeView } from 'vs/workbench/contrib/views/browser/treeView';
 import { flatten } from 'vs/base/common/arrays';
 import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
 import { basename } from 'vs/base/common/resources';
-
-export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
-
-	constructor(
-		containerId: string,
-		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-	) {
-		super(containerId, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
-	}
-
-	getActions(): IAction[] {
-		return [
-			new Action(SHOW_SYNC_LOG_COMMAND_ID, localize('showLog', "Show Log"), Codicon.output.classNames, true, async () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
-			new Action(CONFIGURE_SYNC_COMMAND_ID, localize('configure', "Configure..."), Codicon.settingsGear.classNames, true, async () => this.commandService.executeCommand(CONFIGURE_SYNC_COMMAND_ID)),
-		];
-	}
-
-	getSecondaryActions(): IAction[] {
-		return [
-			new Action('workbench.actions.syncData.reset', localize('workbench.actions.syncData.reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
-		];
-	}
-
-}
 
 export class UserDataSyncDataViews extends Disposable {
 
 	constructor(
 		container: ViewContainer,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -194,7 +149,7 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 		});
 		this._register(Event.any(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement,
-			this.userDataAutoSyncService.onDidChangeEnablement,
+			this.userDataAutoSyncEnablementService.onDidChangeEnablement,
 			this.userDataSyncService.onDidResetLocal,
 			this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -229,7 +184,7 @@ export class UserDataSyncDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const { resource } = <{ resource: string }>JSON.parse(handle.$treeItemHandle);
 				const editorService = accessor.get(IEditorService);
-				await editorService.openEditor({ resource: URI.parse(resource) });
+				await editorService.openEditor({ resource: URI.parse(resource), options: { pinned: true } });
 			}
 		});
 
@@ -238,7 +193,7 @@ export class UserDataSyncDataViews extends Disposable {
 				super({
 					id: `workbench.actions.sync.replaceCurrent`,
 					title: localize('workbench.actions.sync.replaceCurrent', "Restore"),
-					icon: { id: 'codicon/discard' },
+					icon: Codicon.discard,
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i)),
@@ -279,9 +234,11 @@ export class UserDataSyncDataViews extends Disposable {
 					leftResource,
 					rightResource,
 					label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+					description: localize('sideBySideDescription', "Settings Sync"),
 					options: {
 						preserveFocus: true,
 						revealIfVisible: true,
+						pinned: true
 					},
 				});
 			}
@@ -491,7 +448,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		const result = await this.dialogService.confirm({
 			type: 'info',
 			message: localize('turn off sync on machine', "Are you sure you want to turn off sync on {0}?", machine.name),
-			primaryButton: localize('turn off', "Turn off"),
+			primaryButton: localize({ key: 'turn off', comment: ['&& denotes a mnemonic'] }, "&&Turn off"),
 		});
 
 		if (!result.confirmed) {

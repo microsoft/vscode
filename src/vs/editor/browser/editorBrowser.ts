@@ -156,6 +156,18 @@ export interface IContentWidget {
 	 * If null is returned, the content widget will be placed off screen.
 	 */
 	getPosition(): IContentWidgetPosition | null;
+	/**
+	 * Optional function that is invoked before rendering
+	 * the content widget. If a dimension is returned the editor will
+	 * attempt to use it.
+	 */
+	beforeRender?(): editorCommon.IDimension | null;
+	/**
+	 * Optional function that is invoked after rendering the content
+	 * widget. Is being invoked with the selected position preference
+	 * or `null` if not rendered.
+	 */
+	afterRender?(position: ContentWidgetPositionPreference | null): void;
 }
 
 /**
@@ -350,6 +362,11 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: editorCommon.IDimension;
+
+	/**
 	 * Place overflow widgets inside an external DOM node.
 	 * Defaults to an internal DOM node.
 	 */
@@ -482,6 +499,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	onMouseDrop(listener: (e: IPartialEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedropcanceled".
+	 * @internal
+	 * @event
+	 */
+	onMouseDropCanceled(listener: () => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
@@ -666,9 +689,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	executeCommand(source: string | null | undefined, command: editorCommon.ICommand): void;
 
 	/**
-	 * Push an "undo stop" in the undo-redo stack.
+	 * Create an "undo stop" in the undo-redo stack.
 	 */
 	pushUndoStop(): boolean;
+
+	/**
+	 * Remove the "undo stop" in the undo-redo stack.
+	 */
+	popUndoStop(): boolean;
 
 	/**
 	 * Execute edits on the editor.

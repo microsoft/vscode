@@ -63,6 +63,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/dialogs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
@@ -211,6 +215,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/workspaces",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/customEditor",
 			"project": "vscode-workbench"
 		},
@@ -240,6 +248,10 @@
 		},
 		{
 			"name": "vs/workbench/services/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/clipboard",
 			"project": "vscode-workbench"
 		},
 		{
@@ -360,6 +372,14 @@
 		},
 		{
 			"name": "vs/workbench/services/authentication",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/extensionRecommendations",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/gettingStarted",
 			"project": "vscode-workbench"
 		}
 	]

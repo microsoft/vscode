@@ -5,11 +5,11 @@
 
 import 'vs/css!./media/notabstitlecontrol';
 import { EditorResourceAccessor, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
-import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
@@ -110,6 +110,16 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private onTitleTap(e: GestureEvent): void {
+
+		// We only want to open the quick access picker when
+		// the tap occured over the editor label, so we need
+		// to check on the target
+		// (https://github.com/microsoft/vscode/issues/107543)
+		const target = e.initialTarget;
+		if (!(target instanceof HTMLElement) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
+			return;
+		}
+
 		// TODO@rebornix gesture tap should open the quick access
 		// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
 		// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
@@ -323,9 +333,11 @@ export class NoTabsTitleControl extends TitleControl {
 		};
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimensions: ITitleControlDimensions): Dimension {
 		if (this.breadcrumbsControl) {
 			this.breadcrumbsControl.layout(undefined);
 		}
+
+		return new Dimension(dimensions.container.width, this.getDimensions().height);
 	}
 }

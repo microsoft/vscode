@@ -10,7 +10,7 @@ import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { readFile, writeFile } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 
 export interface IResolvedKeybinding {
 	label: string | null;
@@ -65,13 +65,12 @@ export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMa
 	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}`));
 
 	return readFile(filePath).then((buff) => {
-		let expected = buff.toString();
-		const actual = mapper.dumpDebugInfo();
+		const expected = buff.toString().replace(/\r\n/g, '\n');
+		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
 		if (actual !== expected && writeFileIfDifferent) {
 			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
 			writeFile(destPath, actual);
 		}
-
-		assert.deepEqual(actual.split(/\r\n|\n/), expected.split(/\r\n|\n/));
+		assert.deepEqual(actual, expected);
 	});
 }

@@ -25,17 +25,29 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
+export const testViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
+
+export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
 	export const ViewsRegistry = 'workbench.registry.view';
 }
 
-export enum ViewContainerLocation {
+export const enum ViewContainerLocation {
 	Sidebar,
 	Panel
+}
+
+export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
+	switch (viewContainerLocation) {
+		case ViewContainerLocation.Sidebar: return 'sidebar';
+		case ViewContainerLocation.Panel: return 'panel';
+	}
 }
 
 export interface IViewContainerDescriptor {
@@ -48,7 +60,7 @@ export interface IViewContainerDescriptor {
 
 	readonly storageId?: string;
 
-	readonly icon?: string | URI;
+	readonly icon?: ThemeIcon | URI;
 
 	readonly alwaysUseContainerInfo?: boolean;
 
@@ -184,7 +196,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	}
 
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
-		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
+		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer?.id === container.id).length > 0)[0];
 	}
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
@@ -216,7 +228,7 @@ export interface IViewDescriptor {
 
 	readonly canMoveView?: boolean;
 
-	readonly containerIcon?: string | URI;
+	readonly containerIcon?: ThemeIcon | URI;
 
 	readonly containerTitle?: string;
 
@@ -252,7 +264,7 @@ export interface IAddedViewDescriptorState {
 export interface IViewContainerModel {
 
 	readonly title: string;
-	readonly icon: string | URI | undefined;
+	readonly icon: ThemeIcon | URI | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
@@ -290,11 +302,7 @@ export interface IViewContentDescriptor {
 	readonly when?: ContextKeyExpression | 'default';
 	readonly group?: string;
 	readonly order?: number;
-
-	/**
-	 * ordered preconditions for each button in the content
-	 */
-	readonly preconditions?: (ContextKeyExpression | undefined)[];
+	readonly precondition?: ContextKeyExpression | undefined;
 }
 
 export interface IViewsRegistry {
@@ -702,6 +710,27 @@ export class ResolvableTreeItem implements ITreeItem {
 	}
 	get hasResolve(): boolean {
 		return this._hasResolve;
+	}
+	public resetResolve() {
+		this.resolved = false;
+	}
+	public asTreeItem(): ITreeItem {
+		return {
+			handle: this.handle,
+			parentHandle: this.parentHandle,
+			collapsibleState: this.collapsibleState,
+			label: this.label,
+			description: this.description,
+			icon: this.icon,
+			iconDark: this.iconDark,
+			themeIcon: this.themeIcon,
+			resourceUri: this.resourceUri,
+			tooltip: this.tooltip,
+			contextValue: this.contextValue,
+			command: this.command,
+			children: this.children,
+			accessibilityInformation: this.accessibilityInformation
+		};
 	}
 }
 

@@ -6,7 +6,7 @@
 import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { IAction, Action } from 'vs/base/common/actions';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -28,13 +28,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class CommentsPanel extends ViewPane {
 	private treeLabels!: ResourceLabels;
 	private tree!: CommentsList;
 	private treeContainer!: HTMLElement;
 	private messageBoxContainer!: HTMLElement;
-	private messageBox!: HTMLElement;
 	private commentsModel!: CommentsModel;
 	private collapseAllAction?: IAction;
 
@@ -53,6 +53,7 @@ export class CommentsPanel extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
@@ -85,6 +86,18 @@ export class CommentsPanel extends ViewPane {
 		this.renderComments();
 	}
 
+	public focus(): void {
+		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
+			return;
+		}
+
+		if (!this.commentsModel.hasCommentThreads() && this.messageBoxContainer) {
+			this.messageBoxContainer.focus();
+		} else if (this.tree) {
+			this.tree.domFocus();
+		}
+	}
+
 	private applyStyles(styleElement: HTMLStyleElement) {
 		const content: string[] = [];
 
@@ -114,8 +127,8 @@ export class CommentsPanel extends ViewPane {
 
 	private async renderComments(): Promise<void> {
 		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
-		await this.tree.setInput(this.commentsModel);
 		this.renderMessage();
+		await this.tree.setInput(this.commentsModel);
 	}
 
 	public getActions(): IAction[] {
@@ -138,12 +151,11 @@ export class CommentsPanel extends ViewPane {
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
-		this.messageBox.setAttribute('tabindex', '0');
+		this.messageBoxContainer.setAttribute('tabIndex', '0');
 	}
 
 	private renderMessage(): void {
-		this.messageBox.textContent = this.commentsModel.getMessage();
+		this.messageBoxContainer.textContent = this.commentsModel.getMessage();
 		this.messageBoxContainer.classList.toggle('hidden', this.commentsModel.hasCommentThreads());
 	}
 
@@ -196,7 +208,7 @@ export class CommentsPanel extends ViewPane {
 
 		const activeEditor = this.editorService.activeEditor;
 		let currentActiveResource = activeEditor ? activeEditor.resource : undefined;
-		if (currentActiveResource && isEqual(currentActiveResource, element.resource)) {
+		if (this.uriIdentityService.extUri.isEqual(element.resource, currentActiveResource)) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 			const control = this.editorService.activeTextEditorControl;
@@ -231,18 +243,23 @@ export class CommentsPanel extends ViewPane {
 		return true;
 	}
 
-	private refresh(): void {
+	private async refresh(): Promise<void> {
 		if (this.isVisible()) {
 			if (this.collapseAllAction) {
 				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 			}
 
 			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
-			this.tree.updateChildren().then(() => {
-				this.renderMessage();
-			}, (e) => {
-				console.log(e);
-			});
+			this.renderMessage();
+			await this.tree.updateChildren();
+
+			if (this.tree.getSelection().length === 0 && this.commentsModel.hasCommentThreads()) {
+				const firstComment = this.commentsModel.resourceCommentThreads[0].commentThreads[0];
+				if (firstComment) {
+					this.tree.setFocus([firstComment]);
+					this.tree.setSelection([firstComment]);
+				}
+			}
 		}
 	}
 

@@ -5,6 +5,7 @@
 **/vs/loader.js
 **/insane/**
 **/marked/**
+**/semver/**
 **/test/**/*.js
 **/node_modules/**
 **/vscode-api-tests/testWorkspace/**
@@ -13,3 +14,4 @@
 **/extensions/**/build/**
 **/extensions/markdown-language-features/media/**
 **/extensions/typescript-basics/test/colorize-fixtures/**
+**/extensions/**/dist/**

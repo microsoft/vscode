@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "find-up": "^4.1.0",
-    "find-yarn-workspace-root2": "^1.2.22",
+    "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
     "request-light": "^0.4.0",
@@ -29,6 +29,9 @@
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
     "@types/node": "^12.11.7"
+  },
+  "resolutions": {
+    "which-pm/load-yaml-file/**/argparse": "1.0.9"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
@@ -59,7 +62,7 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "icon": "images/code.svg",
+          "icon": "$(code)",
           "visibility": "hidden"
         }
       ]
@@ -95,6 +98,10 @@
       {
         "command": "npm.runScriptFromFolder",
         "title": "%command.runScriptFromFolder%"
+      },
+      {
+        "command": "npm.packageManager",
+        "title": "%command.packageManager"
       }
     ],
     "menus": {
@@ -125,6 +132,10 @@
         },
         {
           "command": "npm.runScriptFromFolder",
+          "when": "false"
+        },
+        {
+          "command": "npm.packageManager",
           "when": "false"
         }
       ],
@@ -216,6 +227,12 @@
             "npm",
             "yarn",
             "pnpm"
+          ],
+          "enumDescriptions": [
+            "%config.npm.packageManager.auto%",
+            "%config.npm.packageManager.npm%",
+            "%config.npm.packageManager.yarn%",
+            "%config.npm.packageManager.pnpm%"
           ],
           "default": "auto",
           "description": "%config.npm.packageManager%"

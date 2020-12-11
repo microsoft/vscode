@@ -19,7 +19,7 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
@@ -464,7 +464,7 @@ class TMTokenizationSupport implements ITokenizationSupport {
 					[{
 						label: nls.localize('neverAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL, StorageTarget.USER)
 					}]
 				);
 			}

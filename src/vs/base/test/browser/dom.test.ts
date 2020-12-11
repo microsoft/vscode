@@ -72,6 +72,12 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 	});
 
+	test('multibyteAwareBtoa', () => {
+		assert.ok(dom.multibyteAwareBtoa('hello world').length > 0);
+		assert.ok(dom.multibyteAwareBtoa('平仮名').length > 0);
+		assert.ok(dom.multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
+	});
+
 	suite('$', () => {
 		test('should build simple nodes', () => {
 			const div = $('div');

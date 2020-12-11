@@ -138,8 +138,7 @@ class CSSBasedConfiguration extends Disposable {
 	private _evictUntrustedReadings(): void {
 		const values = this._cache.getValues();
 		let somethingRemoved = false;
-		for (let i = 0, len = values.length; i < len; i++) {
-			const item = values[i];
+		for (const item of values) {
 			if (!item.isTrusted) {
 				somethingRemoved = true;
 				this._cache.remove(item);
@@ -158,8 +157,7 @@ class CSSBasedConfiguration extends Disposable {
 	public restoreFontInfo(savedFontInfos: ISerializedFontInfo[]): void {
 		// Take all the saved font info and insert them in the cache without the trusted flag.
 		// The reason for this is that a font might have been installed on the OS in the meantime.
-		for (let i = 0, len = savedFontInfos.length; i < len; i++) {
-			const savedFontInfo = savedFontInfos[i];
+		for (const savedFontInfo of savedFontInfos) {
 			// compatibility with older versions of VS Code which did not store this...
 			savedFontInfo.fontFeatureSettings = savedFontInfo.fontFeatureSettings || EditorFontLigatures.OFF;
 			savedFontInfo.middotWidth = savedFontInfo.middotWidth || savedFontInfo.spaceWidth;
@@ -372,6 +370,10 @@ export class Configuration extends CommonEditorConfiguration {
 		if (!browser.isSafari && !browser.isWebkitWebView) {
 			// Use user-select: none in all browsers except Safari and native macOS WebView
 			extra += 'no-user-select ';
+		}
+		if (browser.isSafari) {
+			// See https://github.com/microsoft/vscode/issues/108822
+			extra += 'no-minimap-shadow ';
 		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';

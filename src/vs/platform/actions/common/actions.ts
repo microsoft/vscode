@@ -95,7 +95,7 @@ export class MenuId {
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
-	static readonly MenubarWebNavigationMenu = new MenuId('MenubarWebNavigationMenu');
+	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
@@ -112,6 +112,7 @@ export class MenuId {
 	static readonly TunnelInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
@@ -123,6 +124,7 @@ export class MenuId {
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
+	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
@@ -302,18 +304,21 @@ export class ExecuteCommandAction extends Action {
 
 export class SubmenuItemAction extends SubmenuAction {
 
-	readonly item: ISubmenuItem;
-
 	constructor(
-		item: ISubmenuItem,
-		menuService: IMenuService,
-		contextKeyService: IContextKeyService,
-		options?: IMenuActionOptions
+		readonly item: ISubmenuItem,
+		private readonly menuService: IMenuService,
+		private readonly contextKeyService: IContextKeyService,
+		private readonly options?: IMenuActionOptions
 	) {
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
+		const menu = this._register(this.menuService.createMenu(this.item.submenu, this.contextKeyService));
+		this.update(menu);
+		this._register(menu.onDidChange(() => this.update(menu)));
+	}
+
+	private update(menu: IMenu): void {
 		const result: IAction[] = [];
-		const menu = menuService.createMenu(item.submenu, contextKeyService);
-		const groups = menu.getActions(options);
-		menu.dispose();
+		const groups = menu.getActions(this.options);
 
 		for (let group of groups) {
 			const [, actions] = group;
@@ -328,8 +333,7 @@ export class SubmenuItemAction extends SubmenuAction {
 			result.pop(); // remove last separator
 		}
 
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, result, 'submenu');
-		this.item = item;
+		this.setActions(result);
 	}
 }
 

@@ -19,6 +19,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { ByteSize } from 'vs/platform/files/common/files';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -67,18 +68,19 @@ class ProcessExplorer {
 
 	private getProcessList(rootProcess: ProcessItem, isLocal: boolean, totalMem: number): FormattedProcessItem[] {
 		const processes: FormattedProcessItem[] = [];
+		const handledProcesses = new Set<number>();
 
 		if (rootProcess) {
-			this.getProcessItem(processes, rootProcess, 0, isLocal, totalMem);
+			this.getProcessItem(processes, rootProcess, 0, isLocal, totalMem, handledProcesses);
 		}
 
 		return processes;
 	}
 
-	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number): void {
+	private getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, indent: number, isLocal: boolean, totalMem: number, handledProcesses: Set<number>): void {
 		const isRoot = (indent === 0);
 
-		const MB = 1024 * 1024;
+		handledProcesses.add(item.pid);
 
 		let name = item.name;
 		if (isRoot) {
@@ -95,7 +97,7 @@ class ProcessExplorer {
 		const memory = this.data.platform === 'win32' ? item.mem : (totalMem * (item.mem / 100));
 		processes.push({
 			cpu: item.load,
-			memory: (memory / MB),
+			memory: (memory / ByteSize.MB),
 			pid: item.pid.toFixed(0),
 			name,
 			formattedName,
@@ -105,9 +107,11 @@ class ProcessExplorer {
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
 			item.children.forEach(child => {
-				if (child) {
-					this.getProcessItem(processes, child, indent + 1, isLocal, totalMem);
+				if (!child || handledProcesses.has(child.pid)) {
+					return; // prevent loops
 				}
+
+				this.getProcessItem(processes, child, indent + 1, isLocal, totalMem, handledProcesses);
 			});
 		}
 	}

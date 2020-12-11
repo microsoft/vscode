@@ -73,6 +73,10 @@ namespace SettingIds {
 	export const maxItemsComputed = 'json.maxItemsComputed';
 }
 
+namespace StorageIds {
+	export const maxItemsExceededInformation = 'json.maxItemsExceededInformation';
+}
+
 export interface TelemetryReporter {
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;
@@ -116,7 +120,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		initializationOptions: {
 			handledSchemaProtocols: ['file'], // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
-			customCapabilities: { rangeFormatting: { editLimit: 1000 } }
+			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
 		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
@@ -298,8 +302,19 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 		}));
 
-		client.onNotification(ResultLimitReachedNotification.type, message => {
-			window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`);
+		client.onNotification(ResultLimitReachedNotification.type, async message => {
+			const shouldPrompt = context.globalState.get<boolean>(StorageIds.maxItemsExceededInformation) !== false;
+			if (shouldPrompt) {
+				const ok = localize('ok', "Ok");
+				const openSettings = localize('goToSetting', 'Open Settings');
+				const neverAgain = localize('yes never again', "Don't Show Again");
+				const pick = await window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`, ok, openSettings, neverAgain);
+				if (pick === neverAgain) {
+					await context.globalState.update(StorageIds.maxItemsExceededInformation, false);
+				} else if (pick === openSettings) {
+					await commands.executeCommand('workbench.action.openSettings', SettingIds.maxItemsComputed);
+				}
+			}
 		});
 
 		function updateFormatterRegistration() {
@@ -315,6 +330,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 							range: client.code2ProtocolConverter.asRange(range),
 							options: client.code2ProtocolConverter.asFormattingOptions(options)
 						};
+						params.options.insertFinalNewline = workspace.getConfiguration('files', document).get('insertFinalNewline');
+
 						return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 							client.protocol2CodeConverter.asTextEdits,
 							(error) => {

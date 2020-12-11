@@ -220,7 +220,9 @@ export enum UserDataSyncErrorCode {
 	TooManyRequestsAndRetryAfter = 'TooManyRequestsAndRetryAfter', /* 429 + Retry-After */
 
 	// Local Errors
-	ConnectionRefused = 'ConnectionRefused',
+	RequestFailed = 'RequestFailed',
+	RequestCanceled = 'RequestCanceled',
+	RequestTimeout = 'RequestTimeout',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
@@ -252,7 +254,7 @@ export class UserDataSyncError extends Error {
 }
 
 export class UserDataSyncStoreError extends UserDataSyncError {
-	constructor(message: string, code: UserDataSyncErrorCode, readonly operationId: string | undefined) {
+	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, readonly operationId: string | undefined) {
 		super(message, code, undefined, operationId);
 	}
 }
@@ -289,6 +291,11 @@ export interface ISyncExtension {
 	version?: string;
 	disabled?: boolean;
 	installed?: boolean;
+	state?: IStringDictionary<any>;
+}
+
+export interface ISyncExtensionWithVersion extends ISyncExtension {
+	version: string;
 }
 
 export interface IStorageValue {
@@ -460,13 +467,18 @@ export interface IUserDataSyncService {
 	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 }
 
+export const IUserDataAutoSyncEnablementService = createDecorator<IUserDataAutoSyncEnablementService>('IUserDataAutoSyncEnablementService');
+export interface IUserDataAutoSyncEnablementService {
+	_serviceBrand: any;
+	readonly onDidChangeEnablement: Event<boolean>;
+	isEnabled(): boolean;
+	canToggleEnablement(): boolean;
+}
+
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
-	readonly onDidChangeEnablement: Event<boolean>;
-	isEnabled(): boolean;
-	canToggleEnablement(): boolean;
 	turnOn(): Promise<void>;
 	turnOff(everywhere: boolean): Promise<void>;
 	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void>;

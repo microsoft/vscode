@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
@@ -31,6 +31,9 @@ import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
+import { isHTMLElement } from 'vs/base/browser/dom';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -332,6 +335,24 @@ export class NewWindowAction extends Action {
 	}
 }
 
+class BlurAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.blur',
+			title: nls.localize('blur', "Remove keyboard focus from focused element")
+		});
+	}
+
+	run(): void {
+		const el = document.activeElement;
+
+		if (isHTMLElement(el)) {
+			el.blur();
+		}
+	}
+}
+
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
 // --- Actions Registration
@@ -346,6 +367,8 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleFullScreenActio
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowAction), 'Developer: Reload Window', CATEGORIES.Developer.value, IsWebContext.toNegated());
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAboutDialogAction), `Help: About`, CATEGORIES.Help.value);
+
+registerAction2(BlurAction);
 
 // --- Commands/Keybindings Registration
 
@@ -378,7 +401,25 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_R
 });
 
+CommandsRegistry.registerCommand('workbench.action.toggleConfirmBeforeClose', accessor => {
+	const configurationService = accessor.get(IConfigurationService);
+	const setting = configurationService.inspect<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose').userValue;
+
+	return configurationService.updateValue('window.confirmBeforeClose', setting === 'never' ? 'keyboardOnly' : 'never', ConfigurationTarget.USER);
+});
+
 // --- Menu Registration
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: 'z_ConfirmClose',
+	command: {
+		id: 'workbench.action.toggleConfirmBeforeClose',
+		title: nls.localize('miConfirmClose', "Confirm Before Close"),
+		toggled: ContextKeyExpr.notEquals('config.window.confirmBeforeClose', 'never')
+	},
+	order: 1,
+	when: IsWebContext
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '1_new',

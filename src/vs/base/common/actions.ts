@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import * as nls from 'vs/nls';
+import { IDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -35,7 +36,7 @@ export interface IAction extends IDisposable {
 export interface IActionRunner extends IDisposable {
 	run(action: IAction, context?: any): Promise<any>;
 	readonly onDidRun: Event<IRunEvent>;
-	readonly onDidBeforeRun: Event<IRunEvent>;
+	readonly onBeforeRun: Event<IRunEvent>;
 }
 
 export interface IActionViewItem extends IDisposable {
@@ -177,8 +178,8 @@ export interface IRunEvent {
 
 export class ActionRunner extends Disposable implements IActionRunner {
 
-	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
+	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
+	readonly onBeforeRun: Event<IRunEvent> = this._onBeforeRun.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
@@ -188,7 +189,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 			return Promise.resolve(null);
 		}
 
-		this._onDidBeforeRun.fire({ action: action });
+		this._onBeforeRun.fire({ action: action });
 
 		try {
 			const result = await this.runAction(action, context);
@@ -234,13 +235,37 @@ export class Separator extends Action {
 	}
 }
 
-export class SubmenuAction extends Action {
+export class ActionWithMenuAction extends Action {
 
 	get actions(): IAction[] {
 		return this._actions;
 	}
 
-	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
-		super(id, label, cssClass, true);
+	constructor(id: string, private _actions: IAction[], label?: string, cssClass?: string, enabled?: boolean, actionCallback?: (event?: any) => Promise<any>) {
+		super(id, label, cssClass, enabled, actionCallback);
+	}
+}
+
+export class SubmenuAction extends Action {
+
+	private _actions: IAction[] = [];
+	get actions(): IAction[] { return this._actions; }
+
+	constructor(id: string, label: string, actions: IAction[], cssClass?: string) {
+		super(id, label, cssClass);
+		this.setActions(actions);
+	}
+
+	protected setActions(actions: IAction[]) {
+		this._actions = actions;
+		this._register(combinedDisposable(...actions));
+		this.enabled = !!actions.length;
+	}
+}
+
+export class EmptySubmenuAction extends Action {
+	static readonly ID = 'vs.actions.empty';
+	constructor() {
+		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
 	}
 }
