@@ -23,6 +23,7 @@ import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/commo
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export class SelectColorThemeAction extends Action {
 
@@ -297,11 +298,20 @@ class GenerateColorThemeAction extends Action {
 		label: string,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IProgressService readonly progressService: IProgressService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
+		await this.progressService.withProgress({ location: ProgressLocation.Dialog }, async (r) => {
+			r.report({ message: 'ssdf', total: 30 });
+			return new Promise<void>((s, e) => {
+				setTimeout(() => s(), 5000);
+			});
+		});
+
+
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
