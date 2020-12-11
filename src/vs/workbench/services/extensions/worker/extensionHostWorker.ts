@@ -10,6 +10,7 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
 import * as path from 'vs/base/common/path';
 
 import 'vs/workbench/api/common/extHost.common.services';
@@ -23,6 +24,8 @@ declare namespace self {
 	let close: any;
 	let postMessage: any;
 	let addEventListener: any;
+	let removeEventListener: any;
+	let dispatchEvent: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
 }
@@ -56,6 +59,13 @@ if ((<any>self).Worker) {
 		options.name = options.name || path.basename(stringUrl.toString());
 		const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
 		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(url) : url, options);
+	};
+
+} else {
+	(<any>self).Worker = class extends NestedWorker {
+		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
+			super(nativePostMessage, stringOrUrl, { name: path.basename(stringOrUrl.toString()), ...options });
+		}
 	};
 }
 
