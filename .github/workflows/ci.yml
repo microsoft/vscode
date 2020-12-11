@@ -11,22 +11,12 @@ on:
       - release/*
 
 jobs:
-  linux:
+  linux-node-modules:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-
-      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
-      - name: Setup Build Environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
-          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-          sudo chmod +x /etc/init.d/xvfb
-          sudo update-rc.d xvfb defaults
-          sudo service xvfb start
 
       - uses: actions/setup-node@v2-beta
         with:
@@ -34,7 +24,7 @@ jobs:
 
       - name: Compute yarn cache key
         id: yarn-cache-key
-        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock', '.yarnrc', 'remote/.yarnrc') }}"
+        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock', '.yarnrc', 'remote/.yarnrc') }}2"
 
       - name: Cache node modules
         id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
@@ -43,6 +33,7 @@ jobs:
           cache-name: node-modules-cache
         with:
           path: |
+            ~/.cache/ms-playwright
             ./node_modules
             ./build/node_modules
             ./build/lib/watch/node_modules
@@ -95,10 +86,44 @@ jobs:
         if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
         run: yarn --frozen-lockfile
 
+  linux:
+    needs: linux-node-modules
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Compute yarn cache key
+        id: yarn-cache-key
+        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock', '.yarnrc', 'remote/.yarnrc') }}2"
+
+      - name: Cache node modules
+        id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
+        uses: actions/cache@v2
+        env:
+          cache-name: node-modules-cache
+        with:
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
       - name: Compile /build/ folder
-        # this normally executes as a postinstall script, but if the cache is hit above,
-        # yarn will not execute at all. Therefore, we manually launch it if necessary
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
         run: yarn run compile
         working-directory: ./build
 
@@ -195,6 +220,7 @@ jobs:
   #     name: Run Integration Tests (Electron)
 
   monaco:
+    needs: linux-node-modules
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -204,10 +230,9 @@ jobs:
       - uses: actions/setup-node@v2-beta
         with:
           node-version: 12
-
       - name: Compute yarn cache key
         id: yarn-cache-key
-        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock', '.yarnrc', 'remote/.yarnrc') }}"
+        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock', '.yarnrc', 'remote/.yarnrc') }}2"
 
       - name: Cache node modules
         id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
@@ -215,63 +240,12 @@ jobs:
         env:
           cache-name: node-modules-cache
         with:
-          path: |
-            ./node_modules
-            ./build/node_modules
-            ./build/lib/watch/node_modules
-            ./extensions/node_modules
-            ./extensions/configuration-editing/node_modules
-            ./extensions/css-language-features/node_modules
-            ./extensions/css-language-features/server/node_modules
-            ./extensions/debug-auto-launch/node_modules
-            ./extensions/debug-server-ready/node_modules
-            ./extensions/emmet/node_modules
-            ./extensions/extension-editing/node_modules
-            ./extensions/git/node_modules
-            ./extensions/git-ui/node_modules
-            ./extensions/github/node_modules
-            ./extensions/github-authentication/node_modules
-            ./extensions/grunt/node_modules
-            ./extensions/gulp/node_modules
-            ./extensions/html-language-features/node_modules
-            ./extensions/html-language-features/server/node_modules
-            ./extensions/image-preview/node_modules
-            ./extensions/jake/node_modules
-            ./extensions/json-language-features/node_modules
-            ./extensions/json-language-features/server/node_modules
-            ./extensions/markdown-language-features/node_modules
-            ./extensions/merge-conflict/node_modules
-            ./extensions/microsoft-authentication/node_modules
-            ./extensions/npm/node_modules
-            ./extensions/php-language-features/node_modules
-            ./extensions/search-result/node_modules
-            ./extensions/typescript-language-features/node_modules
-            ./extensions/vscode-api-tests/node_modules
-            ./extensions/vscode-colorize-tests/node_modules
-            ./extensions/vscode-custom-editor-tests/node_modules
-            ./extensions/vscode-notebook-tests/node_modules
-            ./extensions/vscode-test-resolver/node_modules
-            ./remote/node_modules
-            ./remote/web/node_modules
-            ./test/automation/node_modules
-            ./test/integration/browser/node_modules
-            ./test/smoke/node_modules
-            ./test/ui/splitview/node_modules
-            ./test/ui/tree/node_modules
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
             ${{ runner.os }}-build-
             ${{ runner.os }}-
 
-      - name: Install Dependencies
-        if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
-        run: yarn --frozen-lockfile
-
       - name: Compile /build/ folder
-        # this normally executes as a postinstall script, but if the cache is hit above,
-        # yarn will not execute at all. Therefore, we manually launch it if necessary
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
         run: yarn run compile
         working-directory: ./build
 
