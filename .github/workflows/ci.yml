@@ -206,12 +206,7 @@ jobs:
         run: yarn --frozen-lockfile
 
       - name: Compile & Download
-        run: |
-          yarn compile &
-          yarn electron x64 &
-          node ./node_modules/playwright/install.js &
-          yarn download-builtin-extensions
-          wait
+        run: yarn compile & yarn electron x64 & node ./node_modules/playwright/install.js & yarn download-builtin-extensions; echo Compile & Download finished.
 
       - name: Run Unit Tests (Electron)
         run: DISPLAY=:10 ./scripts/test.sh
