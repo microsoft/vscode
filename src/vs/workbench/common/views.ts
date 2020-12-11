@@ -38,9 +38,16 @@ export namespace Extensions {
 	export const ViewsRegistry = 'workbench.registry.view';
 }
 
-export enum ViewContainerLocation {
+export const enum ViewContainerLocation {
 	Sidebar,
 	Panel
+}
+
+export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
+	switch (viewContainerLocation) {
+		case ViewContainerLocation.Sidebar: return 'sidebar';
+		case ViewContainerLocation.Panel: return 'panel';
+	}
 }
 
 export interface IViewContainerDescriptor {

@@ -454,7 +454,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
 			// In practice this happens for the first breakpoint that was set on a line
 			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-			const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.debugBreakpointDisabled;
+			const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.breakpoint.disabled;
 			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
 			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, ThemeIcon.asClassName(icon), candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
@@ -645,15 +645,11 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
 	if (debugIconBreakpointColor) {
 		collector.addRule(`
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpoint)},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointConditional)},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointLog)},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointFunction)},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointData)},
+		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.regular)}`).join(',\n		')},
 		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointUnsupported)},
 		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointHint)}:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpoint)}${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)}::after,
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpoint)}${ThemeIcon.asCSSSelector(icons.debugStackframe)}::after {
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)}::after,
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframe)}::after {
 			color: ${debugIconBreakpointColor} !important;
 		}
 		`);
@@ -662,7 +658,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointDisabledColor = theme.getColor(debugIconBreakpointDisabledForeground);
 	if (debugIconBreakpointDisabledColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon[class*='-disabled'] {
+		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.disabled)}`).join(',\n		')} {
 			color: ${debugIconBreakpointDisabledColor} !important;
 		}
 		`);
@@ -671,7 +667,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointUnverifiedColor = theme.getColor(debugIconBreakpointUnverifiedForeground);
 	if (debugIconBreakpointUnverifiedColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon[class*='-unverified'] {
+		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.unverified)}`).join(',\n		')} {
 			color: ${debugIconBreakpointUnverifiedColor};
 		}
 		`);

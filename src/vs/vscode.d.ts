@@ -5173,9 +5173,9 @@ declare module 'vscode' {
 		set(uri: Uri, diagnostics: ReadonlyArray<Diagnostic> | undefined): void;
 
 		/**
-		 * Replace all entries in this collection.
+		 * Replace diagnostics for multiple resources in this collection.
 		 *
-		 * Diagnostics of multiple tuples of the same uri will be merged, e.g
+		 *  _Note_ that multiple tuples of the same uri will be merged, e.g
 		 * `[[file1, [d1]], [file1, [d2]]]` is equivalent to `[[file1, [d1, d2]]]`.
 		 * If a diagnostics item is `undefined` as in `[file1, undefined]`
 		 * all previous but not subsequent diagnostics are removed.

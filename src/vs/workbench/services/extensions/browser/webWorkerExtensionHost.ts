@@ -43,6 +43,15 @@ export interface IWebWorkerExtensionHostDataProvider {
 
 const ttPolicy = window.trustedTypes?.createPolicy('webWorkerExtensionHost', { createScriptURL: value => value });
 
+const ttPolicyNestedWorker = window.trustedTypes?.createPolicy('webNestedWorkerExtensionHost', {
+	createScriptURL(value) {
+		if (value.startsWith('blob:')) {
+			return value;
+		}
+		throw new Error(value + ' is NOT allowed');
+	}
+});
+
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
@@ -245,7 +254,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 			} else if (data?.type === '_newWorker') {
 				// receiving a message to create a new nested/child worker
-				const worker = new Worker(data.url, data.options);
+				const worker = new Worker((ttPolicyNestedWorker?.createScriptURL(data.url) ?? data.url) as string, data.options);
 				worker.postMessage(data.port, [data.port]);
 				worker.onerror = console.error.bind(console);
 				nestedWorker.set(data.id, worker);

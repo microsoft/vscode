@@ -20,7 +20,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -50,8 +50,10 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
-import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
+import { UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_VIEW_ICON } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { Codicon } from 'vs/base/common/codicons';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -732,6 +734,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerConfigureSyncAction();
 		this.registerShowSettingsAction();
 		this.registerShowLogAction();
+		this.registerResetSyncDataAction();
 	}
 
 	private registerTurnOnSyncAction(): void {
@@ -1064,10 +1067,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				super({
 					id: configureSyncCommand.id,
 					title: configureSyncCommand.title,
-					menu: {
+					icon: Codicon.settingsGear,
+					tooltip: localize('configure', "Configure..."),
+					menu: [{
 						id: MenuId.CommandPalette,
 						when
-					}
+					}, {
+						id: MenuId.ViewContainerTitle,
+						when: ContextKeyEqualsExpr.create('viewContainer', SYNC_VIEW_CONTAINER_ID),
+						group: 'navigation',
+						order: 2
+					}]
 				});
 			}
 			run(): any { return that.configureSyncOptions(); }
@@ -1081,10 +1091,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				super({
 					id: SHOW_SYNC_LOG_COMMAND_ID,
 					title: localize('show sync log title', "{0}: Show Log", SYNC_TITLE),
-					menu: {
+					tooltip: localize('show sync log toolrip', "Show Log"),
+					icon: Codicon.output,
+					menu: [{
 						id: MenuId.CommandPalette,
 						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
-					},
+					}, {
+						id: MenuId.ViewContainerTitle,
+						when: ContextKeyEqualsExpr.create('viewContainer', SYNC_VIEW_CONTAINER_ID),
+						group: 'navigation',
+						order: 1
+					}],
 				});
 			}
 			run(): any { return that.showSyncActivity(); }
@@ -1120,12 +1137,29 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: SYNC_VIEW_CONTAINER_ID,
 				name: SYNC_TITLE,
 				ctorDescriptor: new SyncDescriptor(
-					UserDataSyncViewPaneContainer,
-					[SYNC_VIEW_CONTAINER_ID]
+					ViewPaneContainer,
+					[SYNC_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
 				),
 				icon: SYNC_VIEW_ICON,
 				hideIfEmpty: true,
 			}, ViewContainerLocation.Sidebar);
+	}
+
+	private registerResetSyncDataAction(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.actions.syncData.reset',
+					title: localize('workbench.actions.syncData.reset', "Clear Data in Cloud..."),
+					menu: [{
+						id: MenuId.ViewContainerTitle,
+						when: ContextKeyEqualsExpr.create('viewContainer', SYNC_VIEW_CONTAINER_ID)
+					}],
+				});
+			}
+			run(): any { return that.userDataSyncWorkbenchService.resetSyncedData(); }
+		}));
 	}
 
 	private registerDataViews(container: ViewContainer): void {

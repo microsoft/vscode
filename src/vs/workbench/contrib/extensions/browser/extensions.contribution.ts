@@ -1029,6 +1029,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				group: '1_copy'
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const clipboardService = accessor.get(IClipboardService);
 				let extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None)).firstPage[0];
 				if (extension) {
@@ -1039,7 +1040,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', extension.publisherDisplayName);
 					const link = extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', `${extension.url}`) : null;
 					const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
-					await accessor.get(IClipboardService).writeText(clipboardStr);
+					await clipboardService.writeText(clipboardStr);
 				}
 			}
 		});

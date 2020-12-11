@@ -266,32 +266,27 @@ export class ExtensionsListView extends ViewPane {
 			const runningExtensions = await this.extensionService.getExtensions();
 			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
 			manageExtensionAction.extension = e.element;
+			let groups: IAction[][] = [];
 			if (manageExtensionAction.enabled) {
-				const groups = await manageExtensionAction.getActionGroups(runningExtensions);
-				let actions: IAction[] = [];
-				for (const menuActions of groups) {
-					actions = [...actions, ...menuActions, new Separator()];
-				}
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e.anchor,
-					getActions: () => actions.slice(0, actions.length - 1)
-				});
+				groups = await manageExtensionAction.getActionGroups(runningExtensions);
+
 			} else if (e.element) {
-				const groups = getContextMenuActions(e.element, false, this.instantiationService);
+				groups = getContextMenuActions(e.element, false, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
 					if (extensionAction instanceof ExtensionAction) {
 						extensionAction.extension = e.element!;
 					}
 				}));
-				let actions: IAction[] = [];
-				for (const menuActions of groups) {
-					actions = [...actions, ...menuActions, new Separator()];
-				}
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => e.anchor,
-					getActions: () => actions
-				});
 			}
+			let actions: IAction[] = [];
+			for (const menuActions of groups) {
+				actions = [...actions, ...menuActions, new Separator()];
+			}
+			actions.pop();
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions
+			});
 		}
 	}
 

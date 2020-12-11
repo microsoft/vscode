@@ -219,7 +219,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						id: MenuId.ViewTitle,
 						when: ContextKeyEqualsExpr.create('view', that.id),
 						group: 'navigation',
-						order: Number.MAX_SAFE_INTEGER,
+						order: 2,
 					},
 					icon: Codicon.collapseAll
 				});

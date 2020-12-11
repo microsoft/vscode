@@ -80,7 +80,7 @@ export namespace ThemeIcon {
 		let [, , name, modifier] = match;
 		let className = `codicon-${name}`;
 		if (modifier) {
-			return ['codicon', className, modifier.substr(1)];
+			return ['codicon', className, `codicon-modifier-${modifier.substr(1)}`];
 		}
 		return ['codicon', className];
 	}
