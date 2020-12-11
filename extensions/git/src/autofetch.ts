@@ -71,16 +71,18 @@ export class AutoFetcher {
 	private onConfiguration(): void {
 		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
-		switch (gitConfig.get<string | boolean>('autofetch')) {
+		switch (gitConfig.get<boolean | 'all'>('autofetch')) {
 			case true:
+				this._fetchAll = false;
 				this.enable();
 				break;
 			case 'all':
-				this.enable();
 				this._fetchAll = true;
+				this.enable();
 				break;
 			case false:
 			default:
+				this._fetchAll = false;
 				this.disable();
 				break;
 		}
