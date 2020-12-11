@@ -187,12 +187,19 @@ jobs:
             ${{ runner.os }}-build-
             ${{ runner.os }}-
 
-      - run: yarn --frozen-lockfile
+      - name: Install Dependencies
         if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
-        name: Install Dependencies
+        run: yarn --frozen-lockfile
 
-      - run: yarn monaco-compile-check
-        name: Run Monaco Editor Checks
+      - name: Compile ./build/ folder
+        # this normally executes as a postinstall script, but if the cache is hit above,
+        # yarn will not execute at all. Therefore, we manually launch it if necessary
+        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
+        run: yarn run compile
+        working-directory: ./build
 
-      - run: yarn gulp editor-esm-bundle
-        name: Editor Distro & ESM Bundle
+      - name: Run Monaco Editor Checks
+        run: yarn monaco-compile-check
+
+      - name: Editor Distro & ESM Bundle
+        run: yarn gulp editor-esm-bundle
