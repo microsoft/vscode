@@ -11,6 +11,40 @@ on:
       - release/*
 
 jobs:
+  hygiene:
+    name: Hygiene check
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules-
+
+      - name: Cache /build/ scripts
+        id: cacheBuildScripts
+        uses: actions/cache@v2
+        with:
+          path: build/**/*.js
+          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' || steps.cachePlaywright.outputs.cache-hit != 'true' }}
+        run: yarn --frozen-lockfile
+
+      - name: Run Hygiene Checks
+        run: yarn gulp hygiene
+
   linux:
     runs-on: ubuntu-latest
     env:
@@ -60,9 +94,6 @@ jobs:
 
       - name: Download Electron
         run: yarn electron x64
-
-      - name: Run Hygiene Checks
-        run: yarn gulp hygiene
 
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
@@ -148,6 +179,7 @@ jobs:
   #     name: Run Integration Tests (Electron)
 
   monaco:
+    name: Monaco Editor checks
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
