@@ -267,8 +267,9 @@ class BrowserMain extends Disposable {
 			try {
 				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE);
 			} catch (error) {
-				console.error(error);
+				onUnexpectedError(error);
 			}
+
 			if (indexedDBLogProvider) {
 				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
 			} else {
@@ -285,6 +286,7 @@ class BrowserMain extends Disposable {
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
+
 			// Remote file system
 			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
@@ -295,8 +297,9 @@ class BrowserMain extends Disposable {
 		try {
 			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
 		} catch (error) {
-			console.error(error);
+			onUnexpectedError(error);
 		}
+		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 
 		if (indexedDBUserDataProvider) {
 			registerAction2(class ResetUserDataAction extends Action2 {
@@ -310,21 +313,22 @@ class BrowserMain extends Disposable {
 						}
 					});
 				}
+
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
 					const hostService = accessor.get(IHostService);
 					const result = await dialogService.confirm({
 						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
 					});
+
 					if (result.confirmed) {
-						await indexedDBUserDataProvider!.reset();
+						await indexedDBUserDataProvider?.reset();
 					}
+
 					hostService.reload();
 				}
 			});
 		}
-
-		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
