@@ -23,10 +23,10 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -34,9 +34,8 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
+import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
@@ -44,11 +43,12 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IView, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
+import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 
 class RequestState {
 
@@ -397,10 +397,8 @@ export class OutlinePane extends ViewPane {
 		this._tree.layout(height, width);
 	}
 
-	getActions(): IAction[] {
-		return [
-			new CollapseAction(() => this._tree, true, 'explorer-action ' + Codicon.collapseAll.classNames)
-		];
+	collapseAll(): void {
+		this._tree.collapseAll();
 	}
 
 	getSecondaryActions(): IAction[] {
@@ -637,3 +635,41 @@ export class OutlinePane extends ViewPane {
 		this._tree.setSelection([item]);
 	}
 }
+
+// --- commands
+
+abstract class ViewAction<T extends IView> extends Action2 {
+	constructor(readonly desc: Readonly<IAction2Options> & { viewId: string }) {
+		super(desc);
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
+		if (view) {
+			return this.runInView(accessor, <T>view, ...args);
+		}
+	}
+
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+}
+
+registerAction2(class Collapse extends ViewAction<OutlinePane> {
+
+	constructor() {
+		super({
+			viewId: OutlineViewId,
+			id: 'outline.collapse',
+			title: localize('collapse', "Collapse All"),
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', OutlineViewId)
+			}
+		});
+	}
+	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
+		view.collapseAll();
+	}
+});
