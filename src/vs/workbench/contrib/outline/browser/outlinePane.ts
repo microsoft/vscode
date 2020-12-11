@@ -399,28 +399,9 @@ export class OutlinePane extends ViewPane {
 		return this._outlineViewState;
 	}
 
-	// getSecondaryActions(): IAction[] {
-	// 	const group = this._register(new RadioGroup([
-	// 		new SimpleToggleAction(this._outlineViewState, localize('sortByPosition', "Sort By: Position"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByPosition, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByPosition),
-	// 		new SimpleToggleAction(this._outlineViewState, localize('sortByName', "Sort By: Name"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByName, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByName),
-	// 		new SimpleToggleAction(this._outlineViewState, localize('sortByKind', "Sort By: Category"), () => this._outlineViewState.sortBy === OutlineSortOrder.ByKind, _ => this._outlineViewState.sortBy = OutlineSortOrder.ByKind),
-	// 	]));
-	// 	const result = [
-	// 		new Separator(),
-	// 		...group.actions,
-	// 	];
-	// 	for (const r of result) {
-	// 		this._register(r);
-	// 	}
-
-	// 	return result;
-	// }
-
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
 		this._outlineViewState.persist(this._storageService);
-		if (e.followCursor) {
-			// todo@jrieken update immediately
-		}
+
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;
 			this._tree.resort();
