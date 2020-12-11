@@ -17,8 +17,9 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, getPathBaseName } from './util';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, getPathBaseName, toLSTextDocument } from './util';
 import { reflectCssValue } from './reflectCssValue';
+import { addFileToParseCache, removeFileFromParseCache } from './parseDocument';
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context);
@@ -144,6 +145,14 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		if (basefileName.startsWith('snippets') && basefileName.endsWith('.json')) {
 			updateEmmetExtensionsPath(true);
 		}
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((e) => {
+		addFileToParseCache(toLSTextDocument(e));
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidCloseTextDocument((e) => {
+		removeFileFromParseCache(toLSTextDocument(e));
 	}));
 }
 

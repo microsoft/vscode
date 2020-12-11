@@ -9,9 +9,11 @@ import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import * as EmmetHelper from 'vscode-emmet-helper';
-import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
+import { Position as LSPosition, getLanguageService as getLanguageServiceInternal, LanguageService, LanguageServiceOptions, TextDocument as LSTextDocument, Node as LSNode } from 'vscode-html-languageservice';
+import { parseHTMLDocument } from './parseDocument';
 
 let _emmetHelper: typeof EmmetHelper;
+let _languageService: LanguageService;
 let _currentExtensionsPath: string | undefined = undefined;
 
 let _homeDir: vscode.Uri | undefined;
@@ -21,7 +23,6 @@ export function setHomeDir(homeDir: vscode.Uri) {
 	_homeDir = homeDir;
 }
 
-
 export function getEmmetHelper() {
 	// Lazy load vscode-emmet-helper instead of importing it
 	// directly to reduce the start-up time of the extension
@@ -30,6 +31,16 @@ export function getEmmetHelper() {
 	}
 	updateEmmetExtensionsPath();
 	return _emmetHelper;
+}
+
+export function getLanguageService(options?: LanguageServiceOptions): LanguageService {
+	if (!options) {
+		if (!_languageService) {
+			_languageService = getLanguageServiceInternal();
+		}
+		return _languageService;
+	}
+	return getLanguageServiceInternal(options);
 }
 
 /**
@@ -364,6 +375,77 @@ export function getHtmlNode(document: vscode.TextDocument, root: Node | undefine
 	}
 
 	return currentNode;
+}
+
+/**
+ * Finds the HTML node within an HTML document at a given position
+ */
+export function getHtmlNodeLS(document: LSTextDocument, position: vscode.Position, includeNodeBoundary: boolean): LSNode | undefined {
+	const documentText = document.getText();
+	const offset = document.offsetAt(position);
+	let selectionStartOffset = offset;
+	if (includeNodeBoundary && documentText.charAt(offset) === '<') {
+		selectionStartOffset++;
+	}
+	else if (includeNodeBoundary && documentText.charAt(offset) === '>') {
+		selectionStartOffset--;
+	}
+	return getHtmlNodeLSInternal(document, selectionStartOffset);
+}
+
+function getHtmlNodeLSInternal(document: LSTextDocument, offset: number): LSNode | undefined {
+	const parsedDocument = parseHTMLDocument(document);
+	const documentText = document.getText();
+
+	const currentNode: LSNode = parsedDocument.findNodeAt(offset);
+	if (!currentNode.tag) { return; }
+
+	const isTemplateScript = isNodeTemplateScriptLS(currentNode);
+	if (isTemplateScript &&
+		currentNode.startTagEnd && currentNode.endTagStart &&
+		offset > currentNode.startTagEnd &&
+		offset < currentNode.endTagStart) {
+		// blank out the rest of the document and search for the node within
+		const beforePadding = ' '.repeat(currentNode.startTagEnd);
+		const afterPadding = ' '.repeat(documentText.length - currentNode.endTagStart);
+		const scriptBodyText = beforePadding + documentText.substring(currentNode.startTagEnd, currentNode.endTagStart) + afterPadding;
+		const scriptBodyDocument = LSTextDocument.create(document.uri, document.languageId, document.version, scriptBodyText);
+		const scriptBodyNode = getHtmlNodeLSInternal(scriptBodyDocument, offset);
+		if (scriptBodyNode) {
+			scriptBodyNode.parent = currentNode;
+			return scriptBodyNode;
+		}
+	}
+	return currentNode;
+}
+
+/**
+ * Returns whether the node is a <script> node
+ * that we want to search through and parse for more potential HTML nodes
+ */
+function isNodeTemplateScriptLS(node: LSNode): boolean {
+	if (node.tag === 'script' && node.attributes && node.attributes['type']) {
+		let scriptType = node.attributes['type'];
+		scriptType = scriptType.substring(1, scriptType.length - 1);
+		return allowedMimeTypesInScriptTag.includes(scriptType);
+	}
+	return false;
+}
+
+function toVsPosition(position: LSPosition): vscode.Position {
+	return new vscode.Position(position.line, position.character);
+}
+
+export function offsetRangeToSelection(document: LSTextDocument, start: number, end: number): vscode.Selection {
+	const startPos = document.positionAt(start);
+	const endPos = document.positionAt(end);
+	return new vscode.Selection(toVsPosition(startPos), toVsPosition(endPos));
+}
+
+export function offsetRangeToVsRange(document: LSTextDocument, start: number, end: number): vscode.Range {
+	const startPos = document.positionAt(start);
+	const endPos = document.positionAt(end);
+	return new vscode.Range(toVsPosition(startPos), toVsPosition(endPos));
 }
 
 /**
