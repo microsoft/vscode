@@ -54,7 +54,7 @@ export class ReportExtensionIssueAction extends Action {
 		unresponsiveProfile?: IExtensionHostProfile
 	}): Promise<string> {
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
-		if (extension.description.isBuiltin) {
+		if (!baseUrl && extension.description.isBuiltin) {
 			baseUrl = builtinExtensionIssueUrl;
 		}
 		if (!!baseUrl) {
