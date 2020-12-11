@@ -99,9 +99,9 @@ export class KeybindingsEditorModel extends EditorModel {
 				.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
-		if (/@source:\s*(user|default)/i.test(searchValue)) {
+		if (/@source:\s*(user|default|extension)/i.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
-			searchValue = searchValue.replace(/@source:\s*(user|default)/i, '');
+			searchValue = searchValue.replace(/@source:\s*(user|default|extension)/i, '');
 		} else {
 			const keybindingMatches = /@keybinding:\s*((\".+\")|(\S+))/i.exec(searchValue);
 			if (keybindingMatches && (keybindingMatches[2] || keybindingMatches[3])) {
