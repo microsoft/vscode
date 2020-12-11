@@ -74,9 +74,6 @@ jobs:
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
-      - name: Run Monaco Editor Checks
-        run: yarn monaco-compile-check
-
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
@@ -201,6 +198,18 @@ jobs:
         with:
           path: build/**/*.js
           key: ${{ runner.os }}-compileBuildFolder-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+
+      - name: dbg1
+        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
+        run: echo dbg1
+
+      - name: dbg2
+        if: ${{ steps.build-folder-compile-cache.cache-hit != 'true' }}
+        run: echo dbg2
+
+      - name: dbg3
+        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.cache-hit != 'true' }}
+        run: echo dbg3
 
       - name: Compile /build/ folder
         if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.cache-hit != 'true' }}
