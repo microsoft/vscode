@@ -12,7 +12,7 @@ on:
 
 jobs:
   hygiene:
-    name: Hygiene check
+    name: Hygiene and Layers check
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,13 +39,22 @@ jobs:
           key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
 
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' || steps.cachePlaywright.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
 
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
+      - name: Download Playwright
+        run: node ./node_modules/playwright/install.js
+
+      - name: Run Valid Layers Checks
+        run: yarn valid-layers-check
+
   linux:
+    name: Linux
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,9 +103,6 @@ jobs:
 
       - name: Download Electron
         run: yarn electron x64
-
-      - name: Run Valid Layers Checks
-        run: yarn valid-layers-check
 
       - name: Compile Sources
         run: yarn compile
@@ -207,6 +213,8 @@ jobs:
 
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
 
       - name: Run Monaco Editor Checks
