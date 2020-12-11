@@ -9,7 +9,9 @@
 
 	const hostMessaging = new class HostMessaging {
 		constructor() {
+			/** @type {Map<string, (event: MessageEvent, data: any) => void>} */
 			this.handlers = new Map();
+
 			window.addEventListener('message', (e) => {
 				if (e.data && (e.data.command === 'onmessage' || e.data.command === 'do-update-state')) {
 					// Came from inner iframe
@@ -41,6 +43,7 @@
 		hostMessaging.postMessage('fatal-error', { message });
 	}
 
+	/** @type {Promise<void>} */
 	const workerReady = new Promise(async (resolveWorkerReady) => {
 		if (onElectron) {
 			return resolveWorkerReady();
