@@ -188,6 +188,10 @@
 	line-height: 22px;
 }
 
+.scm-view .monaco-tl-contents .scm-input {
+	overflow: unset;
+}
+
 .scm-view .scm-input {
 	height: 100%;
 	margin-left: 9px;
