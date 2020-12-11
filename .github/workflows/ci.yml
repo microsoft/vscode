@@ -132,13 +132,55 @@ jobs:
         id: yarn-cache-key
         run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock') }}"
 
-      - name: Cache root node modules
-        id: root-node-modules # use this to check for `cache-hit` (`steps.root-node-modules.outputs.cache-hit != 'true'`)
+      - name: Cache node modules
+        id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
         uses: actions/cache@v2
         env:
-          cache-name: root-node-modules
+          cache-name: node-modules-cache
         with:
-          path: ./node_modules
+          path:
+            - ./node_modules
+            - ./build/node_modules
+            - ./build/lib/watch/node_modules
+            - ./extensions/node_modules
+            - ./extensions/configuration-editing/node_modules
+            - ./extensions/css-language-features/node_modules
+            - ./extensions/css-language-features/server/node_modules
+            - ./extensions/debug-auto-launch/node_modules
+            - ./extensions/debug-server-ready/node_modules
+            - ./extensions/emmet/node_modules
+            - ./extensions/extension-editing/node_modules
+            - ./extensions/git/node_modules
+            - ./extensions/git-ui/node_modules
+            - ./extensions/github/node_modules
+            - ./extensions/github-authentication/node_modules
+            - ./extensions/grunt/node_modules
+            - ./extensions/gulp/node_modules
+            - ./extensions/html-language-features/node_modules
+            - ./extensions/html-language-features/server/node_modules
+            - ./extensions/image-preview/node_modules
+            - ./extensions/jake/node_modules
+            - ./extensions/json-language-features/node_modules
+            - ./extensions/json-language-features/server/node_modules
+            - ./extensions/markdown-language-features/node_modules
+            - ./extensions/merge-conflict/node_modules
+            - ./extensions/microsoft-authentication/node_modules
+            - ./extensions/npm/node_modules
+            - ./extensions/php-language-features/node_modules
+            - ./extensions/search-result/node_modules
+            - ./extensions/typescript-language-features/node_modules
+            - ./extensions/vscode-api-tests/node_modules
+            - ./extensions/vscode-colorize-tests/node_modules
+            - ./extensions/vscode-custom-editor-tests/node_modules
+            - ./extensions/vscode-notebook-tests/node_modules
+            - ./extensions/vscode-test-resolver/node_modules
+            - ./remote/node_modules
+            - ./remote/web/node_modules
+            - ./test/automation/node_modules
+            - ./test/integration/browser/node_modules
+            - ./test/smoke/node_modules
+            - ./test/ui/splitview/node_modules
+            - ./test/ui/tree/node_modules
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
           restore-keys: |
             ${{ runner.os }}-build-${{ env.cache-name }}-
@@ -146,6 +188,7 @@ jobs:
             ${{ runner.os }}-
 
       - run: yarn --frozen-lockfile
+        if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
         name: Install Dependencies
 
       - run: yarn monaco-compile-check
