@@ -55,10 +55,16 @@ jobs:
         if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
         run: yarn --frozen-lockfile
 
-      - name: Compile /build/ folder
-        # this normally executes as a postinstall script, but if the cache is hit above,
-        # yarn will not execute at all. Therefore, we manually launch it if necessary
+      - name: Cache compile /build/ folder
+        id: build-folder-compile-cache
         if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: build/**/*.js
+          key: ${{ runner.os }}-compileBuildFolder-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+
+      - name: Compile /build/ folder
+        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.cache-hit != 'true' }}
         run: yarn run compile
         working-directory: ./build
 
@@ -188,10 +194,16 @@ jobs:
         if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
         run: yarn --frozen-lockfile
 
-      - name: Compile /build/ folder
-        # this normally executes as a postinstall script, but if the cache is hit above,
-        # yarn will not execute at all. Therefore, we manually launch it if necessary
+      - name: Cache compile /build/ folder
+        id: build-folder-compile-cache
         if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: build/**/*.js
+          key: ${{ runner.os }}-compileBuildFolder-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+
+      - name: Compile /build/ folder
+        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.cache-hit != 'true' }}
         run: yarn run compile
         working-directory: ./build
 
