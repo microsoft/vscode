@@ -14,7 +14,7 @@ import { ExtensionType, IExtensionDescription } from 'vs/platform/extensions/com
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 
-const builtinExtensionIssueUrl = 'https://github.com/microsoft/vscode.git';
+const builtinExtensionIssueUrl = 'https://github.com/microsoft/vscode';
 
 export class ReportExtensionIssueAction extends Action {
 
