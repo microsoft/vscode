@@ -33,9 +33,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
-	get outputs() {
-		return this.model.outputs;
-	}
 
 	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
