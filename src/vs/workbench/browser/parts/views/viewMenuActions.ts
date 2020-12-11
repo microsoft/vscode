@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -30,6 +30,7 @@ export abstract class AbstractViewMenuActions extends Disposable {
 
 		const menu = this._register(menuService.createMenu(menuId, contextKeyService));
 		const updateActions = () => {
+			dispose(combinedDisposable(...this.primaryActions, ...this.secondaryActions));
 			this.primaryActions = [];
 			this.secondaryActions = [];
 			this.titleActionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary: this.primaryActions, secondary: this.secondaryActions });
@@ -40,6 +41,7 @@ export abstract class AbstractViewMenuActions extends Disposable {
 
 		const contextMenu = this._register(menuService.createMenu(contextMenuId, contextKeyService));
 		const updateContextMenuActions = () => {
+			dispose(combinedDisposable(...this.contextMenuActions));
 			this.contextMenuActions = [];
 			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, { shouldForwardArgs: true }, { primary: [], secondary: this.contextMenuActions });
 		};
