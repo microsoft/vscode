@@ -23,6 +23,7 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 const OUTPUT_COUNT_LIMIT = 500;
 
@@ -51,11 +52,17 @@ export class OutputElement extends Disposable {
 			return;
 		}
 
+		if (!this.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const notebookTextModel = this.notebookEditor.viewModel.notebookDocument;
+
 		const outputItemDiv = document.createElement('div');
 		let result: IRenderOutput | undefined = undefined;
 
 		if (this.output.isDisplayOutput()) {
-			const [mimeTypes, pick] = this.output.resolveMimeTypes(this.notebookEditor.textModel!);
+			const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel);
 			if (mimeTypes.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
@@ -67,7 +74,7 @@ export class OutputElement extends Disposable {
 					if (e.leftButton) {
 						e.preventDefault();
 						e.stopPropagation();
-						await this.pickActiveMimeTypeRenderer(this.output as IDisplayOutputViewModel);
+						await this.pickActiveMimeTypeRenderer(notebookTextModel, this.output as IDisplayOutputViewModel);
 					}
 				}));
 
@@ -76,7 +83,7 @@ export class OutputElement extends Disposable {
 					if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
 						e.preventDefault();
 						e.stopPropagation();
-						await this.pickActiveMimeTypeRenderer(this.output as IDisplayOutputViewModel);
+						await this.pickActiveMimeTypeRenderer(notebookTextModel, this.output as IDisplayOutputViewModel);
 					}
 				})));
 			}
@@ -135,7 +142,7 @@ export class OutputElement extends Disposable {
 				height: clientHeight
 			};
 			const elementSizeObserver = getResizesObserver(outputItemDiv, dimension, () => {
-				if (this.outputContainer && document.body.contains(this.outputContainer!)) {
+				if (this.outputContainer && document.body.contains(this.outputContainer)) {
 					const height = Math.ceil(elementSizeObserver.getHeight());
 
 					if (clientHeight === height) {
@@ -163,8 +170,8 @@ export class OutputElement extends Disposable {
 		}
 	}
 
-	async pickActiveMimeTypeRenderer(viewModel: IDisplayOutputViewModel) {
-		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(this.notebookEditor.textModel!);
+	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: IDisplayOutputViewModel) {
+		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel);
 
 		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
 			label: mimeType.mimeType,
@@ -215,7 +222,7 @@ export class OutputElement extends Disposable {
 		return CellUri.parse(this.viewCell.uri)?.notebook;
 	}
 
-	generateRendererInfo(renderId: string | undefined): string {
+	private generateRendererInfo(renderId: string | undefined): string {
 		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
 			return nls.localize('builtinRenderInfo', "built-in");
 		}
@@ -230,7 +237,7 @@ export class OutputElement extends Disposable {
 		return nls.localize('builtinRenderInfo', "built-in");
 	}
 
-	relayoutCell() {
+	private relayoutCell() {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 }
