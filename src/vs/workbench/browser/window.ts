@@ -10,7 +10,6 @@ import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -21,8 +20,7 @@ export class BrowserWindow extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
-		@IProductService private readonly productService: IProductService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -44,10 +42,13 @@ export class BrowserWindow extends Disposable {
 			// state.
 			const res = await this.dialogService.show(
 				Severity.Error,
-				localize('shutdownError', "{0} got disposed. Please close or reload this page.", this.productService.nameShort),
+				localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
 				[
-					localize('reload', "Reload"),
-				]
+					localize('reload', "Reload")
+				],
+				{
+					detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running.")
+				}
 			);
 
 			if (res.choice === 0) {

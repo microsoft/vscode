@@ -37,12 +37,14 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			this.logService.info('[lifecycle] onBeforeUnload expected, ignoring once');
 
 			this.expectedUnload = false;
+
 			return; // ignore expected unload only once
 		}
 
 		this.logService.info('[lifecycle] onBeforeUnload triggered');
 
 		this.doShutdown(() => {
+
 			// Veto handling
 			event.preventDefault();
 			event.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
@@ -61,7 +63,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	shutdown(): void {
 		this.logService.info('[lifecycle] shutdown triggered');
 
-		// Remove beforeunload listener that would prevent shutdown
+		// Remove `beforeunload` listener that would prevent shutdown
 		this.beforeUnloadDisposable?.dispose();
 
 		// Handle shutdown without veto support

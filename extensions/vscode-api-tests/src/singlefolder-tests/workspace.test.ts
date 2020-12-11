@@ -132,7 +132,10 @@ suite('vscode API - workspace', () => {
 			let d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
 
 			return vscode.window.showTextDocument(doc).then(() => {
-				return doc.save().then(() => {
+				return doc.save().then((didSave: boolean) => {
+
+					assert.equal(didSave, true, `FAILED to save${doc.uri.toString()}`);
+
 					assert.ok(closed === doc);
 					assert.ok(!doc.isDirty);
 					assert.ok(fs.existsSync(path));
