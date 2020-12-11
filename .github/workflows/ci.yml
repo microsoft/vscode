@@ -120,7 +120,6 @@ jobs:
   monaco:
     runs-on: ubuntu-latest
     env:
-      CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
