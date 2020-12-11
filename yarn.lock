@@ -9520,11 +9520,12 @@ ts-loader@^4.4.2:
     micromatch "^3.1.4"
     semver "^5.0.1"
 
-tsec@googleinterns/tsec#630b53fe2b23815c28dd219119cc98dbd59e29b2:
+tsec@googleinterns/tsec#7bf4ab23686500522341b977b3e2cc04b1f720b1:
   version "0.0.1"
-  resolved "https://codeload.github.com/googleinterns/tsec/tar.gz/630b53fe2b23815c28dd219119cc98dbd59e29b2"
+  resolved "https://codeload.github.com/googleinterns/tsec/tar.gz/7bf4ab23686500522341b977b3e2cc04b1f720b1"
   dependencies:
     "@types/node" "^13.13.5"
+    typescript "^4.1.2"
 
 tslib@^1.8.1, tslib@^1.9.0:
   version "1.9.3"
@@ -9607,6 +9608,11 @@ typescript@^2.6.2:
   version "2.6.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
+
+typescript@^4.1.2:
+  version "4.1.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.1.2.tgz#6369ef22516fe5e10304aae5a5c4862db55380e9"
+  integrity sha512-thGloWsGH3SOxv1SoY7QojKi0tc+8FnOmiarEGMbd/lar7QOEd3hvlx3Fp5y6FlDUGl9L+pd4n2e+oToGMmhRQ==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
