@@ -190,7 +190,7 @@ jobs:
           node-version: 12
 
       - name: Cached yarn
-        uses: ./ci/cached-yarn
+        uses: ./ci-cached-yarn
 
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
