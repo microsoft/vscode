@@ -32,41 +32,31 @@ jobs:
         with:
           node-version: 12
 
-      - name: Compute yarn cache key
-        id: yarn-cache-key
-        run: echo "::set-output name=value::${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}3"
-
       - name: Cache node modules
-        id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
+        id: cacheNodeModules
         uses: actions/cache@v2
-        env:
-          cache-name: node-modules-cache
         with:
-          path: |
-            ~/.cache/ms-playwright
-            **/node_modules
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-
-            ${{ runner.os }}-build-
-            ${{ runner.os }}-
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules-
 
-      - name: Install Dependencies
-        if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
-        run: yarn --frozen-lockfile
-
-      - name: Cache compile /build/ folder
-        id: build-folder-compile-cache
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
+      - name: Cache /build/ scripts
+        id: cacheBuildScripts
         uses: actions/cache@v2
         with:
           path: build/**/*.js
-          key: ${{ runner.os }}-compileBuildFolder-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
 
-      - name: Compile /build/ folder
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.outputs.cache-hit != 'true' }}
-        run: yarn run compile
-        working-directory: ./build
+      - name: Cache playwright
+        id: cachePlaywright
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-cachePlaywright-${{ hashFiles('yarn.lock') }}
+
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' || steps.cachePlaywright.outputs.cache-hit != 'true' }}
+        run: yarn --frozen-lockfile
 
       - name: Download Electron
         run: yarn electron x64
@@ -168,41 +158,24 @@ jobs:
         with:
           node-version: 12
 
-      - name: Compute yarn cache key
-        id: yarn-cache-key
-        run: echo "::set-output name=value::${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}3"
-
       - name: Cache node modules
-        id: node-modules-cache # use this to check for `cache-hit` (`steps.node-modules-cache.outputs.cache-hit != 'true'`)
+        id: cacheNodeModules
         uses: actions/cache@v2
-        env:
-          cache-name: node-modules-cache
         with:
-          path: |
-            ~/.cache/ms-playwright
-            **/node_modules
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-
-            ${{ runner.os }}-build-
-            ${{ runner.os }}-
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules-
 
-      - name: Install Dependencies
-        if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
-        run: yarn --frozen-lockfile
-
-      - name: Cache compile /build/ folder
-        id: build-folder-compile-cache
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
+      - name: Cache /build/ scripts
+        id: cacheBuildScripts
         uses: actions/cache@v2
         with:
           path: build/**/*.js
-          key: ${{ runner.os }}-compileBuildFolder-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
 
-      - name: Compile /build/ folder
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.outputs.cache-hit != 'true' }}
-        run: yarn run compile
-        working-directory: ./build
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        run: yarn --frozen-lockfile
 
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
