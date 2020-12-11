@@ -128,11 +128,15 @@ steps:
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+    displayName: Build
+
+  - script: |
+      set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
-    displayName: Build
+    displayName: Build Server
 
   - script: |
       set -e
@@ -198,17 +202,20 @@ steps:
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
     displayName: Build deb, rpm packages
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
     displayName: Prepare snap package
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   # needed for code signing
   - task: UseDotNet@2
     displayName: "Install .NET Core SDK 2.x"
     inputs:
       version: 2.x
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
@@ -228,6 +235,7 @@ steps:
         ]
       SessionTimeout: 120
     displayName: Codesign rpm
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -237,12 +245,14 @@ steps:
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/linux/publish.sh
     displayName: Publish
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: PublishPipelineArtifact@0
     displayName: "Publish Pipeline Artifact"
     inputs:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"

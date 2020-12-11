@@ -85,7 +85,7 @@ stages:
       - job: LinuxSnap
         dependsOn:
           - Linux
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: snapcraft
         variables:
           VSCODE_ARCH: x64
@@ -104,7 +104,7 @@ stages:
       - job: LinuxSnapArmhf
         dependsOn:
           - LinuxArmhf
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: snapcraft
         variables:
           VSCODE_ARCH: armhf
@@ -123,7 +123,7 @@ stages:
       - job: LinuxSnapArm64
         dependsOn:
           - LinuxArm64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: snapcraft
         variables:
           VSCODE_ARCH: arm64
@@ -136,7 +136,7 @@ stages:
           - template: linux/product-build-alpine.yml
 
       - job: LinuxWeb
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WEB'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -178,7 +178,7 @@ stages:
       - Linux
       - macOS
       - macOSARM64
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'))
     pool:
       vmImage: "Ubuntu-18.04"
     jobs:
@@ -193,7 +193,7 @@ stages:
       - Linux
       - macOS
       - macOSARM64
-    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
+    condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), ne(variables['VSCODE_PUBLISH'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
     pool:
       vmImage: "Ubuntu-18.04"
     jobs:

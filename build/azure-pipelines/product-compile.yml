@@ -97,8 +97,7 @@ steps:
     displayName: Run postinstall scripts
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['CacheRestored'], 'true'))
 
-  # Mixin must run before optimize, because the CSS loader will
-  # inline small SVGs
+  # Mixin must run before optimize, because the CSS loader will inline small SVGs
   - script: |
       set -e
       node build/azure-pipelines/mixin
@@ -117,14 +116,14 @@ steps:
       set -
       ./build/azure-pipelines/common/extract-telemetry.sh
     displayName: Extract Telemetry
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
       AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
       ./build/azure-pipelines/common/publish-webview.sh
     displayName: Publish Webview
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -141,7 +140,7 @@ steps:
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -149,7 +148,7 @@ steps:
       AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
         node build/azure-pipelines/common/createBuild.js $VERSION
     displayName: Create build
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
     inputs:
