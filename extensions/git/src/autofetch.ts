@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri } from 'vscode';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent } from 'vscode';
 import { Repository, Operation } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
 import * as nls from 'vscode-nls';
@@ -68,9 +68,12 @@ export class AutoFetcher {
 		this.globalState.update(AutoFetcher.DidInformUser, true);
 	}
 
-	private onConfiguration(): void {
-		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+	private onConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e !== undefined && !e.affectsConfiguration('git.autofetch')) {
+			return;
+		}
 
+		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		switch (gitConfig.get<boolean | 'all'>('autofetch')) {
 			case true:
 				this._fetchAll = false;
