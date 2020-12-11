@@ -208,42 +208,62 @@ jobs:
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
 
-      - name: Run Unit and Integration Tests
-        run: DISPLAY=:10 yarn concurrently --names "unit-tests-electron,unit-tests-browser,integration-tests-electron" "./scripts/test.sh" "yarn test-browser --browser chromium" "./scripts/test-integration.sh"
+      - name: Run Unit Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test.sh
 
-  # windows:
-  #   runs-on: windows-2016
-  #   env:
-  #     CHILD_CONCURRENCY: "1"
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #   - uses: actions/checkout@v1
-  #   - uses: actions/setup-node@v1
-  #     with:
-  #       node-version: 10
-  #   - uses: actions/setup-python@v1
-  #     with:
-  #       python-version: '2.x'
-  #   - run: yarn --frozen-lockfile
-  #     name: Install Dependencies
-  #   - run: yarn electron
-  #     name: Download Electron
-  #   - run: yarn gulp hygiene
-  #     name: Run Hygiene Checks
-  #   - run: yarn monaco-compile-check
-  #     name: Run Monaco Editor Checks
-  #   - run: yarn valid-layers-check
-  #     name: Run Valid Layers Checks
-  #   - run: yarn compile
-  #     name: Compile Sources
-  #   - run: yarn download-builtin-extensions
-  #     name: Download Built-in Extensions
-  #   - run: .\scripts\test.bat --tfs "Unit Tests"
-  #     name: Run Unit Tests (Electron)
-  #   - run: yarn test-browser --browser chromium
-  #     name: Run Unit Tests (Browser)
-  #   - run: .\scripts\test-integration.bat --tfs "Integration Tests"
-  #     name: Run Integration Tests (Electron)
+      - name: Run Unit Tests (Browser)
+        run: DISPLAY=:10 yarn test-browser --browser chromium
+
+      - name: Run Integration Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test-integration.sh
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    env:
+      CHILD_CONCURRENCY: "1"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '2.x'
+
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Cache /build/ scripts
+        id: cacheBuildScripts
+        uses: actions/cache@v2
+        with:
+          path: build/**/*.js
+          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: yarn --frozen-lockfile
+
+      - name: Compile and Download
+        run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
+
+      - name: Run Unit Tests (Electron)
+        run: .\scripts\test.bat
+
+      - name: Run Unit Tests (Browser)
+        run: yarn test-browser --browser chromium
+
+      - name: Run Integration Tests (Electron)
+        run: .\scripts\test-integration.bat
 
   darwin:
     name: macOS
@@ -279,8 +299,14 @@ jobs:
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "yarn compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
 
-      - name: Run Unit and Integration Tests
-        run: DISPLAY=:10 yarn concurrently --names "unit-tests-electron,unit-tests-browser,integration-tests-electron" "./scripts/test.sh" "yarn test-browser --browser chromium" "./scripts/test-integration.sh"
+      - name: Run Unit Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test.sh
+
+      - name: Run Unit Tests (Browser)
+        run: DISPLAY=:10 yarn test-browser --browser chromium
+
+      - name: Run Integration Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test-integration.sh
 
   monaco:
     name: Monaco Editor
