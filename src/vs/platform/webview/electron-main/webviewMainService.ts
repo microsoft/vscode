@@ -8,6 +8,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWebviewManagerService, RegisterWebviewMetadata, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
@@ -24,12 +25,13 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService,
 		@IRequestService requestService: IRequestService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
-		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService, requestService, windowsMainService));
+		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService, logService, requestService, windowsMainService));
 		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
 	}
 

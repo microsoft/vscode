@@ -41,7 +41,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService);
 
@@ -192,7 +192,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 				rewriteUri,
 			}, {
 				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => x.value),
-			}, this.requestService);
+			}, this.requestService, this.logService);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
 				const { buffer } = await streamToBuffer(result.stream);
