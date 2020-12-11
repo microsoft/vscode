@@ -47,9 +47,6 @@ jobs:
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
-      - name: Download Playwright
-        run: node ./node_modules/playwright/install.js
-
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
@@ -90,19 +87,15 @@ jobs:
           path: build/**/*.js
           key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
 
-      - name: Cache playwright
-        id: cachePlaywright
-        uses: actions/cache@v2
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-cachePlaywright-${{ hashFiles('yarn.lock') }}
-
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' || steps.cachePlaywright.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
         run: yarn --frozen-lockfile
 
       - name: Download Electron
         run: yarn electron x64
+
+      - name: Download Playwright
+        run: node ./node_modules/playwright/install.js
 
       - name: Compile Sources
         run: yarn compile
