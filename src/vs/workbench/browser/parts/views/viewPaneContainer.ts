@@ -23,7 +23,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, IPaneStyles } from 'vs/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, defaultViewIcon } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, defaultViewIcon, IViewsService } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -1663,6 +1663,36 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.paneview.dispose();
 		}
 	}
+}
+
+export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> extends Action2 {
+	constructor(readonly desc: Readonly<IAction2Options> & { viewPaneContainerId: string }) {
+		super(desc);
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
+		if (viewPaneContainer) {
+			return this.runInView(accessor, <T>viewPaneContainer, ...args);
+		}
+	}
+
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+}
+
+export abstract class ViewAction<T extends IView> extends Action2 {
+	constructor(readonly desc: Readonly<IAction2Options> & { viewId: string }) {
+		super(desc);
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
+		if (view) {
+			return this.runInView(accessor, <T>view, ...args);
+		}
+	}
+
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
 }
 
 class MoveViewPosition extends Action2 {

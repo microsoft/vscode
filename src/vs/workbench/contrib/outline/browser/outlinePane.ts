@@ -32,7 +32,7 @@ import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
@@ -43,12 +43,12 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IView, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
-import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 
 class RequestState {
 
@@ -637,21 +637,6 @@ export class OutlinePane extends ViewPane {
 }
 
 // --- commands
-
-abstract class ViewAction<T extends IView> extends Action2 {
-	constructor(readonly desc: Readonly<IAction2Options> & { viewId: string }) {
-		super(desc);
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
-		if (view) {
-			return this.runInView(accessor, <T>view, ...args);
-		}
-	}
-
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
-}
 
 registerAction2(class Collapse extends ViewAction<OutlinePane> {
 
