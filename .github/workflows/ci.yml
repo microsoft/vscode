@@ -64,7 +64,7 @@ jobs:
           key: ${{ runner.os }}-compileBuildFolder-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
 
       - name: Compile /build/ folder
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.cache-hit != 'true' }}
+        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.outputs.cache-hit != 'true' }}
         run: yarn run compile
         working-directory: ./build
 
@@ -199,20 +199,8 @@ jobs:
           path: build/**/*.js
           key: ${{ runner.os }}-compileBuildFolder-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
 
-      - name: dbg1
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' }}
-        run: echo dbg1
-
-      - name: dbg2
-        if: ${{ steps.build-folder-compile-cache.cache-hit != 'true' }}
-        run: echo dbg2
-
-      - name: dbg3
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.cache-hit != 'true' }}
-        run: echo dbg3
-
       - name: Compile /build/ folder
-        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.cache-hit != 'true' }}
+        if: ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && steps.build-folder-compile-cache.outputs.cache-hit != 'true' }}
         run: yarn run compile
         working-directory: ./build
 
