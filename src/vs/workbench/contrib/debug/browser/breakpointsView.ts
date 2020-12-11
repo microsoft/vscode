@@ -814,9 +814,11 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint, labelService?: ILabelService): { message?: string, icon: ThemeIcon } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
+	const breakpointIcon = breakpoint instanceof DataBreakpoint ? icons.dataBreakpoint : breakpoint instanceof FunctionBreakpoint ? icons.functionBreakpoint : breakpoint.logMessage ? icons.logBreakpoint : icons.breakpoint;
+
 	if (!breakpoint.enabled || !breakpointsActivated) {
 		return {
-			icon: breakpoint instanceof DataBreakpoint ? icons.debugBreakpointDataDisabled : breakpoint instanceof FunctionBreakpoint ? icons.debugBreakpointFunctionDisabled : breakpoint.logMessage ? icons.debugBreakpointLogDisabled : icons.debugBreakpointDisabled,
+			icon: breakpointIcon.disabled,
 			message: breakpoint.logMessage ? nls.localize('disabledLogpoint', "Disabled Logpoint") : nls.localize('disabledBreakpoint', "Disabled Breakpoint"),
 		};
 	}
@@ -826,7 +828,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
-			icon: breakpoint instanceof DataBreakpoint ? icons.debugBreakpointDataUnverified : breakpoint instanceof FunctionBreakpoint ? icons.debugBreakpointFunctionUnverified : breakpoint.logMessage ? icons.debugBreakpointLogUnverified : icons.debugBreakpointUnverified,
+			icon: breakpointIcon.unverified,
 			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified Logpoint") : nls.localize('unverifiedBreakopint', "Unverified Breakpoint")),
 		};
 	}
@@ -834,13 +836,13 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	if (breakpoint instanceof FunctionBreakpoint) {
 		if (!breakpoint.supported) {
 			return {
-				icon: icons.debugBreakpointFunctionUnverified,
+				icon: breakpointIcon.unverified,
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
 			};
 		}
 
 		return {
-			icon: icons.debugBreakpointFunction,
+			icon: breakpointIcon.regular,
 			message: breakpoint.message || nls.localize('functionBreakpoint', "Function Breakpoint")
 		};
 	}
@@ -848,13 +850,13 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	if (breakpoint instanceof DataBreakpoint) {
 		if (!breakpoint.supported) {
 			return {
-				icon: icons.debugBreakpointDataUnverified,
+				icon: breakpointIcon.unverified,
 				message: nls.localize('dataBreakpointUnsupported', "Data breakpoints not supported by this debug type"),
 			};
 		}
 
 		return {
-			icon: icons.debugBreakpointData,
+			icon: breakpointIcon.regular,
 			message: breakpoint.message || nls.localize('dataBreakpoint', "Data Breakpoint")
 		};
 	}
@@ -880,14 +882,14 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		}
 
 		return {
-			icon: breakpoint.logMessage ? icons.debugBreakpointLog : icons.debugBreakpointConditional,
+			icon: breakpoint.logMessage ? icons.logBreakpoint.regular : icons.conditionalBreakpoint.regular,
 			message: appendMessage(messages.join('\n'))
 		};
 	}
 
 	const message = ('message' in breakpoint && breakpoint.message) ? breakpoint.message : breakpoint instanceof Breakpoint && labelService ? labelService.getUriLabel(breakpoint.uri) : nls.localize('breakpoint', "Breakpoint");
 	return {
-		icon: icons.debugBreakpoint,
+		icon: breakpointIcon.regular,
 		message
 	};
 }
