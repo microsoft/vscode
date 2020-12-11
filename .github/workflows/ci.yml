@@ -208,14 +208,8 @@ jobs:
       - name: Compile and Download
         run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
 
-      - name: Run Unit Tests (Electron)
-        run: DISPLAY=:10 ./scripts/test.sh
-
-      - name: Run Unit Tests (Browser)
-        run: DISPLAY=:10 yarn test-browser --browser chromium
-
-      - name: Run Integration Tests (Electron)
-        run: DISPLAY=:10 ./scripts/test-integration.sh
+      - name: Run Unit Tests
+        run: DISPLAY=:10 yarn concurrently --names "unit-tests-electron,unit-tests-browser,integration-tests-electron" "./scripts/test.sh" "yarn test-browser --browser chromium" "./scripts/test-integration.sh"
 
   # windows:
   #   runs-on: windows-2016
