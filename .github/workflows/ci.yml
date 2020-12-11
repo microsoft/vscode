@@ -123,11 +123,6 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev
-        name: Setup Build Environment
       - uses: actions/setup-node@v1
         with:
           node-version: 10
