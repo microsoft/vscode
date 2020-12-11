@@ -123,12 +123,33 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
+
       - uses: actions/setup-node@v2-beta
         with:
           node-version: 12
+
+      - name: Compute yarn cache key
+        id: yarn-cache-key
+        run: echo "::set-output name=value::${{ hashFiles('**/yarn.lock') }}"
+
+      - name: Cache root node modules
+        id: root-node-modules # use this to check for `cache-hit` (`steps.root-node-modules.outputs.cache-hit != 'true'`)
+        uses: actions/cache@v2
+        env:
+          cache-name: root-node-modules
+        with:
+          path: ./node_modules
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ steps.yarn-cache-key.outputs.value }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
       - run: yarn --frozen-lockfile
         name: Install Dependencies
+
       - run: yarn monaco-compile-check
         name: Run Monaco Editor Checks
+
       - run: yarn gulp editor-esm-bundle
         name: Editor Distro & ESM Bundle
