@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IViewDescriptorService, ViewContainer, ViewContainerLocationToString } from 'vs/workbench/common/views';
 
 export abstract class AbstractViewMenuActions extends Disposable {
 
@@ -89,20 +90,25 @@ export class ViewMenuActions extends AbstractViewMenuActions {
 export class ViewContainerMenuActions extends AbstractViewMenuActions {
 
 	constructor(
-		containerId: string,
+		viewContainer: ViewContainer,
 		menuId: MenuId,
 		contextMenuId: MenuId,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IMenuService menuService: IMenuService,
 	) {
 		const scopedContextKeyService = contextKeyService.createScoped();
-		scopedContextKeyService.createKey('viewContainer', containerId);
+		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
+		const updateViewContainerLocationContext = () => {
+			const viewContainerLocation = viewDescriptorService.getViewContainerLocation(viewContainer);
+			if (viewContainerLocation !== null) {
+				scopedContextKeyService.createKey('viewContainerLocation', ViewContainerLocationToString(viewContainerLocation));
+			}
+		};
+		updateViewContainerLocationContext();
 		super(menuId, contextMenuId, scopedContextKeyService, menuService);
 		this._register(scopedContextKeyService);
-	}
-
-	getSecondaryActions(): IAction[] {
-		return super.getSecondaryActions();
+		this._register(Event.filter(viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === viewContainer)(updateViewContainerLocationContext));
 	}
 
 }

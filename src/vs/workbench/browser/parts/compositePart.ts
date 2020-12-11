@@ -327,10 +327,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const primaryActions: IAction[] = composite?.getActions().slice(0) || [];
 		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
-		// From Part
-		primaryActions.push(...this.getActions());
-		secondaryActions.push(...this.getSecondaryActions());
-
 		// Update context
 		const toolBar = assertIsDefined(this.toolBar);
 		toolBar.context = this.actionsContextProvider();
@@ -469,14 +465,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const compositeItem = this.instantiatedCompositeItems.get(id);
 
 		return compositeItem ? compositeItem.progress : undefined;
-	}
-
-	protected getActions(): ReadonlyArray<IAction> {
-		return [];
-	}
-
-	protected getSecondaryActions(): ReadonlyArray<IAction> {
-		return [];
 	}
 
 	protected getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {

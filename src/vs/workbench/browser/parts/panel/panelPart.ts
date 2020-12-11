@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -195,7 +195,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				viewMenuActions.dispose();
 			}
 
-			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container.id, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext);
+			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext);
 			result.push(...viewContainerMenuActions.getContextMenuActions());
 			viewContainerMenuActions.dispose();
 		}
@@ -532,13 +532,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.getPanels()
 			.filter(p => pinnedCompositeIds.includes(p.id))
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
-	}
-
-	protected getActions(): ReadonlyArray<IAction> {
-		return [
-			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL),
-			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
-		];
 	}
 
 	getActivePanel(): IPanel | undefined {

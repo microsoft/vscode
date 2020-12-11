@@ -37,7 +37,7 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	) {
 		super(id, telemetryService, themeService, storageService);
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.getId(), MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext));
+		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, viewPaneContainer.viewContainer, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateTitleArea()));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
@@ -85,8 +85,8 @@ export class PaneComposite extends Composite implements IPaneComposite {
 
 	getActions(): ReadonlyArray<IAction> {
 		const result = [];
-		result.push(...this.menuActions.getPrimaryActions());
 		result.push(...this.viewPaneContainer.getActions());
+		result.push(...this.menuActions.getPrimaryActions());
 		return result;
 	}
 
