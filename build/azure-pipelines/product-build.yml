@@ -51,7 +51,7 @@ stages:
           - template: win32/product-build-win32.yml
 
       - job: Windows32
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_32BIT'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: ia32
@@ -59,7 +59,7 @@ stages:
           - template: win32/product-build-win32.yml
 
       - job: WindowsARM64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_WIN32_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: arm64
@@ -93,7 +93,7 @@ stages:
           - template: linux/snap-build-linux.yml
 
       - job: LinuxArmhf
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: vscode-armhf
         variables:
           VSCODE_ARCH: armhf
@@ -112,7 +112,7 @@ stages:
           - template: linux/snap-build-linux.yml
 
       - job: LinuxArm64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         container: vscode-arm64
         variables:
           VSCODE_ARCH: arm64
@@ -131,7 +131,7 @@ stages:
           - template: linux/snap-build-linux.yml
 
       - job: LinuxAlpine
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         steps:
           - template: linux/product-build-alpine.yml
 
@@ -165,7 +165,7 @@ stages:
       vmImage: macOS-latest
     jobs:
       - job: macOSARM64
-        condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
+        condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: arm64
