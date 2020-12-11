@@ -518,13 +518,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		// Check if custom Terminal title exists and set same
-		if (this._title.length > 0) {
-			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", this._id, this._title));
-		} else {
-			xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
-		}
-
 		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting
@@ -1482,6 +1475,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		if (didTitleChange) {
+			if (this._title.length > 0) {
+				this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", this._id, this._title));
+			} else {
+				this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
+			}
+
 			if (this._titleReadyComplete) {
 				this._titleReadyComplete(title);
 				this._titleReadyComplete = undefined;
