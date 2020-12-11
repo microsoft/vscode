@@ -20,8 +20,76 @@ export class CellDiffViewModel extends Disposable {
 	public metadataFoldingState: PropertyFoldingState;
 	public outputFoldingState: PropertyFoldingState;
 	private _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
-
 	onDidLayoutChange = this._layoutInfoEmitter.event;
+
+	protected _layoutInfo!: {
+		editorHeight: number;
+		editorMargin: number;
+		metadataStatusHeight: number;
+		metadataHeight: number;
+		outputStatusHeight: number;
+		outputHeight: number;
+		bodyMargin: number;
+	};
+
+	set outputHeight(height: number) {
+		this._layoutInfo.outputHeight = height;
+		this._fireLayoutChangeEvent({ outputEditor: true, outputView: true });
+	}
+
+	get outputHeight() {
+		return this._layoutInfo.outputHeight;
+	}
+
+	set outputStatusHeight(height: number) {
+		this._layoutInfo.outputStatusHeight = height;
+		this._fireLayoutChangeEvent({});
+	}
+
+	get outputStatusHeight() {
+		return this._layoutInfo.outputStatusHeight;
+	}
+
+	set editorHeight(height: number) {
+		this._layoutInfo.editorHeight = height;
+		this._fireLayoutChangeEvent({ editorHeight: true });
+	}
+
+	get editorHeight() {
+		return this._layoutInfo.editorHeight;
+	}
+
+	set editorMargin(height: number) {
+		this._layoutInfo.editorMargin = height;
+		this._fireLayoutChangeEvent({});
+	}
+
+	get editorMargin() {
+		return this._layoutInfo.editorMargin;
+	}
+
+	get metadataStatusHeight() {
+		return this._layoutInfo.metadataStatusHeight;
+	}
+
+	set metadataHeight(height: number) {
+		this._layoutInfo.metadataHeight = height;
+		this._fireLayoutChangeEvent({ metadataEditor: true });
+	}
+
+	get metadataHeight() {
+		return this._layoutInfo.metadataHeight;
+	}
+
+	get totalHeight() {
+		return this._layoutInfo.editorHeight
+			+ this._layoutInfo.editorMargin
+			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.metadataStatusHeight
+			+ this._layoutInfo.outputHeight
+			+ this._layoutInfo.outputStatusHeight
+			+ this._layoutInfo.bodyMargin;
+	}
 
 	constructor(
 		readonly original: NotebookCellTextModel | undefined,
@@ -30,12 +98,26 @@ export class CellDiffViewModel extends Disposable {
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
 		super();
+		this._layoutInfo = {
+			editorHeight: 0,
+			editorMargin: 0,
+			metadataHeight: 0,
+			metadataStatusHeight: 25,
+			outputHeight: 0,
+			outputStatusHeight: 25,
+			bodyMargin: 32
+		};
+
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
 		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
-			this._layoutInfoEmitter.fire({ outerWidth: e.value.width });
+			this._layoutInfoEmitter.fire({ outerWidth: true });
 		}));
+	}
+
+	private _fireLayoutChangeEvent(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
+		this._layoutInfoEmitter.fire(state);
 	}
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {

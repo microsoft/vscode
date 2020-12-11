@@ -54,7 +54,11 @@ export interface CellDiffSideBySideRenderTemplate {
 
 export interface CellDiffViewModelLayoutChangeEvent {
 	font?: BareFontInfo;
-	outerWidth?: number;
+	outerWidth?: boolean;
+	editorHeight?: boolean;
+	metadataEditor?: boolean;
+	outputEditor?: boolean;
+	outputView?: boolean;
 }
 
 export const DIFF_CELL_MARGIN = 16;
