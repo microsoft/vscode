@@ -1393,9 +1393,9 @@ export namespace TestItem {
 		return {
 			label: item.label,
 			location: item.location ? location.from(item.location) : undefined,
-			debuggable: item.debuggable,
+			debuggable: item.debuggable ?? false,
 			description: item.description,
-			runnable: item.runnable,
+			runnable: item.runnable ?? true,
 			state: TestState.from(item.state),
 		};
 	}
