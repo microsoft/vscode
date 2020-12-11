@@ -12,6 +12,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 
 export interface INotebookTextDiffEditor {
 	readonly textModel?: NotebookTextModel;
@@ -19,6 +20,7 @@ export interface INotebookTextDiffEditor {
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: CellDiffViewModel, height: number): void;
+	getOutputRenderer(): OutputRenderer;
 }
 
 export interface CellDiffSingleSideRenderTemplate {

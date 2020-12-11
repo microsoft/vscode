@@ -164,7 +164,6 @@ export interface IDisplayOutputViewModel extends ICellOutputViewModel {
 	model: ITransformedDisplayOutputDto;
 	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
 }
 
 export interface IErrorOutputViewModel extends ICellOutputViewModel {

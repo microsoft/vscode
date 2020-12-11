@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -37,6 +37,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IDiffChange } from 'vs/base/common/diff/diff';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
@@ -55,6 +56,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
 	private _modifiedResourceDisposableStore = new DisposableStore();
+	private _outputRenderer: OutputRenderer;
 
 	get textModel() {
 		return this._model?.modified.notebook;
@@ -79,6 +81,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._revealFirst = true;
 
 		this._register(this._modifiedResourceDisposableStore);
+		// TODO
+		this._outputRenderer = new OutputRenderer(this as unknown as INotebookEditor, this.instantiationService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -381,6 +385,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._list?.splice(0, this._list?.length || 0);
 	}
 
+	getOutputRenderer(): OutputRenderer {
+		return this._outputRenderer;
+	}
+
 	getLayoutInfo(): NotebookLayoutInfo {
 		if (!this._list) {
 			throw new Error('Editor is not initalized successfully');
@@ -430,6 +438,11 @@ registerThemingParticipant((theme, collector) => {
 
 	const added = theme.getColor(diffInserted);
 	if (added) {
+		collector.addRule(
+			`
+			.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right div.foreground { background-color: ${added}; }
+			`
+		);
 		collector.addRule(`
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container { background-color: ${added}; }
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .margin,
@@ -448,6 +461,7 @@ registerThemingParticipant((theme, collector) => {
 		);
 		collector.addRule(`
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container { background-color: ${added}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-inner-container { background-color: ${added}; }
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .margin,
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .monaco-editor-background {
 					background-color: ${added};
@@ -461,7 +475,12 @@ registerThemingParticipant((theme, collector) => {
 		);
 	}
 	const removed = theme.getColor(diffRemoved);
-	if (added) {
+	if (removed) {
+		collector.addRule(
+			`
+			.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left div.foreground { background-color: ${removed}; }
+			`
+		);
 		collector.addRule(`
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container { background-color: ${removed}; }
 			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .margin,

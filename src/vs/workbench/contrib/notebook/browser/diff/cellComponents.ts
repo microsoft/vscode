@@ -32,6 +32,9 @@ import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/noteb
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderCodicons } from 'vs/base/browser/codicons';
+import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/cellOutputs';
+
+const RENDER_RICH_OUTPUT = true;
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -82,7 +85,7 @@ class PropertyHeader extends Disposable {
 
 	constructor(
 		readonly cell: CellDiffViewModel,
-		readonly metadataHeaderContainer: HTMLElement,
+		readonly propertyHeaderContainer: HTMLElement,
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
 			updateInfoRendering: () => void;
@@ -105,21 +108,21 @@ class PropertyHeader extends Disposable {
 
 	buildHeader(): void {
 		let metadataChanged = this.accessor.checkIfModified(this.cell);
-		this._foldingIndicator = DOM.append(this.metadataHeaderContainer, DOM.$('.property-folding-indicator'));
+		this._foldingIndicator = DOM.append(this.propertyHeaderContainer, DOM.$('.property-folding-indicator'));
 		this._foldingIndicator.classList.add(this.accessor.prefix);
 		this._updateFoldingIcon();
-		const metadataStatus = DOM.append(this.metadataHeaderContainer, DOM.$('div.property-status'));
+		const metadataStatus = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-status'));
 		this._statusSpan = DOM.append(metadataStatus, DOM.$('span'));
 
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
-			this.metadataHeaderContainer.classList.add('modified');
+			this.propertyHeaderContainer.classList.add('modified');
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
 		}
 
-		const cellToolbarContainer = DOM.append(this.metadataHeaderContainer, DOM.$('div.property-toolbar'));
+		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
@@ -190,7 +193,7 @@ class PropertyHeader extends Disposable {
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
-			this.metadataHeaderContainer.classList.add('modified');
+			this.propertyHeaderContainer.classList.add('modified');
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(this._menu, undefined, actions);
 			this._toolbar.setActions(actions);
@@ -222,6 +225,11 @@ abstract class AbstractCellRenderer extends Disposable {
 	protected _outputHeader!: PropertyHeader;
 	protected _outputInfoContainer!: HTMLElement;
 	protected _outputEditorContainer?: HTMLElement;
+	protected _outputViewContainer?: HTMLElement;
+	protected _outputLeftContainer?: HTMLElement;
+	protected _outputRightContainer?: HTMLElement;
+	protected _outputLeftView?: OutputContainer;
+	protected _outputRightView?: OutputContainer;
 	protected _outputEditorDisposeStore!: DisposableStore;
 	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
 
@@ -300,15 +308,26 @@ abstract class AbstractCellRenderer extends Disposable {
 
 	updateOutputRendering() {
 		if (this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
-			this._outputInfoContainer.style.display = 'block';
+			if (RENDER_RICH_OUTPUT) {
+				this._outputInfoContainer.style.display = 'block';
 
-			if (!this._outputEditorContainer || !this._outputEditor) {
-				// create editor
-				this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
-				this._buildOutputEditor();
+				if (!this._outputViewContainer) {
+					this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
+					this._buildOutputContainer();
+				} else {
+					this.layout({ outputView: true });
+				}
 			} else {
-				this._layoutInfo.outputHeight = this._outputEditor.getContentHeight();
-				this.layout({ outputEditor: true });
+				this._outputInfoContainer.style.display = 'block';
+
+				if (!this._outputEditorContainer || !this._outputEditor) {
+					// create editor
+					this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
+					this._buildOutputEditor();
+				} else {
+					this._layoutInfo.outputHeight = this._outputEditor.getContentHeight();
+					this.layout({ outputEditor: true });
+				}
 			}
 		} else {
 			this._outputInfoContainer.style.display = 'none';
@@ -317,6 +336,8 @@ abstract class AbstractCellRenderer extends Disposable {
 			this.layout({});
 		}
 	}
+
+	abstract _buildOutputContainer(): void;
 
 	protected _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
 		let filteredMetadata: { [key: string]: any } = {};
@@ -638,7 +659,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	abstract styleContainer(container: HTMLElement): void;
 	abstract updateSourceEditor(): void;
 	abstract onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void;
-	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }): void;
+	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }): void;
 }
 
 abstract class SingleSideCell extends AbstractCellRenderer {
@@ -779,7 +800,6 @@ abstract class SingleSideCell extends AbstractCellRenderer {
 		this._register(this._outputHeader);
 		this._outputHeader.buildHeader();
 	}
-
 }
 export class DeletedCell extends SingleSideCell {
 	private _editor!: CodeEditorWidget;
@@ -872,6 +892,12 @@ export class DeletedCell extends SingleSideCell {
 			this.layoutNotebookCell();
 		});
 	}
+
+	_buildOutputContainer() {
+		// this._outputView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.modified!, this._outputViewContainer!);
+		// this._outputView.render();
+		// this.layout({ outputView: true });
+	}
 }
 
 export class InsertCell extends SingleSideCell {
@@ -939,7 +965,13 @@ export class InsertCell extends SingleSideCell {
 		}
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
+	_buildOutputContainer() {
+		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.modified!, this._outputViewContainer!);
+		this._outputLeftView.render();
+		this.layout({ outputView: true });
+	}
+
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
@@ -962,7 +994,15 @@ export class InsertCell extends SingleSideCell {
 				});
 			}
 
+			if (state.outputView) {
+				this._layoutInfo.outputHeight = (this._outputViewContainer!.childNodes[0] as HTMLElement).clientHeight;
+			}
+
 			this.layoutNotebookCell();
+
+			if (this._diagonalFill) {
+				this._diagonalFill.style.height = `${this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataStatusHeight + this._layoutInfo.metadataHeight + this._layoutInfo.outputHeight + this._layoutInfo.outputStatusHeight}px`;
+			}
 		});
 	}
 }
@@ -1069,6 +1109,10 @@ export class ModifiedCell extends AbstractCellRenderer {
 		};
 
 		if (checkIfOutputsModified(this.cell)) {
+			this._outputInfoContainer.classList.add('modified');
+		}
+
+		if (checkIfOutputsModified(this.cell)) {
 			this.cell.outputFoldingState = PropertyFoldingState.Expanded;
 		}
 
@@ -1098,6 +1142,17 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._outputHeader.buildHeader();
 	}
 
+	_buildOutputContainer() {
+		this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
+		this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
+		// We should use the original text model here
+		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.original!, this._outputLeftContainer!);
+		this._outputLeftView.render();
+		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.modified!, this._outputRightContainer!);
+		this._outputRightView.render();
+
+		this.layout({ outputView: true });
+	}
 
 	updateSourceEditor(): void {
 		const modifiedCell = this.cell.modified!;
@@ -1202,7 +1257,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		}
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
@@ -1230,6 +1285,11 @@ export class ModifiedCell extends AbstractCellRenderer {
 					this._outputEditor?.layout();
 				}
 			}
+
+			if (state.outputView) {
+				this._layoutInfo.outputHeight = Math.max((this._outputLeftContainer!.childNodes[0] as HTMLElement).clientHeight, (this._outputRightContainer!.childNodes[0] as HTMLElement).clientHeight);
+			}
+
 
 			this.layoutNotebookCell();
 		});
