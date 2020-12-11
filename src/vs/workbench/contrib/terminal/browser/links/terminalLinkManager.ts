@@ -229,6 +229,9 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
+		// encode the uri so TerminalLink get rendered as anchor element https://github.com/microsoft/vscode/issues/108301
+		uri = encodeURI(uri);
+
 		// Use 'undefined' when uri is '' so the link displays correctly
 		return new MarkdownString(`[${label || nls.localize('followLink', "Follow Link")}](${uri || 'undefined'}) (${clickLabel})`, true);
 	}
