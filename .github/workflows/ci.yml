@@ -87,7 +87,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ GITHUB_SHA }}
+          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
 
       - name: Compile Core
         run: yarn gulp compile-build
@@ -144,7 +144,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ GITHUB_SHA }}
+          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
 
       - name: Build VS Code
         run: yarn gulp vscode-linux-x64-min-ci
