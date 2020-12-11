@@ -205,17 +205,13 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
 
-      - name: Download Electron
-        run: yarn electron x64
-
-      - name: Download Playwright
-        run: node ./node_modules/playwright/install.js
-
-      - name: Compile Sources
-        run: yarn compile
-
-      - name: Download Built-in Extensions
-        run: yarn download-builtin-extensions
+      - name: Compile & Download
+        run: |
+          yarn compile &
+          yarn electron x64 &
+          node ./node_modules/playwright/install.js &
+          yarn download-builtin-extensions
+          wait
 
       - name: Run Unit Tests (Electron)
         run: DISPLAY=:10 ./scripts/test.sh
