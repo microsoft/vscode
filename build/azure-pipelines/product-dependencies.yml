@@ -70,57 +70,23 @@ steps:
       vstsFeed: "npm-vscode"
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
-  # TODO@Joao: remove
   - script: |
       set -e
-      echo "Restore cache should not have failed"
-      exit 1
-    displayName: Check cache restore
+      export CHILD_CONCURRENCY="1"
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --frozen-lockfile && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
-
-  - script: |
-      set -e
-      yarn postinstall
-    displayName: Run postinstall scripts
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['CacheRestored'], 'true'))
-
-  # Mixin must run before optimize, because the CSS loader will inline small SVGs
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
-
-  - script: |
-      set -e
-      yarn gulp compile-build
-      yarn gulp compile-extensions-build
-      yarn gulp minify-vscode
-      yarn gulp minify-vscode-reh
-      yarn gulp minify-vscode-reh-web
-    displayName: Compile
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
-
-  - script: |
-      set -e
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-        node build/azure-pipelines/upload-sourcemaps
-    displayName: Upload sourcemaps
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - script: |
-      set -e
-      VERSION=`node -p "require(\"./package.json\").version"`
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-        node build/azure-pipelines/common/createBuild.js $VERSION
-    displayName: Create build
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
     inputs:
-      keyfile: "build/.cachesalt, .build/commit, .build/quality, .build/terrapin"
-      targetfolder: ".build, out-build, out-vscode-min, out-vscode-reh-min, out-vscode-reh-web-min"
+      keyfile: ".build/arch, .build/terrapin, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock"
+      targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
-      platformIndependent: true
-      alias: "Compilation"
-    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
+    condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))
