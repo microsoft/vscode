@@ -244,6 +244,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				const modifiedCell = modifiedModel.cells[modifiedCellIndex + j];
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
 					cellDiffViewModels.push(new CellDiffViewModel(
+						this._model.modified.notebook,
 						originalCell,
 						modifiedCell,
 						'unchanged',
@@ -255,6 +256,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					}
 
 					cellDiffViewModels.push(new CellDiffViewModel(
+						this._model.modified.notebook,
 						originalCell,
 						modifiedCell,
 						'modified',
@@ -275,6 +277,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
 			cellDiffViewModels.push(new CellDiffViewModel(
+				this._model.modified.notebook,
 				originalModel.cells[i],
 				modifiedModel.cells[i - originalCellIndex + modifiedCellIndex],
 				'unchanged',
@@ -298,6 +301,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		for (let j = 0; j < modifiedLen; j++) {
 			result.push(new CellDiffViewModel(
+				modifiedModel,
 				originalModel.cells[change.originalStart + j],
 				modifiedModel.cells[change.modifiedStart + j],
 				'modified',
@@ -308,6 +312,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let j = modifiedLen; j < change.originalLength; j++) {
 			// deletion
 			result.push(new CellDiffViewModel(
+				originalModel,
 				originalModel.cells[change.originalStart + j],
 				undefined,
 				'delete',
@@ -318,6 +323,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let j = modifiedLen; j < change.modifiedLength; j++) {
 			// insertion
 			result.push(new CellDiffViewModel(
+				modifiedModel,
 				undefined,
 				modifiedModel.cells[change.modifiedStart + j],
 				'insert',

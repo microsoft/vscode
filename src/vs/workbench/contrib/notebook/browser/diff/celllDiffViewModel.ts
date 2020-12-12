@@ -10,6 +10,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { hash } from 'vs/base/common/hash';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
+import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -92,6 +97,7 @@ export class CellDiffViewModel extends Disposable {
 	}
 
 	constructor(
+		readonly documentTextModel: NotebookTextModel,
 		readonly original: NotebookCellTextModel | undefined,
 		readonly modified: NotebookCellTextModel | undefined,
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
@@ -111,6 +117,14 @@ export class CellDiffViewModel extends Disposable {
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
+		if (this.checkMetadataIfModified()) {
+			this.metadataFoldingState = PropertyFoldingState.Expanded;
+		}
+
+		if (this.checkIfOutputsModified()) {
+			this.outputFoldingState = PropertyFoldingState.Expanded;
+		}
+
 		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
 			this._layoutInfoEmitter.fire({ outerWidth: true });
 		}));
@@ -120,6 +134,14 @@ export class CellDiffViewModel extends Disposable {
 		this._layoutInfoEmitter.fire(state);
 	}
 
+	checkIfOutputsModified() {
+		return this.type !== 'delete' && this.type !== 'insert' && !this.documentTextModel.transientOptions.transientOutputs && this.type === 'modified' && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
+	}
+
+	checkMetadataIfModified() {
+		return this.type !== 'delete' && this.type !== 'insert' && hash(getFormatedMetadataJSON(this.documentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.documentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+	}
+
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
 			return layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0) - 2;
@@ -127,4 +149,32 @@ export class CellDiffViewModel extends Disposable {
 
 		return (layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)) / 2 - 18 - 2;
 	}
+}
+
+export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
+	let filteredMetadata: { [key: string]: any } = {};
+
+	if (documentTextModel) {
+		const transientMetadata = documentTextModel.transientOptions.transientMetadata;
+
+		const keys = new Set([...Object.keys(metadata)]);
+		for (let key of keys) {
+			if (!(transientMetadata[key as keyof NotebookCellMetadata])
+			) {
+				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+			}
+		}
+	} else {
+		filteredMetadata = metadata;
+	}
+
+	const content = JSON.stringify({
+		language,
+		...filteredMetadata
+	});
+
+	const edits = format(content, undefined, {});
+	const metadataSource = applyEdits(content, edits);
+
+	return metadataSource;
 }
