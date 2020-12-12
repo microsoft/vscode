@@ -24,20 +24,7 @@ resources:
       image: snapcore/snapcraft:stable
 
 stages:
-  - stage: Dependencies
-    jobs:
-      - job: Dependencies
-        pool:
-          vmImage: "Ubuntu-18.04"
-        container: vscode-x64
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: product-dependencies.yml
-
   - stage: Compile
-    dependsOn:
-      - Dependencies
     jobs:
       - job: Compile
         pool:

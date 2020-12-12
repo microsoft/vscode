@@ -47,12 +47,18 @@ steps:
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
 
-  # TODO@Joao: remove
   - script: |
       set -e
-      echo "Restore cache should not have failed"
-      exit 1
-    displayName: Check cache restore
+      export CHILD_CONCURRENCY="1"
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --frozen-lockfile && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    displayName: Install dependencies
     condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
   - script: |
