@@ -4,7 +4,6 @@ steps:
       echo -n $BUILD_SOURCEVERSION > .build/commit
       echo -n $VSCODE_QUALITY > .build/quality
       echo -n $ENABLE_TERRAPIN > .build/terrapin
-      echo -n $(VSCODE_ARCH) > .build/arch
     displayName: Prepare compilation cache flag
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
@@ -59,6 +58,10 @@ steps:
     displayName: Switch to Terrapin packages
     timeoutInMinutes: 5
     condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+
+  - script: |
+      echo -n $(VSCODE_ARCH) > .build/arch
+    displayName: Prepare yarn cache flags
 
   - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
     inputs:
