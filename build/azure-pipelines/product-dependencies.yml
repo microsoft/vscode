@@ -11,7 +11,7 @@ steps:
       targetfolder: "**/node_modules, !**/node_modules/**/node_modules"
       vstsFeed: "npm-vscode"
       alias: "Dependencies"
-    dryRun: true
+      dryRun: true
     displayName: Check dependencies cache
 
   - task: NodeTool@0
