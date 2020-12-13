@@ -134,14 +134,11 @@ export class WebviewViewPane extends ViewPane {
 
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-
-		if (!this._webview.value) {
-			return;
-		}
-
-		if (this._container) {
-			this._webview.value.layoutWebviewOverElement(this._container, new DOM.Dimension(width, height));
-		}
+		setTimeout(() => {
+			if (this._container) {
+				this._webview.value?.layoutWebviewOverElement(this._container, new DOM.Dimension(width, height));
+			}
+		}, 1000);
 	}
 
 	private updateTreeVisibility() {
