@@ -180,7 +180,7 @@ export function workbenchInstantiationService(overrides?: {
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
 	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
-	instantiationService.stub(ICodeEditorService, new CodeEditorService(editorService, themeService));
+	instantiationService.stub(ICodeEditorService, new CodeEditorService(editorService, themeService, configService));
 	instantiationService.stub(IViewletService, new TestViewletService());
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IQuickInputService, new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService));
