@@ -430,7 +430,6 @@ export class ClearTerminalAction extends Action {
 	async run() {
 		this._terminalService.doWithActiveInstance(t => {
 			t.clear();
-			t.focus();
 		});
 	}
 }
