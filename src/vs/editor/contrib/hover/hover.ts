@@ -163,7 +163,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (this._isHoverSticky && !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) {
-			// selected text within content hover widget return; }
+			// selected text within content hover widget
 			return;
 		}
 
