@@ -13,12 +13,14 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class CodeEditorService extends CodeEditorServiceImpl {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(themeService);
 	}
@@ -75,7 +77,9 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		// should be pinned or not. This ensures that the source of a navigation
 		// is not being replaced by the target. An example is "Goto definition"
 		// that otherwise would replace the editor everytime the user navigates.
+		const pinPreview = this.configurationService.getValue<boolean>('workbench.editor.enablePreviewFromCodeNavigation');
 		if (
+			pinPreview &&              		                    // we only need to do this if the configuration requires it
 			source &&											// we need to know the origin of the navigation
 			!input.options?.pinned &&							// we only need to look at preview editors that open
 			!sideBySide &&										// we only need to care if editor opens in same group

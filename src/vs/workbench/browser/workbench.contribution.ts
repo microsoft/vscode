@@ -133,6 +133,11 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing)."),
 				'default': false
 			},
+			'workbench.editor.enablePreviewFromCodeNavigation': {
+				'type': 'boolean',
+				'description': nls.localize('enablePreviewFromCodeNavigation', "Controls whether preview editors should be kept open as regular editors when opening a second editor from the preview (e.g. via go to definition)"),
+				default: true
+			},
 			'workbench.editor.closeOnFileDelete': {
 				'type': 'boolean',
 				'description': nls.localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
