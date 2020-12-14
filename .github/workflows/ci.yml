@@ -30,14 +30,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -67,14 +61,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -132,13 +120,6 @@ jobs:
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
 
-      - name: Restore cached /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
-
       - name: Restore cached compiled code
         id: cacheCompiledCode
         uses: actions/cache@v2
@@ -195,13 +176,6 @@ jobs:
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
 
-      - name: Restore cached /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
-
       - name: Restore cached compiled code
         id: cacheCompiledCode
         uses: actions/cache@v2
@@ -241,14 +215,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -298,14 +266,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -349,14 +311,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -411,14 +367,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -472,14 +422,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -515,14 +459,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
@@ -558,14 +496,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
           restore-keys: ${{ runner.os }}-cacheNodeModules-
-      - name: Cache /build/ scripts
-        id: cacheBuildScripts
-        uses: actions/cache@v2
-        with:
-          path: build/**/*.js
-          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
       - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: yarn --frozen-lockfile
