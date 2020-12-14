@@ -247,7 +247,7 @@ export abstract class Pane extends Disposable implements IView {
 		}
 	}
 
-	layout(size: number): void {
+	layout(size: number, offset?: number): void {
 		const headerSize = this.headerVisible ? Pane.HEADER_SIZE : 0;
 
 		const width = this._orientation === Orientation.VERTICAL ? this.orthogonalSize : size;
@@ -255,7 +255,11 @@ export abstract class Pane extends Disposable implements IView {
 
 		if (this.isExpanded()) {
 			this.body.classList.toggle('wide', width >= 600);
-			this.layoutBody(height, width);
+			if (this.orientation === Orientation.VERTICAL) {
+				this.layoutBody(height, width, offset);
+			} else {
+				this.layoutBody(height, width);
+			}
 			this.expandedSize = size;
 		}
 	}
@@ -287,7 +291,7 @@ export abstract class Pane extends Disposable implements IView {
 
 	protected abstract renderHeader(container: HTMLElement): void;
 	protected abstract renderBody(container: HTMLElement): void;
-	protected abstract layoutBody(height: number, width: number): void;
+	protected abstract layoutBody(height: number, width: number, offset?: number): void;
 }
 
 interface IDndContext {

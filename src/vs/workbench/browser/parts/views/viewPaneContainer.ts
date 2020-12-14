@@ -450,7 +450,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.updateViewWelcome();
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected layoutBody(height: number, width: number, offset?: number): void {
 		this.viewWelcomeContainer.style.height = `${height}px`;
 		this.viewWelcomeContainer.style.width = `${width}px`;
 		this.scrollableElement.scanDomNode();

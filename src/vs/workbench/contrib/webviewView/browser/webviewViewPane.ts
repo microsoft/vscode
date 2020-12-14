@@ -132,15 +132,16 @@ export class WebviewViewPane extends ViewPane {
 		super.saveState();
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected layoutBody(height: number, width: number, offset: number): void {
 		super.layoutBody(height, width);
 
 		if (!this._webview.value) {
 			return;
 		}
 
+		console.log(`h: ${height}, w: ${width}`);
 		if (this._container) {
-			this._webview.value.layoutWebviewOverElement(this._container, new DOM.Dimension(width, height));
+			this._webview.value.layoutWebviewOverElement(this._container, new DOM.Dimension(width, height), offset);
 		}
 	}
 

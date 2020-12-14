@@ -115,7 +115,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		}
 	}
 
-	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension) {
+	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, offset?: number) {
 		if (!this.container || !this.container.parentElement) {
 			return;
 		}
@@ -124,7 +124,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		const containerRect = this.container.parentElement.getBoundingClientRect();
 		this.container.style.position = 'absolute';
 		this.container.style.overflow = 'hidden';
-		this.container.style.top = `${frameRect.top - containerRect.top}px`;
+		if (offset !== undefined) {
+			this.container.style.top = `${offset + 79}px`;
+		} else {
+			this.container.style.top = `${frameRect.top - containerRect.top}px`;
+		}
 		this.container.style.left = `${frameRect.left - containerRect.left}px`;
 		this.container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
 		this.container.style.height = `${dimension ? dimension.height : frameRect.height}px`;

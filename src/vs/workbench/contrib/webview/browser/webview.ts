@@ -150,5 +150,5 @@ export interface WebviewOverlay extends Webview {
 
 	getInnerWebview(): Webview | undefined;
 
-	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
+	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, offset?: number): void;
 }
