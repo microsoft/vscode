@@ -15,16 +15,17 @@ import { hash } from 'vs/base/common/hash';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export enum PropertyFoldingState {
 	Expanded,
 	Collapsed
 }
 
-export class CellDiffViewModel extends Disposable {
+export abstract class CellDiffViewModelBase extends Disposable {
 	public metadataFoldingState: PropertyFoldingState;
 	public outputFoldingState: PropertyFoldingState;
-	private _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
+	protected _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
 	onDidLayoutChange = this._layoutInfoEmitter.event;
 
 	protected _layoutInfo!: {
@@ -36,6 +37,9 @@ export class CellDiffViewModel extends Disposable {
 		outputHeight: number;
 		bodyMargin: number;
 	};
+
+	protected _outputCollection: number[] = [];
+	protected _outputsTop: PrefixSumComputer | null = null;
 
 	set outputHeight(height: number) {
 		this._layoutInfo.outputHeight = height;
@@ -114,16 +118,9 @@ export class CellDiffViewModel extends Disposable {
 			bodyMargin: 32
 		};
 
+
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
-
-		if (this.checkMetadataIfModified()) {
-			this.metadataFoldingState = PropertyFoldingState.Expanded;
-		}
-
-		if (this.checkIfOutputsModified()) {
-			this.outputFoldingState = PropertyFoldingState.Expanded;
-		}
 
 		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
 			this._layoutInfoEmitter.fire({ outerWidth: true });
@@ -134,13 +131,9 @@ export class CellDiffViewModel extends Disposable {
 		this._layoutInfoEmitter.fire(state);
 	}
 
-	checkIfOutputsModified() {
-		return this.type !== 'delete' && this.type !== 'insert' && !this.documentTextModel.transientOptions.transientOutputs && this.type === 'modified' && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
-	}
+	abstract checkIfOutputsModified(): boolean;
+	abstract checkMetadataIfModified(): boolean;
 
-	checkMetadataIfModified() {
-		return this.type !== 'delete' && this.type !== 'insert' && hash(getFormatedMetadataJSON(this.documentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.documentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
-	}
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
@@ -148,6 +141,62 @@ export class CellDiffViewModel extends Disposable {
 		}
 
 		return (layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)) / 2 - 18 - 2;
+	}
+}
+
+export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
+	constructor(
+		readonly documentTextModel: NotebookTextModel,
+		readonly original: NotebookCellTextModel | undefined,
+		readonly modified: NotebookCellTextModel | undefined,
+		readonly type: 'unchanged' | 'modified',
+		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
+	) {
+		super(
+			documentTextModel,
+			original,
+			modified,
+			type,
+			editorEventDispatcher);
+
+		this.metadataFoldingState = PropertyFoldingState.Collapsed;
+		this.outputFoldingState = PropertyFoldingState.Collapsed;
+
+		if (this.checkMetadataIfModified()) {
+			this.metadataFoldingState = PropertyFoldingState.Expanded;
+		}
+
+		if (this.checkIfOutputsModified()) {
+			this.outputFoldingState = PropertyFoldingState.Expanded;
+		}
+	}
+
+	checkIfOutputsModified() {
+		return !this.documentTextModel.transientOptions.transientOutputs && this.type === 'modified' && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
+	}
+
+	checkMetadataIfModified(): boolean {
+		return hash(getFormatedMetadataJSON(this.documentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.documentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+	}
+}
+
+export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
+	constructor(
+		readonly documentTextModel: NotebookTextModel,
+		readonly original: NotebookCellTextModel | undefined,
+		readonly modified: NotebookCellTextModel | undefined,
+		readonly type: 'insert' | 'delete',
+		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
+	) {
+		super(documentTextModel, original, modified, type, editorEventDispatcher);
+	}
+
+	checkIfOutputsModified(): boolean {
+		return false;
+	}
+
+	checkMetadataIfModified(): boolean {
+		return false;
 	}
 }
 

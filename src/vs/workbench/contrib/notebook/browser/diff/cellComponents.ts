@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffViewModel, getFormatedMetadataJSON, PropertyFoldingState } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { CellDiffViewModelBase, getFormatedMetadataJSON, PropertyFoldingState, SideBySideCellDiffViewModel, SingleSideCellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -83,14 +83,14 @@ class PropertyHeader extends Disposable {
 	protected _menu!: IMenu;
 
 	constructor(
-		readonly cell: CellDiffViewModel,
+		readonly cell: CellDiffViewModelBase,
 		readonly propertyHeaderContainer: HTMLElement,
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
 			updateInfoRendering: () => void;
-			checkIfModified: (cell: CellDiffViewModel) => boolean;
-			getFoldingState: (cell: CellDiffViewModel) => PropertyFoldingState;
-			updateFoldingState: (cell: CellDiffViewModel, newState: PropertyFoldingState) => void;
+			checkIfModified: (cell: CellDiffViewModelBase) => boolean;
+			getFoldingState: (cell: CellDiffViewModelBase) => PropertyFoldingState;
+			updateFoldingState: (cell: CellDiffViewModelBase, newState: PropertyFoldingState) => void;
 			unChangedLabel: string;
 			changedLabel: string;
 			prefix: string;
@@ -239,7 +239,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: CellDiffViewModel,
+		readonly cell: CellDiffViewModelBase,
 		readonly templateData: CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate,
 		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
@@ -399,7 +399,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	private _buildMetadataEditor() {
-		if (this.cell.type === 'modified' || this.cell.type === 'unchanged') {
+		if (this.cell instanceof SideBySideCellDiffViewModel) {
 			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.original?.metadata || {}, this.cell.original?.language);
 			const modifiedMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
 			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
@@ -457,43 +457,43 @@ abstract class AbstractCellRenderer extends Disposable {
 			}));
 
 			return;
+		} else {
+			this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer!, {
+				...fixedEditorOptions,
+				dimension: {
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+					height: 0
+				},
+				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+				readOnly: false
+			}, {});
+			this._register(this._metadataEditor);
+
+			const mode = this.modeService.create('jsonc');
+			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!,
+				this.cell.type === 'insert'
+					? this.cell.modified!.metadata || {}
+					: this.cell.original!.metadata || {});
+			const uri = this.cell.type === 'insert'
+				? this.cell.modified!.uri
+				: this.cell.original!.uri;
+			const handle = this.cell.type === 'insert'
+				? this.cell.modified!.handle
+				: this.cell.original!.handle;
+
+			const modelUri = CellUri.generateCellMetadataUri(uri, handle);
+			const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
+			this._metadataEditor.setModel(metadataModel);
+			this._register(metadataModel);
+
+			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
+
+			this._register(this._metadataEditor.onDidContentSizeChange((e) => {
+				if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
+					this.cell.metadataHeight = e.contentHeight;
+				}
+			}));
 		}
-
-		this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer!, {
-			...fixedEditorOptions,
-			dimension: {
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-				height: 0
-			},
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-			readOnly: false
-		}, {});
-		this._register(this._metadataEditor);
-
-		const mode = this.modeService.create('jsonc');
-		const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!,
-			this.cell.type === 'insert'
-				? this.cell.modified!.metadata || {}
-				: this.cell.original!.metadata || {});
-		const uri = this.cell.type === 'insert'
-			? this.cell.modified!.uri
-			: this.cell.original!.uri;
-		const handle = this.cell.type === 'insert'
-			? this.cell.modified!.handle
-			: this.cell.original!.handle;
-
-		const modelUri = CellUri.generateCellMetadataUri(uri, handle);
-		const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
-		this._metadataEditor.setModel(metadataModel);
-		this._register(metadataModel);
-
-		this.cell.metadataHeight = this._metadataEditor.getContentHeight();
-
-		this._register(this._metadataEditor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
-				this.cell.metadataHeight = e.contentHeight;
-			}
-		}));
 	}
 
 	private _getFormatedOutputJSON(outputs: any[]) {
@@ -600,7 +600,7 @@ abstract class AbstractCellRenderer extends Disposable {
 abstract class SingleSideCell extends AbstractCellRenderer {
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: CellDiffViewModel,
+		readonly cell: SingleSideCellDiffViewModel,
 		readonly templateData: CellDiffSingleSideRenderTemplate,
 		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
@@ -723,7 +723,7 @@ export class DeletedCell extends SingleSideCell {
 	private _editor!: CodeEditorWidget;
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: CellDiffViewModel,
+		readonly cell: SingleSideCellDiffViewModel,
 		readonly templateData: CellDiffSingleSideRenderTemplate,
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
@@ -818,7 +818,7 @@ export class InsertCell extends SingleSideCell {
 	private _editor!: CodeEditorWidget;
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: CellDiffViewModel,
+		readonly cell: SingleSideCellDiffViewModel,
 		readonly templateData: CellDiffSingleSideRenderTemplate,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,
@@ -924,7 +924,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: CellDiffViewModel,
+		readonly cell: SideBySideCellDiffViewModel,
 		readonly templateData: CellDiffSideBySideRenderTemplate,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService readonly modeService: IModeService,

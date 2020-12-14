@@ -14,7 +14,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { CellDiffViewModelBase, SideBySideCellDiffViewModel, SingleSideCellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -47,10 +47,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _rootElement!: HTMLElement;
 	private _overflowContainer!: HTMLElement;
 	private _dimension: DOM.Dimension | null = null;
-	private _list!: WorkbenchList<CellDiffViewModel>;
+	private _list!: WorkbenchList<CellDiffViewModelBase>;
 	private _fontInfo: BareFontInfo | undefined;
 
-	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>());
+	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: CellDiffViewModelBase; }>());
 	public readonly onMouseUp = this._onMouseUp.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
@@ -227,7 +227,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
 
-		const cellDiffViewModels: CellDiffViewModel[] = [];
+		const cellDiffViewModels: CellDiffViewModelBase[] = [];
 		const originalModel = this._model.original.notebook;
 		const modifiedModel = this._model.modified.notebook;
 		let originalCellIndex = 0;
@@ -243,7 +243,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				const originalCell = originalModel.cells[originalCellIndex + j];
 				const modifiedCell = modifiedModel.cells[modifiedCellIndex + j];
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
-					cellDiffViewModels.push(new CellDiffViewModel(
+					cellDiffViewModels.push(new SideBySideCellDiffViewModel(
 						this._model.modified.notebook,
 						originalCell,
 						modifiedCell,
@@ -255,7 +255,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						firstChangeIndex = cellDiffViewModels.length;
 					}
 
-					cellDiffViewModels.push(new CellDiffViewModel(
+					cellDiffViewModels.push(new SideBySideCellDiffViewModel(
 						this._model.modified.notebook,
 						originalCell,
 						modifiedCell,
@@ -276,7 +276,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
-			cellDiffViewModels.push(new CellDiffViewModel(
+			cellDiffViewModels.push(new SideBySideCellDiffViewModel(
 				this._model.modified.notebook,
 				originalModel.cells[i],
 				modifiedModel.cells[i - originalCellIndex + modifiedCellIndex],
@@ -295,12 +295,12 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private _computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel) {
-		const result: CellDiffViewModel[] = [];
+		const result: CellDiffViewModelBase[] = [];
 		// modified cells
 		const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
 
 		for (let j = 0; j < modifiedLen; j++) {
-			result.push(new CellDiffViewModel(
+			result.push(new SideBySideCellDiffViewModel(
 				modifiedModel,
 				originalModel.cells[change.originalStart + j],
 				modifiedModel.cells[change.modifiedStart + j],
@@ -311,7 +311,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		for (let j = modifiedLen; j < change.originalLength; j++) {
 			// deletion
-			result.push(new CellDiffViewModel(
+			result.push(new SingleSideCellDiffViewModel(
 				originalModel,
 				originalModel.cells[change.originalStart + j],
 				undefined,
@@ -322,7 +322,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		for (let j = modifiedLen; j < change.modifiedLength; j++) {
 			// insertion
-			result.push(new CellDiffViewModel(
+			result.push(new SingleSideCellDiffViewModel(
 				modifiedModel,
 				undefined,
 				modifiedModel.cells[change.modifiedStart + j],
@@ -334,11 +334,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return result;
 	}
 
-	private pendingLayouts = new WeakMap<CellDiffViewModel, IDisposable>();
+	private pendingLayouts = new WeakMap<CellDiffViewModelBase, IDisposable>();
 
 
-	layoutNotebookCell(cell: CellDiffViewModel, height: number) {
-		const relayout = (cell: CellDiffViewModel, height: number) => {
+	layoutNotebookCell(cell: CellDiffViewModelBase, height: number) {
+		const relayout = (cell: CellDiffViewModelBase, height: number) => {
 			const viewIndex = this._list.indexOf(cell);
 
 			this._list?.updateElementHeight(viewIndex, height);

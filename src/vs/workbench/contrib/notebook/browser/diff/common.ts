@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { CellDiffViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -16,10 +16,10 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 
 export interface INotebookTextDiffEditor {
 	readonly textModel?: NotebookTextModel;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>;
+	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: CellDiffViewModelBase; }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
-	layoutNotebookCell(cell: CellDiffViewModel, height: number): void;
+	layoutNotebookCell(cell: CellDiffViewModelBase, height: number): void;
 	getOutputRenderer(): OutputRenderer;
 }
 

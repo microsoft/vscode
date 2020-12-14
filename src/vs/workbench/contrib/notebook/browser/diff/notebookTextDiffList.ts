@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { CellDiffViewModelBase, SideBySideCellDiffViewModel, SingleSideCellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { isMacintosh } from 'vs/base/common/platform';
 import { DeletedCell, InsertCell, ModifiedCell } from 'vs/workbench/contrib/notebook/browser/diff/cellComponents';
@@ -88,7 +88,7 @@ export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOp
 	};
 }
 
-export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModel> {
+export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModelBase> {
 	// private readonly lineHeight: number;
 
 	constructor(
@@ -98,15 +98,15 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Ce
 		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
-	getHeight(element: CellDiffViewModel): number {
+	getHeight(element: CellDiffViewModelBase): number {
 		return 100;
 	}
 
-	hasDynamicHeight(element: CellDiffViewModel): boolean {
+	hasDynamicHeight(element: CellDiffViewModelBase): boolean {
 		return false;
 	}
 
-	getTemplateId(element: CellDiffViewModel): string {
+	getTemplateId(element: CellDiffViewModelBase): string {
 		switch (element.type) {
 			case 'delete':
 			case 'insert':
@@ -118,7 +118,7 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Ce
 
 	}
 }
-export class CellDiffSingleSideRenderer implements IListRenderer<CellDiffViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate> {
+export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideCellDiffViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate> {
 	static readonly TEMPLATE_ID = 'cell_diff_single';
 
 	constructor(
@@ -177,7 +177,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<CellDiffViewMod
 		return editor;
 	}
 
-	renderElement(element: CellDiffViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
+	renderElement(element: SingleSideCellDiffViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
 		switch (element.type) {
 			case 'delete':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedCell, this.notebookEditor, element, templateData));
@@ -195,13 +195,13 @@ export class CellDiffSingleSideRenderer implements IListRenderer<CellDiffViewMod
 		templateData.sourceEditor.dispose();
 	}
 
-	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
+	disposeElement(element: SingleSideCellDiffViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 }
 
 
-export class CellDiffSideBySideRenderer implements IListRenderer<CellDiffViewModel, CellDiffSideBySideRenderTemplate> {
+export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideCellDiffViewModel, CellDiffSideBySideRenderTemplate> {
 	static readonly TEMPLATE_ID = 'cell_diff_side_by_side';
 
 	constructor(
@@ -286,7 +286,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<CellDiffViewMod
 		};
 	}
 
-	renderElement(element: CellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate, height: number | undefined): void {
+	renderElement(element: SideBySideCellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate, height: number | undefined): void {
 		switch (element.type) {
 			case 'unchanged':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
@@ -305,21 +305,21 @@ export class CellDiffSideBySideRenderer implements IListRenderer<CellDiffViewMod
 		templateData.toolbar?.dispose();
 	}
 
-	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
+	disposeElement(element: SideBySideCellDiffViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 }
 
-export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModel> implements IDisposable, IStyleController {
+export class NotebookTextDiffList extends WorkbenchList<CellDiffViewModelBase> implements IDisposable, IStyleController {
 	private styleElement?: HTMLStyleElement;
 
 	constructor(
 		listUser: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<CellDiffViewModel>,
-		renderers: IListRenderer<CellDiffViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
+		delegate: IListVirtualDelegate<CellDiffViewModelBase>,
+		renderers: IListRenderer<CellDiffViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
 		contextKeyService: IContextKeyService,
-		options: IWorkbenchListOptions<CellDiffViewModel>,
+		options: IWorkbenchListOptions<CellDiffViewModelBase>,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
