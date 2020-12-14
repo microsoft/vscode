@@ -415,7 +415,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _releaseBarrier(): void {
-		perf.mark('code/extensionHostReady');
 		this._installedExtensionsReady.open();
 		this._onDidRegisterExtensions.fire(undefined);
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
