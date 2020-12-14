@@ -129,6 +129,9 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 		dispose(this._editorProviders.values());
 		this._editorProviders.clear();
+
+		dispose(this._revivers.values());
+		this._revivers.clear();
 	}
 
 	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
