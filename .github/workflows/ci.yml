@@ -48,121 +48,121 @@ jobs:
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
-  # compile:
-  #   name: Compile
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #     - uses: actions/checkout@v2
+  compile:
+    name: Compile Build
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
 
-  #     - uses: actions/setup-node@v2-beta
-  #       with:
-  #         node-version: 12
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
 
-  #     - name: Cache node modules
-  #       id: cacheNodeModules
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules-
-  #     - name: Cache /build/ scripts
-  #       id: cacheBuildScripts
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: build/**/*.js
-  #         key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
-  #     - name: Execute yarn
-  #       if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
-  #       env:
-  #         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-  #       run: yarn --frozen-lockfile
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Cache /build/ scripts
+        id: cacheBuildScripts
+        uses: actions/cache@v2
+        with:
+          path: build/**/*.js
+          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' || steps.cacheBuildScripts.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: yarn --frozen-lockfile
 
-  #     - name: Cache compiled code
-  #       id: cacheCompiledCode
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: |
-  #           .build
-  #           out-build
-  #           out-vscode-min
-  #         key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+      - name: Cache compiled code
+        id: cacheCompiledCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            .build
+            out-build
+            out-vscode-min
+          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
 
-  #     - name: Compile Core
-  #       run: yarn gulp compile-build
+      - name: Compile Core
+        run: yarn gulp compile-build
 
-  #     - name: Compile Extensions
-  #       run: yarn gulp compile-extensions-build
+      - name: Compile Extensions
+        run: yarn gulp compile-extensions-build
 
-  #     - name: Minify VS Code
-  #       run: yarn gulp minify-vscode
+      - name: Minify VS Code
+        run: yarn gulp minify-vscode
 
-  # linux-build:
-  #   name: Linux Build
-  #   needs: compile
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #     - uses: actions/checkout@v2
+  linux-build:
+    name: Linux Build
+    needs: compile
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
 
-  #     # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
-  #     - name: Setup Build Environment
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
-  #         sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-  #         sudo chmod +x /etc/init.d/xvfb
-  #         sudo update-rc.d xvfb defaults
-  #         sudo service xvfb start
+      # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
 
-  #     - uses: actions/setup-node@v2-beta
-  #       with:
-  #         node-version: 12
+      - uses: actions/setup-node@v2-beta
+        with:
+          node-version: 12
 
-  #     - name: Restore cached node modules
-  #       id: cacheNodeModules
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: '**/node_modules'
-  #         key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
-  #         restore-keys: ${{ runner.os }}-cacheNodeModules-
+      - name: Restore cached node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModules-${{ hashFiles('.yarnrc', 'remote/.yarnrc', '**/yarn.lock', '!**/node_modules/**/yarn.lock', '!**/.*/**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules-
 
-  #     - name: Restore cached /build/ scripts
-  #       id: cacheBuildScripts
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: build/**/*.js
-  #         key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
+      - name: Restore cached /build/ scripts
+        id: cacheBuildScripts
+        uses: actions/cache@v2
+        with:
+          path: build/**/*.js
+          key: ${{ runner.os }}-cacheBuildScripts-${{ hashFiles('build/yarn.lock', 'build/tsconfig.json', 'build/tsconfig.build.json', 'build/**/*.ts', '!**/node_modules/**/*.ts') }}
 
-  #     - name: Restore cached compiled code
-  #       id: cacheCompiledCode
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: |
-  #           .build
-  #           out-build
-  #           out-vscode-min
-  #         key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+      - name: Restore cached compiled code
+        id: cacheCompiledCode
+        uses: actions/cache@v2
+        with:
+          path: |
+            .build
+            out-build
+            out-vscode-min
+          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
 
-  #     - name: Build VS Code
-  #       run: yarn gulp vscode-linux-x64-min-ci
+      - name: Build VS Code
+        run: yarn gulp vscode-linux-x64-min-ci
 
-  #     - name: Download Electron
-  #       run: yarn electron x64
+      - name: Download Electron
+        run: yarn electron x64
 
-  #     - name: Run Unit Tests (Electron)
-  #       run: DISPLAY=:10 ./scripts/test.sh --build
+      - name: Run Unit Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test.sh --build
 
-  #     - name: Download Playwright
-  #       run: node ./node_modules/playwright/install.js
+      - name: Download Playwright
+        run: node ./node_modules/playwright/install.js
 
-  #     - name: Run Unit Tests (Browser)
-  #       run: DISPLAY=:10 yarn test-browser --build --browser chromium
+      - name: Run Unit Tests (Browser)
+        run: DISPLAY=:10 yarn test-browser --build --browser chromium
 
-  #     - name: Run Integration Tests (Electron)
-  #       run: DISPLAY=:10 ./scripts/test-integration.sh --build
+      - name: Run Integration Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test-integration.sh --build
 
   linux:
     name: Linux
