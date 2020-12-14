@@ -29,7 +29,7 @@ const packageJson = require('../package.json');
 const product = require('../product.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
-const deps = require('./dependencies');
+const { getProductionDependencies } = require('./dependencies');
 const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
@@ -200,7 +200,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
-		const productionDependencies = deps.getProductionDependencies(root);
+		const productionDependencies = getProductionDependencies(root);
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
