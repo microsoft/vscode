@@ -24,6 +24,7 @@ import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBa
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -208,18 +209,21 @@ export class GettingStartedPage extends Disposable {
 		const rightColumn = assertIsDefined(container.querySelector('#getting-started-detail-right'));
 		rightColumn.appendChild($('img#getting-started-media'));
 
-		const categoriesContainer = assertIsDefined(document.getElementById('getting-started-categories-container'));
+		const categoriesContainer = $('#getting-started-categories-container');
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
+
+		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
+		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
+		const scrollContainer = new DomScrollableElement(categoriesContainer, {});
+		categoriesSlide.appendChild(scrollContainer.getDomNode());
+		categoriesSlide.appendChild($('.gap'));
 
 		this.updateCategoryProgress();
 
 		assertIsDefined(document.getElementById('product-name')).textContent = this.productService.nameLong;
 		this.registerDispatchListeners(container);
-
-		const categoriesSlide = assertIsDefined(document.getElementById('gettingStartedSlideCategory'));
-		const tasksSlide = assertIsDefined(document.getElementById('gettingStartedSlideDetails'));
 
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
