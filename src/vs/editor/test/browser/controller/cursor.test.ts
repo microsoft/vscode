@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
 import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -169,11 +168,6 @@ suite('Editor Controller - Cursor', () => {
 	test('cursor initialized', () => {
 		runTest((editor, viewModel) => {
 			assertCursor(viewModel, new Position(1, 1));
-
-			// TODO: intentionally fail on Linux to test issue creation
-			if (platform.isLinux) {
-				assert.ok(false);
-			}
 		});
 	});
 
