@@ -45,8 +45,8 @@ export interface ISearchPathsInfo {
 
 export interface ICommonQueryBuilderOptions {
 	_reason?: string;
-	excludePattern?: string;
-	includePattern?: string;
+	excludePattern?: string | string[];
+	includePattern?: string | string[];
 	extraFileResources?: uri[];
 
 	/** Parse the special ./ syntax supported by the searchview, and expand foo to ** /foo */
@@ -148,22 +148,20 @@ export class QueryBuilder {
 		};
 	}
 
-	private commonQuery(folderResources: IWorkspaceFolderData[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-		let includeSearchPathsInfo: ISearchPathsInfo = {};
-		if (options.includePattern) {
-			const includePattern = normalizeSlashes(options.includePattern);
-			includeSearchPathsInfo = options.expandPatterns ?
-				this.parseSearchPaths(includePattern) :
-				{ pattern: patternListToIExpression(includePattern) };
+	private handleIncludeExclude(pattern: string | string[] | undefined, expandPatterns: boolean | undefined): ISearchPathsInfo {
+		if (!pattern) {
+			return {};
 		}
 
-		let excludeSearchPathsInfo: ISearchPathsInfo = {};
-		if (options.excludePattern) {
-			const excludePattern = normalizeSlashes(options.excludePattern);
-			excludeSearchPathsInfo = options.expandPatterns ?
-				this.parseSearchPaths(excludePattern) :
-				{ pattern: patternListToIExpression(excludePattern) };
-		}
+		pattern = Array.isArray(pattern) ? pattern.map(normalizeSlashes) : normalizeSlashes(pattern);
+		return expandPatterns ?
+			this.parseSearchPaths(pattern) :
+			{ pattern: patternListToIExpression(...(Array.isArray(pattern) ? pattern : [pattern])) };
+	}
+
+	private commonQuery(folderResources: IWorkspaceFolderData[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
+		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
+		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.excludePattern, options.expandPatterns);
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
@@ -230,13 +228,14 @@ export class QueryBuilder {
 	 *
 	 * Public for test.
 	 */
-	parseSearchPaths(pattern: string): ISearchPathsInfo {
+	parseSearchPaths(pattern: string | string[]): ISearchPathsInfo {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
 			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
 		};
 
-		const segments = splitGlobPattern(pattern)
+		const patterns = Array.isArray(pattern) ? pattern : splitGlobPattern(pattern);
+		const segments = patterns
 			.map(segment => {
 				const userHome = this.pathService.resolvedUserHome;
 				if (userHome) {
