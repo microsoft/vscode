@@ -15,15 +15,15 @@ tasks:
       yarn gulp watch-init
     name: watch app
   - command: |
-      gp sync-await init
       export NODE_ENV=development
       export VSCODE_DEV=1
+      gp sync-await init
       yarn gulp watch-extension:gitpod
     name: watch extension
   - command: |
-      gp sync-await init
       export NODE_ENV=development
       export VSCODE_DEV=1
+      gp sync-await init
       node out/gitpod.js
     name: run app
     openMode: split-right
