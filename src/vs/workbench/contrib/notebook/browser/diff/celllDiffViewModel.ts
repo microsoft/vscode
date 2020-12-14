@@ -29,6 +29,7 @@ export abstract class CellDiffViewModelBase extends Disposable {
 	onDidLayoutChange = this._layoutInfoEmitter.event;
 
 	protected _layoutInfo!: {
+		width: number;
 		editorHeight: number;
 		editorMargin: number;
 		metadataStatusHeight: number;
@@ -37,9 +38,6 @@ export abstract class CellDiffViewModelBase extends Disposable {
 		outputHeight: number;
 		bodyMargin: number;
 	};
-
-	protected _outputCollection: number[] = [];
-	protected _outputsTop: PrefixSumComputer | null = null;
 
 	set outputHeight(height: number) {
 		this._layoutInfo.outputHeight = height;
@@ -109,6 +107,7 @@ export abstract class CellDiffViewModelBase extends Disposable {
 	) {
 		super();
 		this._layoutInfo = {
+			width: 0,
 			editorHeight: 0,
 			editorMargin: 0,
 			metadataHeight: 0,
@@ -133,7 +132,7 @@ export abstract class CellDiffViewModelBase extends Disposable {
 
 	abstract checkIfOutputsModified(): boolean;
 	abstract checkMetadataIfModified(): boolean;
-
+	abstract ensureOutputsTop(): void;
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
@@ -145,10 +144,15 @@ export abstract class CellDiffViewModelBase extends Disposable {
 }
 
 export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
+	protected _originalOutputCollection: number[] = [];
+	protected _originalOutputsTop: PrefixSumComputer | null = null;
+	protected _modifiedOutputCollection: number[] = [];
+	protected _modifiedOutputsTop: PrefixSumComputer | null = null;
+
 	constructor(
 		readonly documentTextModel: NotebookTextModel,
-		readonly original: NotebookCellTextModel | undefined,
-		readonly modified: NotebookCellTextModel | undefined,
+		readonly original: NotebookCellTextModel,
+		readonly modified: NotebookCellTextModel,
 		readonly type: 'unchanged' | 'modified',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
@@ -169,6 +173,9 @@ export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
 		if (this.checkIfOutputsModified()) {
 			this.outputFoldingState = PropertyFoldingState.Expanded;
 		}
+
+		this._originalOutputCollection = new Array(this.original.outputs.length);
+		this._modifiedOutputCollection = new Array(this.modified.outputs.length);
 	}
 
 	checkIfOutputsModified() {
@@ -178,9 +185,95 @@ export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
 	checkMetadataIfModified(): boolean {
 		return hash(getFormatedMetadataJSON(this.documentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.documentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
 	}
+
+	updateOutputHeight(original: boolean, index: number, height: number) {
+		if (original) {
+			if (index >= this._originalOutputCollection.length) {
+				throw new Error('Output index out of range!');
+			}
+
+			this.ensureOriginalOutputsTop();
+			this.ensureModifiedOutputsTop();
+			this._originalOutputCollection[index] = height;
+
+			if (this._originalOutputsTop!.changeValue(index, height)) {
+				this.outputHeight = Math.max(this._originalOutputsTop!.getTotalValue(), this._modifiedOutputsTop!.getTotalValue());
+			}
+		} else {
+			if (index >= this._modifiedOutputCollection.length) {
+				throw new Error('Output index out of range!');
+			}
+
+			this.ensureOriginalOutputsTop();
+			this.ensureModifiedOutputsTop();
+			this._modifiedOutputCollection[index] = height;
+
+			if (this._modifiedOutputsTop!.changeValue(index, height)) {
+				this.outputHeight = Math.max(this._originalOutputsTop!.getTotalValue(), this._modifiedOutputsTop!.getTotalValue());
+			}
+		}
+	}
+
+	ensureOriginalOutputsTop() {
+		if (!this._originalOutputsTop) {
+			const values = new Uint32Array(this._originalOutputCollection.length);
+			for (let i = 0; i < this._originalOutputCollection.length; i++) {
+				values[i] = this._originalOutputCollection[i];
+			}
+
+			this._originalOutputsTop = new PrefixSumComputer(values);
+		}
+	}
+
+	ensureModifiedOutputsTop() {
+		if (!this._modifiedOutputsTop) {
+			const values = new Uint32Array(this._modifiedOutputCollection.length);
+			for (let i = 0; i < this._modifiedOutputCollection.length; i++) {
+				values[i] = this._modifiedOutputCollection[i];
+			}
+
+			this._modifiedOutputsTop = new PrefixSumComputer(values);
+		}
+	}
+
+	getOutputOffsetInContainer(original: boolean, index: number) {
+		this.ensureOutputsTop();
+
+		if (original) {
+			if (index >= this._originalOutputCollection.length) {
+				throw new Error('Output index out of range!');
+			}
+
+			return this._originalOutputsTop!.getAccumulatedValue(index - 1);
+		} else {
+			if (index >= this._modifiedOutputCollection.length) {
+				throw new Error('Output index out of range!');
+			}
+
+			return this._modifiedOutputsTop!.getAccumulatedValue(index - 1);
+		}
+	}
+
+	getOutputTotalHeight() {
+		this.ensureOutputsTop();
+
+		return Math.max(this._originalOutputsTop?.getTotalValue() ?? 0, this._modifiedOutputsTop?.getTotalValue() ?? 0);
+	}
+
+	ensureOutputsTop() {
+		this.ensureOriginalOutputsTop();
+		this.ensureModifiedOutputsTop();
+	}
 }
 
 export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
+	protected _outputCollection: number[] = [];
+	protected _outputsTop: PrefixSumComputer | null = null;
+
+	get cellTextModel() {
+		return this.type === 'insert' ? this.modified : this.original;
+	}
+
 	constructor(
 		readonly documentTextModel: NotebookTextModel,
 		readonly original: NotebookCellTextModel | undefined,
@@ -189,6 +282,7 @@ export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
 		super(documentTextModel, original, modified, type, editorEventDispatcher);
+		this._outputCollection = new Array(this.original ? this.original.outputs.length : this.modified!.outputs.length);
 	}
 
 	checkIfOutputsModified(): boolean {
@@ -197,6 +291,45 @@ export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
 
 	checkMetadataIfModified(): boolean {
 		return false;
+	}
+
+	updateOutputHeight(index: number, height: number) {
+		if (index >= this._outputCollection.length) {
+			throw new Error('Output index out of range!');
+		}
+
+		this.ensureOutputsTop();
+		this._outputCollection[index] = height;
+		if (this._outputsTop!.changeValue(index, height)) {
+			this.outputHeight = this._outputsTop!.getTotalValue();
+		}
+	}
+
+	ensureOutputsTop() {
+		if (!this._outputsTop) {
+			const values = new Uint32Array(this._outputCollection.length);
+			for (let i = 0; i < this._outputCollection.length; i++) {
+				values[i] = this._outputCollection[i];
+			}
+
+			this._outputsTop = new PrefixSumComputer(values);
+		}
+	}
+
+	getOutputOffsetInContainer(index: number) {
+		this.ensureOutputsTop();
+
+		if (index >= this._outputCollection.length) {
+			throw new Error('Output index out of range!');
+		}
+
+		return this._outputsTop!.getAccumulatedValue(index - 1);
+	}
+
+	getOutputTotalHeight() {
+		this.ensureOutputsTop();
+
+		return this._outputsTop?.getTotalValue() ?? 0;
 	}
 }
 

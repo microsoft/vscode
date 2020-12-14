@@ -125,18 +125,18 @@
 }
 
 
-
 .monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container {
 	user-select: text;
 	-webkit-user-select: text;
 	-ms-user-select: text;
 	white-space: initial;
 	cursor: auto;
+	position: relative;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container,
 .monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
-	width: calc(50% - 16px);
+	width: 100%;
 	padding: 4px 8px;
 	box-sizing: border-box;
 }

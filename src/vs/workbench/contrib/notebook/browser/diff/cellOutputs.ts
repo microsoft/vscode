@@ -6,8 +6,10 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { CellDiffViewModelBase, SideBySideCellDiffViewModel, SingleSideCellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { ICellOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -24,6 +26,9 @@ export class OutputElement extends Disposable {
 		private notebookEditor: INotebookTextDiffEditor,
 		private notebookTextModel: NotebookTextModel,
 		private notebookService: INotebookService,
+		private cellViewModel: CellDiffViewModelBase,
+		private modified: boolean,
+
 		// private viewCell: CodeCellViewModel,
 		private outputContainer: HTMLElement,
 		readonly output: ICellOutputViewModel
@@ -31,7 +36,7 @@ export class OutputElement extends Disposable {
 		super();
 	}
 
-	render(beforeElement?: HTMLElement) {
+	render(index: number, beforeElement?: HTMLElement) {
 		const outputItemDiv = document.createElement('div');
 		let result: IRenderOutput | undefined = undefined;
 
@@ -84,41 +89,69 @@ export class OutputElement extends Disposable {
 
 		if (outputHasDynamicHeight(result)) {
 			// this.viewCell.selfSizeMonitoring = true;
-
-			// const clientHeight = outputItemDiv.clientHeight;
+			const clientHeight = outputItemDiv.clientHeight;
+			// TODO, set an inital dimension to avoid force reflow
 			// const dimension = {
-			// 	width: this.viewCell.layoutInfo.editorWidth,
+			// 	width: this.cellViewModel.,
 			// 	height: clientHeight
 			// };
-			// const elementSizeObserver = getResizesObserver(outputItemDiv, dimension, () => {
-			// 	if (this.outputContainer && document.body.contains(this.outputContainer)) {
-			// 		const height = Math.ceil(elementSizeObserver.getHeight());
 
-			// 		if (clientHeight === height) {
-			// 			return;
-			// 		}
+			const elementSizeObserver = getResizesObserver(outputItemDiv, undefined, () => {
+				if (this.outputContainer && document.body.contains(this.outputContainer)) {
+					const height = Math.ceil(elementSizeObserver.getHeight());
 
-			// 		const currIndex = this.viewCell.outputsViewModels.indexOf(this.output);
-			// 		if (currIndex < 0) {
-			// 			return;
-			// 		}
+					if (clientHeight === height) {
+						return;
+					}
 
-			// 		this.viewCell.updateOutputHeight(currIndex, height);
-			// 		this.relayoutCell();
-			// 	}
-			// });
-			// elementSizeObserver.startObserving();
-			// this.resizeListener.add(elementSizeObserver);
+					const currIndex = this.getCellOutputCurrentIndex();
+					if (currIndex < 0) {
+						return;
+					}
+
+					this.updateHeight(currIndex, height);
+				}
+			});
+			elementSizeObserver.startObserving();
+			this.resizeListener.add(elementSizeObserver);
 			// this.viewCell.updateOutputHeight(index, clientHeight);
+			this.updateHeight(index, clientHeight);
 		} else if (result.type === RenderOutputType.None) { // no-op if it's a webview
-			// const clientHeight = Math.ceil(outputItemDiv.clientHeight);
-			// this.viewCell.updateOutputHeight(index, clientHeight);
+			const clientHeight = Math.ceil(outputItemDiv.clientHeight);
+			this.updateHeight(index, clientHeight);
 
-			// const top = this.viewCell.getOutputOffsetInContainer(index);
-			// outputItemDiv.style.top = `${top}px`;
+			const top = this.getOffset(index);
+			outputItemDiv.style.top = `${top}px`;
 		}
 	}
 
+	getCellOutputCurrentIndex() {
+		if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+			if (this.modified) {
+				return this.cellViewModel.modified.outputs.indexOf(this.output.model);
+			} else {
+				return this.cellViewModel.original.outputs.indexOf(this.output.model);
+			}
+		} else {
+			return (this.cellViewModel as SingleSideCellDiffViewModel).cellTextModel!.outputs.indexOf(this.output.model);
+		}
+	}
+
+	updateHeight(index: number, height: number) {
+		if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+			this.cellViewModel.updateOutputHeight(!this.modified, index, height);
+		} else {
+			(this.cellViewModel as SingleSideCellDiffViewModel).updateOutputHeight(index, height);
+		}
+	}
+
+	getOffset(index: number) {
+		if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+			return this.cellViewModel.getOutputOffsetInContainer(!this.modified, index);
+		} else {
+			return (this.cellViewModel as SingleSideCellDiffViewModel).getOutputOffsetInContainer(index);
+		}
+	}
 }
 
 export class OutputContainer extends Disposable {
@@ -127,7 +160,9 @@ export class OutputContainer extends Disposable {
 	constructor(
 		private _editor: INotebookTextDiffEditor,
 		private notebookTextModel: NotebookTextModel,
+		private cellViewModel: CellDiffViewModelBase,
 		cell: NotebookCellTextModel,
+		private modified: boolean,
 		private outputContainer: HTMLElement,
 		@INotebookService private notebookService: INotebookService,
 		// @IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -142,6 +177,21 @@ export class OutputContainer extends Disposable {
 
 		// viewCell.onDidChangeLayout
 		// say the height of the cell editor changes
+
+		this._register(this.cellViewModel.onDidLayoutChange(() => {
+			this.outputEntries.forEach((value, key) => {
+				const index = cell.outputs.indexOf(key.model);
+				if (index >= 0) {
+					if (this.cellViewModel instanceof SideBySideCellDiffViewModel) {
+						const top = this.cellViewModel.getOutputOffsetInContainer(!this.modified, index);
+						value.domNode.style.top = `${top}px`;
+					} else {
+						const top = (this.cellViewModel as SingleSideCellDiffViewModel).getOutputOffsetInContainer(index);
+						value.domNode.style.top = `${top}px`;
+					}
+				}
+			});
+		}));
 	}
 
 	render() {
@@ -156,10 +206,10 @@ export class OutputContainer extends Disposable {
 
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputEntries.has(currOutput)) {
-			this.outputEntries.set(currOutput, new OutputElement(this._editor, this.notebookTextModel, this.notebookService, this.outputContainer, currOutput));
+			this.outputEntries.set(currOutput, new OutputElement(this._editor, this.notebookTextModel, this.notebookService, this.cellViewModel, this.modified, this.outputContainer, currOutput));
 		}
 
-		this.outputEntries.get(currOutput)!.render(beforeElement);
-
+		const renderElement = this.outputEntries.get(currOutput)!;
+		renderElement.render(index, beforeElement);
 	}
 }

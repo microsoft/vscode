@@ -872,14 +872,13 @@ export class InsertCell extends SingleSideCell {
 	}
 
 	_buildOutputContainer() {
-		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.modified!, this._outputViewContainer!);
+		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputViewContainer!);
 		this._outputLeftView.render();
-		this.cell.outputHeight = (this._outputViewContainer!.childNodes[0] as HTMLElement).clientHeight;
+		this.cell.outputHeight = this.cell.getOutputTotalHeight();
 	}
 
 	_updateOutputContainerHeight(): void {
-		// throw new Error('Method not implemented.');
-		this.cell.outputHeight = (this._outputViewContainer!.childNodes[0] as HTMLElement).clientHeight;
+		this.cell.outputHeight = this.cell.getOutputTotalHeight();
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
@@ -1037,17 +1036,17 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
 		this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
 		// We should use the original text model here
-		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.original!, this._outputLeftContainer!);
+		this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, false, this._outputLeftContainer!);
 		this._outputLeftView.render();
-		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell.modified!, this._outputRightContainer!);
+		this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, true, this._outputRightContainer!);
 		this._outputRightView.render();
 
-		this.cell.outputHeight = Math.max((this._outputLeftContainer!.childNodes[0] as HTMLElement).clientHeight, (this._outputRightContainer!.childNodes[0] as HTMLElement).clientHeight);
+		this.cell.outputHeight = this.cell.getOutputTotalHeight();
 	}
 
 
 	_updateOutputContainerHeight(): void {
-		this.cell.outputHeight = Math.max((this._outputLeftContainer!.childNodes[0] as HTMLElement).clientHeight, (this._outputRightContainer!.childNodes[0] as HTMLElement).clientHeight);
+		this.cell.outputHeight = this.cell.getOutputTotalHeight();
 	}
 
 	updateSourceEditor(): void {

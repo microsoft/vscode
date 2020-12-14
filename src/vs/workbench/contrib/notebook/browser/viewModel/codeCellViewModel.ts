@@ -270,8 +270,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			throw new Error('Output index out of range!');
 		}
 
-		this._outputCollection[index] = height;
 		this._ensureOutputsTop();
+		this._outputCollection[index] = height;
 		if (this._outputsTop!.changeValue(index, height)) {
 			this.layoutChange({ outputHeight: true });
 		}
