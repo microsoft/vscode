@@ -409,9 +409,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected async _initialize(): Promise<void> {
 		perf.mark('code/willLoadExtensions');
 		this._startExtensionHosts(true, []);
-		this.whenInstalledExtensionsRegistered().then(() => perf.mark('code/didLoadExtensions'));
 		await this._scanAndHandleExtensions();
 		this._releaseBarrier();
+		perf.mark('code/didLoadExtensions');
 	}
 
 	private _releaseBarrier(): void {
