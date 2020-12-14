@@ -556,19 +556,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 	}
 
-	getContextMenuActions(): ReadonlyArray<IAction> {
-		const result = [];
-		result.push(...this.menuActions.getContextMenuActions());
-
-		if (result.length) {
-			result.push(new Separator());
-		}
-
-		result.push(...this._getContextMenuActions());
-		return result;
+	getContextMenuActions2(): ReadonlyArray<IAction> {
+		return this.menuActions.getContextMenuActions();
 	}
 
-	private _getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
+	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
 		const result: IAction[] = [];
 
 		let showHide = true;
@@ -602,26 +594,28 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return result;
 	}
 
+	getActions2(): IAction[] {
+		return this.menuActions.getPrimaryActions();
+	}
+
 	getActions(): IAction[] {
 		const result = [];
 		if (this.isViewMergedWithContainer()) {
 			result.push(...this.paneItems[0].pane.getActions());
 		}
-		result.push(...this.menuActions.getPrimaryActions());
 		return result;
 	}
 
+	getSecondaryActions2(): IAction[] {
+		return this.menuActions.getSecondaryActions();
+	}
+
 	getSecondaryActions(): IAction[] {
-		const menuActions = this.menuActions.getSecondaryActions();
-		const viewPaneContainerActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
-		if (menuActions.length && viewPaneContainerActions.length) {
-			return [
-				...menuActions,
-				new Separator(),
-				...viewPaneContainerActions
-			];
+		const result = [];
+		if (this.isViewMergedWithContainer()) {
+			result.push(...this.paneItems[0].pane.getSecondaryActions());
 		}
-		return menuActions.length ? menuActions : viewPaneContainerActions;
+		return result;
 	}
 
 	getActionsContext(): unknown {
@@ -785,7 +779,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const actions: IAction[] = this._getContextMenuActions(viewDescriptor);
+		const actions: IAction[] = this.getContextMenuActions(viewDescriptor);
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
