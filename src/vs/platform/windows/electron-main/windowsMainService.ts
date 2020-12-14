@@ -13,7 +13,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, app, WebContents } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, WebContents } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -30,7 +30,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { normalizePath, originalFSPath, removeTrailingPathSeparator, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData, IWindowsState, IWindowState } from 'vs/platform/windows/electron-main/windowsStateStorage';
+import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -145,14 +145,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly windowsStateStorageKey = 'windowsState';
-
 	private static readonly WINDOWS: ICodeWindow[] = [];
-
-	private readonly windowsState: IWindowsState;
-	private lastClosedWindowState?: IWindowState;
-
-	private shuttingDown = false;
 
 	private readonly _onWindowOpened = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowOpened = this._onWindowOpened.event;
@@ -160,8 +153,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady = this._onWindowReady.event;
 
+	private readonly _onWindowDestroyed = this._register(new Emitter<ICodeWindow>());
+	readonly onWindowDestroyed = this._onWindowDestroyed.event;
+
 	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onWindowsCountChanged = this._onWindowsCountChanged.event;
+
+	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this.stateService, this.lifecycleMainService, this, this.logService));
 
 	constructor(
 		private readonly machineId: string,
@@ -179,166 +177,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	) {
 		super();
 
-		this.windowsState = restoreWindowsState(this.stateService.getItem<WindowsStateStorageData>(WindowsMainService.windowsStateStorageKey));
 		this.lifecycleMainService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
 	}
 
 	private registerListeners(): void {
 
-		// When a window looses focus, save all windows state. This allows to
-		// prevent loss of window-state data when OS is restarted without properly
-		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		app.on('browser-window-blur', () => {
-			if (!this.shuttingDown) {
-				this.saveWindowsState();
-			}
-		});
-
-		// Handle various lifecycle events around windows
-		this.lifecycleMainService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
-		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
-		this.onWindowsCountChanged(e => {
-			if (e.newCount - e.oldCount > 0) {
-				// clear last closed window state when a new window opens. this helps on macOS where
-				// otherwise closing the last window, opening a new window and then quitting would
-				// use the state of the previously closed window when restarting.
-				this.lastClosedWindowState = undefined;
-			}
-		});
-
 		// Signal a window is ready after having entered a workspace
-		this._register(this.workspacesMainService.onWorkspaceEntered(event => {
-			this._onWindowReady.fire(event.window);
-		}));
-	}
-
-	// Note that onBeforeShutdown() and onBeforeWindowClose() are fired in different order depending on the OS:
-	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeShutdown() event followed by N onBeforeWindowClose() events for each window
-	// - other: on other OS, closing the last window will quit the app so the order depends on the
-	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
-	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
-	//          and then onBeforeWindowClose().
-	//
-	// Here is the behavior on different OS depending on action taken (Electron 1.7.x):
-	//
-	// Legend
-	// -  quit(N): quit application with N windows opened
-	// - close(1): close one window via the window close button
-	// - closeAll: close all windows via the taskbar command
-	// - onBeforeShutdown(N): number of windows reported in this event handler
-	// - onBeforeWindowClose(N, M): number of windows reported and quitRequested boolean in this event handler
-	//
-	// macOS
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-     quit(0): onBeforeShutdown(0)
-	// 	-    close(1): onBeforeWindowClose(1, false)
-	//
-	// Windows
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
-	//
-	// Linux
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
-	//
-	private onBeforeShutdown(): void {
-		this.shuttingDown = true;
-
-		this.saveWindowsState();
-	}
-
-	private saveWindowsState(): void {
-		const currentWindowsState: IWindowsState = {
-			openedWindows: [],
-			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
-			lastActiveWindow: this.lastClosedWindowState
-		};
-
-		// 1.) Find a last active window (pick any other first window otherwise)
-		if (!currentWindowsState.lastActiveWindow) {
-			let activeWindow = this.getLastActiveWindow();
-			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = this.getWindows().find(window => !window.isExtensionDevelopmentHost);
-			}
-
-			if (activeWindow) {
-				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
-			}
-		}
-
-		// 2.) Find extension host window
-		const extensionHostWindow = this.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
-		if (extensionHostWindow) {
-			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
-		}
-
-		// 3.) All windows (except extension host) for N >= 2 to support `restoreWindows: all` or for auto update
-		//
-		// Careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
-		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
-		// to come from the stored lastClosedWindowState on Win/Linux at least
-		if (this.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = this.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
-		}
-
-		// Persist
-		const state = getWindowsStateStoreData(currentWindowsState);
-		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, state);
-
-		if (this.shuttingDown) {
-			this.logService.trace('onBeforeShutdown', state);
-		}
-	}
-
-	// See note on #onBeforeShutdown() for details how these events are flowing
-	private onBeforeWindowClose(win: ICodeWindow): void {
-		if (this.lifecycleMainService.quitRequested) {
-			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
-		}
-
-		// On Window close, update our stored UI state of this window
-		const state: IWindowState = this.toWindowState(win);
-		if (win.isExtensionDevelopmentHost && !win.isExtensionTestHost) {
-			this.windowsState.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
-		}
-
-		// Any non extension host window with same workspace or folder
-		else if (!win.isExtensionDevelopmentHost && (!!win.openedWorkspace || !!win.openedFolderUri)) {
-			this.windowsState.openedWindows.forEach(o => {
-				const sameWorkspace = win.openedWorkspace && o.workspace && o.workspace.id === win.openedWorkspace.id;
-				const sameFolder = win.openedFolderUri && o.folderUri && extUriBiasedIgnorePathCase.isEqual(o.folderUri, win.openedFolderUri);
-
-				if (sameWorkspace || sameFolder) {
-					o.uiState = state.uiState;
-				}
-			});
-		}
-
-		// On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
-		// before quitting, we need to remember the UI state of this window to be able to persist it.
-		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
-		// wants to open another window, in which case we use this state over the persisted one.
-		if (this.getWindowCount() === 1) {
-			this.lastClosedWindowState = state;
-		}
-	}
-
-	private toWindowState(win: ICodeWindow): IWindowState {
-		return {
-			workspace: win.openedWorkspace,
-			folderUri: win.openedFolderUri,
-			backupPath: win.backupPath,
-			remoteAuthority: win.remoteAuthority,
-			uiState: win.serializeWindowState()
-		};
+		this._register(this.workspacesMainService.onWorkspaceEntered(event => this._onWindowReady.fire(event.window)));
 	}
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
@@ -434,13 +279,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Otherwise, find a good window based on open params
 			else {
-				const focusLastActive = this.windowsState.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
+				const focusLastActive = this.windowsStateHandler.state.lastActiveWindow && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !(openConfig.urisToOpen && openConfig.urisToOpen.length);
 				let focusLastOpened = true;
 				let focusLastWindow = true;
 
 				// 2.) focus last active window if we are not instructed to open any paths
 				if (focusLastActive) {
-					const lastActiveWindow = usedWindows.filter(window => this.windowsState.lastActiveWindow && window.backupPath === this.windowsState.lastActiveWindow.backupPath);
+					const lastActiveWindow = usedWindows.filter(window => this.windowsStateHandler.state.lastActiveWindow && window.backupPath === this.windowsStateHandler.state.lastActiveWindow.backupPath);
 					if (lastActiveWindow.length) {
 						lastActiveWindow[0].focus();
 						focusLastOpened = false;
@@ -987,10 +832,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				// Collect previously opened windows
 				const openedWindows: IWindowState[] = [];
 				if (restoreWindowsSetting !== 'one') {
-					openedWindows.push(...this.windowsState.openedWindows);
+					openedWindows.push(...this.windowsStateHandler.state.openedWindows);
 				}
-				if (this.windowsState.lastActiveWindow) {
-					openedWindows.push(this.windowsState.lastActiveWindow);
+				if (this.windowsStateHandler.state.lastActiveWindow) {
+					openedWindows.push(this.windowsStateHandler.state.lastActiveWindow);
 				}
 
 				const windowsToOpen: IPathToOpen[] = [];
@@ -1287,7 +1132,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
 		if (!cliArgs.length && !folderUris.length && !fileUris.length && !openConfig.cli.extensionTestsPath) {
-			const extensionDevelopmentWindowState = this.windowsState.lastPluginDevelopmentHostWindow;
+			const extensionDevelopmentWindowState = this.windowsStateHandler.state.lastPluginDevelopmentHostWindow;
 			const workspaceToOpen = extensionDevelopmentWindowState && (extensionDevelopmentWindowState.workspace || extensionDevelopmentWindowState.folderUri);
 			if (workspaceToOpen) {
 				if (isSingleFolderWorkspaceIdentifier(workspaceToOpen)) {
@@ -1471,7 +1316,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Window Events
 			once(createdWindow.onReady)(() => this._onWindowReady.fire(createdWindow));
 			once(createdWindow.onClose)(() => this.onWindowClosed(createdWindow));
-			once(createdWindow.onDestroy)(() => this.onBeforeWindowClose(createdWindow)); // try to save state before destroy because close will not fire
+			once(createdWindow.onDestroy)(() => this._onWindowDestroyed.fire(createdWindow));
 			createdWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
 			createdWindow.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
 
@@ -1536,14 +1381,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (!configuration.extensionTestsPath) {
 
 			// extension development host Window - load from stored settings if any
-			if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
-				return this.windowsState.lastPluginDevelopmentHostWindow.uiState;
+			if (!!configuration.extensionDevelopmentPath && this.windowsStateHandler.state.lastPluginDevelopmentHostWindow) {
+				return this.windowsStateHandler.state.lastPluginDevelopmentHostWindow.uiState;
 			}
 
 			// Known Workspace - load from stored settings
 			const workspace = configuration.workspace;
 			if (workspace) {
-				const stateForWorkspace = this.windowsState.openedWindows.filter(o => o.workspace && o.workspace.id === workspace.id).map(o => o.uiState);
+				const stateForWorkspace = this.windowsStateHandler.state.openedWindows.filter(o => o.workspace && o.workspace.id === workspace.id).map(o => o.uiState);
 				if (stateForWorkspace.length) {
 					return stateForWorkspace[0];
 				}
@@ -1551,7 +1396,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Known Folder - load from stored settings
 			if (configuration.folderUri) {
-				const stateForFolder = this.windowsState.openedWindows.filter(o => o.folderUri && extUriBiasedIgnorePathCase.isEqual(o.folderUri, configuration.folderUri)).map(o => o.uiState);
+				const stateForFolder = this.windowsStateHandler.state.openedWindows.filter(o => o.folderUri && extUriBiasedIgnorePathCase.isEqual(o.folderUri, configuration.folderUri)).map(o => o.uiState);
 				if (stateForFolder.length) {
 					return stateForFolder[0];
 				}
@@ -1559,14 +1404,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Empty windows with backups
 			else if (configuration.backupPath) {
-				const stateForEmptyWindow = this.windowsState.openedWindows.filter(o => o.backupPath === configuration.backupPath).map(o => o.uiState);
+				const stateForEmptyWindow = this.windowsStateHandler.state.openedWindows.filter(o => o.backupPath === configuration.backupPath).map(o => o.uiState);
 				if (stateForEmptyWindow.length) {
 					return stateForEmptyWindow[0];
 				}
 			}
 
 			// First Window
-			const lastActiveState = this.lastClosedWindowState || this.windowsState.lastActiveWindow;
+			const lastActiveState = this.windowsStateHandler.lastClosedState || this.windowsStateHandler.state.lastActiveWindow;
 			if (!lastActive && lastActiveState) {
 				return lastActiveState.uiState;
 			}
@@ -1660,10 +1505,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return state;
 	}
 
-	private onWindowClosed(win: ICodeWindow): void {
+	private onWindowClosed(window: ICodeWindow): void {
 
 		// Remove from our list so that Electron can clean it up
-		const index = WindowsMainService.WINDOWS.indexOf(win);
+		const index = WindowsMainService.WINDOWS.indexOf(window);
 		WindowsMainService.WINDOWS.splice(index, 1);
 
 		// Emit

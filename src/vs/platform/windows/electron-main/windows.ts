@@ -124,9 +124,11 @@ export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+
 	readonly onWindowOpened: Event<ICodeWindow>;
 	readonly onWindowReady: Event<ICodeWindow>;
-	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+	readonly onWindowDestroyed: Event<ICodeWindow>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];

@@ -297,10 +297,10 @@ export class LaunchMainService implements ILaunchMainService {
 		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
 	}
 
-	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
+	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
 		return {
-			pid: win.webContents.getOSProcessId(),
-			title: win.getTitle(),
+			pid: window.webContents.getOSProcessId(),
+			title: window.getTitle(),
 			folderURIs,
 			remoteAuthority
 		};
