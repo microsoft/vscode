@@ -112,6 +112,7 @@
     "eslint-plugin-mocha": "8.0.0",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
+    "gulp-eslint": "^5.0.0",
     "husky": "^0.13.1",
     "istanbul-lib-coverage": "^3.0.0",
     "istanbul-lib-instrument": "^4.0.0",
