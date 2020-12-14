@@ -145,10 +145,9 @@
 			try {
 
 				// Wait for process environment being fully resolved
-				const perf = perfLib();
-				perf.mark('willWaitForShellEnv');
+				performance.mark('willWaitForShellEnv');
 				await whenEnvResolved;
-				perf.mark('didWaitForShellEnv');
+				performance.mark('didWaitForShellEnv');
 
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
@@ -267,26 +266,8 @@
 		return window.vscode;
 	}
 
-	/**
-	 * @return {{ mark: (name: string) => void }}
-	 */
-	function perfLib() {
-		globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
-
-		return {
-			/**
-			 * @param {string} name
-			 */
-			mark(name) {
-				globalThis.MonacoPerformanceMarks.push(name, Date.now());
-				performance.mark(name);
-			}
-		};
-	}
-
 	return {
 		load,
-		globals,
-		perfLib
+		globals
 	};
 }));

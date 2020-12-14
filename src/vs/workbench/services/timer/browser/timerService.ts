@@ -356,7 +356,7 @@ class PerfMarks {
 		if (!toEntry) {
 			return 0;
 		}
-		return toEntry.startTime - fromEntry.startTime;
+		return Math.round(toEntry.startTime - fromEntry.startTime);
 	}
 
 
@@ -396,12 +396,38 @@ export abstract class AbstractTimerService implements ITimerService {
 			this._extensionService.whenInstalledExtensionsRegistered(),
 			_lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => {
-			this.submitPerformanceMarks(perf.getMarks());
+
+			// import native-browser marks
+			this._submitNativeMarks();
+
+			// because "our" perf.mark-util also adds native performance marks
+			// no extra import of "our" marks is needed, they are already imported
+			// by importing native perf marks (see above)
+			// this.submitPerformanceMarks(perf.getMarks());
+
 			return this._computeStartupMetrics();
 		}).then(metrics => {
 			this._reportStartupTimes(metrics);
 			return metrics;
 		});
+	}
+
+	private _submitNativeMarks(): void {
+
+		let timeOrigin = performance.timeOrigin;
+		if (!timeOrigin) {
+			// polyfill for Safari
+			const entry = performance.timing;
+			timeOrigin = entry.navigationStart || entry.redirectStart || entry.fetchStart;
+		}
+
+		const marks: perf.PerformanceMark[] = performance.getEntriesByType('mark').map(entry => {
+			return {
+				name: entry.name,
+				startTime: timeOrigin + entry.startTime
+			};
+		});
+		this.submitPerformanceMarks(marks);
 	}
 
 	submitPerformanceMarks(marks: perf.PerformanceMark[]): void {
