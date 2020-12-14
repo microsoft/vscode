@@ -457,7 +457,6 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
-	readonly workspace = true;
 	readonly group = 'help@50';
 
 	constructor(viewModel: IViewModel) {
