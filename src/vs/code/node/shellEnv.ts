@@ -5,11 +5,12 @@
 
 import { spawn } from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, platform } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { getSystemShell } from 'vs/base/node/shell';
 
 /**
  * We need to get the environment from a user's shell.
@@ -78,7 +79,8 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 		logService.trace('getUnixShellEnvironment#env', env);
 		logService.trace('getUnixShellEnvironment#spawn', command);
 
-		const child = spawn(process.env.SHELL!, ['-ilc', command], {
+		const systemShellUnix = getSystemShell(platform);
+		const child = spawn(systemShellUnix, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
 			env

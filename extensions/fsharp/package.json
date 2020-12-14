@@ -7,7 +7,7 @@
 	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js ionide/ionide-fsgrammar grammar/fsharp.json ./syntaxes/fsharp.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js ionide/ionide-fsgrammar grammars/fsharp.json ./syntaxes/fsharp.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{

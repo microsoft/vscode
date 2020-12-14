@@ -12,7 +12,7 @@
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Add a perf entry right from the top
-	performance.mark('renderer/started');
+	performance.mark('code/didStartRenderer');
 
 	// Load workbench main JS, CSS and NLS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
@@ -26,7 +26,7 @@
 		async function (workbench, configuration) {
 
 			// Mark start of workbench
-			performance.mark('didLoadWorkbenchMain');
+			performance.mark('code/didLoadWorkbenchMain');
 
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
@@ -40,7 +40,7 @@
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function () {
-				performance.mark('willLoadWorkbenchMain');
+				performance.mark('code/willLoadWorkbenchMain');
 			}
 		}
 	);
@@ -70,7 +70,7 @@
 	 * }} configuration
 	 */
 	function showPartsSplash(configuration) {
-		performance.mark('willShowPartsSplash');
+		performance.mark('code/willShowPartsSplash');
 
 		let data;
 		if (typeof configuration.partsSplashPath === 'string') {
@@ -160,7 +160,7 @@
 			document.body.appendChild(splash);
 		}
 
-		performance.mark('didShowPartsSplash');
+		performance.mark('code/didShowPartsSplash');
 	}
 
 	//#endregion

@@ -21,15 +21,15 @@ import { hash } from './utils/hash';
 import { RequestService, joinPath } from './requests';
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
 }
 
 namespace ForceValidateRequest {
-	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
+	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
 
 export interface ISchemaAssociations {
@@ -42,11 +42,11 @@ export interface ISchemaAssociation {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[], any> = new NotificationType('json/schemaAssociations');
+	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[]> = new NotificationType('json/schemaAssociations');
 }
 
 namespace ResultLimitReachedNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
+	export const type: NotificationType<string> = new NotificationType('json/resultLimitReached');
 }
 
 interface Settings {
@@ -325,12 +325,17 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			} else if (formatEnabled && !rangeFormatting) {
 				rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
 					provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+						const filesConfig = workspace.getConfiguration('files', document);
+						const fileFormattingOptions = {
+							trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+							trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+							insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+						};
 						const params: DocumentRangeFormattingParams = {
 							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 							range: client.code2ProtocolConverter.asRange(range),
-							options: client.code2ProtocolConverter.asFormattingOptions(options)
+							options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
 						};
-						params.options.insertFinalNewline = workspace.getConfiguration('files', document).get('insertFinalNewline');
 
 						return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 							client.protocol2CodeConverter.asTextEdits,
