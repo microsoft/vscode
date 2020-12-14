@@ -500,7 +500,7 @@ jobs:
         run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
-        run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
+        run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "yarn compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
 
       - name: Run Unit Tests (Electron)
         id: electron-unit-tests
@@ -556,7 +556,7 @@ jobs:
         run: yarn --frozen-lockfile --network-timeout 180000
 
       - name: Compile and Download
-        run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
+        run: yarn concurrently --max_old_space_size=4095 --names "compile,electron,playwright,builtin-extensions" "yarn compile" "yarn electron x64" "node ./node_modules/playwright/install.js" "yarn download-builtin-extensions"
 
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat

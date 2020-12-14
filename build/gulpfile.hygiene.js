@@ -35,10 +35,10 @@ gulp.task('eslint', () => {
 function checkPackageJSON(actualPath) {
 	const actual = require(path.join(__dirname, '..', actualPath));
 	const rootPackageJSON = require('../package.json');
-
-	for (let depName in actual.dependencies) {
-		const depVersion = actual.dependencies[depName];
-		const rootDepVersion = rootPackageJSON.dependencies[depName];
+	const checkIncluded = (set1, set2) => {
+		for (let depName in set1) {
+		const depVersion = set1[depName];
+		const rootDepVersion = set2[depName];
 		if (!rootDepVersion) {
 			// missing in root is allowed
 			continue;
@@ -49,7 +49,11 @@ function checkPackageJSON(actualPath) {
 				`The dependency ${depName} in '${actualPath}' (${depVersion}) is different than in the root package.json (${rootDepVersion})`
 			);
 		}
-	}
+		}
+	};
+
+	checkIncluded(actual.dependencies, rootPackageJSON.dependencies);
+	checkIncluded(actual.devDependencies, rootPackageJSON.devDependencies);
 }
 
 const checkPackageJSONTask = task.define('check-package-json', () => {
@@ -57,6 +61,7 @@ const checkPackageJSONTask = task.define('check-package-json', () => {
 		es.through(function () {
 			checkPackageJSON.call(this, 'remote/package.json');
 			checkPackageJSON.call(this, 'remote/web/package.json');
+			checkPackageJSON.call(this, 'build/package.json');
 		})
 	);
 });
