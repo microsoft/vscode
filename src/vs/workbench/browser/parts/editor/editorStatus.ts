@@ -1085,6 +1085,7 @@ export class ChangeModeAction extends Action {
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages.sort().map((lang, index) => {
 			const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+			const extensions = this.modeService.getExtensions(lang).join(' ');
 			let description: string;
 			if (currentLanguageId === lang) {
 				description = nls.localize('languageDescription', "({0}) - Configured Language", modeId);
@@ -1094,6 +1095,7 @@ export class ChangeModeAction extends Action {
 
 			return {
 				label: lang,
+				meta: extensions,
 				iconClasses: getIconClassesForModeId(modeId),
 				description
 			};

@@ -34,12 +34,14 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneMeta?: string;
 	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
 	readonly labelHighlights?: IMatch[];
 	readonly descriptionHighlights?: IMatch[];
 	readonly detailHighlights?: IMatch[];
+	readonly metaHighlights?: IMatch[];
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -49,6 +51,7 @@ class ListElement implements IListElement, IDisposable {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneMeta!: string;
 	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
@@ -69,6 +72,7 @@ class ListElement implements IListElement, IDisposable {
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
+	metaHighlights?: IMatch[];
 	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
@@ -247,6 +251,7 @@ export class QuickInputList {
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
+	matchOnMeta = true;
 	sortByLabel = true;
 	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
@@ -420,6 +425,7 @@ export class QuickInputList {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
 				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
 				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
@@ -431,6 +437,7 @@ export class QuickInputList {
 					index,
 					item,
 					saneLabel,
+					saneMeta,
 					saneAriaLabel,
 					saneDescription,
 					saneDetail,
@@ -602,16 +609,19 @@ export class QuickInputList {
 				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyCodiconAware(query, parseCodicons(element.saneLabel))) : undefined;
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyCodiconAware(query, parseCodicons(element.saneDescription || ''))) : undefined;
 				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyCodiconAware(query, parseCodicons(element.saneDetail || ''))) : undefined;
+				const metaHighlights = this.matchOnMeta ? withNullAsUndefined(matchesFuzzyCodiconAware(query, parseCodicons(element.saneMeta || ''))) : undefined;
 
-				if (labelHighlights || descriptionHighlights || detailHighlights) {
+				if (labelHighlights || descriptionHighlights || detailHighlights || metaHighlights) {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;
+					element.metaHighlights = metaHighlights;
 					element.hidden = false;
 				} else {
 					element.labelHighlights = undefined;
 					element.descriptionHighlights = undefined;
 					element.detailHighlights = undefined;
+					element.metaHighlights = undefined;
 					element.hidden = !element.item.alwaysShow;
 				}
 				element.separator = undefined;
