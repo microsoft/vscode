@@ -35,6 +35,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -333,6 +334,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.length;
 	}
 
+	private readonly menuActions: ViewContainerMenuActions;
+
 	constructor(
 		id: string,
 		private options: IViewPaneContainerOptions,
@@ -345,7 +348,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IThemeService protected themeService: IThemeService,
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 	) {
 
 		super(id, themeService, storageService);
@@ -361,6 +364,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 		this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
+
+		this.menuActions = this._register(instantiationService.createInstance(ViewContainerMenuActions, container));
+		this._register(this.menuActions.onDidChange(() => this.updateTitleArea()));
 	}
 
 	create(parent: HTMLElement): void {
@@ -533,11 +539,23 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		let anchor: { x: number, y: number; } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this.getContextMenuActions()
+			getActions: () => [...this.getContextMenuActions()]
 		});
 	}
 
-	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
+	getContextMenuActions(): ReadonlyArray<IAction> {
+		const result = [];
+		result.push(...this.menuActions.getContextMenuActions());
+
+		if (result.length) {
+			result.push(new Separator());
+		}
+
+		result.push(...this._getContextMenuActions());
+		return result;
+	}
+
+	private _getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
 		const result: IAction[] = [];
 
 		let showHide = true;
@@ -572,19 +590,25 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActions(): IAction[] {
+		const result = [];
 		if (this.isViewMergedWithContainer()) {
-			return this.paneItems[0].pane.getActions();
+			result.push(...this.paneItems[0].pane.getActions());
 		}
-
-		return [];
+		result.push(...this.menuActions.getPrimaryActions());
+		return result;
 	}
 
 	getSecondaryActions(): IAction[] {
-		if (this.isViewMergedWithContainer()) {
-			return this.paneItems[0].pane.getSecondaryActions();
+		const menuActions = this.menuActions.getSecondaryActions();
+		const viewPaneContainerActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
+		if (menuActions.length && viewPaneContainerActions.length) {
+			return [
+				...menuActions,
+				new Separator(),
+				...viewPaneContainerActions
+			];
 		}
-
-		return [];
+		return menuActions.length ? menuActions : viewPaneContainerActions;
 	}
 
 	getActionsContext(): unknown {
@@ -748,7 +772,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const actions: IAction[] = this.getContextMenuActions(viewDescriptor);
+		const actions: IAction[] = this._getContextMenuActions(viewDescriptor);
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({

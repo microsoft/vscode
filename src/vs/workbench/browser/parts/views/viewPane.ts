@@ -212,7 +212,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
-		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
+		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}

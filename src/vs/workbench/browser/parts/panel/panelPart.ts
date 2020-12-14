@@ -34,11 +34,11 @@ import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
-import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions, ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 interface ICachedPanel {
 	id: string;
@@ -195,7 +195,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				viewMenuActions.dispose();
 			}
 
-			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext);
+			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container);
 			result.push(...viewContainerMenuActions.getContextMenuActions());
 			viewContainerMenuActions.dispose();
 		}
