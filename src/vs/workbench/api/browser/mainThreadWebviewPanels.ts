@@ -181,7 +181,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		webview.setName(value);
 	}
 
-
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
 		const webview = this.getWebviewInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
@@ -199,8 +198,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		}
 	}
 
-	public $registerSerializer(viewType: string)
-		: void {
+	public $registerSerializer(viewType: string): void {
 		if (this._revivers.has(viewType)) {
 			throw new Error(`Reviver for ${viewType} already registered`);
 		}
@@ -215,7 +213,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
 					return;
 				}
-
 
 				const handle = webviewInput.id;
 
