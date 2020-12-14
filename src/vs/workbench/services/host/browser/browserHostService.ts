@@ -126,8 +126,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			case HostShutdownReason.Keyboard:
 				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
 				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
-					this.logService.warn(`Unload veto: window.confirmBeforeClose=${confirmBeforeClose}`);
-					e.veto(true);
+					e.veto(true, 'veto.confirmBeforeClose');
 				}
 				break;
 

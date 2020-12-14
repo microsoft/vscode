@@ -271,7 +271,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		const manualSyncTask = await this.userDataSyncService.createManualSyncTask();
 		const disposable = isWeb
 			? Disposable.None /* In web long running shutdown handlers will not work */
-			: this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask)));
+			: this.lifecycleService.onBeforeShutdown(e => e.veto(this.onBeforeShutdown(manualSyncTask), 'veto.settingsSync'));
 
 		try {
 			await this.syncBeforeTurningOn(title, manualSyncTask);

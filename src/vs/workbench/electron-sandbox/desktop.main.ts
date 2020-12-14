@@ -117,7 +117,7 @@ class DesktopMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(workbench.onShutdown(() => this.dispose()));
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close())));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
 	}
 
 	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
