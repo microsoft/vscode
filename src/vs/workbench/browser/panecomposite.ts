@@ -16,8 +16,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
-import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class PaneComposite extends Composite implements IPaneComposite {
 
@@ -98,20 +96,7 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		const actionViewItem = this.viewPaneContainer.getActionViewItem(action);
-		if (actionViewItem) {
-			return actionViewItem;
-		}
-
-		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-		}
-
-		if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-		}
-
-		return undefined;
+		return this.viewPaneContainer.getActionViewItem(action);
 	}
 
 	getTitle(): string {
