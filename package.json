@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.53.0",
-  "distro": "25d6e2bec6a5bf41f26c0f1c164b8e75f441a057",
+  "distro": "e856403a200fb74359bbc46af1b5a2a59f36d2ef",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -124,7 +124,7 @@
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
     "gulp-atom-electron": "^1.22.0",
-    "gulp-azure-storage": "^0.10.0",
+    "gulp-azure-storage": "^0.11.1",
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.1",
     "gulp-cssnano": "^2.1.3",

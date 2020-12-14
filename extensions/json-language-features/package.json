@@ -98,11 +98,13 @@
                     "description": "%json.maxItemsComputed.desc%"
                 },
                 "json.schemaDownload.enable": {
-                  "type": "boolean",
-                  "default": true,
-                  "description": "%json.enableSchemaDownload.desc%",
-                  "tags": ["usesOnlineServices"]
-              }
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%json.enableSchemaDownload.desc%",
+                    "tags": [
+                        "usesOnlineServices"
+                    ]
+                }
             }
         },
         "configurationDefaults": {
@@ -129,7 +131,7 @@
     "dependencies": {
         "request-light": "^0.4.0",
         "vscode-extension-telemetry": "0.1.1",
-        "vscode-languageclient": "7.0.0-next.5.1",
+        "vscode-languageclient": "^7.0.0",
         "vscode-nls": "^5.0.0"
     },
     "devDependencies": {
