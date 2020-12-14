@@ -87,7 +87,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+          key: cacheCompiledCode-${{ github.sha }}
 
       - name: Compile Core
         if: ${{ steps.cacheCompiledCode.outputs.cache-hit != 'true' }}
@@ -147,7 +147,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+          key: cacheCompiledCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-linux-x64-min-ci
@@ -210,7 +210,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+          key: cacheCompiledCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-linux-x64-min-ci
@@ -261,7 +261,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+          key: cacheCompiledCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-darwin-x64-min-ci
@@ -318,7 +318,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+          key: cacheCompiledCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-darwin-x64-min-ci
@@ -369,7 +369,7 @@ jobs:
             .build
             out-build
             out-vscode-min
-          key: cacheCompiledCode-${{ env.GITHUB_SHA }}
+          key: cacheCompiledCode-${{ github.sha }}
 
       - name: Build VS Code
         run: yarn gulp vscode-darwin-x64-min-ci
