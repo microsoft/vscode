@@ -12,8 +12,8 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
-import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, WebContents } from 'electron';
+import { CodeWindow } from 'vs/code/electron-main/window';
+import { BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -21,7 +21,7 @@ import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen
 import { findWindowOnFile, findWindowOnWorkspaceOrFolder, findWindowOnExtensionDevelopmentPath } from 'vs/platform/windows/electron-main/windowsFinder';
 import { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
-import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
@@ -42,10 +42,6 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 //#region Helper Interfaces
-
-interface INewWindowState extends ISingleWindowState {
-	hasDefaultState?: boolean;
-}
 
 type RestoreWindowsSetting = 'preserve' | 'all' | 'folders' | 'one' | 'none';
 
@@ -159,7 +155,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onWindowsCountChanged = this._onWindowsCountChanged.event;
 
-	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this.stateService, this.lifecycleMainService, this, this.logService));
+	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 	constructor(
 		private readonly machineId: string,
@@ -193,10 +189,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			cli = { ...cli, remote };
 		}
 
+		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty: true, forceNewWindow, forceReuseWindow });
+		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow });
 	}
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
@@ -476,7 +473,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Open remaining ones
 			allWorkspacesToOpen.forEach(workspaceToOpen => {
-				if (windowsOnWorkspace.some(win => win.openedWorkspace && win.openedWorkspace.id === workspaceToOpen.workspace.id)) {
+				if (windowsOnWorkspace.some(window => window.openedWorkspace && window.openedWorkspace.id === workspaceToOpen.workspace.id)) {
 					return; // ignore folders that are already open
 				}
 
@@ -523,7 +520,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
 
-				if (windowsOnFolderPath.some(win => extUriBiasedIgnorePathCase.isEqual(win.openedFolderUri, folderToOpen.folderUri))) {
+				if (windowsOnFolderPath.some(window => extUriBiasedIgnorePathCase.isEqual(window.openedFolderUri, folderToOpen.folderUri))) {
 					return; // ignore folders that are already open
 				}
 
@@ -1262,32 +1259,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// New window
 		if (!window) {
-			const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-			const state = this.getNewWindowState(configuration);
-
-			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
-			let allowFullscreen: boolean;
-			if (state.hasDefaultState) {
-				allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
-			}
-
-			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
-			else {
-				allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
-
-				if (allowFullscreen && isMacintosh && this.getWindows().some(win => win.isFullScreen)) {
-					// macOS: Electron does not allow to restore multiple windows in
-					// fullscreen. As such, if we already restored a window in that
-					// state, we cannot allow more fullscreen windows. See
-					// https://github.com/microsoft/vscode/issues/41691 and
-					// https://github.com/electron/electron/issues/13077
-					allowFullscreen = false;
-				}
-			}
-
-			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
-				state.mode = WindowMode.Normal;
-			}
+			const state = this.windowsStateHandler.getNewWindowState(configuration);
 
 			// Create the window
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
@@ -1372,137 +1344,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Load it
 		window.load(configuration);
-	}
-
-	private getNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
-		const lastActive = this.getLastActiveWindow();
-
-		// Restore state unless we are running extension tests
-		if (!configuration.extensionTestsPath) {
-
-			// extension development host Window - load from stored settings if any
-			if (!!configuration.extensionDevelopmentPath && this.windowsStateHandler.state.lastPluginDevelopmentHostWindow) {
-				return this.windowsStateHandler.state.lastPluginDevelopmentHostWindow.uiState;
-			}
-
-			// Known Workspace - load from stored settings
-			const workspace = configuration.workspace;
-			if (workspace) {
-				const stateForWorkspace = this.windowsStateHandler.state.openedWindows.filter(o => o.workspace && o.workspace.id === workspace.id).map(o => o.uiState);
-				if (stateForWorkspace.length) {
-					return stateForWorkspace[0];
-				}
-			}
-
-			// Known Folder - load from stored settings
-			if (configuration.folderUri) {
-				const stateForFolder = this.windowsStateHandler.state.openedWindows.filter(o => o.folderUri && extUriBiasedIgnorePathCase.isEqual(o.folderUri, configuration.folderUri)).map(o => o.uiState);
-				if (stateForFolder.length) {
-					return stateForFolder[0];
-				}
-			}
-
-			// Empty windows with backups
-			else if (configuration.backupPath) {
-				const stateForEmptyWindow = this.windowsStateHandler.state.openedWindows.filter(o => o.backupPath === configuration.backupPath).map(o => o.uiState);
-				if (stateForEmptyWindow.length) {
-					return stateForEmptyWindow[0];
-				}
-			}
-
-			// First Window
-			const lastActiveState = this.windowsStateHandler.lastClosedState || this.windowsStateHandler.state.lastActiveWindow;
-			if (!lastActive && lastActiveState) {
-				return lastActiveState.uiState;
-			}
-		}
-
-		//
-		// In any other case, we do not have any stored settings for the window state, so we come up with something smart
-		//
-
-		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: Display | undefined;
-		const displays = screen.getAllDisplays();
-
-		// Single Display
-		if (displays.length === 1) {
-			displayToUse = displays[0];
-		}
-
-		// Multi Display
-		else {
-
-			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
-			if (isMacintosh) {
-				const cursorPoint = screen.getCursorScreenPoint();
-				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
-			}
-
-			// if we have a last active window, use that display for the new window
-			if (!displayToUse && lastActive) {
-				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
-			}
-
-			// fallback to primary display or first display
-			if (!displayToUse) {
-				displayToUse = screen.getPrimaryDisplay() || displays[0];
-			}
-		}
-
-		// Compute x/y based on display bounds
-		// Note: important to use Math.round() because Electron does not seem to be too happy about
-		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
-		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
-		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
-
-		// Check for newWindowDimensions setting and adjust accordingly
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		let ensureNoOverlap = true;
-		if (windowConfig?.newWindowDimensions) {
-			if (windowConfig.newWindowDimensions === 'maximized') {
-				state.mode = WindowMode.Maximized;
-				ensureNoOverlap = false;
-			} else if (windowConfig.newWindowDimensions === 'fullscreen') {
-				state.mode = WindowMode.Fullscreen;
-				ensureNoOverlap = false;
-			} else if ((windowConfig.newWindowDimensions === 'inherit' || windowConfig.newWindowDimensions === 'offset') && lastActive) {
-				const lastActiveState = lastActive.serializeWindowState();
-				if (lastActiveState.mode === WindowMode.Fullscreen) {
-					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
-				} else {
-					state = lastActiveState;
-				}
-
-				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';
-			}
-		}
-
-		if (ensureNoOverlap) {
-			state = this.ensureNoOverlap(state);
-		}
-
-		(state as INewWindowState).hasDefaultState = true; // flag as default state
-
-		return state;
-	}
-
-	private ensureNoOverlap(state: ISingleWindowState): ISingleWindowState {
-		if (this.getWindows().length === 0) {
-			return state;
-		}
-
-		state.x = typeof state.x === 'number' ? state.x : 0;
-		state.y = typeof state.y === 'number' ? state.y : 0;
-
-		const existingWindowBounds = this.getWindows().map(win => win.getBounds());
-		while (existingWindowBounds.some(b => b.x === state.x || b.y === state.y)) {
-			state.x += 30;
-			state.y += 30;
-		}
-
-		return state;
 	}
 
 	private onWindowClosed(window: ICodeWindow): void {
