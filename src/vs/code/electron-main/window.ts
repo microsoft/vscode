@@ -806,6 +806,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Dump Perf Counters
 		windowConfiguration.perfEntries = perf.exportEntries();
+		windowConfiguration.perfEntries2 = perf.getEntries();
 
 		// Parts splash
 		windowConfiguration.partsSplashPath = path.join(this.environmentService.userDataPath, 'rapid_render.json');
