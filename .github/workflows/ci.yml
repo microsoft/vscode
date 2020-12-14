@@ -90,12 +90,15 @@ jobs:
           key: cacheCompiledCode-${{ env.GITHUB_SHA }}
 
       - name: Compile Core
+        if: ${{ steps.cacheCompiledCode.outputs.cache-hit != 'true' }}
         run: yarn gulp compile-build
 
       - name: Compile Extensions
+        if: ${{ steps.cacheCompiledCode.outputs.cache-hit != 'true' }}
         run: yarn gulp compile-extensions-build
 
       - name: Minify VS Code
+        if: ${{ steps.cacheCompiledCode.outputs.cache-hit != 'true' }}
         run: yarn gulp minify-vscode
 
   build-linux-unit-tests:
