@@ -1,4 +1,8 @@
-trigger: none
+trigger:
+  branches:
+    include:
+      - master
+
 pr: none
 
 schedules:
@@ -7,6 +11,10 @@ schedules:
     branches:
       include:
         - master
+
+variables:
+  ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}:
+    VSCODE_PUBLISH: 'false'
 
 resources:
   containers:
