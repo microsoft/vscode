@@ -2924,11 +2924,12 @@ export class LinkedEditingRanges {
 //#region Testing
 export enum TestRunState {
 	Unset = 0,
-	Running = 1,
-	Passed = 2,
-	Failed = 3,
-	Skipped = 4,
-	Errored = 5
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
 }
 
 export enum TestMessageSeverity {

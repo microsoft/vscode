@@ -72,7 +72,6 @@ export interface IssueReporterFeatures {
 export interface ProcessExplorerStyles extends WindowStyles {
 	hoverBackground?: string;
 	hoverForeground?: string;
-	highlightForeground?: string;
 }
 
 export interface ProcessExplorerData extends WindowData {

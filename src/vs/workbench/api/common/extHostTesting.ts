@@ -28,7 +28,11 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly providers = new Map<string, vscode.TestProvider>();
 	private readonly proxy: MainThreadTestingShape;
 	private readonly ownedTests = new OwnedTestCollection();
-	private readonly testSubscriptions = new Map<string, { collection: SingleUseTestCollection, store: IDisposable }>();
+	private readonly testSubscriptions = new Map<string, {
+		collection: SingleUseTestCollection;
+		store: IDisposable;
+		subscribeFn: (id: string, provider: vscode.TestProvider) => void;
+	}>();
 
 	private workspaceObservers: WorkspaceFolderTestObserverFactory;
 	private textDocumentObservers: TextDocumentTestObserverFactory;
@@ -46,6 +50,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		const providerId = generateUuid();
 		this.providers.set(providerId, provider);
 		this.proxy.$registerTestProvider(providerId);
+
+		// give the ext a moment to register things rather than synchronously invoking within activate()
+		const toSubscribe = [...this.testSubscriptions.keys()];
+		setTimeout(() => {
+			for (const subscription of toSubscribe) {
+				this.testSubscriptions.get(subscription)?.subscribeFn(providerId, provider);
+			}
+		}, 0);
 
 		return new Disposable(() => {
 			this.providers.delete(providerId);
@@ -89,7 +101,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Handles a request to read tests for a file, or workspace.
 	 * @override
 	 */
-	public $subscribeToTests(resource: ExtHostTestingResource, uriComponents: UriComponents) {
+	public async $subscribeToTests(resource: ExtHostTestingResource, uriComponents: UriComponents) {
 		const uri = URI.revive(uriComponents);
 		const subscriptionKey = getTestSubscriptionKey(resource, uri);
 		if (this.testSubscriptions.has(subscriptionKey)) {
@@ -103,7 +115,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				method = p => p.createDocumentTestHierarchy?.(document.document);
 			}
 		} else {
-			const folder = this.workspace.getWorkspaceFolder(uri, false);
+			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
 			if (folder) {
 				method = p => p.createWorkspaceTestHierarchy?.(folder);
 			}
@@ -113,13 +125,11 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const disposable = new DisposableStore();
-		const collection = disposable.add(this.ownedTests.createForHierarchy(diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
-		for (const [id, provider] of this.providers) {
+		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
 			try {
-				const hierarchy = method(provider);
+				const hierarchy = method!(provider);
 				if (!hierarchy) {
-					continue;
+					return;
 				}
 
 				disposable.add(hierarchy);
@@ -128,9 +138,15 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			} catch (e) {
 				console.error(e);
 			}
+		};
+
+		const disposable = new DisposableStore();
+		const collection = disposable.add(this.ownedTests.createForHierarchy(diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
+		for (const [id, provider] of this.providers) {
+			subscribeFn(id, provider);
 		}
 
-		this.testSubscriptions.set(subscriptionKey, { store: disposable, collection });
+		this.testSubscriptions.set(subscriptionKey, { store: disposable, collection, subscribeFn });
 	}
 
 	/**
@@ -296,7 +312,6 @@ export class SingleUseTestCollection implements IDisposable {
 			this.testIdToInternal.delete(item.id);
 		}
 
-		this.testIdToInternal.clear();
 		this.diff = [];
 		this.disposed = true;
 	}

@@ -29,6 +29,8 @@ import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IViewsService } from 'vs/workbench/common/views';
+import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -85,6 +87,7 @@ export class OpenSearchEditorAction extends Action {
 
 	constructor(id: string, label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(id, label, ThemeIcon.asClassName(searchNewEditorIcon));
 	}
@@ -98,7 +101,20 @@ export class OpenSearchEditorAction extends Action {
 	}
 
 	async run() {
-		await this.instantiationService.invokeFunction(openNewSearchEditor);
+		const searchView = getSearchView(this.viewsService);
+		if (searchView) {
+			await this.instantiationService.invokeFunction(openNewSearchEditor, {
+				filesToInclude: searchView.searchIncludePattern.getValue(),
+				filesToExclude: searchView.searchExcludePattern.getValue(),
+				isRegexp: searchView.searchAndReplaceWidget.searchInput.getRegex(),
+				isCaseSensitive: searchView.searchAndReplaceWidget.searchInput.getCaseSensitive(),
+				matchWholeWord: searchView.searchAndReplaceWidget.searchInput.getWholeWords(),
+				useExcludeSettingsAndIgnoreFiles: searchView.searchExcludePattern.useExcludesAndIgnoreFiles(),
+				showIncludesExcludes: !!(searchView.searchIncludePattern.getValue() || searchView.searchExcludePattern.getValue() || !searchView.searchExcludePattern.useExcludesAndIgnoreFiles())
+			});
+		} else {
+			await this.instantiationService.invokeFunction(openNewSearchEditor);
+		}
 	}
 }
 

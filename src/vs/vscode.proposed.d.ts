@@ -2211,16 +2211,18 @@ declare module 'vscode' {
 	export enum TestRunState {
 		// Initial state
 		Unset = 0,
+		// Test will be run, but is not currently running.
+		Queued = 1,
 		// Test is currently running
-		Running = 1,
+		Running = 2,
 		// Test run has passed
-		Passed = 2,
+		Passed = 3,
 		// Test run has failed (on an assertion)
-		Failed = 3,
+		Failed = 4,
 		// Test run has been skipped
-		Skipped = 4,
+		Skipped = 5,
 		// Test run failed for some other reason (compilation error, timeout, etc)
-		Errored = 5
+		Errored = 6
 	}
 
 	/**

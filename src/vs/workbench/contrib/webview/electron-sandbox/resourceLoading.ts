@@ -79,6 +79,7 @@ export class WebviewResourceRequestManager extends Disposable {
 		const remoteConnectionData = remoteAuthority ? remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
 		this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);
+
 		this._ready = this._webviewManagerService.registerWebview(this.id, nativeHostService.windowId, {
 			extensionLocation: this.extension?.location.toJSON(),
 			localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
@@ -101,14 +102,18 @@ export class WebviewResourceRequestManager extends Disposable {
 
 		const loadResourceChannel = `vscode:loadWebviewResource-${id}`;
 		const loadResourceListener = async (_event: any, requestId: number, resource: UriComponents) => {
+			const uri = URI.revive(resource);
 			try {
-				const response = await loadLocalResource(URI.revive(resource), {
+				this._logService.debug(`WebviewResourceRequestManager(${this.id}): starting resource load. uri: ${uri}`);
+
+				const response = await loadLocalResource(uri, {
 					extensionLocation: this.extension?.location,
 					roots: this._localResourceRoots,
 					remoteConnectionData: remoteConnectionData,
 				}, {
 					readFileStream: (resource) => fileService.readFileStream(resource).then(x => x.value),
-				}, requestService);
+				}, requestService, this._logService);
+				this._logService.debug(`WebviewResourceRequestManager(${this.id}): finished resource load. uri: ${uri}, type=${response.type}`);
 
 				if (response.type === WebviewResourceResponse.Type.Success) {
 					const buffer = await streamToBuffer(response.stream);
