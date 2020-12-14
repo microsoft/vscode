@@ -8,16 +8,19 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
+import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
-export const isTestItem = (v: ITestSubscriptionItem | ITestSubscriptionFolder): v is ITestSubscriptionItem => v.depth > 0;
+export const isTestItem = (v: ITestSubscriptionItem | ITestSubscriptionFolder | undefined): v is ITestSubscriptionItem => !!v && v.depth > 0;
 
 export interface ITestSubscriptionFolder {
 	depth: 0;
 	folder: IWorkspaceFolder;
 	childCount: number;
+	parentItem?: undefined;
 	getChildren(): Iterable<ITestSubscriptionItem>;
+	computedState?: TestRunState;
 }
 
 export interface ITestSubscriptionItem extends IncrementalTestCollectionItem {
@@ -26,6 +29,8 @@ export interface ITestSubscriptionItem extends IncrementalTestCollectionItem {
 	childCount: number;
 	root: ITestSubscriptionFolder;
 	parentItem: ITestSubscriptionItem | ITestSubscriptionFolder;
+
+	computedState?: TestRunState; // used in the testingExplorerView
 }
 
 export interface ITestSubscription {

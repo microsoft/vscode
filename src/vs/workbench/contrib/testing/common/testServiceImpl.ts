@@ -28,6 +28,12 @@ export class TestService extends Disposable implements ITestService {
 	private readonly unsubscribeEmitter = new Emitter<{ resource: ExtHostTestingResource, uri: URI }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
 	private readonly providerCount: IContextKey<number>;
+	private readonly runStartedEmitter = new Emitter<RunTestsRequest>();
+	private readonly runCompletedEmitter = new Emitter<{ req: RunTestsRequest, result: RunTestsResult }>();
+
+	public readonly testRuns = new Set<RunTestsRequest>();
+	public readonly onTestRunStarted = this.runStartedEmitter.event;
+	public readonly onTestRunCompleted = this.runCompletedEmitter.event;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
 		super();
@@ -74,7 +80,13 @@ export class TestService extends Disposable implements ITestService {
 			return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) });
 		}).filter(isDefined);
 
-		return collectTestResults(await Promise.all(requests));
+		this.testRuns.add(req);
+		this.runStartedEmitter.fire(req);
+		const result = await collectTestResults(await Promise.all(requests));
+		this.testRuns.delete(req);
+		this.runCompletedEmitter.fire({ req, result });
+
+		return result;
 	}
 
 	/**

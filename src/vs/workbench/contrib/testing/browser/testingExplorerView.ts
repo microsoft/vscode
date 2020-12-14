@@ -9,11 +9,12 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeFilter, ITreeNode, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Emitter } from 'vs/base/common/event';
+import { ITreeEvent, ITreeFilter, ITreeNode, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { Action } from 'vs/base/common/actions';
+import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { localize } from 'vs/nls';
@@ -29,60 +30,31 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { isTestItem, ITestingCollectionService, ITestSubscriptionFolder, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DebugAction, RunAction, ToggleViewModeAction, ViewMode } from './testExplorerActions';
+import { DebugAction, DebugSelectedAction, RunAction, RunSelectedAction, ToggleViewModeAction, ViewMode } from './testExplorerActions';
 
 export const TESTING_EXPLORER_VIEW_ID = 'workbench.view.testing';
 
 export class TestingExplorerView extends ViewPane {
-	private listContainer!: HTMLElement;
-	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
-	private filter!: TestsFilter;
-	private toggleViewModeAction!: ToggleViewModeAction;
+	private primaryActions: Action[] = [];
+	private secondaryActions: Action[] = [];
+	private viewModel!: TestingExplorerViewModel;
 	private currentSubscription?: IDisposable;
-	private _viewMode = Number(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, String(ViewMode.Tree))) as ViewMode;
-	private viewModeChangeEmitter = new Emitter<ViewMode>();
-
-	/**
-	 * Fires when the tree view mode changes.
-	 */
-	public readonly onViewModeChange = this.viewModeChangeEmitter.event;
-
-	public get viewMode() {
-		return this._viewMode;
-	}
-
-	public set viewMode(newMode: ViewMode) {
-		if (newMode === this._viewMode) {
-			return;
-		}
-
-		this._viewMode = newMode;
-		for (const folder of this.testCollection.workspaceFolders()) {
-			if (newMode === ViewMode.Tree) {
-				this.renderTreeChildren(folder);
-			} else {
-				this.renderListChildren(folder);
-			}
-		}
-
-		this.storageService.store('testing.viewMode', newMode, StorageScope.WORKSPACE, StorageTarget.USER);
-		this.viewModeChangeEmitter.fire(newMode);
-	}
+	private listContainer!: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
 		@ITestingCollectionService private readonly testCollection: ITestingCollectionService,
 		@ITestService private readonly testService: ITestService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -95,7 +67,6 @@ export class TestingExplorerView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this._register(testService.onDidChangeProviders(() => this._onDidChangeViewWelcomeState.fire()));
-		this.toggleViewModeAction = this._register(new ToggleViewModeAction(this));
 	}
 
 	/**
@@ -111,41 +82,20 @@ export class TestingExplorerView extends ViewPane {
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		const labels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
-
-		this.filter = new TestsFilter();
 		this.listContainer = dom.append(container, dom.$('.test-explorer'));
-		this.tree = this.instantiationService.createInstance(
-			WorkbenchCompressibleObjectTree,
-			'Test Explorer List',
-			this.listContainer,
-			new ListDelegate(),
-			[
-				this.instantiationService.createInstance(TestsRenderer, labels, this)
-			],
-			{
-				identityProvider: this.instantiationService.createInstance(IdentityProvider),
-				hideTwistiesOfChildlessElements: true,
-				sorter: this.instantiationService.createInstance(TreeSorter),
-				keyboardNavigationLabelProvider: this.instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
-				accessibilityProvider: this.instantiationService.createInstance(ListAccessibilityProvider),
-				filter: this.filter,
-			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
+		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, this.listContainer, this.onDidChangeBodyVisibility);
+		this._register(this.viewModel);
 
-		this._register(this.tree);
+		this.secondaryActions = [
+			this.instantiationService.createInstance(ToggleViewModeAction, this.viewModel)
+		];
+		this.secondaryActions.forEach(this._register, this);
 
-		this._register(this.tree.onDidChangeSelection(evt => {
-			const [first] = evt.elements;
-			if (!first || !isTestItem(first) || !first.item.location) {
-				return;
-			}
-
-			this._editorService.openEditor({
-				resource: URI.revive(first.item.location.uri),
-				options: { selection: first.item.location.range, preserveFocus: true }
-			});
-		}));
-
+		this.primaryActions = [
+			this.instantiationService.createInstance(RunSelectedAction, this.viewModel),
+			this.instantiationService.createInstance(DebugSelectedAction, this.viewModel),
+		];
+		this.primaryActions.forEach(this._register, this);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
@@ -161,15 +111,215 @@ export class TestingExplorerView extends ViewPane {
 	 * @override
 	 */
 	public getActions() {
-		return [this.toggleViewModeAction, ...super.getActions()];
+		return [...this.primaryActions, ...super.getActions()];
 	}
+
+	/**
+	 * @override
+	 */
+	public getSecondaryActions() {
+		return [...this.secondaryActions, ...super.getSecondaryActions()];
+	}
+
 
 	/**
 	 * @override
 	 */
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
+		this.listContainer.style.height = `${height}px`;
+		this.viewModel.layout(height, width);
+	}
+
+	private createSubscription() {
+		return this.testCollection.subscribeToWorkspaceTests({
+			add: node => this.viewModel.onNodeAddedOrRemoved(node),
+			remove: node => this.viewModel.onNodeAddedOrRemoved(node),
+			update: node => this.viewModel.onNodeChanged(node)
+		});
+	}
+}
+
+export class TestingExplorerViewModel extends Disposable {
+	private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
+	private filter: TestsFilter;
+	private _viewMode = Number(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, String(ViewMode.Tree))) as ViewMode;
+	private viewModeChangeEmitter = new Emitter<ViewMode>();
+
+	/**
+	 * Fires when the tree view mode changes.
+	 */
+	public readonly onViewModeChange = this.viewModeChangeEmitter.event;
+
+	/**
+	 * Fires when the selected tests change.
+	 */
+	public readonly onDidChangeSelection: Event<ITreeEvent<TreeElement | null>>;
+
+	public get viewMode() {
+		return this._viewMode;
+	}
+
+	public set viewMode(newMode: ViewMode) {
+		if (newMode === this._viewMode) {
+			return;
+		}
+
+		this._viewMode = newMode;
+		for (const folder of this.testCollection.workspaceFolders()) {
+			if (newMode === ViewMode.Tree) {
+				this.renderTreeChildren(folder);
+			} else {
+				for (const root of folder.getChildren()) {
+					this.renderListChildren(root);
+				}
+			}
+		}
+
+		this.storageService.store('testing.viewMode', newMode, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.viewModeChangeEmitter.fire(newMode);
+	}
+
+	constructor(
+		listContainer: HTMLElement,
+		onDidChangeVisibility: Event<boolean>,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorService editorService: IEditorService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ITestingCollectionService private readonly testCollection: ITestingCollectionService,
+	) {
+		super();
+		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
+
+		this.filter = new TestsFilter();
+		this.tree = instantiationService.createInstance(
+			WorkbenchCompressibleObjectTree,
+			'Test Explorer List',
+			listContainer,
+			new ListDelegate(),
+			[
+				instantiationService.createInstance(TestsRenderer, labels, this)
+			],
+			{
+				identityProvider: instantiationService.createInstance(IdentityProvider),
+				hideTwistiesOfChildlessElements: true,
+				sorter: instantiationService.createInstance(TreeSorter),
+				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
+				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
+				filter: this.filter,
+			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
+
+		this.onDidChangeSelection = this.tree.onDidChangeSelection;
+
+		this._register(this.tree);
+
+		this._register(this.tree.onDidChangeSelection(evt => {
+			const [first] = evt.elements;
+			if (!first || !isTestItem(first) || !first.item.location) {
+				return;
+			}
+
+			editorService.openEditor({
+				resource: URI.revive(first.item.location.uri),
+				options: { selection: first.item.location.range, preserveFocus: true }
+			});
+		}));
+	}
+
+	/**
+	 * Re-layout the tree.
+	 */
+	public layout(height: number, width: number): void {
 		this.tree.layout(height, width);
+	}
+
+	/**
+	 * Called when a node property changes.
+	 */
+	public onNodeChanged(node: TreeElement) {
+		this.refreshComputedState(node);
+		this.tree.rerender(node);
+	}
+
+	/**
+	 * Updates the computed state of the node, bubbling the update to parents
+	 * if necessary. Returns whether the node's computed state was changed.
+	 */
+	private refreshComputedState(node: TreeElement) {
+		if (node.computedState === undefined) {
+			return false;
+		}
+
+		const oldPriority = statePriority[node.computedState];
+		node.computedState = undefined;
+		const newState = getComputedState(node);
+		const newPriority = statePriority[getComputedState(node)];
+
+		if (newPriority > oldPriority) {
+			// Update all parents to ensure they're at least this priority.
+			for (let parent = node.parentItem; parent; parent = parent.parentItem) {
+				const prev = parent.computedState;
+				if (prev !== undefined && statePriority[prev] >= newPriority) {
+					break;
+				}
+
+				parent.computedState = newState;
+				if (this.isRendered(parent)) {
+					this.tree.rerender(parent);
+				}
+			}
+		} else if (newPriority < oldPriority) {
+			// Re-render all parents of this node whose computed priority might have come from this node
+			for (let parent = node.parentItem; parent; parent = parent.parentItem) {
+				const prev = parent.computedState;
+				if (prev === undefined || statePriority[prev] > oldPriority) {
+					break;
+				}
+
+				parent.computedState = undefined;
+				parent.computedState = getComputedState(parent);
+				if (this.isRendered(parent)) {
+					this.tree.rerender(parent);
+				}
+			}
+		} else {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Called to rerender the children for a node.
+	 */
+	public onNodeAddedOrRemoved(node: TreeElement) {
+		if (!isTestItem(node)) {
+			this.tree.setChildren(null, Iterable.map(this.testCollection.workspaceFolders(), renderElement));
+			return;
+		}
+
+		const parent = node.parentItem;
+		if (this.viewMode === ViewMode.Tree) {
+			this.renderTreeChildren(node.parentItem);
+		} else {
+			let testRoot = node.parentItem;
+			while (isTestItem(testRoot.parentItem)) {
+				testRoot = testRoot.parentItem;
+			}
+			this.renderListChildren(testRoot);
+		}
+
+		// Refresh parent's computed state, and rerender if needed
+		if (parent && this.refreshComputedState(parent) && this.isRendered(node)) {
+			this.tree.rerender(parent);
+		}
+	}
+
+	/**
+	 * Gets the selected tests from the tree.
+	 */
+	public getSelectedTests() {
+		return this.tree.getSelection();
 	}
 
 	/**
@@ -184,7 +334,21 @@ export class TestingExplorerView extends ViewPane {
 	 * non-runnable nodes from the test tree, and shows the runnable leaf nodes
 	 * in the list.
 	 */
-	private renderListChildren(node: ITestSubscriptionFolder) {
+	private renderListChildren(node: TreeElement) {
+		if (isTestItem(node)) {
+			this.tree.setChildren(node, this.getListChildrenOf(node));
+		} else {
+			this.tree.setChildren(node, Iterable.map(node.getChildren(), test => ({
+				element: test,
+				children: this.getListChildrenOf(test)
+			})));
+		}
+	}
+
+	private isRendered(node: TreeElement) {
+		return this.viewMode === ViewMode.Tree || node.depth <= 1;
+	}
+	private getListChildrenOf(node: ITestSubscriptionItem) {
 		const leafNodes: ICompressedTreeElement<TreeElement>[] = [];
 
 		// returns true if the current node is a runnable leaf, or one of its children is
@@ -212,27 +376,40 @@ export class TestingExplorerView extends ViewPane {
 			traverse(child);
 		}
 
-		this.tree.setChildren(node, leafNodes);
-	}
-
-	private createSubscription() {
-		const updateParent = (node: TreeElement) => {
-			if (!isTestItem(node)) {
-				this.tree.setChildren(null, Iterable.map(this.testCollection.workspaceFolders(), renderElement));
-			} else if (this.viewMode === ViewMode.Tree) {
-				this.renderTreeChildren(node.parentItem);
-			} else {
-				this.renderListChildren(node.root);
-			}
-		};
-
-		return this.testCollection.subscribeToWorkspaceTests({
-			add: updateParent,
-			remove: updateParent,
-			update: node => this.tree.rerender(node)
-		});
+		return leafNodes;
 	}
 }
+
+/**
+ * List of display priorities for different run states. When tests update,
+ * the highest-priority state from any of their children will be the state
+ * reflected in the parent node.
+ */
+const statePriority: { [K in TestRunState]: number } = {
+	[TestRunState.Running]: 6,
+	[TestRunState.Queued]: 5,
+	[TestRunState.Errored]: 4,
+	[TestRunState.Failed]: 3,
+	[TestRunState.Passed]: 2,
+	[TestRunState.Skipped]: 1,
+	[TestRunState.Unset]: 0,
+};
+
+const maxPriority = (a: TestRunState, b: TestRunState) => statePriority[a] > statePriority[b] ? a : b;
+
+/**
+ * Gets the computed state for the node.
+ */
+const getComputedState = (node: TreeElement) => {
+	if (node.computedState === undefined) {
+		node.computedState = isTestItem(node) ? node.item.state.runState : TestRunState.Unset;
+		for (const child of node.getChildren()) {
+			node.computedState = maxPriority(node.computedState, getComputedState(child));
+		}
+	}
+
+	return node.computedState;
+};
 
 const renderElement = (item: TreeElement): ICompressedTreeElement<TreeElement> => {
 	return {
@@ -310,6 +487,7 @@ class IdentityProvider implements IIdentityProvider<TreeElement> {
 
 interface TestTemplateData {
 	label: IResourceLabel;
+	icon: HTMLElement;
 	actionBar: ActionBar;
 }
 
@@ -318,7 +496,7 @@ class TestsRenderer implements ICompressibleTreeRenderer<TreeElement, FuzzyScore
 
 	constructor(
 		private labels: ResourceLabels,
-		private readonly view: TestingExplorerView,
+		private readonly view: TestingExplorerViewModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
@@ -329,6 +507,7 @@ class TestsRenderer implements ICompressibleTreeRenderer<TreeElement, FuzzyScore
 	public renderTemplate(container: HTMLElement): TestTemplateData {
 		const wrapper = dom.append(container, dom.$('.test-item'));
 
+		const icon = dom.append(wrapper, dom.$('.computed-state'));
 		const name = dom.append(wrapper, dom.$('.name'));
 		const label = this.labels.create(name, { supportHighlights: true });
 
@@ -339,7 +518,7 @@ class TestsRenderer implements ICompressibleTreeRenderer<TreeElement, FuzzyScore
 					: undefined
 		});
 
-		return { label, actionBar };
+		return { label, actionBar, icon };
 	}
 
 	public renderElement(node: ITreeNode<TreeElement, FuzzyScore>, index: number, data: TestTemplateData): void {
@@ -358,6 +537,9 @@ class TestsRenderer implements ICompressibleTreeRenderer<TreeElement, FuzzyScore
 		};
 		const options: IResourceLabelOptions = {};
 		data.actionBar.clear();
+
+		const icon = testingStatesToIcons.get(getComputedState(element));
+		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
 
 		if (isTestItem(element)) {
 			if (element.item.location) {

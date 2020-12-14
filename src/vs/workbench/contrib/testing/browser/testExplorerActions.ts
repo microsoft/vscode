@@ -6,11 +6,14 @@
 
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { isTestItem, ITestingCollectionService, ITestSubscriptionItem } from 'vs/workbench/contrib/testing/browser/testingCollectionService';
+import { TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
+import { EMPTY_TEST_RESULT, RunTestsResult } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export class DebugAction extends Action {
@@ -55,20 +58,129 @@ export class RunAction extends Action {
 	}
 }
 
+abstract class RunOrDebugAction extends Action {
+	constructor(
+		private readonly viewModel: TestingExplorerViewModel,
+		id: string,
+		label: string,
+		className: string,
+		@ITestingCollectionService private readonly testCollection: ITestingCollectionService,
+		@ITestService private readonly testService: ITestService,
+	) {
+		super(
+			id,
+			label,
+			'test-action ' + className,
+			/* enabled= */ Iterable.first(testService.testRuns) === undefined,
+		);
+
+		this._register(testService.onTestRunStarted(this.updateEnablementState, this));
+		this._register(testService.onTestRunCompleted(this.updateEnablementState, this));
+		this._register(viewModel.onDidChangeSelection(this.updateEnablementState, this));
+	}
+
+	public run(): Promise<RunTestsResult> {
+		const tests = [...this.getActionableTests()];
+		if (!tests.length) {
+			return Promise.resolve(EMPTY_TEST_RESULT);
+		}
+
+		return this.testService.runTests({ tests, debug: false });
+	}
+
+	private updateEnablementState() {
+		if (Iterable.first(this.testService.testRuns) !== undefined) {
+			this._setEnabled(false);
+		} else {
+			this._setEnabled(Iterable.first(this.getActionableTests()) !== undefined);
+		}
+	}
+
+	private *getActionableTests() {
+		const selected = this.viewModel.getSelectedTests();
+		for (const item of selected.length ? selected : this.testCollection.workspaceFolders()) {
+			if (!item) {
+				continue;
+			}
+
+			if (isTestItem(item)) {
+				if (this.filter(item)) {
+					yield { testId: item.id, providerId: item.providerId };
+				}
+			} else {
+				for (const child of item.getChildren()) {
+					if (this.filter(child)) {
+						yield { testId: child.id, providerId: child.providerId };
+					}
+				}
+			}
+		}
+	}
+
+	protected abstract debug(): boolean;
+	protected abstract filter(item: ITestSubscriptionItem): boolean;
+}
+
+export class RunSelectedAction extends RunOrDebugAction {
+	constructor(
+		viewModel: TestingExplorerViewModel,
+		@ITestingCollectionService testCollection: ITestingCollectionService,
+		@ITestService testService: ITestService,
+	) {
+		super(
+			viewModel,
+			'action.runSelected',
+			localize('runSelectedTests', 'Run Selected Tests'),
+			ThemeIcon.asClassName(icons.testingRunIcon),
+			testCollection,
+			testService,
+		);
+	}
+
+	public debug() {
+		return false;
+	}
+
+	public filter({ item }: ITestSubscriptionItem) {
+		return item.runnable;
+	}
+}
+
+export class DebugSelectedAction extends RunOrDebugAction {
+	constructor(
+		viewModel: TestingExplorerViewModel,
+		@ITestingCollectionService testCollection: ITestingCollectionService,
+		@ITestService testService: ITestService,
+	) {
+		super(
+			viewModel,
+			'action.debugSelected',
+			localize('debugSelectedTests', 'Debug Selected Tests'),
+			ThemeIcon.asClassName(icons.testingDebugIcon),
+			testCollection,
+			testService,
+		);
+	}
+
+	public debug() {
+		return true;
+	}
+
+	public filter({ item }: ITestSubscriptionItem) {
+		return item.runnable;
+	}
+}
+
 export const enum ViewMode {
 	List,
 	Tree
 }
 
-
 export class ToggleViewModeAction extends Action {
-	static readonly ID = 'workbench.testing.action.toggleViewMode';
-	static readonly LABEL = localize('toggleViewMode', "Toggle View Mode");
-
 	constructor(private readonly viewModel: { viewMode: ViewMode, onViewModeChange: Event<ViewMode> }) {
 		super(
 			'workbench.testing.action.toggleViewMode',
-			localize('toggleViewMode', "Toggle View Mode"),
+			localize('toggleViewMode', "View as List"),
 		);
 		this._register(viewModel.onViewModeChange(this.onDidChangeMode, this));
 		this.onDidChangeMode(this.viewModel.viewMode);
@@ -83,5 +195,6 @@ export class ToggleViewModeAction extends Action {
 	private onDidChangeMode(mode: ViewMode): void {
 		const iconClass = ThemeIcon.asClassName(mode === ViewMode.List ? icons.testingShowAsList : icons.testingShowAsTree);
 		this.class = iconClass;
+		this.checked = mode === ViewMode.List;
 	}
 }
