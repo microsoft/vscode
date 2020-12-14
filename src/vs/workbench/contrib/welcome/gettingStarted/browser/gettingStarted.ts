@@ -24,6 +24,7 @@ import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBa
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -218,7 +219,8 @@ export class GettingStartedPage extends Disposable {
 		});
 
 		categoryScrollContainer.appendChild(categoriesContainer);
-		categoriesSlide.appendChild(categoryScrollContainer);
+		const scrollable = new DomScrollableElement(categoryScrollContainer, {});
+		categoriesSlide.appendChild(scrollable.getDomNode());
 		categoriesSlide.appendChild($('.gap'));
 
 		this.updateCategoryProgress();
