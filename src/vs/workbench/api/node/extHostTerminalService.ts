@@ -17,13 +17,14 @@ import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/ext
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { getSystemShell } from 'vs/base/node/shell';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
