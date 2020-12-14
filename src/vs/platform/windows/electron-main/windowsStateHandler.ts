@@ -6,7 +6,7 @@
 import { app } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
@@ -43,8 +43,6 @@ interface ISerializedWindowState {
 	readonly uiState: IWindowUIState;
 
 	// deprecated
-	readonly folderUri?: UriComponents;
-	readonly folderPath?: string;
 	readonly workspace?: { id: string; configPath: string };
 }
 
@@ -261,18 +259,11 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 
 	if (windowState.folder) {
 		result.folderUri = URI.parse(windowState.folder);
-	} else if (windowState.folderUri) {
-		result.folderUri = URI.revive(windowState.folderUri);
-	} else if (windowState.folderPath) {
-		result.folderUri = URI.file(windowState.folderPath);
 	}
 
 	if (windowState.workspaceIdentifier) {
 		result.workspace = { id: windowState.workspaceIdentifier.id, configPath: URI.parse(windowState.workspaceIdentifier.configURIPath) };
-	} else if (windowState.workspace) {
-		result.workspace = { id: windowState.workspace.id, configPath: URI.file(windowState.workspace.configPath) };
 	}
-
 	return result;
 }
 
