@@ -5,9 +5,23 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IWindowState as IWindowUIState } from 'vs/platform/windows/electron-main/windows';
-import { IWindowState, IWindowsState } from 'vs/platform/windows/electron-main/windowsMainService';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export type WindowsStateStorageData = object;
+
+export interface IWindowState {
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: URI;
+	backupPath?: string;
+	remoteAuthority?: string;
+	uiState: IWindowUIState;
+}
+
+export interface IWindowsState {
+	lastActiveWindow?: IWindowState;
+	lastPluginDevelopmentHostWindow?: IWindowState;
+	openedWindows: IWindowState[];
+}
 
 interface ISerializedWindowsState {
 	readonly lastActiveWindow?: ISerializedWindowState;

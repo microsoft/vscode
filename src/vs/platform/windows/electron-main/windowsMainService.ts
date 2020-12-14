@@ -30,7 +30,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { normalizePath, originalFSPath, removeTrailingPathSeparator, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData } from 'vs/platform/windows/electron-main/windowsStateStorage';
+import { restoreWindowsState, WindowsStateStorageData, getWindowsStateStoreData, IWindowsState, IWindowState } from 'vs/platform/windows/electron-main/windowsStateStorage';
 import { getWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -41,19 +41,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export interface IWindowState {
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: URI;
-	backupPath?: string;
-	remoteAuthority?: string;
-	uiState: ISingleWindowState;
-}
-
-export interface IWindowsState {
-	lastActiveWindow?: IWindowState;
-	lastPluginDevelopmentHostWindow?: IWindowState;
-	openedWindows: IWindowState[];
-}
+//#region Helper Interfaces
 
 interface INewWindowState extends ISingleWindowState {
 	hasDefaultState?: boolean;
@@ -151,6 +139,8 @@ interface IWorkspacePathToOpen {
 	readonly label?: string;
 }
 
+//#endregion
+
 export class WindowsMainService extends Disposable implements IWindowsMainService {
 
 	declare readonly _serviceBrand: undefined;
@@ -190,10 +180,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		super();
 
 		this.windowsState = restoreWindowsState(this.stateService.getItem<WindowsStateStorageData>(WindowsMainService.windowsStateStorageKey));
-		if (!Array.isArray(this.windowsState.openedWindows)) {
-			this.windowsState.openedWindows = [];
-		}
-
 		this.lifecycleMainService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
 	}
 

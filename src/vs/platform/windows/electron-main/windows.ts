@@ -135,13 +135,14 @@ export interface IWindowsMainService {
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
+	getWindows(): ICodeWindow[];
+	getWindowCount(): number;
+
 	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
-	getWindows(): ICodeWindow[];
-	getWindowCount(): number;
 }
 
 export interface IBaseOpenConfiguration {
