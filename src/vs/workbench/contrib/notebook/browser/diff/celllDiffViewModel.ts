@@ -125,7 +125,6 @@ export abstract class CellDiffViewModelBase extends Disposable {
 			this._layoutInfoEmitter.fire({ outerWidth: true });
 		}));
 	}
-
 	private _fireLayoutChangeEvent(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean, outputView?: boolean }) {
 		this._layoutInfoEmitter.fire(state);
 	}
@@ -133,6 +132,7 @@ export abstract class CellDiffViewModelBase extends Disposable {
 	abstract checkIfOutputsModified(): boolean;
 	abstract checkMetadataIfModified(): boolean;
 	abstract ensureOutputsTop(): void;
+	abstract layoutChange(): void;
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
@@ -178,6 +178,24 @@ export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
 		this._modifiedOutputCollection = new Array(this.modified.outputs.length);
 	}
 
+	layoutChange() {
+		this.ensureOutputsTop();
+
+		let outputHeight = this.outputFoldingState === PropertyFoldingState.Collapsed ? 0 : this.getOutputTotalHeight();
+		this._layoutInfo = {
+			width: this._layoutInfo.width,
+			editorHeight: this._layoutInfo.editorHeight,
+			editorMargin: this._layoutInfo.editorMargin,
+			metadataHeight: this._layoutInfo.metadataHeight,
+			metadataStatusHeight: this._layoutInfo.metadataStatusHeight,
+			outputHeight: outputHeight,
+			outputStatusHeight: this._layoutInfo.outputStatusHeight,
+			bodyMargin: this._layoutInfo.bodyMargin
+		};
+
+		this._layoutInfoEmitter.fire({});
+	}
+
 	checkIfOutputsModified() {
 		return !this.documentTextModel.transientOptions.transientOutputs && this.type === 'modified' && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
 	}
@@ -197,7 +215,7 @@ export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
 			this._originalOutputCollection[index] = height;
 
 			if (this._originalOutputsTop!.changeValue(index, height)) {
-				this.outputHeight = Math.max(this._originalOutputsTop!.getTotalValue(), this._modifiedOutputsTop!.getTotalValue());
+				this.layoutChange();
 			}
 		} else {
 			if (index >= this._modifiedOutputCollection.length) {
@@ -209,7 +227,7 @@ export class SideBySideCellDiffViewModel extends CellDiffViewModelBase {
 			this._modifiedOutputCollection[index] = height;
 
 			if (this._modifiedOutputsTop!.changeValue(index, height)) {
-				this.outputHeight = Math.max(this._originalOutputsTop!.getTotalValue(), this._modifiedOutputsTop!.getTotalValue());
+				this.layoutChange();
 			}
 		}
 	}
@@ -285,6 +303,25 @@ export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
 		this._outputCollection = new Array(this.original ? this.original.outputs.length : this.modified!.outputs.length);
 	}
 
+	layoutChange() {
+		this.ensureOutputsTop();
+
+		let outputHeight = this.outputFoldingState === PropertyFoldingState.Collapsed ? 0 : this.getOutputTotalHeight();
+		this._layoutInfo = {
+			width: this._layoutInfo.width,
+			editorHeight: this._layoutInfo.editorHeight,
+			editorMargin: this._layoutInfo.editorMargin,
+			metadataHeight: this._layoutInfo.metadataHeight,
+			metadataStatusHeight: this._layoutInfo.metadataStatusHeight,
+			outputHeight: outputHeight,
+			outputStatusHeight: this._layoutInfo.outputStatusHeight,
+			bodyMargin: this._layoutInfo.bodyMargin
+		};
+
+		this._layoutInfoEmitter.fire({});
+	}
+
+
 	checkIfOutputsModified(): boolean {
 		return false;
 	}
@@ -301,7 +338,7 @@ export class SingleSideCellDiffViewModel extends CellDiffViewModelBase {
 		this.ensureOutputsTop();
 		this._outputCollection[index] = height;
 		if (this._outputsTop!.changeValue(index, height)) {
-			this.outputHeight = this._outputsTop!.getTotalValue();
+			this.layoutChange();
 		}
 	}
 

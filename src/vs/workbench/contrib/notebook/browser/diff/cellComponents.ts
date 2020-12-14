@@ -310,7 +310,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		} else {
 			this._outputInfoContainer.style.display = 'none';
 			this._outputEditorDisposeStore.clear();
-			this.cell.outputHeight = 0;
+			this.cell.layoutChange();
 		}
 	}
 
