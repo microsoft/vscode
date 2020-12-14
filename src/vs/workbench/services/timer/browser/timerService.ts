@@ -333,7 +333,7 @@ export interface ITimerService {
 	readonly _serviceBrand: undefined;
 	readonly startupMetrics: Promise<IStartupMetrics>;
 
-	submitPerformanceMarks(marks: perf.PerformanceMark[]): void;
+	submitPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -341,10 +341,13 @@ export const ITimerService = createDecorator<ITimerService>('timerService');
 
 class PerfMarks {
 
-	private readonly _entries: perf.PerformanceMark[][] = [];
+	private readonly _entries = new Map<string, perf.PerformanceMark[]>();
 
-	submitMarks(entries: perf.PerformanceMark[]): void {
-		this._entries.push(entries);
+	submitMarks(source: string, entries: perf.PerformanceMark[]): void {
+		if (this._entries.has(source)) {
+			throw new Error(`${source} EXISTS already`);
+		}
+		this._entries.set(source, entries);
 	}
 
 	getDuration(from: string, to: string): number {
@@ -361,7 +364,7 @@ class PerfMarks {
 
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
-		for (let entries of this._entries) {
+		for (let entries of this._entries.values()) {
 			for (let i = entries.length - 1; i >= 0; i--) {
 				if (entries[i].name === name) {
 					return entries[i];
@@ -413,25 +416,23 @@ export abstract class AbstractTimerService implements ITimerService {
 	}
 
 	private _submitNativeMarks(): void {
-
 		let timeOrigin = performance.timeOrigin;
 		if (!timeOrigin) {
 			// polyfill for Safari
 			const entry = performance.timing;
 			timeOrigin = entry.navigationStart || entry.redirectStart || entry.fetchStart;
 		}
-
 		const marks: perf.PerformanceMark[] = performance.getEntriesByType('mark').map(entry => {
 			return {
 				name: entry.name,
 				startTime: timeOrigin + entry.startTime
 			};
 		});
-		this.submitPerformanceMarks(marks);
+		this.submitPerformanceMarks('renderer', marks);
 	}
 
-	submitPerformanceMarks(marks: perf.PerformanceMark[]): void {
-		this._marks.submitMarks(marks);
+	submitPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
+		this._marks.submitMarks(source, marks);
 	}
 
 	get startupMetrics(): Promise<IStartupMetrics> {
