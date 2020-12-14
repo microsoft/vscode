@@ -1,15 +1,17 @@
 pr: none
 
 schedules:
-- cron: "0 6 * * Mon-Fri"
-  displayName: Mon-Fri at 8:00 CET
-  branches:
-    include:
-    - electron-11.x.y
+  - cron: "0 6 * * Mon-Fri"
+    displayName: Mon-Fri at 8:00 CET
+    branches:
+      include:
+        - electron-11.x.y
 
 variables:
-  ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}:
-    VSCODE_PUBLISH: 'false'
+  VSCODE_QUALITY: exploration
+  VSCODE_RELEASE: true
+  ? ${{ if and(eq(variables['VSCODE_PUBLISH'], ''), or(eq(variables['Build.Reason'], 'IndividualCI'), eq(variables['Build.Reason'], 'BatchedCI'))) }}
+  : VSCODE_PUBLISH: "false"
 
 resources:
   containers:
@@ -25,10 +27,6 @@ resources:
       endpoint: VSCodeHub
     - container: snapcraft
       image: snapcore/snapcraft:stable
-
-variables:
-  VSCODE_QUALITY: exploration
-  VSCODE_RELEASE: true
 
 stages:
   - stage: Compile
