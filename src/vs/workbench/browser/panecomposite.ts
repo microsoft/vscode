@@ -15,14 +15,11 @@ import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
-import { ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
-import { MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class PaneComposite extends Composite implements IPaneComposite {
-
-	private menuActions: ViewContainerMenuActions;
 
 	constructor(
 		id: string,
@@ -36,9 +33,6 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super(id, telemetryService, themeService, storageService);
-
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, viewPaneContainer.viewContainer, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext));
-		this._register(this.menuActions.onDidChangeTitle(() => this.updateTitleArea()));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
 
@@ -72,35 +66,15 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	}
 
 	getContextMenuActions(): ReadonlyArray<IAction> {
-		const result = [];
-		result.push(...this.menuActions.getContextMenuActions());
-
-		if (result.length) {
-			result.push(new Separator());
-		}
-
-		result.push(...this.viewPaneContainer.getContextMenuActions());
-		return result;
+		return this.viewPaneContainer.getContextMenuActions();
 	}
 
 	getActions(): ReadonlyArray<IAction> {
-		const result = [];
-		result.push(...this.viewPaneContainer.getActions());
-		result.push(...this.menuActions.getPrimaryActions());
-		return result;
+		return this.viewPaneContainer.getActions();
 	}
 
 	getSecondaryActions(): ReadonlyArray<IAction> {
-		const menuActions = this.menuActions.getSecondaryActions();
-		const viewPaneContainerActions = this.viewPaneContainer.getSecondaryActions();
-		if (menuActions.length && viewPaneContainerActions.length) {
-			return [
-				...menuActions,
-				new Separator(),
-				...viewPaneContainerActions
-			];
-		}
-		return menuActions.length ? menuActions : viewPaneContainerActions;
+		return this.viewPaneContainer.getSecondaryActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {

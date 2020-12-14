@@ -461,7 +461,7 @@ const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseReso
 function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
-	mark('didLoadWorkbenchMain');
+	mark('code/didLoadWorkbenchMain');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
